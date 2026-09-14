@@ -3,7 +3,7 @@
 # Agent Runtime / Context Engine Architecture (Design Note · Version 2)
 
 > Date: 2026-09-14　Author: myself
-> Version: **v2.0** (2026-09-14); the previous v1.0 (2026-09-11, *Prefix-Cache-Optimal Layered Agent Architecture*) is preserved at [tag v1.0](https://github.com/18040659483r0-pixel/prefix-cache-agent-architecture/tree/v1.0).
+> Version: **v2.0** (2026-09-14); the previous v1.0 (2026-09-11, *Prefix-Cache-Optimal Layered Agent Architecture*) is preserved at [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0).
 > Implementation: the author is **building a self-owned Agent Runtime / Context Engine from scratch**, not based on any existing agent framework.
 > Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **second version**.
 
