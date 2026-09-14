@@ -3,7 +3,7 @@
 # Agent Runtime / Context Engine 架构（设计说明 · 第二版）
 
 > 日期：2026-09-14　作者：本人
-> 版本：**v2.0**（2026-09-14）　上一版 v1.0（2026-09-11，《前缀缓存最优的分层智能体架构》）见 [tag v1.0](https://github.com/18040659483r0-pixel/prefix-cache-agent-architecture/tree/v1.0)。
+> 版本：**v2.0**（2026-09-14）　上一版 v1.0（2026-09-11，《前缀缓存最优的分层智能体架构》）见 [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0)。
 > 实现：作者正在**从零构建自有的 Agent Runtime / Context Engine**，不基于任何既有 Agent 框架。
 > 系列：第 I 篇《分层级混合形态模型架构》讲「模型形态与分层」，是**另一层面**的内容，本篇不改动它；本篇为第 II 篇，讲「运行时上下文与缓存」，此为本篇的**第二版**。
 
