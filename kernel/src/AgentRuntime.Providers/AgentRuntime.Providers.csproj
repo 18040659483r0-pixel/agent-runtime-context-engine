@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Providers</RootNamespace>
+    <AssemblyName>AgentRuntime.Providers</AssemblyName>
+    <!-- 唯一知道 HTTP / OpenAI 兼容协议 / 厂商地址的地方 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+  </ItemGroup>
+
+</Project>

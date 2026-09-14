@@ -1,0 +1,12 @@
+{
+  "provider": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:8899/v1",
+  "model": "mock-model",
+  "apiKeyEnv": "AGENTRUNTIME_MOCK_API_KEY",
+  "timeoutSeconds": 30,
+  "temperature": null,
+
+  "modules": ["session"],
+  "systemRules": "",
+  "sessionMaxTurns": 0
+}

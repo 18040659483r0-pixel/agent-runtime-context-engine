@@ -1,0 +1,13 @@
+bin/
+obj/
+runs/
+local-corpus/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+*.trx
+api_key*
+!config.json

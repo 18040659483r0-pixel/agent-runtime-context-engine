@@ -1,0 +1,14 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- 封版信息：全解决方案统一版本（0.1.0 = V0/V1 内核封版） -->
+    <Version>0.1.0</Version>
+    <Product>Agent Runtime</Product>
+    <Authors>樱桃（Cherry）</Authors>
+    <Description>从零自研的 Agent Runtime / Context Engine 内核：可插拔模块 + 可度量的上下文效率。</Description>
+    <RepositoryUrl>https://github.com/18040659483r0-pixel/agent-runtime-context-engine</RepositoryUrl>
+    <NeutralLanguage>zh-Hans</NeutralLanguage>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentRuntime.Core/AgentRuntime.Core.csproj" />
+    <Project Path="src/AgentRuntime.Models/AgentRuntime.Models.csproj" />
+    <Project Path="src/AgentRuntime.Modules/AgentRuntime.Modules.csproj" />
+    <Project Path="src/AgentRuntime.Providers/AgentRuntime.Providers.csproj" />
+    <Project Path="src/AgentRuntime.Cli/AgentRuntime.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentRuntime.Tests/AgentRuntime.Tests.csproj" />
+  </Folder>
+  <Folder Name="/benchmark/">
+    <Project Path="benchmark/AgentRuntime.Benchmark/AgentRuntime.Benchmark.csproj" />
+  </Folder>
+</Solution>

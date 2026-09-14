@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Models</RootNamespace>
+    <AssemblyName>AgentRuntime.Models</AssemblyName>
+    <!-- 纯数据层：不允许依赖任何其它项目 -->
+  </PropertyGroup>
+
+</Project>

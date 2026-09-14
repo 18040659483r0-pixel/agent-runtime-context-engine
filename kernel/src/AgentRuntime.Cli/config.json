@@ -1,0 +1,13 @@
+{
+  "provider": "openai-compatible",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "apiKeyEnv": "AGENTRUNTIME_API_KEY",
+  "apiKeyFile": "~/.agentruntime/api_key",
+  "timeoutSeconds": 120,
+  "temperature": null,
+
+  "modules": ["session"],
+  "systemRules": "",
+  "sessionMaxTurns": 0
+}

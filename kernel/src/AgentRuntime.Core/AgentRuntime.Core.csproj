@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Core</RootNamespace>
+    <AssemblyName>AgentRuntime.Core</AssemblyName>
+    <!-- 只依赖 Models（纯数据）。Core 不知道任何厂商名。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentRuntime.Tests" />
+  </ItemGroup>
+
+</Project>

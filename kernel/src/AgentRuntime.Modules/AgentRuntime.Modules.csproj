@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Modules</RootNamespace>
+    <AssemblyName>AgentRuntime.Modules</AssemblyName>
+    <!-- 可插拔框架模块（Session / 铁则 / 将来的 Memory / Knowledge）。
+         单独成程序集：去掉本 DLL，Runtime 依然能裸聊跑。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+  </ItemGroup>
+
+</Project>

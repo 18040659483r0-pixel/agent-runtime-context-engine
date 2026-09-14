@@ -1,11 +1,11 @@
 > 🌐 [English](README.md) | **中文**
 
-# Agent Runtime / Context Engine 架构（设计说明 · 第二版）
+# Agent Runtime / Context Engine 架构（设计说明 · 第三版）
 
 > 日期：2026-09-14　作者：本人
-> 版本：**v2.0**（2026-09-14）　上一版 v1.0（2026-09-11，《前缀缓存最优的分层智能体架构》）见 [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0)。
-> 实现：作者正在**从零构建自有的 Agent Runtime / Context Engine**，不基于任何既有 Agent 框架。
-> 系列：第 I 篇《分层级混合形态模型架构》讲「模型形态与分层」，是**另一层面**的内容，本篇不改动它；本篇为第 II 篇，讲「运行时上下文与缓存」，此为本篇的**第二版**。
+> 版本：**v3.0**（2026-09-14，含首轮实测）　上一版 v2.0 见 [tag v2.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v2.0)；初版 v1.0（2026-09-11，《前缀缓存最优的分层智能体架构》）见 [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0)。
+> 实现：作者**从零构建的自有 Agent Runtime / Context Engine 内核已实现并封版 v0.1.0**，源码、测试与度量尺子随本仓库发布（[`kernel/`](kernel/)）；不基于任何既有 Agent 框架。
+> 系列：第 I 篇《分层级混合形态模型架构》讲「模型形态与分层」，是**另一层面**的内容，本篇不改动它；本篇为第 II 篇，讲「运行时上下文与缓存」，此为本篇的**第三版**（首次加入实测数据）。
 
 ---
 
@@ -425,8 +425,37 @@ H                       前缀缓存命中率：Stable Prefix + Append-only 使�
 |---|---|---|
 | **Architecture Principle** | 定义性主张，架构自洽的前提 | Append-Only、Stable Prefix、Semantic Focus、Determinism Gate、Close-out Gates Promotion、Watermark |
 | **Engineering Design** | 工程实现选择 | SessionEvent 结构、Snapshot 字段、Cache Boundary 布局、收尾四步、水位线字段与存放位置 |
-| **Hypothesis** | 待实验验证的假设 | `H↑ ⇒ 成本↓`；Worker 分层 ⇒ Token 下降、质量不降；收尾唯一晋级 ⇒ 错误知识率下降 |
-| **Experimental Result** | 来自实测或公开资料 | **本版暂无**（实验计划见 §5.3） |
+| **Hypothesis** | 待实验验证的假设 | Worker 分层 ⇒ Token 下降、质量不降；收尾唯一晋级 ⇒ 错误知识率下降 |
+| **Experimental Result** | 来自实测或公开资料 | **首轮实测（§4.12）**：冻结 10k token + 稳定前缀追加 ⇒ 输入命中 **98.4%**、单轮成本 **−78.5%**；反例（动态内容前置）命中 **0%**、成本 **4.7×**；命中按 **64-token 块**对齐；内核额外时延 ≤1.3 ms |
+
+### 4.12 首轮实测结果（2026-09-14，v3.0 新增）
+
+> **实验载体**：本架构的**最小实现内核 v0.1.0**（随本仓库发布）+ **独立度量尺子**（尺子不与被测物同源 —— 否则改代码顺便改尺子，数字就失去意义）。
+> **固定项**：模型/端点 = DeepSeek V4 Flash（OpenAI 兼容）；价格 = input $0.14 / cacheRead $0.028 / output $0.28（每 1M token）；冻结语料 = 真实工程资料（规则 → 知识 → 记忆）按字符预算切片、**token 校准**到两档；每档 5 轮 × 三种形态；**变体隔离**（每个变体第 1 轮均 `cache_hit = 0`，冷启动自检）。
+
+| 档位（冻结规模） | 形态 | 输入命中 | 单轮成本 | 相对「全未命中」节省 |
+|---|---|---|---|---|
+| L0 · 0 token（最小字节版） | 稳定追加 | 0 | $0.000015–0.000034 | **0%** |
+| L1 · 1000 token | 稳定前缀 + 追加 | 896（89%） | $0.000046–0.000055 | **约 67%** |
+| L2 · 9974 token | 稳定前缀 + 追加 | **9856（98.4%）** | $0.000299 | **78.5%** |
+| L1／L2 · **反例** | **动态内容前置** | **0（5 轮全部）** | L2：$0.001403–0.001417 | **0%**（**4.7×** 成本） |
+| L1／L2 · 经内核 | 规则模块 + 会话模块 | 与手工直调**完全一致** | 同上 | 同上 |
+
+**可复核的观测**
+
+1. **命中量恒为 64 的整数倍**（896 = 64×14，9856 = 64×154，256 = 64×4）⇒ 上游前缀缓存按 **64-token 块**对齐；短于该粒度的前缀永远无法命中。
+2. 冻结规模越大，**节省率越高**（0% → 约 67% → 78.5%）—— 方向与 §4.4 Stable Prefix / Cache Boundary 一致。
+3. **只要把「每轮都变」的内容放到最前面，收益立即归零**（反例 5 轮全 0 命中、成本 4.7 倍）⇒「动态内容不得前置」由设计约定升级为**带代价数字的工程约束**。
+4. **经内核与手工直调的命中完全一致** ⇒ 本架构的运行时**不吞掉**任何缓存收益（§4.8 Runtime/Model Decoupling 的正面证据）。
+5. 内核自身开销 **最大 1.3 ms / 平均 0.1 ms**（55 次真实调用），相对模型延迟（约 0.5–2 s）可忽略。
+6. **会话维度对照组**：去掉会话模块后，多轮追问任务**直接失败**；且「省 Token」必须与「完成任务」同时记录（Task Equivalence），否则会出现「省了钱、没干活」。
+
+**本组实验不能证明什么（证据边界）**
+
+- 只覆盖**单一厂商 / 单一模型**；跨 Provider 的缓存粒度与折扣 `w` 未比较（§5.3 第 2 项仍待验）。
+- 冻结上下文为**静态注入**；§4.3 的 Close-out / Watermark **自动收敛部分尚未实现**，未验证。
+- Worker 分层（`T` 的下降）、Snapshot 恢复成功率、知识错误率等假设**均未验证**。
+- 原始记录（可复算）：`kernel/benchmark/runs/20260914-183356-clean-ladder-r2/records.jsonl`。
 
 ---
 
@@ -444,6 +473,8 @@ H                       前缀缓存命中率：Stable Prefix + Append-only 使�
 
 再逐层增加：Knowledge Versioning → Rules → Memory Index → Router → Worker → Sandbox → UI。
 
+> **实现状态（v3.0）**：上表第 1–4 项与第 9 项已在**内核 v0.1.0** 中落地（`kernel/`，含 54 项全离线测试 + 独立度量尺子 + 封版判据文档）；第 5–8、10 项待后续版本。
+
 ### 5.2 工程实现原则
 
 > **最小盒子 + 模块化 + 逐层增加。**
@@ -454,8 +485,8 @@ H                       前缀缓存命中率：Stable Prefix + Append-only 使�
 
 本架构仍需实验验证，**不得把理论假设写成实验事实**。建议至少验证：
 
-1. Append-only Context 对 Prompt Cache 命中率的实际影响
-2. 不同 Provider 的缓存行为差异
+1. ✅ **已测**（§4.12）：Append-only Context 对 Prompt Cache 命中率的实际影响
+2. ⏳ **部分已测**：不同 Provider 的缓存行为差异（已在 DeepSeek 侧观测到 **64-token 块**粒度；跨厂商未比较）
 3. Session Append Stream 与传统 Summary / Compact 的 Token 成本比较
 4. Semantic Focus 对任务完成率的影响
 5. Worker Context 收缩对 Token 消耗的影响
@@ -474,4 +505,4 @@ H                       前缀缓存命中率：Stable Prefix + Append-only 使�
 
 ### 5.5 原创声明
 
-作者（本人）正在**从零构建一套自有的 Agent Runtime / Context Engine**（不基于任何既有 Agent 框架），后续将产出实验数据以佐证结论。本文先行记录该构想，以证明其为**本人的原创思路，未抄袭他人**。
+作者（本人）正在**从零构建一套自有的 Agent Runtime / Context Engine**（不基于任何既有 Agent 框架）。**该内核已实现并封版 v0.1.0，源码、测试与独立度量尺子随本仓库发布（[`kernel/`](kernel/)）；首轮实测数据见 §4.12**，后续版本将继续补齐 §5.3 中的未验证项。本文与内核共同构成原创记录：架构设计（本 README）+ 可运行实现 + **可复算的实测证据**。

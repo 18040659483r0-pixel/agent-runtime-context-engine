@@ -1,11 +1,11 @@
 > 🌐 **English** | [中文](README.zh-CN.md)
 
-# Agent Runtime / Context Engine Architecture (Design Note · Version 2)
+# Agent Runtime / Context Engine Architecture (Design Note · Version 3)
 
 > Date: 2026-09-14　Author: myself
-> Version: **v2.0** (2026-09-14); the previous v1.0 (2026-09-11, *Prefix-Cache-Optimal Layered Agent Architecture*) is preserved at [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0).
-> Implementation: the author is **building a self-owned Agent Runtime / Context Engine from scratch**, not based on any existing agent framework.
-> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **second version**.
+> Version: **v3.0** (2026-09-14, first measured results included); the previous v2.0 is preserved at [tag v2.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v2.0); the initial v1.0 (2026-09-11, *Prefix-Cache-Optimal Layered Agent Architecture*) is preserved at [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0).
+> Implementation: the author's **self-owned Agent Runtime / Context Engine kernel is implemented and frozen at v0.1.0**; source, tests and an independent measurement harness ship in this repository ([`kernel/`](kernel/)); not based on any existing agent framework.
+> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **third version** (first version with measured data).
 
 ---
 
@@ -426,8 +426,37 @@ H                       prefix-cache hit ratio: Stable Prefix + Append-only driv
 |---|---|---|
 | **Architecture Principle** | definitional claim, prerequisite for the architecture to cohere | append-only, stable prefix, semantic focus, determinism gate, close-out gates promotion, watermark |
 | **Engineering Design** | engineering choices | SessionEvent structure, snapshot fields, cache-boundary layout, close-out steps, watermark fields and storage |
-| **Hypothesis** | assumption awaiting experiment | `H↑ ⇒ cost↓`; worker layering ⇒ fewer tokens without quality loss; close-out-gated promotion ⇒ lower erroneous-knowledge rate |
-| **Experimental Result** | measured or public data | **none yet in this version** (plan in §5.3) |
+| **Hypothesis** | assumption awaiting experiment | worker layering ⇒ fewer tokens without quality loss; close-out-gated promotion ⇒ lower erroneous-knowledge rate |
+| **Experimental Result** | measured or public data | **first measured round (§4.12)**: 10k-token frozen context + stable-prefix appends ⇒ **98.4%** input hit, **−78.5%** per-turn cost; counter-example (dynamic content at the head) ⇒ **0%** hit, **4.7×** cost; hits align to **64-token blocks**; kernel overhead ≤1.3 ms |
+
+### 4.12 First measured round (2026-09-14, new in v3.0)
+
+> **Carrier**: the architecture's **minimal kernel v0.1.0** (shipped in this repo) plus an **independent measurement harness** — the ruler must not be part of the measured object, otherwise editing code also edits the ruler and the numbers lose meaning.
+> **Fixed variables**: model/endpoint = DeepSeek V4 Flash (OpenAI-compatible); prices = input $0.14 / cacheRead $0.028 / output $0.28 per 1M tokens; frozen corpus = real engineering material (rules → knowledge → memory) sliced by character budget and **calibrated in tokens** to two tiers; 5 turns × three forms per tier; **variant isolation** (every variant's turn 1 shows `cache_hit = 0`, a cold-start check).
+
+| Tier (frozen size) | Form | Input hits | Per-turn cost | Saving vs. fully uncached |
+|---|---|---|---|---|
+| L0 · 0 tokens (minimal-byte) | stable append | 0 | $0.000015–0.000034 | **0%** |
+| L1 · 1,000 tokens | stable prefix + append | 896 (89%) | $0.000046–0.000055 | **≈67%** |
+| L2 · 9,974 tokens | stable prefix + append | **9,856 (98.4%)** | $0.000299 | **78.5%** |
+| L1／L2 · **counter-example** | **dynamic content at the head** | **0 (all five turns)** | L2: $0.001403–0.001417 | **0%** (**4.7×** cost) |
+| L1／L2 · through the kernel | rules module + session module | **identical** to hand-rolled calls | same | same |
+
+**Reproducible observations**
+
+1. **Hit counts are always multiples of 64** (896 = 64×14, 9,856 = 64×154, 256 = 64×4) ⇒ the upstream prefix cache aligns to **64-token blocks**; prefixes shorter than that granularity can never hit.
+2. The larger the frozen context, the **higher the saving** (0% → ≈67% → 78.5%) — consistent with the direction claimed in §4.4.
+3. **Putting anything that changes every turn at the very front drives the benefit to zero** (counter-example: 0 hits across five turns, 4.7× cost) ⇒ "dynamic content must not lead" is upgraded from a design convention to a **cost-bearing engineering constraint**.
+4. **Hits through the kernel are identical to hand-rolled calls** ⇒ the runtime **does not swallow** any cache benefit (positive evidence for §4.8).
+5. Kernel overhead: **max 1.3 ms / mean 0.1 ms** over 55 real calls, negligible against model latency (≈0.5–2 s).
+6. **Session control group**: removing the session module makes multi-turn follow-up tasks **fail outright**; token savings must therefore always be recorded alongside **task equivalence**, or we get "cheaper but not done".
+
+**What this round does not prove (evidence boundary)**
+
+- A **single provider / single model** only; cache granularity and discount `w` across providers are not compared (§5.3 item 2 still open).
+- The frozen context is **statically injected**; the automatic close-out / watermark convergence of §4.3 is **not implemented** and therefore untested.
+- Worker layering (the fall of `T`), snapshot recovery rate, and knowledge-error rate remain **unverified**.
+- Raw records (recomputable): `kernel/benchmark/runs/20260914-183356-clean-ladder-r2/records.jsonl`.
 
 ---
 
@@ -445,6 +474,8 @@ H                       prefix-cache hit ratio: Stable Prefix + Append-only driv
 
 Then add, one layer at a time: Knowledge Versioning → Rules → Memory Index → Router → Worker → Sandbox → UI.
 
+> **Implementation status (v3.0)**: items 1–4 and 9 of the list above are implemented in **kernel v0.1.0** (`kernel/`: 54 fully offline tests, an independent measurement harness, and a freeze-criteria document); items 5–8 and 10 remain for later versions.
+
 ### 5.2 Engineering principles
 
 > **Minimal box + modular + grow one layer at a time.**
@@ -455,8 +486,8 @@ Phase one should **not** include complex UI, multi-agent orchestration, automati
 
 The architecture still needs experimental validation, and **theoretical assumptions must not be written as experimental facts**. At minimum, verify:
 
-1. the effect of append-only context on prompt-cache hit ratio
-2. differences in caching behavior across providers
+1. ✅ **measured** (§4.12): the effect of append-only context on prompt-cache hit ratio
+2. ⏳ **partially measured**: differences in caching behavior across providers (a **64-token block** granularity was observed on the DeepSeek side; cross-provider comparison still open)
 3. token-cost comparison of an append-only stream vs conventional summary/compact
 4. the effect of Semantic Focus on task completion rate
 5. the effect of worker context shrinkage on token consumption
@@ -475,4 +506,4 @@ What the architecture solves is the common problem of "**how to split a large pr
 
 ### 5.5 Originality statement
 
-The author **is building a self-owned Agent Runtime / Context Engine from scratch** (not based on any existing agent framework); experimental data will follow to substantiate the conclusions. This note records the idea first, to establish it as the author's **own original work, not copied from others**.
+The author **is building a self-owned Agent Runtime / Context Engine from scratch** (not based on any existing agent framework). **That kernel is now implemented and frozen at v0.1.0, with source, tests and an independent measurement harness shipped in this repository ([`kernel/`](kernel/)); the first measured round is in §4.12.** Later versions will close the remaining items of §5.3. Together, this note and the kernel form the original record: architecture (this README) + a runnable implementation + **recomputable measured evidence**.
