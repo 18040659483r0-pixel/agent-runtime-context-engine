@@ -90,7 +90,7 @@ public sealed class ModulePipelineTests
     public async Task 消融_移除某模块后_其余模块贡献与移除前逐字一致()
     {
         var rules = ChatMessage.System("你是樱桃。");
-        var history = new[] { ChatMessage.User("我叫徐总"), ChatMessage.Assistant("记住了") };
+        var history = new[] { ChatMessage.User("我叫张总"), ChatMessage.Assistant("记住了") };
         var client = FakeModelClient.Returning("ok");
 
         // 两模块都在
@@ -127,11 +127,11 @@ public sealed class ModulePipelineTests
         var client = FakeModelClient.Returning("记住了");
         var engine = new AgentRuntimeEngine(client, Options(), [session]);
 
-        await engine.ChatAsync("我叫徐总", TestContext.Current.CancellationToken);
+        await engine.ChatAsync("我叫张总", TestContext.Current.CancellationToken);
         var second = await engine.ChatAsync("我叫什么", TestContext.Current.CancellationToken);
 
         Assert.Equal(["user", "assistant", "user"], second.Request.Messages.Select(m => m.Role));
-        Assert.Equal("我叫徐总", second.Request.Messages[0].Content);
+        Assert.Equal("我叫张总", second.Request.Messages[0].Content);
         Assert.Equal("记住了", second.Request.Messages[1].Content);
         Assert.Equal("我叫什么", second.Request.Messages[2].Content);
         Assert.Equal(4, session.MessageCount);

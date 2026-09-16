@@ -79,7 +79,7 @@ public sealed class AppendStreamTests
     {
         var stream = new SessionAppendStream();
         stream.Append(SessionEventKind.Rule, "铁则一");
-        stream.Append(SessionEventKind.UserInput, "我叫徐总");
+        stream.Append(SessionEventKind.UserInput, "我叫张总");
         stream.Append(SessionEventKind.AgentOutput, "记住了");
 
         var messages = stream.ToMessages();
@@ -192,7 +192,7 @@ public sealed class AppendStreamTests
         var module = new AppendStreamModule(new SessionAppendStream());
         var engine = new AgentRuntimeEngine(FakeModelClient.Returning("记住了"), new RuntimeOptions { Model = "m" }, [module]);
 
-        await engine.ChatAsync("我叫徐总", TestContext.Current.CancellationToken);
+        await engine.ChatAsync("我叫张总", TestContext.Current.CancellationToken);
 
         Assert.Equal(2, module.EventCount);
         Assert.Equal(SessionEventKind.UserInput, module.Stream.Events[0].Kind);

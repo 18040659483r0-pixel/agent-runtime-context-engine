@@ -8,7 +8,7 @@ public sealed class T04Session : IBenchmarkScenario
 {
     private static readonly string[] Script =
     [
-        "我叫徐总，请记住我的称呼。",
+        "我叫张总，请记住我的称呼。",
         "我叫什么名字？",
         "再说一遍我的名字。",
     ];
@@ -40,7 +40,7 @@ public sealed class T04Session : IBenchmarkScenario
         }
     }
 
-    /// <summary>第 1 轮是「告知」，无判定；第 2、3 轮必须答出「徐总」才算完成任务。</summary>
+    /// <summary>第 1 轮是「告知」，无判定；第 2、3 轮必须答出「张总」才算完成任务。</summary>
     private static bool? Judge(int turn, string response) =>
         turn == 1 ? null : response.Contains(Corpus.TaskKeyword, StringComparison.Ordinal);
 }

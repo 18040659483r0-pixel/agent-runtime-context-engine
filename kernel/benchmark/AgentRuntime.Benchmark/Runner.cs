@@ -72,7 +72,7 @@ public static class Corpus
     /// <summary>反例构造：把「每次都变」的内容放到最前面（动态内容前置）。</summary>
     public static string DynamicFront(string dynamicMarker, string body) => $"[{dynamicMarker}]\n{body}";
 
-    public const string TaskKeyword = "徐总";
+    public const string TaskKeyword = "张总";
 
     /// <summary>
     /// 变体隔离标记：同一 run 内每个变体都带唯一 salt。

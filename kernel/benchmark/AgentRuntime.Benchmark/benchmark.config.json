@@ -13,7 +13,7 @@
 
   "runsDir": "../runs",
 
-  "_corpus_comment": "冻结上下文语料：按「铁则 → 知识 → 记忆」堆叠，**只用仓库内 corpus/ 的去隐私 10K 切片**（可公开，他人可复现同一档位）。⚠️ **禁止**改成私有全量语料或本机路径——lock 节是硬闸门，违反即拒绝执行（主人 2026-09-14 定死）。快照落 local-corpus/（私有，勿发布）。",
+  "_corpus_comment": "冻结上下文语料：按「铁则 → 知识 → 记忆」堆叠，**只用仓库内 corpus/ 的去隐私 10K 切片**（可公开，他人可复现同一档位）。⚠️ **禁止**改成私有全量语料或本机路径——lock 节是硬闸门，违反即拒绝执行（作者 2026-09-14 定死）。快照落 local-corpus/（私有，勿发布）。",
   "corpus": {
     "lock": {
       "_comment": "实验语料锁：测试工程只允许这 3 个文件、冻结规模 ≤10k token、指纹必须与 corpus.lock.json 一致。改语料必须同步：python3 benchmark/tools/lock-corpus.py --update",
