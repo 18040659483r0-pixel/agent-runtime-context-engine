@@ -1,0 +1,8 @@
+/tail "当前任务: 给 TUI 做零成本演示\n待办: 看右栏的 Δ"
+把这轮的部署代号确认一下
+/draft "构想: 右栏 Δ 是一等公民\n待确认: 一帧只显示一份差"
+那回滚窗口呢？
+再确认一次部署代号
+/snapshot
+/fork .demo/snapshot.json .demo/forked-stream.jsonl
+/quit

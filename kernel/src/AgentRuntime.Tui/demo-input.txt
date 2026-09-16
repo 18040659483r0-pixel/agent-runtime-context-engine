@@ -1,0 +1,16 @@
+/tail "当前任务: 给 TUI 做零成本演示\n待办: 六个面板各调一次"
+/draft "构想: 面板只读刷新不改字节\n待确认: /ablate 的副作用要写明"
+把这轮的部署代号确认一下
+/stack
+/hits
+/tail
+/draft
+/focus
+/snapshot
+/fork .demo/snapshot.json .demo/forked-stream.jsonl
+/resume .demo/snapshot.json
+/ablate dynamic-draft
+/stack
+/ablate dynamic-draft on
+/stack dump .demo/stack-dump.txt
+/quit

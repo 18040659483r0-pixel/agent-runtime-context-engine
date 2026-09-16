@@ -1,0 +1,38 @@
+# 发布前扫描 —— **唯一禁字清单**（单一来源，别在别处再抄一份）
+#
+# 谁读它：
+#   · tools/pre-publish-scan.sh                  （bash 侧：硬红线 / 软提示的**全部**规则）
+#   · benchmark/AgentRuntime.Benchmark/CorpusLock.cs （C# 侧：④ 泄露自检）
+#   · tests/AgentRuntime.Tests/CorpusLockTests.cs    （测试夹具也从这里取）
+#
+# 格式：`<kind>\t<pattern>\t<scope>\t<说明>`（TAB 分隔；`#` 开头为注释）
+#   kind    = path（目录/文件名，子串）| content（内容正则，ERE 与 .NET 公共子集）| soft（只告警）
+#   scope   = 这条规则**属于哪一类**（谁该用哪几条也走单一来源，不在代码里再抄一份名单）：
+#             corpus    = 私有语料/快照 ⇒ 「配置与启动脚本不得引用」那条测试也用它
+#             output    = 实验产物目录/文件名 ⇒ **切片里不许带**，但配置引用自己的输出目录是合法的
+#             safety    = 本机路径 / 内网地址 / 凭据 / 网盘
+#             judgement = 人名、用户名（软提示）
+#
+# 纪律：
+#   1. 改这份文件 = 改**发布口径** ⇒ 必须跑一遍 `tools/pre-publish-scan.sh <目录>` 自检（含负例）。
+#   2. 本文件**自身**是规则定义，必然含这些模式 ⇒ 扫描器对它**具名豁免**（见 pre-publish-scan.sh 的 ALLOW_RE）。
+#   3. 凭据类模式前面带 `(^|[^A-Za-z0-9])` —— 防**假阳性**（例：`mustask-missing` 里恰好含 `sk-m`），
+#      真凭据出现在行首 / 空白 / 引号 / `=` 之后，仍照旧命中。
+#
+path	frozen-private	corpus	私有全量语料（A/B 档）
+path	local-corpus	corpus	私有快照目录（benchmark 产物，绝不发布）
+path	runs	output	实验原始记录目录（切片里不许带；配置引用自己的输出目录合法）
+path	records.jsonl	output	实验原始记录文件（同上）
+content	/Users/	safety	macOS 本机路径
+content	C:\\Users	safety	Windows 本机路径
+content	F:\\AgentWorkFlow	safety	内网工作副本路径
+content	192\.168\.	safety	内网地址
+content	(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}	safety	API 密钥形态（OpenAI 风格）
+content	(^|[^A-Za-z0-9])ghp_[A-Za-z0-9]{8,}	safety	GitHub PAT（经典）
+content	(^|[^A-Za-z0-9])github_pat_	safety	GitHub PAT（细粒度）
+content	pan\.baidu\.com	safety	网盘地址
+soft	徐总	judgement	人名 / 称谓
+soft	主人	judgement	称谓
+soft	樱桃	judgement	昵称
+soft	\bwazi\b	judgement	本机用户名
+soft	18040659483r0-pixel	judgement	GitHub 用户名

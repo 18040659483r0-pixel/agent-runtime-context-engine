@@ -11,11 +11,21 @@
     <!-- 组合根：全项目里唯一 new 具体实现的地方 -->
   </PropertyGroup>
 
+  <!-- 测试面：四条 tail 命令的实现（ShowTail / ApplyTailOverride / ParseOnOff）需要被 CLI 面的
+       不变量测试直接调到 —— 否则「CLI 面」就只能靠手工跑，回归不了。 -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AgentRuntime.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
     <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
     <ProjectReference Include="..\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
     <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+    <!-- 组合根（配置 → 模块 → 客户端 → 引擎 + 只读面板）与 TUI 共用：不复制第二份装配逻辑。 -->
+    <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
   </ItemGroup>
 
   <ItemGroup>

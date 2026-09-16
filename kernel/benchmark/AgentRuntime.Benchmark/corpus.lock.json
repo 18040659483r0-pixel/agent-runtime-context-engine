@@ -1,0 +1,8 @@
+{
+  "_comment": "实验语料锁：测试工程只允许这三个文件；改语料必须同步更新本文件（python3 benchmark/tools/lock-corpus.py --update）。",
+  "files": {
+    "corpus/knowledge.md": "sha256:779c7d9608b852657494be661571c426323ffeb1c81c4868aa65aac6b6f7f4fd",
+    "corpus/memory.md": "sha256:1218dd7b88593bee21e9daf0333e2544a0076b329977b20f187f5665b9cf6923",
+    "corpus/rules.md": "sha256:a5b2e62f1b6e4716700628b9c63f2b862a88799bb04871585f5acf52068447ff"
+  }
+}

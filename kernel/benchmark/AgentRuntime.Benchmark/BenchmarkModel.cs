@@ -67,6 +67,10 @@ public sealed class CorpusConfiguration
 
     [JsonPropertyName("tiers")]
     public List<CorpusTierSpec> Tiers { get; set; } = [];
+
+    /// <summary>**实验语料锁**（主人 2026-09-14 定死）：测试工程只允许用仓库内的 10K 切片。</summary>
+    [JsonPropertyName("lock")]
+    public CorpusLockSpec Lock { get; set; } = new();
 }
 
 public sealed class CorpusTierSpec

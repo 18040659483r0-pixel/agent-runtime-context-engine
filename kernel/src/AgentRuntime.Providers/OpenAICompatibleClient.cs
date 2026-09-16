@@ -31,6 +31,12 @@ public sealed class OpenAICompatibleClient : IModelClient
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
+    /// <summary>
+    /// 请求体的序列化口径（**唯一声明处**）：宿主侧要「量 prompt 字节」时必须用它。
+    /// <para>暴露只读引用而不复制一份：复制出来的第二把尺子量出的「没变」不算证据。</para>
+    /// </summary>
+    public static JsonSerializerOptions RequestSerializerOptions => WriteOptions;
+
     private readonly HttpClient _http;
     private readonly OpenAICompatibleOptions _options;
 

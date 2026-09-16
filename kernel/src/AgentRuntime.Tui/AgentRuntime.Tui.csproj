@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Tui</RootNamespace>
+    <AssemblyName>AgentRuntime.Tui</AssemblyName>
+    <!-- AgentRuntime 的第一个宿主实现 + 观测台：
+         REPL（一行普通文本 = 跑一个 turn，与 CLI 同一条路径）+ 面板命令（`/` 开头）。
+         **零第三方库**：纯 Console + 纯文本输出（可落盘、可 diff、可进实验记录）。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentRuntime.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="config.demo.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

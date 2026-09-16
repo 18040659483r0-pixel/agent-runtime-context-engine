@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Hosting</RootNamespace>
+    <AssemblyName>AgentRuntime.Hosting</AssemblyName>
+    <!-- 宿主共用层（组合根）：把「配置 → 模块 → 客户端 → 引擎」的装配与只读面板渲染
+         收在一处，供多个宿主（Cli / Tui）复用 —— 内核（Core）与模块（Modules）都不认识它。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentRuntime.Tests" />
+    <InternalsVisibleTo Include="AgentRuntime.Tui" />
+  </ItemGroup>
+
+</Project>

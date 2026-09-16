@@ -26,14 +26,14 @@ public sealed class T05Ablation : IBenchmarkScenario
 
         // ③ 只挂会话（两轮）
         var session = context.EngineFactory(Variants.Session());
-        var s1 = await Runner.ViaEngineAsync(session, Corpus.Salt(context.RunNonce, "T05/session") + "我叫用户A，请记住我的称呼。", cancellationToken);
+        var s1 = await Runner.ViaEngineAsync(session, Corpus.Salt(context.RunNonce, "T05/session") + "我叫徐总，请记住我的称呼。", cancellationToken);
         context.Report(Id, "runtime:session", 1, s1, taskPassed: null, note: "会话第 1 轮");
         var s2 = await Runner.ViaEngineAsync(session, "我叫什么名字？", cancellationToken);
         context.Report(Id, "runtime:session", 2, s2, s2.Response.Contains(Corpus.TaskKeyword), note: "会话第 2 轮");
 
         // ④ 铁则 + 会话（两轮）
         var both = context.EngineFactory(Variants.RulesAndSession(Corpus.SessionRules));
-        var b1 = await Runner.ViaEngineAsync(both, Corpus.Salt(context.RunNonce, "T05/rules+session") + "我叫用户A，请记住我的称呼。", cancellationToken);
+        var b1 = await Runner.ViaEngineAsync(both, Corpus.Salt(context.RunNonce, "T05/rules+session") + "我叫徐总，请记住我的称呼。", cancellationToken);
         context.Report(Id, "runtime:system-rules+session", 1, b1, taskPassed: null, note: "铁则+会话第 1 轮");
         var b2 = await Runner.ViaEngineAsync(both, "我叫什么名字？", cancellationToken);
         context.Report(Id, "runtime:system-rules+session", 2, b2, b2.Response.Contains(Corpus.TaskKeyword), note: "铁则+会话第 2 轮");

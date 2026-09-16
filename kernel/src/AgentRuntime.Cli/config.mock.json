@@ -6,7 +6,9 @@
   "timeoutSeconds": 30,
   "temperature": null,
 
-  "modules": ["session"],
+  "modules": ["rules", "knowledge", "session"],
   "systemRules": "",
-  "sessionMaxTurns": 0
+  "sessionMaxTurns": 0,
+
+  "frozen": { "root": "../../frozen", "domains": [], "project": "" }
 }

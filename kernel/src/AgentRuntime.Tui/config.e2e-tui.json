@@ -1,0 +1,17 @@
+{
+  "provider": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:8899/v1",
+  "model": "mock-model",
+  "apiKeyEnv": "AGENTRUNTIME_MOCK_API_KEY",
+  "timeoutSeconds": 30,
+  "temperature": null,
+  "modules": ["system-rules", "rules", "knowledge", "memory-index", "append-stream", "tool", "current-tail", "dynamic-draft", "focus"],
+  "systemRules": "e2e: 只用于 TUI 审批闸门的端到端验证。",
+  "sessionMaxTurns": 0,
+  "frozen": { "root": "../../frozen", "watermark": "./.e2e-tui/watermark.json", "domains": [], "project": "" },
+  "stream": { "path": "./.e2e-tui/stream.jsonl", "maxEvents": 0 },
+  "snapshot": { "path": "./.e2e-tui/snapshot.json" },
+  "focus": { "path": "./.e2e-tui/focus.json" },
+  "currentTail": { "storePath": "./.e2e-tui/tail" },
+  "dynamicDraft": { "storePath": "./.e2e-tui/draft" }
+}

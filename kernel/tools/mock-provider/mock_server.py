@@ -55,6 +55,24 @@ class Handler(BaseHTTPRequestHandler):
         first_user = next((m.get("content", "") for m in messages if m.get("role") == "user"), "")
         model = request.get("model", "mock-model")
 
+        # 工具面 E2E 专用分支（不影响下面那条固定回显）：
+        #   用户消息以 "@tool " 开头 ⇒ 回一段**行首**的 [TOOL] 块（真实模型回复的等价物）。
+        #   用法：@tool write {"path":"/tmp/x.txt","content":"hi"} —— 便于在 TUI 里敲不出来换行时也能驱动一次工具调用。
+        reply = f"[mock] 收到：{first_user}"
+
+        # 取**最后一条**以 "@tool " 开头的 user 消息（多轮时不能用"第一条"，否则会拿旧目标）。
+        # 回的是**带 [TOOL] 块头**的一行 —— 协议要求块头在行首，这里正好是一行的开头。
+        tool_payload = next(
+            (m["content"][len("@tool "):].strip()
+             for m in reversed(messages)
+             if m.get("role") == "user"
+             and isinstance(m.get("content"), str)
+             and m["content"].startswith("@tool ")),
+            None,
+        )
+        if tool_payload is not None:
+            reply = "[TOOL] " + tool_payload
+
         # 固定回显 + 固定 usage：让 Benchmark 的 T01/T02/T03 有确定性基线。
         self._json(200, {
             "id": "chatcmpl-mock-0001",
@@ -63,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
             "model": model,
             "choices": [{
                 "index": 0,
-                "message": {"role": "assistant", "content": f"[mock] 收到：{first_user}"},
+                "message": {"role": "assistant", "content": reply},
                 "finish_reason": "stop",
             }],
             "usage": {

@@ -15,6 +15,7 @@
 | 6 | 度量**可复算**、变体**不互相污染** | ✅ | `records.jsonl` + 变体 salt 置前缀最前（冷启动 cached=0） |
 | 7 | 核心主张有**实测支撑** | ✅ | 见下表（10k 档省 78.7%，反例 0 命中） |
 | 8 | 框架自身开销可忽略 | ✅ | 55 次真实调用：**最大 1.3ms / 平均 0.1ms** |
+| 9 | **测试工程只用 10K 切片**（实验语料锁） | ✅ | `CorpusLockTests` **4/4**；反测：改语料 → 测试红；尺子侧 `CorpusLock.Verify` 违规即 `exit 3`（不发起调用） |
 
 ## 二、冻结项（0.1.0 之后不得改动）
 
@@ -24,6 +25,12 @@
 4. **计时口径**：`RuntimeOverheadMs = TotalMs − ProviderCallMs`（唯一定义处）。
 5. **密钥纪律**：密钥只从环境变量或本地文件取，**不进日志 / 异常 / 仓库**。
 6. **实验纪律**：变体隔离 salt 必须位于**冻结前缀最前面**；语料快照与 runs 记录不入公共仓库。
+7. **实验语料锁**（主人 2026-09-14 定死）：测试工程**只允许**使用 `benchmark/AgentRuntime.Benchmark/corpus/` 的 10K 切片（17,990 字符 ≈ **9,569 token**）；**改动语料必须同步 `corpus.lock.json`**。四处闸门同时守：
+   ① `benchmark.config.json` 的 `corpus.lock.allowedSources` 白名单；
+   ② 尺子启动即检 `CorpusLock.Verify`（违规 → `exit 3`，**在取密钥/发请求之前**退出）；
+   ③ `python3 benchmark/tools/lock-corpus.py --check`；
+   ④ xUnit `CorpusLockTests`（4 条，独立于尺子程序集）。
+   **为什么**：私有全量语料 A 档 ≈24.5k token，与 10K 切片差 2.5 倍；一旦实验改用全量，「冻结规模 → 命中率/成本」的结论就**静默失真**。
 
 ## 三、实测证据（2026-09-14，DeepSeek V4 Flash，`runs/20260914-183356-clean-ladder-r2/`）
 
@@ -65,7 +72,7 @@
 ## 六、复现步骤
 
 ```bash
-cd kernel
+cd projects/AgentRuntime
 dotnet test AgentRuntime.slnx                 # 54/54，零网络
 ./benchmark/run-bench.sh --calibrate          # 校准语料档位 token（3 次调用）
 ./benchmark/run-bench.sh --plan               # 看计划（不花钱）
@@ -73,3 +80,16 @@ dotnet test AgentRuntime.slnx                 # 54/54，零网络
 ```
 - 语料来源在 `benchmark/AgentRuntime.Benchmark/benchmark.config.json` 的 `corpus.sources`（可换成任意文本；缺失自动退化为合成语料）。
 - 报告：`benchmark/runs/<run>/summary.md`；原始记录：同目录 `records.jsonl`。
+
+---
+
+## 七、V3 Append Stream（2026-09-14 落地，0.2 线）
+
+| 判据 | 证据 |
+|---|---|
+| **只追加**：API 层面没有删除 / 插入 / 重排入口 | 反射测试断言公开方法无 `Remove*/Insert*/Clear/Sort/Reverse/Replace`；`SessionEvent` 无可写属性 |
+| **顺序是身份**：序号必须 1..N 严格连续 | `SessionAppendStream.ValidateInvariants()`（组装期）+ `SessionStreamStore.Load()`（重放期）双闸门；坏文件测试抛 `InvalidDataException` |
+| **跨进程续接** | 真机：第二轮从文件重放 → `cached 29,312 / 29,542 = 99.2%`、uncached 230 |
+| **L3 逐条加载** | `--append <file>` 一次一条；真机 prompt **24,569 → 29,504** |
+| **不破坏消融与闸门** | 消融测试（追加事件流后冻结区贡献逐字不变）+ `DeterminismGate` 测试（事件流不得排在冻结区之前） |
+| **测试** | **133/133**，0 警告 |

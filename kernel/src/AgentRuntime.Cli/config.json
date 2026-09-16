@@ -6,8 +6,21 @@
   "apiKeyFile": "~/.agentruntime/api_key",
   "timeoutSeconds": 120,
   "temperature": null,
-
-  "modules": ["session"],
+  "modules": [
+    "rules",
+    "knowledge",
+    "memory-index",
+    "session"
+  ],
   "systemRules": "",
-  "sessionMaxTurns": 0
+  "sessionMaxTurns": 0,
+  "frozen": {
+    "root": "../../frozen",
+    "domains": [],
+    "project": ""
+  },
+  "stream": {
+    "path": "",
+    "maxEvents": 0
+  }
 }

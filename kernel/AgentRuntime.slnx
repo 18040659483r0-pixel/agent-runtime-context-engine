@@ -5,6 +5,8 @@
     <Project Path="src/AgentRuntime.Modules/AgentRuntime.Modules.csproj" />
     <Project Path="src/AgentRuntime.Providers/AgentRuntime.Providers.csproj" />
     <Project Path="src/AgentRuntime.Cli/AgentRuntime.Cli.csproj" />
+    <Project Path="src/AgentRuntime.Hosting/AgentRuntime.Hosting.csproj" />
+    <Project Path="src/AgentRuntime.Tui/AgentRuntime.Tui.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentRuntime.Tests/AgentRuntime.Tests.csproj" />

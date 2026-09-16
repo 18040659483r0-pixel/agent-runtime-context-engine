@@ -57,6 +57,19 @@ internal static class Program
         var benchConfigDir = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
         var bench = BenchmarkConfiguration.Load(configPath);
 
+        // 实验语料锁（主人 2026-09-14 定死）：违规就**拒绝执行**，且在取密钥/发请求之前退出。
+        var lockViolations = CorpusLock.Verify(bench.Corpus, benchConfigDir);
+        if (lockViolations.Count > 0)
+        {
+            Console.Error.WriteLine("[语料锁] ❌ 违规，拒绝执行（不发起任何调用）：");
+            foreach (var violation in lockViolations)
+            {
+                Console.Error.WriteLine($"   · {violation}");
+            }
+
+            return 3;
+        }
+
         // 约定：benchmark.config.json 里的相对路径，一律相对「该文件所在目录」解析。
         var runtimeConfigPath = ResolveAgainst(benchConfigDir, bench.RuntimeConfig);
         var runtime = RuntimeConfiguration.Load(runtimeConfigPath);
@@ -82,7 +95,7 @@ internal static class Program
         var runtimeOptions = new RuntimeOptions { Model = runtime.Model, Temperature = runtime.Temperature };
 
         var scenarios = SelectScenarios(suiteArg);
-        var all = new IBenchmarkScenario[] { new T01Baseline(), new T02Repeat(), new T04Session(), new T05Ablation(), new T06FrozenLadder() };
+        var all = new IBenchmarkScenario[] { new T01Baseline(), new T02Repeat(), new T04Session(), new T05Ablation(), new T06FrozenLadder(), new T07FrozenVersionBump() };
         var selected = scenarios is null ? all : all.Where(s => scenarios.Contains(s.Id, StringComparer.OrdinalIgnoreCase)).ToArray();
 
         var plannedCalls = selected.Sum(s => s.PlannedCalls) + (selected.Any(s => s.Id == "T06") ? EstimateT06Calls(tiers) : 0);
@@ -94,7 +107,7 @@ internal static class Program
         Console.WriteLine($"价格来源    : {bench.Pricing.Source}");
         Console.WriteLine($"场景        : {string.Join(", ", selected.Select(s => s.Id))}");
         Console.WriteLine($"语料档位    : {string.Join(" · ", tiers.Select(t => $"{t.Id}({t.Chars}字符/{(t.IsEmpty ? "空" : string.Join('+', t.Sources))})"))}");
-        Console.WriteLine($"语料快照    : {snapshotDir}  （⚠️ 含私有素材，勿发布）");
+        Console.WriteLine($"语料快照    : {snapshotDir}  （默认语料已去隐私可公开；若换用私有源则勿发布）");
         Console.WriteLine($"runNonce    : {runNonce}（每个变体带独立 salt → 变体间不会互相预热缓存）");
         Console.WriteLine($"预计 API 调用: {plannedCalls} 次（真实计费）");
         Console.WriteLine("=========================================================");
@@ -109,6 +122,11 @@ internal static class Program
             foreach (var tier in tiers)
             {
                 Console.WriteLine($"  T06[{tier.Id}] · {tier.Label} · 冻结 {tier.Chars} 字符 · 变体 2~3 种 × 5 轮");
+            }
+
+            if (selected.Any(s => s.Id == "T07"))
+            {
+                Console.WriteLine("  T07 · 冻结版本变更（取最大档）：v1→v1 / v1→追加尾部 / v1→改头部，各 2 轮");
             }
 
             Console.WriteLine("（--plan：只列出计划，未发起任何调用）");

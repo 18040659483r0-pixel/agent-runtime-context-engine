@@ -59,29 +59,30 @@ public sealed class AgentRuntimeEngine
     public bool IsBare => _modules.Length == 0;
 
     /// <summary>一句话进 → 模型一句话回。</summary>
-    public async Task<RuntimeResult> ChatAsync(string message, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+    public Task<RuntimeResult> ChatAsync(string message, CancellationToken cancellationToken = default) =>
+        RunAsync(message, continuation: false, cancellationToken);
 
-        var context = new RuntimeContext(SessionId, Turn);
+    /// <summary>
+    /// **续跑轮**：没有新的用户输入，只为让模型消费上一轮已经落进流的**工具结果**（或其它事件）。
+    /// <para>为什么需要它：协议规定「一次回复只允许一次工具调用 / 必须等结果事件」——结果落地后，
+    /// 模型该有机会接着说话；没有它，每一个工具轮都得由人在终端里推一下（那就是「不自持」）。
+    /// </para>
+    /// <para>不变量：**续跑轮不写 UserInput 事件**（用户没说话就不该有用户事件），且**不改前缀字节**
+    /// （只在尾部追加）。</para>
+    /// </summary>
+    public Task<RuntimeResult> ContinueAsync(CancellationToken cancellationToken = default) =>
+        RunAsync(message: null, continuation: true, cancellationToken);
+
+    private async Task<RuntimeResult> RunAsync(string? message, bool continuation, CancellationToken cancellationToken)
+    {
+        var context = new RuntimeContext(SessionId, Turn, continuation);
 
         var total = Stopwatch.StartNew();
 
-        var messages = new List<ChatMessage>();
-        foreach (var module in _modules)
-        {
-            await module.ContributeAsync(context, messages, cancellationToken).ConfigureAwait(false);
-        }
-
-        messages.Add(ChatMessage.User(message));
-
-        var request = new ChatRequest
-        {
-            Model = _options.Model,
-            Messages = messages,
-            Temperature = _options.Temperature,
-            MaxTokens = _options.MaxTokens,
-        };
+        // 组装只有一处实现（RequestAssembler）：宿主的「只读预览」与这里逐字节同源。
+        var request = await RequestAssembler
+            .AssembleAsync(_options, _modules, context, message, cancellationToken)
+            .ConfigureAwait(false);
 
         var providerCall = Stopwatch.StartNew();
         var response = await _client.CompleteAsync(request, cancellationToken).ConfigureAwait(false);

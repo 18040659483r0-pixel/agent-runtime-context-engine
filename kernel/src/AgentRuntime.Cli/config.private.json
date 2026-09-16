@@ -1,0 +1,20 @@
+{
+  "_comment": "私有冻结语料配置（A 档）：frozen.root 指向由 tools/frozen-build 生成的 frozen-private/。本文件只含路径，不含任何密钥。",
+
+  "provider": "openai-compatible",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "apiKeyEnv": "AGENTRUNTIME_API_KEY",
+  "apiKeyFile": "~/.agentruntime/api_key",
+  "timeoutSeconds": 180,
+  "temperature": null,
+
+  "modules": ["rules", "knowledge", "memory-index", "session"],
+  "systemRules": "",
+  "sessionMaxTurns": 0,
+
+  "frozen": { "root": "../../frozen-private", "domains": [], "project": "" },
+
+  "_skill_comment": "V6 接线（#5）：L3 地址表 = [WB] 自持语料根里的派生索引（只读、可重建）。配上它，[SKILL] 自报才会真的按 id 追 L3 正文进流。",
+  "skill": { "repo": "../../whitebox/workspace/knowledge/.derived/l3.jsonl", "resident": "../../whitebox/workspace/knowledge/.derived" },
+}

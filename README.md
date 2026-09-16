@@ -1,11 +1,11 @@
 > 🌐 **English** | [中文](README.zh-CN.md)
 
-# Agent Runtime / Context Engine Architecture (Design Note · Version 3)
+# Agent Runtime / Context Engine Architecture (Design Note · Version 4)
 
-> Date: 2026-09-14　Author: myself
-> Version: **v3.0** (2026-09-14, first measured results included); the previous v2.0 is preserved at [tag v2.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v2.0); the initial v1.0 (2026-09-11, *Prefix-Cache-Optimal Layered Agent Architecture*) is preserved at [tag v1.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v1.0).
+> Date: 2026-09-17　Author: myself
+> Version: **v4.0** (2026-09-17, **architecture consolidation**: dynamic-region admission · tool face & approval gate (abstract) · observation console · capability layering & corpus gate · **MIT license**); the previous v3.0 is preserved at [tag v3.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v3.0); v2.0 / v1.0 are preserved under their own tags.
 > Implementation: the author's **self-owned Agent Runtime / Context Engine kernel is implemented and frozen at v0.1.0**; source, tests and an independent measurement harness ship in this repository ([`kernel/`](kernel/)); not based on any existing agent framework.
-> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **third version** (first version with measured data).
+> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **fourth version** (v3.0 added measured data; v4.0 consolidates the implemented architecture).
 
 ---
 
@@ -507,3 +507,64 @@ What the architecture solves is the common problem of "**how to split a large pr
 ### 5.5 Originality statement
 
 The author **is building a self-owned Agent Runtime / Context Engine from scratch** (not based on any existing agent framework). **That kernel is now implemented and frozen at v0.1.0, with source, tests and an independent measurement harness shipped in this repository ([`kernel/`](kernel/)); the first measured round is in §4.12.** Later versions will close the remaining items of §5.3. Together, this note and the kernel form the original record: architecture (this README) + a runnable implementation + **recomputable measured evidence**.
+
+---
+
+## ⑥ v4.0 changes (architecture consolidation · 2026-09-17)
+
+This version **adds no new claims**; it consolidates what is **already implemented** and states a few conventions explicitly.
+
+### 6.1 Deterministic admission for the dynamic regions (Current Tail / Dynamic Draft / Semantic Focus)
+
+Beyond the stable prefix, exactly **three controlled dynamic regions** are allowed — and their admission rules are **deterministic** (not “whatever the model feels like writing”):
+
+| Region | Purpose | Admission rule (deterministic) |
+|---|---|---|
+| **Current Tail** (whiteboard) | Carry “latest state / todos of this task”, replacing “rewrite a summary” | Bounded; single write path; **append-only, never edits the front** |
+| **Dynamic Draft** | Hold **pending** material (un-promoted knowledge / promises) | Enters only by explicit declaration; **must not** leak into the stable region |
+| **Semantic Focus** | Pin attention to the events/passages relevant to this turn | **Derived** from event tags; recomputable and explainable; dangling tags **raise warnings** |
+
+**Shared constraint**: dynamic regions are **never placed first** (§4.4 / the counter-example in §4.12); they move **attention**, never **physical history** (§①).
+
+### 6.2 Tool face and approval gate (abstract)
+
+> Deliberately abstract — mechanism detail is out of scope for this note.
+
+- **Capability face**: the kernel ships a minimal tool set (file read / write / edit, directory listing, command execution); **same names, same semantics**, and **each tool can be switched off independently**.
+- **Human in the loop**: any action that **changes local state** or is **irreversible** is **asked first, executed second**; **the model may not self-approve**; the default is **deny** (fail-closed) — no nod, no action.
+- **Visibility**: the approval surface shows the **literal action that will run**; **one batch at a time, item by item**; authorization and execution are separated.
+- **Not a sandbox (honest statement)**: the tool face **is not a security sandbox** — it cannot stop out-of-scope behaviour; safety rests on the **quality of the approval**, so it is not written up as a security boundary.
+- **Observable**: every tool call and result enters the event stream and stays recomputable; the observation surface is **read-only**.
+
+### 6.3 Observation console and its invariants
+
+The runtime ships an **observation console**: conversation on the left, the **byte-exact context ledger** (per-region bytes / fingerprints / versions / order, plus this turn’s hits and overhead) on the right. Its value is **falsifiability**:
+
+- **Read-only**: panels only render — they **do not change** a single byte sent to the model;
+- **Not an injection source**: write actions can only trigger existing write paths; no new regions are produced;
+- **Recomputable**: panel output is plain text — dumpable, diffable, usable as experiment records.
+
+### 6.4 Capability layering and the corpus gate
+
+- **Three capability layers**: resident (L1/L2 abstractions) → on-demand (L3 detail). **Only abstractions and indexes stay resident**; detail lives on disk and is loaded on demand — same motivation as §4.4 (do not let a bloating resident region eat the prefix-cache gain).
+- **Corpus gate**: the public **experiment corpus** is a **de-privatised slice** of real engineering material (≈10k-token tier, character-budget slicing + token calibration); **the full corpus is never published** (a pre-publish scanner enforces hard red lines: private corpora / local paths / intranet addresses / credentials / file-sharing links).
+
+### 6.5 Engineering status (abstract)
+
+The rehearsal proceeds in **four stages**: **shadow mode** (run the same turn twice and compare the assembled context) → **double run** (same task set on both sides; criteria: **accuracy does not regress; size and hit rate must be explainable**) → **limited cut-over** (low-risk task types first, ticked off one by one) → **full cut-over** (with a rollback channel and a rehearsed rollback). **The first three stages have recomputable records; full cut-over has not happened.**
+
+> **Measurement discipline**: platform-fixed overhead is **accounted separately** on each side and only the **shared segments** are compared; **quantities with different units are never placed side by side** (items / batches / calls must carry their unit, and old data is **never back-inferred**).
+
+### 6.6 License
+
+- **The kernel and the observation console (TUI) are MIT-licensed** (see `LICENSE` at the repository root): free to use, modify and redistribute, retaining the copyright and license notice.
+- **Out of scope for open source**: the internal knowledge base, private corpora and internal engineering documents (they are not part of what this repository publishes).
+
+### 6.7 Changelog
+
+| Version | Date | Change |
+|---|---|---|
+| v1.0 | 2026-09-11 | Initial note (*Prefix-Cache-Optimal Layered Agent Architecture*) |
+| v2.0 | 2026-09-14 | Append-only session stream + close-out / watermark + stable-prefix boundary |
+| v3.0 | 2026-09-14 | **First measured round** added (64-token blocks; saving 0% → 78.5%; counter-example 4.7×) |
+| **v4.0** | **2026-09-17** | **Architecture consolidation**: dynamic regions (§6.1) · tool face & approval gate (§6.2, abstract) · observation console (§6.3) · capability layering & corpus gate (§6.4) · engineering status (§6.5) · **MIT license** (§6.6) |

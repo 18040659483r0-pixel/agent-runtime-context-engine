@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "sessionId": null,
+  "frozenSnapshotId": "0cd34282b00e0ac5",
+  "manifest": {
+    "SnapshotId": "0cd34282b00e0ac5",
+    "Entries": [
+      {
+        "SectionId": "protocol.global",
+        "Zone": "Protocol",
+        "Layer": "Global",
+        "DomainId": null,
+        "Version": "7"
+      },
+      {
+        "SectionId": "rules.global",
+        "Zone": "Rules",
+        "Layer": "Global",
+        "DomainId": null,
+        "Version": "8"
+      },
+      {
+        "SectionId": "knowledge.global",
+        "Zone": "Knowledge",
+        "Layer": "Global",
+        "DomainId": null,
+        "Version": "16"
+      },
+      {
+        "SectionId": "memoryindex.global",
+        "Zone": "MemoryIndex",
+        "Layer": "Global",
+        "DomainId": null,
+        "Version": "7"
+      }
+    ]
+  },
+  "streamCursor": 3,
+  "streamPath": "/tmp/skill-mock.jsonl",
+  "focus": [],
+  "currentTail": [],
+  "dynamicDraft": [],
+  "pending": [],
+  "workerState": "",
+  "model": "mock-model",
+  "savedAt": "2026-09-16T13:56:36.513859+08:00"
+}

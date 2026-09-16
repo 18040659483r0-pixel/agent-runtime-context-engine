@@ -1,0 +1,26 @@
+{
+  "_comment": "影子模式（Stage 0）配置：**真语料**（frozen-private，A 档）+ 全模块 + mock provider（零成本、不花钱）。执行手册见 docs/REHEARSAL-STAGE0-SHADOW.md。",
+
+  "provider": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:8899/v1",
+  "model": "mock-model",
+  "apiKeyEnv": "AGENTRUNTIME_MOCK_API_KEY",
+  "timeoutSeconds": 30,
+  "temperature": null,
+
+  "_modules_comment": "次序 = prompt 贡献次序，必须满足确定性闸门 R2 → R4 → R5 → R3（R3 居末）；tool 零注入但仍按 R2 类算位置。",
+  "modules": ["system-rules", "rules", "knowledge", "memory-index", "append-stream", "tool", "current-tail", "dynamic-draft", "focus"],
+  "systemRules": "影子模式：只用于 prompt 组成对照，不跑真实任务。",
+  "sessionMaxTurns": 0,
+
+  "frozen": { "root": "../../frozen-private", "watermark": "./.shadow/watermark.json", "domains": [], "project": "" },
+
+  "_skill_comment": "与真配置同口径：repo = 按 id 取 L3（不影响常驻字节）；resident = 技能常驻层 L1+L2（进 R1，改变组成表）。不加它 ⇒ 对照表会漏报 [WB] 真实发送的一段。",
+  "skill": { "repo": "../../whitebox/workspace/knowledge/.derived/l3.jsonl", "resident": "../../whitebox/workspace/knowledge/.derived" },
+
+  "stream": { "path": "./.shadow/stream.jsonl", "maxEvents": 0 },
+  "snapshot": { "path": "./.shadow/snapshot.json" },
+  "focus": { "path": "./.shadow/focus.json" },
+  "currentTail": { "storePath": "./.shadow/tail" },
+  "dynamicDraft": { "storePath": "./.shadow/draft" }
+}

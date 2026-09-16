@@ -1,0 +1,20 @@
+{
+  "provider": "openai-compatible",
+  "baseUrl": "http://127.0.0.1:8899/v1",
+  "model": "mock-model",
+  "apiKeyEnv": "AGENTRUNTIME_MOCK_API_KEY",
+  "timeoutSeconds": 30,
+  "temperature": null,
+  "modules": ["system-rules", "rules", "knowledge", "memory-index", "append-stream", "tool", "current-tail", "dynamic-draft", "focus"],
+  "systemRules": "e2e: 只用于审批闸门的端到端验证。",
+  "sessionMaxTurns": 0,
+  "frozen": { "root": "../../frozen", "watermark": "./.e2e/watermark.json", "domains": [], "project": "" },
+  "stream": { "path": "./.e2e/stream.jsonl", "maxEvents": 0 },
+  "snapshot": { "path": "./.e2e/snapshot.json" },
+  "focus": { "path": "./.e2e/focus.json" },
+  "currentTail": { "storePath": "./.e2e/tail" },
+  "dynamicDraft": { "storePath": "./.e2e/draft" },
+
+  "_skill_comment": "V6：repo = 按 id 取 L3（事件流尾部 append）；resident = 常驻层（L1 法则 + L2 问题地图，进 R1 稳定前缀）。两者互相独立，配不配都不影响裸聊。",
+  "skill": { "repo": "../../whitebox/workspace/knowledge/.derived/l3.jsonl", "resident": "../../whitebox/workspace/knowledge/.derived" }
+}

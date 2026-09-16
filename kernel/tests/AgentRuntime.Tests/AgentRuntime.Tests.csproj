@@ -26,6 +26,10 @@
     <ProjectReference Include="..\..\src\AgentRuntime.Models\AgentRuntime.Models.csproj" />
     <ProjectReference Include="..\..\src\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
     <ProjectReference Include="..\..\src\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+    <!-- 组合根也进测试：tail 四条命令的**命令行**那一层必须有可执行的不变量测试（I17），不能只靠手跑。 -->
+    <ProjectReference Include="..\..\src\AgentRuntime.Cli\AgentRuntime.Cli.csproj" />
+    <!-- TUI 宿主也进测试：T1/T2/T3/T6 不变量必须能在面板这一层断言（而不是只靠手跑）。 -->
+    <ProjectReference Include="..\..\src\AgentRuntime.Tui\AgentRuntime.Tui.csproj" />
   </ItemGroup>
 
 </Project>

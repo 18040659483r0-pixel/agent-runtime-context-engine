@@ -1,0 +1,27 @@
+{
+  "_comment": "Stage 1（同构双跑）配置：**真模型**（DeepSeek）+ **真语料**（frozen-private，A 档）+ 全模块（含 tool）。模块次序与 config.shadow.json 一致，便于与 Stage 0 的组成表对齐。审批走 CLI 的 ConsoleApprovalGate（PTY 真终端才问人）。执行见 docs/REHEARSAL-STAGE1-DOUBLE-RUN.md。",
+
+  "provider": "openai-compatible",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "apiKeyEnv": "AGENTRUNTIME_API_KEY",
+  "apiKeyFile": "~/.agentruntime/api_key",
+  "timeoutSeconds": 180,
+  "temperature": null,
+
+  "_modules_comment": "次序 = prompt 贡献次序，必须满足确定性闸门 R2 → R4 → R5 → R3（R3 居末）；tool 零注入但仍按 R2 类算位置。",
+  "modules": ["system-rules", "rules", "knowledge", "memory-index", "append-stream", "tool", "current-tail", "dynamic-draft", "focus"],
+  "systemRules": "",
+  "sessionMaxTurns": 0,
+
+  "frozen": { "root": "../../frozen-private", "domains": [], "project": "" },
+
+  "_skill_comment": "V6 接线（#5）：L3 地址表 = [WB] **自持**语料根里的派生索引（可重建、只读）。配了它，模型自报 [SKILL] S-xxx-NNN 才会真的按 id 把 L3 正文追加进流（不配就空转：地址表缺失 ⇒ 不接，不猜默认路径）。",
+  "skill": { "repo": "../../whitebox/workspace/knowledge/.derived/l3.jsonl", "resident": "../../whitebox/workspace/knowledge/.derived" },
+
+  "stream": { "path": "../../.stage1/stream.jsonl", "maxEvents": 0 },
+  "snapshot": { "path": "../../.stage1/snapshot.json" },
+  "focus": { "path": "../../.stage1/focus.json" },
+  "currentTail": { "storePath": "../../.stage1/tail" },
+  "dynamicDraft": { "storePath": "../../.stage1/draft" }
+}

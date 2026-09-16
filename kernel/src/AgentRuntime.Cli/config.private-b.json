@@ -1,0 +1,17 @@
+{
+  "_comment": "私有冻结语料配置（B 档 = A + 项目文档索引）：frozen.root 指向由 tools/frozen-build 生成的 frozen-private/。本文件只含路径，不含任何密钥。",
+
+  "provider": "openai-compatible",
+  "baseUrl": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "apiKeyEnv": "AGENTRUNTIME_API_KEY",
+  "apiKeyFile": "~/.agentruntime/api_key",
+  "timeoutSeconds": 180,
+  "temperature": null,
+
+  "modules": ["rules", "knowledge", "memory-index", "session"],
+  "systemRules": "",
+  "sessionMaxTurns": 0,
+
+  "frozen": { "root": "../../frozen-private-b", "domains": [], "project": "" }
+}
