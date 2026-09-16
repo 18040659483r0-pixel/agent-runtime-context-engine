@@ -193,7 +193,7 @@ cd ~/Documents/AgentWorkFlow/software-company/projects/AgentRuntime
 ./run.sh --verbose "你好"
 
 # 6. 从 stdin 读（可脚本化：多行 = 多轮）
-printf '我叫徐总，请记住。\n我叫什么名字？\n' | ./run.sh --chat --verbose
+printf '我叫张总，请记住。\n我叫什么名字？\n' | ./run.sh --chat --verbose
 
 # 7. 编译 + 测试（xUnit v3，54 个用例，全离线零网络）
 dotnet build AgentRuntime.slnx
@@ -226,8 +226,8 @@ latency.total 2228.1ms · provider 2227.9ms · runtime overhead 0.2ms
 
 | 轮次 | +Session | 裸聊 |
 |---|---|---|
-| 1 「我叫徐总，请记住」 | prompt 39 · 答「记住了」 | prompt 39 · 答「记住了」 |
-| 2 「我叫什么名字？」 | prompt 65（3 条消息）· **答对：徐总** ✅ | prompt 34（1 条消息）· **答不出** ❌ |
+| 1 「我叫张总，请记住」 | prompt 39 · 答「记住了」 | prompt 39 · 答「记住了」 |
+| 2 「我叫什么名字？」 | prompt 65（3 条消息）· **答对：张总** ✅ | prompt 34（1 条消息）· **答不出** ❌ |
 | 3 「再说一遍」 | prompt 105 · ✅ | prompt 35 · ❌ |
 | 小计 | prompt 209 / total 724 / 5093ms | prompt 108 / total 538 / 5328ms |
 

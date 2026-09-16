@@ -59,7 +59,7 @@ done <<< "$PATH_RULES"
 
 # 允许名单：这些文件**本身就是**脱敏器 / 扫描器 / **规则清单**，命中模式属于正常工作内容。
 # （最后两个是单元测试里的**假密钥**字面量，故意写的，不是凭据。）
-ALLOW_RE='benchmark/tools/build-public-corpus\.py|CorpusLibrary\.cs|tools/pre-publish-scan\.sh|tools/pre-publish-patterns\.txt|RuntimeConfigurationTests\.cs|OpenAICompatibleClientTests\.cs'
+ALLOW_RE='benchmark/tools/build-public-corpus\.py|CorpusLibrary\.cs|tools/pre-publish-scan\.sh|tools/pre-publish-patterns\.txt|tools/build-public-pitfalls\.py|RuntimeConfigurationTests\.cs|OpenAICompatibleClientTests\.cs'
 
 # 窄豁免（2026-09-16 主人按方案①定）：知识库 knowledge.md 的**技能标记行**里的 `src:` 字段是
 # **归档定位**（指向本地归档目录），不含凭据、只有内网 SVN 需要 ⇒ 豁免**整行严格匹配该形态**的行。
