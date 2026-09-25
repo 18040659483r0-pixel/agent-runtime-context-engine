@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 using AgentRuntime.Core;
 
 namespace AgentRuntime.Hosting.Panels;
@@ -35,8 +37,24 @@ public sealed class TurnLedger
     /// <summary>已记账的轮次（按发生顺序）。</summary>
     public IReadOnlyList<TurnRecord> Records => _records;
 
+    /// <summary>
+    /// **清空账本**（`/reset` · `/start` 时调用）：账本是**会话级**的 —— 换会话还留着上一节的读数，
+    /// 就等于把两节的钱混在一个账上（右栏「上一轮」也会说谎）。
+    /// </summary>
+    public void Clear() => _records.Clear();
+
     /// <summary>记一轮（从真实结果里取数）。</summary>
     public TurnRecord Add(RuntimeResult result, int turn)
+    {
+        var record = From(result, turn);
+        _records.Add(record);
+        return record;
+    }
+
+    /// <summary>
+    /// 从真实结果里取一条记录（**纯函数**）—— 内存账本与落盘账本共用同一处，不抄第二份口径。
+    /// </summary>
+    public static TurnRecord From(RuntimeResult result, int turn)
     {
         ArgumentNullException.ThrowIfNull(result);
 
@@ -44,7 +62,7 @@ public sealed class TurnLedger
         var prompt = usage?.PromptTokens ?? 0;
         var cached = usage?.CachedTokens ?? 0;
 
-        var record = new TurnRecord(
+        return new TurnRecord(
             turn,
             result.MessageCount,
             prompt,
@@ -55,10 +73,102 @@ public sealed class TurnLedger
             prompt % StackPanel.CacheBlockTokens,
             result.Timing.RuntimeOverheadMs,
             result.Timing.TotalMs);
-
-        _records.Add(record);
-        return record;
     }
+
+    // ---------------- 落盘（F：用量账本） ----------------
+
+    /// <summary>
+    /// **把这一轮追加进账本文件**（JSONL，一行一轮 ⇒ 只追加、可复算、坏行不影响前面）。
+    /// <para>
+    /// 为什么要落盘（2026-09-22）：用量以前**只在内存**（面板在用），一旦进程结束就没了 ——
+    /// 于是收尾报告只能写「用量 —」，而**能效类改动没法做回归**（只能从字节反推估算）。
+    /// 账本随**流卷**走（<c>&lt;stream&gt;.usage.jsonl</c>）：一次 <c>reset/start</c> 换一卷，
+    /// 账也跟着分卷，不混两节的钱。
+    /// </para>
+    /// </summary>
+    public static void Append(string path, TurnRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.AppendAllText(path, JsonSerializer.Serialize(record, JsonOptions) + "\n", Utf8NoBom);
+    }
+
+    /// <summary>
+    /// 读回一卷账本。**失败即空、不抛**（账本是读数，不是关键路径）：文件不在 / 行坏 / 读不动
+    /// 都只是「这笔账没有」，绝不能因为读账弄坏收尾。
+    /// </summary>
+    public static IReadOnlyList<TurnRecord> Load(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return [];
+        }
+
+        var records = new List<TurnRecord>();
+        try
+        {
+            foreach (var line in File.ReadLines(path))
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (JsonSerializer.Deserialize<TurnRecord>(line, JsonOptions) is { } r)
+                    {
+                        records.Add(r);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // 坏行 ⇒ 跳过（账本是只追加的，一条坏不能把整卷丢掉）。
+                }
+            }
+        }
+        catch (IOException)
+        {
+            return records;
+        }
+
+        return records;
+    }
+
+    /// <summary>
+    /// 一卷用量的**一行读数**（收尾报告用）。读不出来 ⇒ <c>null</c>（**不编**：给不出就说给不出，
+    /// 与面板「用量 —」同一条口径）。
+    /// </summary>
+    public static string? Describe(string path)
+    {
+        var records = Load(path);
+        if (records.Count == 0)
+        {
+            return null;
+        }
+
+        var fresh = records.Sum(static r => r.UncachedTokens + r.CompletionTokens);
+        var ms = records.Sum(static r => r.TotalMs);
+        var last = records[^1];
+        return $"本卷 {records.Count.ToString(CultureInfo.InvariantCulture)} 轮 · 新增 "
+            + $"{fresh.ToString("N0", CultureInfo.InvariantCulture)} token · 末轮命中率 {FormatHitRate(last.HitRate)}"
+            + $" · 耗时合计 {ms.ToString("N0", CultureInfo.InvariantCulture)}ms";
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
+    /// <summary>
+    /// **不写 BOM** 的 UTF-8 —— <c>Encoding.UTF8</c> 在**新建文件**时会先写 BOM（EF BB BF）⇒
+    /// 首行就不是严格 JSON 了（.NET 的 <c>File.ReadLines</c> 会自动吞掉 BOM 所以自己读没事，
+    /// 但 **Python / jq / grep 这类外部复算工具会当场报错** —— 账本是要给人复算的，不能带 BOM）。
+    /// </summary>
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>最近 n 轮（n ≤ 0 = 全部）。</summary>
     public IReadOnlyList<TurnRecord> Recent(int n) =>

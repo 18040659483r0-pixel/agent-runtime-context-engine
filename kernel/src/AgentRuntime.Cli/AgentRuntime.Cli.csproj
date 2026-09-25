@@ -26,6 +26,8 @@
     <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
     <!-- 组合根（配置 → 模块 → 客户端 → 引擎 + 只读面板）与 TUI 共用：不复制第二份装配逻辑。 -->
     <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
+    <!-- 呈现层（与 TUI 共用同一条投影：标记被吃掉、TTY 下上色）。 -->
+    <ProjectReference Include="..\AgentRuntime.Presentation\AgentRuntime.Presentation.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,3 +1,4 @@
+using AgentRuntime.Core.Security;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Tooling;
 using Xunit;
@@ -130,54 +131,58 @@ public sealed class MustAskTests
         Assert.DoesNotContain(face.Notes, note => note.Contains("must-ask 档"));
     }
 
-    // ---------------- 四、执行器：账本按档记 + fail-closed 仍有牙 ----------------
+    // ---------------- 四、执行器：v13「留档 + 放行」（账本按档记） ----------------
 
     [Fact]
-    public async Task 发布命令_未点头即拒绝_账本记_must_ask()
+    public void 发布命令_档位是_must_ask_且理由写进留档面()
     {
-        var sink = new MemorySink();
-        var ledger = new ApprovalLedger();
-        var runner = new ToolRunner(sink, gate: new UnknownApprovalGate(), ledger: ledger);
+        // ⚠️ 发布类命令**不在测试里真跑**（v13 之后它会真的提交）—— 于是分两段取证据：
+        //   ① 分级唯一声明处判 must-ask；② 判定层给出的理由里写明「每次都要人重新点头」。
+        Assert.Equal(ToolRisk.Critical, ExecCommandRisk.Classify("svn commit -F /tmp/m.txt"));
 
-        var result = await runner.HandleAsync(
-            "[TOOL] exec {\"command\":\"svn commit -F /tmp/m.txt\"}", 1, "s", Ct);
+        var gateway = new SecurityGateway();
+        var decision = gateway.Decide(
+            new SecurityAction(Capability.ProcExec, "svn commit -F /tmp/m.txt", "跑命令"),
+            ToolRisk.Critical);
 
-        Assert.True(result.Denied);
-        var entry = Assert.Single(ledger.Entries);
-        Assert.Equal(ToolRisk.Critical, entry.Risk);
-        Assert.Contains("must-ask", ApprovalEntryRenderer(entry));
-        Assert.Equal(SessionEventKind.ToolDenied, Assert.Single(sink.Events).Kind);
+        Assert.Equal(SecurityVerdict.Ask, decision.Verdict);
+        Assert.Contains("must-ask", decision.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task 普通命令_账本记需批档()
+    public async Task 普通命令_留档并放行_账本记_Filed()
     {
+        // 用一条**无害**的命令取证据（`svn status` 不改变任何东西）：本该问人 ⇒ 留档 + 照样执行。
+        var sink = new MemorySink();
         var ledger = new ApprovalLedger();
-        var runner = new ToolRunner(new MemorySink(), gate: new UnknownApprovalGate(), ledger: ledger);
+        var runner = new ToolRunner(sink, ledger: ledger);
 
         var result = await runner.HandleAsync("[TOOL] exec {\"command\":\"svn status\"}", 1, "s", Ct);
 
-        Assert.True(result.Denied);
-        Assert.Equal(ToolRisk.Mutating, Assert.Single(ledger.Entries).Risk);
+        Assert.False(result.Denied);
+        var entry = Assert.Single(ledger.Entries);
+        Assert.Equal(ToolRisk.Mutating, entry.Risk);
+        Assert.Equal(ApprovalDecision.Filed, entry.Decision);   // 不是 Approved：**没有人点过头**
+        Assert.Equal(ApprovalActors.Runtime, entry.Actor);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Face));    // 决定型内容在账本里（不进 prompt）
+        Assert.Equal(
+            [SessionEventKind.PermissionFiled, SessionEventKind.ToolResult],
+            sink.Events.Select(static e => e.Kind));
     }
 
     [Fact]
-    public async Task 一次一批_点过一次头不会长期放行()
+    public async Task 每次都留痕_不产生任何长期放行()
     {
-        var gate = new OneShotApprovalGate();
+        // 「一次一批」这条老不变量的意图在新面上 = **没有长期放行**：
+        // 同一个动作每次都会**重新留一条档**（不是一次管永久）—— 因为没人点过头，就没有 Grant 可复用。
         var ledger = new ApprovalLedger();
-        var runner = new ToolRunner(new MemorySink(), gate: gate, ledger: ledger);
-        const string call = "[TOOL] exec {\"command\":\"svn commit -F /tmp/m.txt\"}";
+        var runner = new ToolRunner(new MemorySink(), ledger: ledger);
+        const string call = "[TOOL] exec {\"command\":\"svn status\"}";
 
-        var args = ToolArgs.Parse("{\"command\":\"svn commit -F /tmp/m.txt\"}");
-        gate.Grant(ToolNames.Exec, args);                       // 人工点头一次
+        await runner.HandleAsync(call, 1, "s", Ct);
+        await runner.HandleAsync(call, 2, "s", Ct);
 
-        var first = await runner.HandleAsync(call, 1, "s", Ct);
-        var second = await runner.HandleAsync(call, 2, "s", Ct);
-
-        Assert.False(first.Denied);                             // 第一次：点头有效
-        Assert.True(second.Denied);                             // 第二次：许可已取走 ⇒ Unknown ⇒ 拒
+        Assert.Equal(2, ledger.Entries.Count);
+        Assert.All(ledger.Entries, entry => Assert.Equal(ApprovalDecision.Filed, entry.Decision));
     }
-
-    private static string ApprovalEntryRenderer(ApprovalEntry entry) => entry.Render();
 }

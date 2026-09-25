@@ -1,0 +1,38 @@
+#!/bin/sh
+# whitebox —— 一句话进 [WB]（主人 2026-09-20 14:3x：「进入终端后输入 whitebox 就可以进入我们的 whitebox tui」）
+#
+# 用法：
+#   whitebox                      # 进 TUI（真机日常配置：真模型 + 真语料 + 工具面 + 审批）
+#   whitebox --verbose            # 追加开关原样传给 TUI
+#   whitebox --config <别的配置>   # 换配置
+#
+# 三条保证（「cd + sh」那件事一次做对，别处不用记）：
+#   ① **cwd 无关**：本来就在家目录 / 仓库根敲都成立；
+#   ② **dll 过期就自动编译**（WB 会自己改自己的代码 ⇒ 不重编就会跑旧二进制；编译失败不挡路，但说清楚）；
+#   ③ **Ctrl-C 两下退出**（一下 = 中断当前轮），退出时终端自动恢复。
+#
+# 配置与启动口径**不在本脚本重复**：一律交给同目录的 run.sh（它管 cwd / 默认配置 / dll 缺失提示）。
+set -eu
+
+# 通过 PATH 里的**符号链接**调用时，$0 是链接本身 ⇒ 先解到真身（否则会把 /opt/homebrew/bin 当仓库）。
+target=$0
+while [ -L "$target" ]; do
+  dir=$(cd "$(dirname "$target")" && pwd)
+  target=$(readlink "$target")
+  case $target in
+    /*) ;;
+    *) target="$dir/$target" ;;
+  esac
+done
+here=$(cd "$(dirname "$target")" && pwd)
+cd "$here"
+
+dll=bin/Debug/net10.0/AgentRuntime.Tui.dll
+
+# ② 代码比 dll 新（或 dll 不存在）⇒ 先编译一次。
+if [ ! -f "$dll" ] || [ -n "$(find . -name '*.cs' -newer "$dll" -not -path './obj/*' -not -path './bin/*' -print -quit)" ]; then
+  printf '[whitebox] 代码比 dll 新（或 dll 缺失）⇒ 先编译…\n' >&2
+  dotnet build -v q --nologo >&2 || printf '[whitebox] ⚠️ 编译失败：改用现有 dll 启动（改了代码但没编上 ⇒ 行为会是旧的）\n' >&2
+fi
+
+exec sh "$here/run.sh" "$@"

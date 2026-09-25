@@ -3,8 +3,10 @@ using AgentRuntime.Core.Configuration;
 using AgentRuntime.Core.Tooling;
 using AgentRuntime.Core.Focus;
 using AgentRuntime.Core.Frozen;
+using AgentRuntime.Core.Lifecycle;
 using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Security.Gate;
+using AgentRuntime.Presentation;
 using AgentRuntime.Core.Skill;
 using AgentRuntime.Core.Snapshot;
 using AgentRuntime.Core.Stream;
@@ -39,12 +41,16 @@ internal static class Program
         var listDomains = false;
         var listMisc = false;
         var closeout = false;
+        string? colorMode = null;
+        string? colorDepth = null;
         string? streamOverride = null;
         string? appendPath = null;
         string? appendKind = null;
         string? appendSource = null;
         var streamShow = false;
         var streamTail = 20;
+        var lifecycleShow = false;
+        var lifecycleExpand = false;
         var snapshotOnce = false;
         var snapshotShow = false;
         var noSnapshot = false;
@@ -150,6 +156,12 @@ internal static class Program
                 case "--closeout":
                     closeout = true;
                     break;
+                case "--color" when i + 1 < args.Length:
+                    colorMode = args[++i];
+                    break;
+                case "--color-depth" when i + 1 < args.Length:
+                    colorDepth = args[++i];
+                    break;
                 case "--stream" when i + 1 < args.Length:
                     streamOverride = args[++i];
                     break;
@@ -167,6 +179,12 @@ internal static class Program
                     break;
                 case "--stream-tail" when i + 1 < args.Length:
                     streamTail = int.Parse(args[++i]);
+                    break;
+                case "--lifecycle-show":
+                    lifecycleShow = true;
+                    break;
+                case "--lifecycle-expand":
+                    lifecycleExpand = true;
                     break;
                 case "--snapshot":
                     snapshotOnce = true;
@@ -309,6 +327,18 @@ internal static class Program
                 return ListMisc(configPath);
             }
 
+            // 呈现层（与 TUI **共用同一份**）：把 stdout 包一层 —— 逐行「语义 → 样式 → 终端字节」，
+            // 标记被吃掉、TTY 下上色；非 TTY / NO_COLOR / --color never ⇒ 逐字节纯文本。
+            // 一处包住 stdout（打印点上百处），避免「这行走了呈现层、那行没走」的口径分裂。
+            var style = StyleTable.For(
+                StyleTable.ParseMode(colorMode),
+                !Console.IsOutputRedirected,
+                Environment.GetEnvironmentVariable("NO_COLOR"),
+                Environment.GetEnvironmentVariable("TERM"),
+                Environment.GetEnvironmentVariable("COLORTERM"),
+                StyleTable.ParseDepth(colorDepth));
+            Console.SetOut(new PresentationWriter(Console.Out, new Presenter(style)));
+
             configPath ??= RuntimeHost.LocateDefaultConfig();
 
             // 命令行覆盖 → 配置（含全部相对路径解析）：装配逻辑与 TUI 共用 RuntimeHost（**不是**复制一份）。
@@ -395,6 +425,11 @@ internal static class Program
                 return ShowStream(config, streamTail);
             }
 
+            if (lifecycleShow)
+            {
+                return ShowLifecycle(config, lifecycleExpand);
+            }
+
             if (closeout)
             {
                 return RunCloseout(config);
@@ -408,9 +443,9 @@ internal static class Program
             }
 
             // 装配（客户端 + 引擎 + 模块集）与 TUI 共用同一段代码：RuntimeHost.Boot。
-            // 工具面审批闸门（G2）：审批面进 stderr、答复读 stdin；
-            // stdin / stderr 任一不是终端 ⇒ 闸门自己按 fail-closed 拒绝（不问人）。
-            using var host = RuntimeHost.Boot(config, overrides, apiKey, toolGate: ConsoleApprovalGate.ForConsole());
+            // v13：不再有审批闸门（主人 2026-09-21 定「放弃 runtime 的硬闸门」）——
+            // 本该问人的动作由 ToolRunner **留档 + 放行**，CLI 不再逐项问 y/N。
+            using var host = RuntimeHost.Boot(config, overrides, apiKey);
 
             if (resumed is not null)
             {
@@ -505,7 +540,8 @@ internal static class Program
         foreach (var domain in KnowledgeDomains.All)
         {
             var mark = selection.IncludesDomain(domain.Id) ? "●" : "○";
-            Console.WriteLine($"  {mark} {domain.Id,-12} {domain.DisplayName}");
+            // 屏面短名一并列出：顶层 TUI 的「专家」行显示的是它（id 不动，只换显示名）。
+            Console.WriteLine($"  {mark} {domain.Id,-12} {domain.DisplayName,-10} 屏面：{domain.ShortName}");
         }
 
         Console.WriteLine();
@@ -589,6 +625,25 @@ internal static class Program
         Console.WriteLine($"[收尾] 记录流游标：{streamCursor}" +
                           (string.IsNullOrWhiteSpace(config.Stream.Path) ? "（未配置 stream.path）" : $"（← {config.Stream.Path}）"));
         Console.WriteLine($"[收尾] 落点：{config.Frozen.Watermark}");
+
+        // F（2026-09-22）：**用量账本** —— 以前这里给不出（账本只在内存，收尾只能写「用量 —」）。
+        // 账本随流卷走（<stream>.usage.jsonl）；读不出就明说「无账本」，**不编数**。
+        var usageLine = TurnLedger.Describe(RuntimePaths.UsageOf(config.Stream.Path) ?? string.Empty);
+        Console.WriteLine(usageLine is null
+            ? "[收尾·用量] 本卷无账本（未配 stream.path，或还没跑过轮次）"
+            : $"[收尾·用量] {usageLine}");
+
+        // L4：本次会话的**任务账**（与 TUI 的 `/closeout` 同一段措辞 —— 同一个函数，不抄一份）。
+        // 事件流从**磁盘**读（CLI 没有常驻宿主的内存流）；读不出就不编（摘要会说「没有用户消息」）。
+        var streamPath = config.Stream.Path;
+        foreach (var line in LifecyclePanel.CloseoutLines(
+                     string.IsNullOrWhiteSpace(streamPath) || !File.Exists(streamPath)
+                         ? null
+                         : LifecycleAggregator.AggregateFile(streamPath)))
+        {
+            Console.WriteLine(line);
+        }
+
         return ExitOk;
     }
 
@@ -624,6 +679,26 @@ internal static class Program
 
         Console.WriteLine($"[stream] 已追加 #{@event.Seq} {@event.Label} ← {source ?? path}（{text.Length} 字符）");
         Console.WriteLine($"[stream] 流文件：{store.Path}（现有 {module.EventCount} 条）");
+        return ExitOk;
+    }
+
+    /// <summary>
+    /// `--lifecycle-show`：**只读**回放事件流并把「一次用户请求 = 一张卡」聚合出来
+    /// （不调模型、不需密钥、不写盘）—— L0/L1 的证据器，见 `docs/DESIGN-LIFECYCLE-UX.md`。
+    /// </summary>
+    private static int ShowLifecycle(RuntimeConfiguration config, bool expanded)
+    {
+        if (string.IsNullOrWhiteSpace(config.Stream.Path))
+        {
+            Console.Error.WriteLine("[生命周期] 未指定事件流文件：用 config.stream.path 或 --stream <path>。");
+            return ExitUsage;
+        }
+
+        foreach (var line in LifecyclePanel.Render(config.Stream.Path, expanded: expanded))
+        {
+            Console.WriteLine(line);
+        }
+
         return ExitOk;
     }
 
@@ -809,7 +884,7 @@ internal static class Program
     /// <summary>
     /// **宿主续跑策略**（<c>--auto-continue N</c>）：一轮结束后，若流里新落了「工具结果 / 被拒」事件，
     /// 就**不再问人**直接再问一轮（最多 N 次）。返回实际续跑次数。
-    /// <para>为什么需要：协议规定「一次回复只允许一次工具调用 / 必须等结果事件」—— 结果落地后模型该有机会接着说话。
+    /// <para>为什么需要：协议规定「一次回复可点多次工具调用（最多 4 次）/ 必须等结果事件」—— 结果落地后模型该有机会接着说话。
     /// 没有它，每一个工具轮都得人在终端里再敲一句，那就是「不自持」（Stage 1 首跑实测：靠驱动器发「继续」）。</para>
     /// <para>判据只看**流**（<see cref="RuntimeHost.HasToolOutcomeSince"/>），不看模型自述；
     /// 每次续跑在 stderr 留一行痕（不进 prompt、不改 stdout 输出口径）。</para>
@@ -821,6 +896,17 @@ internal static class Program
         {
             cursor = host.StreamCount;
             Console.Error.WriteLine($"[auto-continue] 第 {ran + 1}/{budget} 次续跑（上一轮落进流的工具结果）");
+            var outcome = await host.ContinueTurnAsync(verbose);
+            WriteTurnOutcome(outcome);
+            ran++;
+        }
+
+        // v21（2026-09-24）：终局后**补一轮报告请求**（协议第 12 条）。
+        // 与 TUI 调的是**同一个 host 判据**（<see cref="RuntimeHost.RequestDecisionReport"/>）—— 策略只有一份；
+        // 未开自动接续（budget = 0）就不补，与 TUI 的「关掉续跑 = 不要报告」同口径。
+        if (budget > 0 && host.RequestDecisionReport())
+        {
+            Console.Error.WriteLine("[auto-continue] 报告轮：本 task 已了结 ⇒ 请它交决策报告（协议第 12 条）");
             var outcome = await host.ContinueTurnAsync(verbose);
             WriteTurnOutcome(outcome);
             ran++;
@@ -983,6 +1069,8 @@ internal static class Program
         Console.WriteLine("  --auto-continue <n>  工具结果落地后**不再问人**直接续跑（默认 0 = 关；上限 = n 次）");
         Console.WriteLine("                     —— 自持必需：[WB] 自己跑完一轮工具后要能接着说话；每次续跑在 stderr 留一行痕");
         Console.WriteLine("  --closeout         收尾：校验前缀 → 上报 misc 待整理 → 推进水位线（不需要密钥）");
+        Console.WriteLine("  --color auto|always|never   落屏上色策略（默认 auto：TTY 且非 NO_COLOR/TERM=dumb 才上色）");
+        Console.WriteLine("  --color-depth auto|16|256|truecolor  色深（默认 auto；与 OpenClaw 侧同色）");
         Console.WriteLine("  --stream <path>    覆盖 config.stream.path（事件流文件，JSONL，只追加）");
         Console.WriteLine("  --append <file>    把一份 L3 文档**逐条**追加进事件流（不需要密钥）");
         Console.WriteLine("  --kind <k>         配合 --append 指定事件类型（默认按路径猜）");
@@ -992,6 +1080,8 @@ internal static class Program
         Console.WriteLine("  --skill-use <ids>  按 id 装载 L3 条（逗号分隔，如 S-bench-007,S-svnwf-000；不需要密钥）");
         Console.WriteLine("  --stream-show      渲染事件流尾部（不需要密钥）");
         Console.WriteLine("  --stream-tail <n>  配合 --stream-show 指定行数（默认 20）");
+        Console.WriteLine("  --lifecycle-show   只读回放事件流：按「一次用户请求 = 一张卡」聚合出生命周期（不需要密钥，不调模型）");
+        Console.WriteLine("  --lifecycle-expand 配合 --lifecycle-show：展开完整执行轨迹（默认折叠；被拒的调用与决策点永不折叠）");
         Console.WriteLine("  --snapshot         立即写一次运行时快照并退出（不需要密钥）");
         Console.WriteLine("  --snapshot-show    只读显示快照内容（不需要密钥，不调模型）");
         Console.WriteLine("  --no-snapshot      关闭「每轮成功后自动写快照」（消融 / 洁癖用）");

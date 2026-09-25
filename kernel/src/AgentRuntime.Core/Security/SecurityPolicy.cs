@@ -129,6 +129,45 @@ public static class SecurityPolicy
         return path.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// **范围授权的永久例外**（写 → 执行链的那些形状）：即使人已经授权了某个目录，
+    /// 写这些目标也**照旧每次问**。
+    /// <para>为什么（主人 2026-09-17 选 A 时的硬约束）：目录级放行最容易打开的洞是「写一个东西，然后让它被执行」——
+    /// <c>.git/hooks/*</c>（git 自己会跑）、构建文件（<c>*.csproj</c>/<c>*.props</c>/<c>*.targets</c>，构建时会跑代码）、
+    /// 脚本（<c>*.sh</c>/<c>*.py</c>/<c>*.ps1</c> …）。这些形状不进范围。</para>
+    /// <para><b>判不出 ⇒ 算例外</b>（fail-closed：宁可多问一次）。</para>
+    /// </summary>
+    public static bool ScopeCarveOut(string? normalizedPath)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return true;
+        }
+
+        // 路径里出现 .git 段（含 .git/hooks/*）⇒ 例外。
+        if (normalizedPath.Split(Path.DirectorySeparatorChar).Contains(".git", StringComparer.Ordinal))
+        {
+            return true;
+        }
+
+        var name = Path.GetFileName(normalizedPath);
+        if (ScopeCarveOutNames.Contains(name))
+        {
+            return true;
+        }
+
+        var lower = name.ToLowerInvariant();
+        return ScopeCarveOutSuffixes.Any(suffix => lower.EndsWith(suffix, StringComparison.Ordinal));
+    }
+
+    /// <summary>范围授权的例外文件名（全等）。</summary>
+    private static readonly string[] ScopeCarveOutNames =
+        ["Makefile", "makefile", "GNUmakefile", "package.json", "Dockerfile", "dockerfile", "CMakeLists.txt"];
+
+    /// <summary>范围授权的例外后缀（小写）。写它们 = 可能在写一个会被执行的东西。</summary>
+    private static readonly string[] ScopeCarveOutSuffixes =
+        [".csproj", ".props", ".targets", ".sln", ".slnx", ".sh", ".bash", ".zsh", ".fish", ".py", ".ps1", ".plist", ".scpt", ".command"];
+
     /// <summary>凭据形状的路径（按文件名 / 后缀判）。</summary>
     public static bool IsCredentialLike(string? path)
     {

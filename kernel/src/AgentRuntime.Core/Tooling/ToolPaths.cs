@@ -44,6 +44,30 @@ public static class ToolPaths
     }
 
     /// <summary>
+    /// 规范化的**安全版**：判不出真身 ⇒ **原样返回**（不抛）。
+    /// <para>用在「集合成员比对」这类场景（污染集 / 预授权目标）：① 在那里抛异常会把
+    /// 「这个路径可疑」变成「整个判定炸掉」；② 同一份文件的两种拼法（macOS <c>/var</c> ↔
+    /// <c>/private/var</c>）必须收敛到**同一条真身** —— 否则字符串相等**恒假**、集合**静默不命中**
+    /// （PITFALLS #139 / <c>§十·54</c>）。</para>
+    /// </summary>
+    public static string NormalizeOrSelf(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path ?? string.Empty;
+        }
+
+        try
+        {
+            return Normalize(path);
+        }
+        catch (ToolUsageException)
+        {
+            return path;
+        }
+    }
+
+    /// <summary>
     /// 参数里 <c>path</c> 字段的规范化结果（**一次一批的摘要原料**，S4）：没有该字段 ⇒ 空串。
     /// <para>与审批面用的是同一条口径 ⇒ 人点的那个动作 = 摘要绑定的那个动作。</para>
     /// </summary>

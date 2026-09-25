@@ -1,11 +1,11 @@
 > 🌐 **English** | [中文](README.zh-CN.md)
 
-# Agent Runtime / Context Engine Architecture (Design Note · Version 4)
+# Agent Runtime / Context Engine Architecture (Design Note · Version 5)
 
-> Date: 2026-09-17　Author: myself
-> Version: **v4.0** (2026-09-17, **architecture consolidation**: dynamic-region admission · tool face & approval gate (abstract) · observation console · capability layering & corpus gate · **MIT license**); the previous v3.0 is preserved at [tag v3.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v3.0); v2.0 / v1.0 are preserved under their own tags.
-> Implementation: the author's **self-owned Agent Runtime / Context Engine kernel is implemented and frozen at v0.1.0**; source, tests and an independent measurement harness ship in this repository ([`kernel/`](kernel/)); not based on any existing agent framework.
-> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **fourth version** (v3.0 added measured data; v4.0 consolidates the implemented architecture).
+> Date: 2026-09-25　Author: myself
+> Version: **v5.0** (2026-09-25, **the interaction-contract layer**: frozen protocol zone · solve language & terminal states · the interaction unit (task lifecycle) · the decision report · the presentation layer · **a corrected approval model**); the previous v4.0 is preserved at [tag v4.0](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/tree/v4.0); v3.0 / v2.0 / v1.0 are preserved under their own tags.
+> Implementation: the author's **self-owned Agent Runtime / Context Engine kernel** — frozen at v0.1.0 and **evolving since** (currently `0.10.x-dev`; the full test suite reports **685/685**) — ships source, tests and an independent measurement harness in this repository ([`kernel/`](kernel/)); not based on any existing agent framework.
+> Series: Note I (*Hierarchical Hybrid Model Architecture*) covers model **form and layering** — a **separate layer** that this note does not alter; this is Note II, covering **runtime context and caching**, now in its **fifth version** (v3.0 added measured data; v4.0 consolidated the implemented context engine; **v5.0 adds the layer above it — the contract between the remote model, the runtime and the human — and reports no new measurements, see §7.7**).
 
 ---
 
@@ -427,7 +427,7 @@ H                       prefix-cache hit ratio: Stable Prefix + Append-only driv
 | **Architecture Principle** | definitional claim, prerequisite for the architecture to cohere | append-only, stable prefix, semantic focus, determinism gate, close-out gates promotion, watermark |
 | **Engineering Design** | engineering choices | SessionEvent structure, snapshot fields, cache-boundary layout, close-out steps, watermark fields and storage |
 | **Hypothesis** | assumption awaiting experiment | worker layering ⇒ fewer tokens without quality loss; close-out-gated promotion ⇒ lower erroneous-knowledge rate |
-| **Experimental Result** | measured or public data | **first measured round (§4.12)**: 10k-token frozen context + stable-prefix appends ⇒ **98.4%** input hit, **−78.5%** per-turn cost; counter-example (dynamic content at the head) ⇒ **0%** hit, **4.7×** cost; hits align to **64-token blocks**; kernel overhead ≤1.3 ms |
+| **Experimental Result** | measured or public data | **first measured round (§4.12)**: 10k-token frozen context + stable-prefix appends ⇒ **98.4%** input hit, **−78.5%** per-turn cost; counter-example (dynamic content at the head) ⇒ **0%** hit, **4.7×** cost; hits align to **64-token blocks**; kernel overhead ≤1.3 ms. **v5.0 adds no new measurements — the interaction-contract layer of §⑦ is deliberately unmeasured in this version (§7.7)** |
 
 ### 4.12 First measured round (2026-09-14, new in v3.0)
 
@@ -497,6 +497,10 @@ The architecture still needs experimental validation, and **theoretical assumpti
 9. task continuity after model switching
 10. generality across task domains
 11. **the correctness of pending-close-out detection / watermark advancement, and the real effect of "close-out-gated promotion" on the knowledge-error rate**
+12. ⏳ **the interaction-contract layer (§⑦), all of it**: whether solve-language vocabulary + the three terminal blocks actually make "done / stuck / waiting / unsolvable" separable to the host, and whether automatic stop becomes safe **without** regressing task completion;
+13. ⏳ whether a **conditionally mandatory decision report** improves the human's ability to decide the next step, and what it costs in extra rounds;
+14. ⏳ whether the **card (task lifecycle)** presentation reduces reader effort compared with a raw turn transcript, measured as time-to-answer for a fixed set of questions;
+15. ⏳ whether the **frozen protocol zone** can be held to a token budget across versions **without** ever paying more than one cold-start per protocol bump (the 4.6× counter-example is currently a single observation, not a distribution).
 
 > **Boundary statement**: performance, cache hit ratios, and token-saving percentages must come from real experiments or public data and must not be invented from architectural intuition. This version claims only **architectural design and direction**.
 
@@ -568,3 +572,198 @@ The rehearsal proceeds in **four stages**: **shadow mode** (run the same turn tw
 | v2.0 | 2026-09-14 | Append-only session stream + close-out / watermark + stable-prefix boundary |
 | v3.0 | 2026-09-14 | **First measured round** added (64-token blocks; saving 0% → 78.5%; counter-example 4.7×) |
 | **v4.0** | **2026-09-17** | **Architecture consolidation**: dynamic regions (§6.1) · tool face & approval gate (§6.2, abstract) · observation console (§6.3) · capability layering & corpus gate (§6.4) · engineering status (§6.5) · **MIT license** (§6.6) |
+| **v5.0** | **2026-09-25** | **The interaction-contract layer**: frozen protocol zone (§7.1) · solve language & terminal states (§7.2) · interaction unit / task lifecycle (§7.3) · decision report (§7.4) · presentation layer (§7.5) · **approval model revised** (§7.6, a correction) · capability layers L1–L4 (§7.7) · **no new measurements** (§7.9) |
+
+---
+
+## ⑦ v5.0 changes: the interaction-contract layer (2026-09-25)
+
+> **This version adds no measured results.** The architecture is still being optimised, so the experiments that would validate §⑦ are **deferred on purpose** — the honest statement is "designed, implemented in the kernel, not yet measured" (§7.9). What v5.0 adds is the layer v4.0 lacked: **how the remote model, the runtime and the human talk to each other**, and how that conversation stays *inside* the cache discipline of §4.4 instead of breaking it.
+
+### 7.0 Why a contract layer at all
+
+§①②③④ describe how context is *stored*; §6.2 sketched the *tool face*. Both leave one question open: the model is a **remote, stateless, replaceable** compute resource (§4.8). Everything the architecture needs from it — how to read context, how to report state, how to say "I am done" — must therefore be written down **somewhere the model always sees**, and must never drift per session.
+
+That "somewhere" cannot be the user's corpus, and cannot be a close-out target:
+
+```text
+the contract has three properties that force it to live in exactly one place:
+  1. fixed          it does not evolve with the session   ⇒ belongs to the frozen region
+  2. architectural  it is the interface the kernel owns  ⇒ the user may not change it
+  3. minimal        it sits at rank 0, i.e. at the very front of the cached prefix
+                    ⇒ any change to it zeroes the whole cache (measured: 4.6×)
+```
+
+⇒ **one home for the contract** — the same discipline as "one home for the index".
+
+### 7.1 The frozen protocol zone (R1-P)
+
+Definition (a two-question test, applied to every candidate line):
+
+> **Necessity**: without it, can the remote model still use this runtime *correctly*?
+> **Ownership**: does it change **only with the kernel version** (neither the user nor the close-out may touch it)?
+
+Content that fails either question is **corpus**, not contract: persona, tone, output style, report templates and glossaries belong to the *rules* region (user-editable, close-out-promotable); business knowledge belongs to *knowledge*; history belongs to the *memory index*.
+
+Placement, inside the frozen region:
+
+```text
+R1 Frozen Region
+  ├─ protocol            architectural · immutable · never domain-filtered   ← rank 0 (first)
+  ├─ global / expert / project domains
+  ├─ rules
+  └─ memory index
+================= CACHE BOUNDARY =================
+R2 Session Append Stream … (§4.3)
+
+three hard properties, each backed by an executable gate:
+
+  1. source is code only        no configuration entry point, no domain switch  → type-level impossibility
+  2. close-out cannot touch it  the promotion whitelist excludes it             → throws
+  3. the user cannot detach it  --bare / --modules cannot remove it             → errors
+```
+
+**Budget.** The zone is budgeted **in tokens, measured before it is fixed**, and grows only when a real defect demands it:
+
+| protocol version | budget (tokens) | measured | what forced the change |
+|---|---|---|---|
+| v5 | ≤280 | 258 | zone created (L1/L2/L3 usage + rules + memory index) |
+| v9 | ≤600 | 598 | solve language + three terminal states + close-out / reset |
+| v12 | ≤900 | 865 | `risk:` declaration on every tool call |
+| v16 | ≤1,100 | 1,035 | the `[TOOL]` shape written down literally, with an example |
+| v20 | ≤1,500 | 1,390 | two negative clauses ("no terminal block unless done"; "asking a human *is* a terminal state") |
+| **v22** | **≤1,900** | **1,698** | decision-report clause + a `body:` slot |
+
+**Discipline the zone enforces on itself:** it says only *how to talk*, never *how to be*; a gate **byte-compares** the human-readable copy of the text against the code constant, so the copy can never drift silently; and the version number is recorded in the manifest but **never enters the prompt** (a version is bookkeeping, not content).
+
+### 7.2 Solve language and the three terminal states
+
+Two concrete gaps motivated a shared vocabulary:
+
+| Gap | Symptom | Cost |
+|---|---|---|
+| **no word for "finished"** | the only stop signal was "it did not call a tool this round", so **done / stuck / waiting-for-a-human / unsolvable looked identical to the host** | the host dare not stop by itself; the human cannot tell "it is done" from "it ran out of words" |
+| **no action for "this session should end"** | history only grows, so the prompt gets longer and the cache more expensive; "close-out" existed only as an offline command | long tasks carry all history forever; changing session means losing the whiteboard and the draft |
+
+The fix is one vocabulary plus two exits, carried **inside the protocol zone** so the model always sees it:
+
+```text
+vocabulary (also the first two lines of the [TAIL] whiteboard)
+    Equation · Known Conditions · Solution · Solve Step · Solution Set · Intervention
+    [TAIL]  solve: <the current solution, in one line>
+            step:  <which step of it we are on>
+
+exits (three independent terminal blocks — the host may now stop by itself)
+    [DONE]         finished, plus what was produced
+    [NO-SOLUTION]  *proved* that this route cannot work (not "not finished this round")
+    [NEED-USER]    a decision / a fact / a resource is required from the human
+
+lifecycle actions
+    close-out   condense verified work into a new knowledge version, then reset
+    reset       start a fresh, empty event stream (whiteboard + draft are inherited by key)
+    proposal    context ≥ 20% of the window and the task is closed ⇒ propose close-out + reset
+```
+
+Defining `[NO-SOLUTION]` as *proved impossible* rather than *not yet done* is not pedantry: a real run wrote `[NO-SOLUTION] round not ending — evidence incomplete, continuing`, the runtime believed it, and a live task was frozen as *unsolvable*. **A negative claim needs a precise scope, because the host acts on it.**
+
+### 7.3 The interaction unit: a turn is a unit of computation, not of interaction
+
+> **The user observes a lifecycle; the runtime executes turns; the trace records everything.**
+
+```text
+user message
+    │
+    ▼
+TaskLifecycle            ← the interaction boundary (one request = one card)
+    │  ├─ turn  ├─ turn  ├─ turn …        ← internal computation, not shown as messages
+    ▼
+  card: created → updated in place → frozen at closure
+```
+
+- one request = **one card** for the user, however many turns the runtime needed internally;
+- the card is **updated in place** while the task runs and **frozen** when it closes, so the reader sees a task, not a turn-by-turn log scroll;
+- a task that needs a human decision becomes an explicit **decision card**, and the answer comes back through an explicit `/decide` path — never inferred from free text.
+
+The deeper point is a boundary correction: **exposing the *execution* layer as the *interaction* layer is what makes an agent transcript unreadable.** Splitting them lets the runtime be as chatty or as quiet as it likes internally without changing what the human reads.
+
+### 7.4 The decision report (lifecycle brief)
+
+Closure is not just "the task stopped". A lifecycle **owes the human a report**: what was asked, what was done, what it cost, what remains, and what the next step could be. In v5.0 this is **conditionally mandatory**:
+
+```text
+terminal block lands
+      │
+      ▼
+host requests the report exactly once (a Hint in the stream — no new event kind)
+      │
+      ▼
+the model writes it as prose (an article, not raw material)
+      │
+      ▼
+the card renders it *below* the lifecycle block; the card itself is never rewritten
+```
+
+Three properties make it cheap rather than ceremonial:
+
+- **it is a projection of the stream** — replaying a recorded stream re-renders the same report without re-running the task;
+- **it may arrive in the same turn as the terminal block**, and the binding accepts either route (the terminal turn itself, or the turn after the host's request) — a rule that allowed only one route silently lost real reports;
+- **one request per closure, not one per process** — the bookkeeping is cleared by "a non-terminal turn means work started again", not by session teardown.
+
+### 7.5 The presentation layer: semantics / style / bytes
+
+> The producer says **what a thing is**; only the layer that puts it on screen decides how it looks; the plain-text frame **does not change by a single byte**.
+
+```text
+producer (model text / panel rows / tool rows)   "what is this"      → roles, not colours
+        │
+        ▼
+presentation IR (new)   RichText = text (markup stripped) + role spans
+        │
+        ▼
+renderer (the only place that emits SGR)   plain == rich, byte for byte in text
+```
+
+This is the same split a chat channel uses: the model emits *semantics* (markdown), the channel's renderer owns *style*. Two invariants are gated: **markup is stripped before any width computation** (or alignment breaks), and **the plain render equals the rich render** once styling is removed (so a colour decision can never change what the machine reads).
+
+### 7.6 The approval model, revised — an honest correction to §6.2
+
+§6.2 (v4.0) described the tool face as *ask first, execute second*, with an approval surface and a fail-closed default. **v5.0 revises that — and the revision is reported as a correction, not as a move in the same direction.**
+
+| | v4.0 / v12 | **v13 (current)** |
+|---|---|---|
+| where risk is judged | the runtime classifies, and may ask a human in-task | **the model judges** and declares `risk:` on every tool call |
+| in-task gate | confirmation window / item-by-item y-N | **removed** — the runtime classifies, records, and **runs** |
+| what safety rests on | gate quality | **the remote model's discipline** (protocol clauses) + the runtime's **hard red lines** (protected paths, credentials, publish / irreversible) |
+| record | approval log | **record-and-run**; the record is not a nod |
+
+The clause that carries it says, in effect: declare the risk with every call; write `none` only when you judge that nothing can be harmed, and hand everything else — hesitation included — to the human **before the terminal block**, in plain language. The runtime still refuses its hard red lines, and a false declaration is recorded.
+
+**Honest statement**: this trades a mechanism for a discipline. It is what the author wants (a gate that interrupts inside every task was judged more harmful than useful in real use), but it must **not** be read as "the runtime is now a security boundary". It is not, and this note does not claim it is. §6.2's sentence "not a sandbox" stands; only its mechanism description is superseded.
+
+### 7.7 Capability layers L1–L4 (extends §6.4)
+
+§6.4 described three layers. The fourth is where a capability's own heavy material lives:
+
+| layer | content | residence |
+|---|---|---|
+| L1 | the abstract law ("which class of problem this capability solves") | resident |
+| L2 | problem → layer-3 pointers (one-to-many) | resident |
+| L3 | one problem → how to handle it (steps / commands / criteria) | on demand |
+| **L4** | a capability's **heavy internal knowledge** (the material behind a step) | on demand |
+
+L3 and L4 share one shape (`<capability>/L<N>.jsonl` — **the line number is the address**), and the human-readable `SKILL.md` **degrades to a read-only export** that can still be regenerated for compatibility. The point is unchanged from §4.4: **only abstractions and indexes stay resident**; everything heavy stays on disk and is fetched by address.
+
+### 7.8 Engineering status (2026-09-25, abstract)
+
+- **Protocol zone v22** — 13 lines / 6,792 characters / 1,698 tokens (budget ≤1,900), rank 0, gated three ways (§7.1).
+- **Kernel** — `0.10.x-dev` on top of the frozen v0.1.0; full suite **685/685**; build 0 warnings / 0 errors.
+- **Interaction layer implemented** — solve language + terminal states · cards · decision reports · single-column console · presentation layer · L1–L4 capability layers.
+- **Rehearsal (unchanged from v4.0)** — shadow mode · double run · limited cut-over have recomputable records; **full cut-over has not happened**.
+- **Close-out** — three tiers (per-task · per-session · reset) with a self-check pipeline; the runtime can run its own close-out, including its own test gates.
+
+### 7.9 Evidence boundary for this version
+
+**What v5.0 claims**: architecture and engineering design (the claim taxonomy of §4.11 still applies).
+**What v5.0 does not claim**: any *new* measured effect. §⑦ is an **unmeasured design layer** — the interaction-contract layer was built because the author needed it daily, not because it was measured to be better. Items 12–15 of §5.3 are the measurements that would settle it, and they are **deferred until the architecture stops moving**, so that the numbers describe a stable object.
+
+> Deliberate statement, so that no reader has to guess: **this version ships code and design, not results.** The only measured numbers in this note remain the first round of §4.12; they describe the append-only context engine, not §⑦.

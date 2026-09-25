@@ -7,7 +7,7 @@ namespace AgentRuntime.Core.Tooling;
 /// <summary>
 /// **一次工具调用的参数**（JSON-in-text 的**受控**解析面）。
 /// <para>
-/// 协议写的是 <c>name {json args}</c>，即「JSON 藏在文本里」⇒ 解析必须**严谨**（本来就是文本协议的主要风险）：
+/// 协议写的是 <c>[TOOL] name {"key":"value"}</c>（v18 起形状写死），即「JSON 藏在文本里」⇒ 解析必须**严谨**（本来就是文本协议的主要风险）：
 /// </para>
 /// <list type="number">
 /// <item>必须是 **JSON 对象**（数组 / 字符串 / 数字一律拒）；</item>
@@ -48,7 +48,7 @@ public sealed class ToolArgs
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            throw new ToolUsageException("工具参数为空：协议要求 `name {json args}`（例如 read {\"path\":\"a.txt\"}）。");
+            throw new ToolUsageException("工具参数为空：形状 `[TOOL] name {\"key\":\"value\"}`（例如 read {\"path\":\"a.txt\"}）。");
         }
 
         JsonDocument document;
@@ -58,8 +58,53 @@ public sealed class ToolArgs
         }
         catch (JsonException ex)
         {
-            throw new ToolUsageException($"工具参数不是合法 JSON：{ex.Message}（原文：{Truncate(json)}）");
+            // 2026-09-22（坑 #130，B 案）：JSON 拒了之后要能**照着改** ——
+            // 真机反复犯的是「多行正文塞进 JSON 字符串」，机器腔的 JsonException 说不清这一点。
+            // 2026-09-24（坑 #157，**同族第三个病因**）：模型把 shell 正则原样搬进 JSON 字符串
+            //（`grep -n 'a\|b'`）⇒ 反斜杠 + `|` / `(` 不是合法 JSON 转义 ⇒ **整批工具调用被拒**。
+            throw new ToolUsageException($"工具参数不是合法 JSON：{ex.Message}{JsonShapeHint(json)}（原文：{Truncate(json)}）");
         }
+
+        // 局部函数：**只在字符串内部**看形状（对象字段之间的换行是合法 JSON，不能当病因）。
+        // 病因一（坑 #130）：串里有真换行；病因二（坑 #157）：串里有**非法的反斜杠转义**。
+        // 两条都必须**点名那一条** + 给一条可执行的修法 —— 否则模型按旧话术去查引号，越查越偏
+        //（话术只说一个病因时，换一个病因就等于没话术）。
+        static string JsonShapeHint(string json)
+        {
+            var inString = false;
+            for (var i = 0; i < json.Length; i++)
+            {
+                var c = json[i];
+                if (!inString)
+                {
+                    if (c == '"') inString = true;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    var next = i + 1 < json.Length ? json[i + 1] : '\0';
+                    if (!IsJsonEscape(next))
+                    {
+                        var what = next == '\0' ? "反斜杠落在串尾" : $"反斜杠 + {next}";
+                        return $" —— JSON 的字符串里出现了**非法的转义**（{what}）："
+                             + "JSON 只认 \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\uXXXX，其余一律非法；"
+                             + "**正则里的元字符不要加反斜杠** —— 要写 `(` `|` 就直接写，或整条命令用单引号包住（必要时 `grep -F`）。";
+                    }
+
+                    i++;    // 合法转义：跳过被转义的那个字符
+                    continue;
+                }
+
+                if (c == '"') inString = false;
+                else if (c == '\n') return " —— 字符串里有**没转义的换行**：多行正文不要塞进单行 JSON（写文件直接用 `edit` 工具）";
+            }
+
+            return string.Empty;
+        }
+
+        // 合法 JSON 转义 = 引号 / 反斜杠 / 斜杠 / 单字符族 / uXXXX（RFC 8259 §7）。
+        static bool IsJsonEscape(char c) => c is '"' or '\\' or '/' or 'b' or 'f' or 'n' or 'r' or 't' or 'u';
 
         using (document)
         {

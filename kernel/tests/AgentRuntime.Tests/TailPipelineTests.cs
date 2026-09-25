@@ -156,7 +156,8 @@ public sealed class TailPipelineTests : IDisposable
         Assert.Empty(module.Warnings);
 
         // ③ 自报离结尾太远（超出回看窗口）⇒ 当作没有自报，沿用上一版。
-        var faraway = "[TAIL]\n当前任务: 远处的\n" + string.Join('\n', Enumerable.Repeat("填充", 70));
+        // 填充量由**窗口常量**推出（P2 起窗口 = 各段上限之和 + 余量 ⇒ 写死 70 会随窗口变化而失效）。
+        var faraway = "[TAIL]\n当前任务: 远处的\n" + string.Join('\n', Enumerable.Repeat("填充", AgentRuntime.Core.Protocol.ProtocolText.ReportScanLines + 10));
         await module.ObserveAsync(new RuntimeContext("s", 2), new ChatRequest(), Reply(faraway), token);
         Assert.Equal(previous, module.Current.Lines);
         Assert.Empty(module.Warnings);

@@ -13,7 +13,14 @@
   "systemRules": "演示用铁则：回答尽量短，先给结论再给依据。",
   "sessionMaxTurns": 0,
 
+  // 模型上下文窗口（token；0 = 未知 ⇒ 不提议收尾）。演示用 mock ⇒ 写一个可信值，只影响横幅与预算行。
+  "contextWindow": 64000,
+
   "frozen": { "root": "../../frozen", "watermark": "./.demo/watermark.json", "domains": [], "project": "" },
+
+  // 技能常驻层（L1+L2）：与真机同口径接进来 ⇒ 「专家」行能列出**真实装载**的分类；
+  // 不配的话顶层框会如实写「（未装载）」—— 那是配置差异，不是功能没生效。
+  "skill": { "resident": "../../whitebox/workspace/knowledge/.derived" },
 
   "stream": { "path": "./.demo/stream.jsonl", "maxEvents": 0 },
   "snapshot": { "path": "./.demo/snapshot.json" },

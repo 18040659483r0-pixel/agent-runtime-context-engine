@@ -1,7 +1,11 @@
 using AgentRuntime.Core;
+using AgentRuntime.Core.Protocol;
+using AgentRuntime.Core.Skill;
+using System.Text;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Modules;
+using AgentRuntime.Presentation;
 using AgentRuntime.Tui;
 using Xunit;
 
@@ -23,8 +27,8 @@ public sealed class TuiSplitTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static SplitSession NewSession(TuiHarness h) =>
-        new(h.Host, h.Ledger, h.Router, verbose: false);
+    private static SplitSession NewSession(TuiHarness h, AgentRuntime.Core.Session.TuiStateStore? tuiState = null) =>
+        new(h.Host, h.Ledger, h.Router, verbose: false, tuiState: tuiState);
 
     private static SplitRegionRow Row(SplitFrame frame, StackRegion region) =>
         frame.Regions.Single(r => r.Region == region);
@@ -275,18 +279,20 @@ public sealed class TuiSplitTests
     }
 
     [Fact]
-    public async Task Split_区目录默认折叠_展开只看选中区()
+    public async Task Split_区目录默认全展开_选中项就地展开()
     {
         using var h = new TuiHarness("split-expand");
         var session = NewSession(h);
         await session.StartAsync(Ct);
 
-        // ① 默认（精简态）：六项全折叠，可扩展区是空的。
+        // ① 默认态（v13）：六项**全部就地展开**（主人 2026-09-21 23:5x：「你全部展开吧」）——
+        //    正文摊在每个模块自己那一行下面，不用再按 Enter。旧行为（默认只展开 R4/R5/R3 + 落盘）已废。
         var fresh = session.Frame(96, 30);
         Assert.Equal(6, fresh.Menu.Count);
-        Assert.All(fresh.Menu, e => Assert.False(e.Expanded));
-        Assert.Null(session.Expanded);
+        Assert.True(fresh.Menu[0].Expanded);          // 菜单上的标记 = 「**选中项**就地展开着」，不是「这一项展开着」
+        Assert.NotNull(session.Expanded);
         Assert.Empty(fresh.DetailLines);
+        Assert.Equal(StackPanel.Ordered.Count, session.InlineExpanded.Count);
 
         // ② 面板命令的输出进右栏可扩展区（标题标明是哪个面板）。
         await session.SubmitAsync("/tail \"当前任务: 甲\"", Ct);
@@ -294,27 +300,31 @@ public sealed class TuiSplitTests
         Assert.StartsWith("面板 /tail", withPanel.DetailTitle ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains("[尾部]", Flatten(withPanel.DetailLines), StringComparison.Ordinal);
 
-        // ③ Esc 清除面板输出。
+        // ③ Esc 清除面板输出（**不动就地展开那几项** —— 展开态归目录键，不归面板键）。
         session.CollapseAll();
         Assert.Empty(session.Frame(96, 30).DetailLines);
+        Assert.Equal(StackPanel.Ordered.Count, session.InlineExpanded.Count);
 
-        // ④ 展开 R4：目录项标记为展开，右栏出现白板正文。
+        // ④ 选中 R4：目录项标为展开，**并且不覆盖详细块**（v12：Enter = 就地插入 / 收起）。
         var r4Index = fresh.Menu.ToList().FindIndex(e => e.Region == StackRegion.R4);
         session.SelectMenu(r4Index);
-        session.ToggleExpandSelected();
-
-        var expanded = session.Frame(96, 30);
         Assert.Equal(StackRegion.R4, session.Expanded);
-        Assert.True(expanded.Menu[r4Index].Expanded);
-        Assert.Contains("正文", expanded.DetailTitle!, StringComparison.Ordinal);
-        Assert.Contains("[TAIL]", Flatten(expanded.DetailLines), StringComparison.Ordinal);
-        Assert.Contains("当前任务: 甲", Flatten(expanded.DetailLines), StringComparison.Ordinal);
+        Assert.True(session.Frame(96, 30).Menu[r4Index].Expanded);
 
-        // ⑤ 再按一次收起。
+        // ⑤ Enter = 收起这一项（就地插入的反面）；详细块仍然干净（没被正文占掉）。
         session.ToggleExpandSelected();
+        var collapsed = session.Frame(96, 30);
         Assert.Null(session.Expanded);
-        Assert.Empty(session.Frame(96, 30).DetailLines);
+        Assert.DoesNotContain(StackRegion.R4, session.InlineExpanded);
+        Assert.Empty(collapsed.DetailLines);
+        Assert.Null(collapsed.DetailTitle);
+
+        // ⑥ 再按一次：就地插回。
+        session.ToggleExpandSelected();
+        Assert.Equal(StackRegion.R4, session.Expanded);
+        Assert.Contains(StackRegion.R4, session.InlineExpanded);
     }
+
 
     // ---------------- T6：协议区不可摘（双栏面） ----------------
 
@@ -372,7 +382,7 @@ public sealed class TuiSplitTests
         Assert.Contains("这轮的部署代号确认一下", text, StringComparison.Ordinal);  // 左栏有对话
         Assert.Contains("R1-P", text, StringComparison.Ordinal);                    // 状态块有区表
         Assert.Contains("合计", text, StringComparison.Ordinal);
-        Assert.Contains("面板 /hits", text, StringComparison.Ordinal);              // 面板输出进详细块
+        Assert.Contains("/hits", text, StringComparison.Ordinal);              // 面板输出进详细块
     }
 
     // ---------------- 几何：状态块固定 / 半屏放得下 / 窄矮自适应 ----------------
@@ -388,72 +398,308 @@ public sealed class TuiSplitTests
         await session.SubmitAsync("/tail \"当前任务: 甲\"", Ct);
         await session.SubmitAsync("一句话", Ct);
 
+        var layout = new SplitLayout(width, height);
         var lines = SplitRenderer.Render(session.Frame(width, height));
+        var text = string.Join("\n", lines);
 
         // ① 尺寸精确：行数 = 高，每行显示宽度 = 宽（中文也不漂）。
         Assert.Equal(height, lines.Count);
         Assert.All(lines, l => Assert.Equal(width, TerminalText.WidthOf(l)));
 
-        // ② 六区、合计、上一轮、详细块目录、输入行都在。
-        var text = string.Join("\n", lines);
-        foreach (var id in new[] { "R1-P", "R1", "R2", "R4", "R5", "R3" })
+        // ② 顶框：全档给六区逐区 ≈token；中/底线档把区栈压成合计（口径按版式档位，主人 02:2x 定）。
+        if (layout.TopBandContentRows >= 5)
         {
-            Assert.Contains(id, text, StringComparison.Ordinal);
+            foreach (var id in new[] { "R1-P", "R1", "R2", "R4", "R5", "R3" })
+            {
+                Assert.Contains(id, text, StringComparison.Ordinal);
+            }
+        }
+        else
+        {
+            Assert.Contains("≈token", text, StringComparison.Ordinal);
         }
 
         Assert.Contains("合计", text, StringComparison.Ordinal);
-        Assert.Contains("上一轮", text, StringComparison.Ordinal);
-        Assert.Contains("▸ R1-P 协议", text, StringComparison.Ordinal);
+        Assert.Contains("本 task", text, StringComparison.Ordinal);
         Assert.Contains("agent-runtime > ", text, StringComparison.Ordinal);
 
-        // ③ 接缝齐全：顶边框有 ┬、底分隔有 ┴、每行两端都是框线（不错位）。
-        Assert.Contains(lines, l => l.StartsWith('┌') && l.Contains('┬'));
-        Assert.Contains(lines, l => l.Contains('┴'));
+        // ③ 单栏：顶框一条线到底（**没有分缝 ┬**），每行两端都是框线（不错位）。
+        Assert.Contains(lines, l => l.StartsWith('┌') && l.EndsWith('┐'));
+        Assert.DoesNotContain(lines, l => l.Contains('┬'));
         Assert.All(lines, l => Assert.Contains(l[0], "┌│├└"));
         Assert.All(lines, l => Assert.Contains(l[^1], "┐│┤┘"));
 
-        // ④ 状态块在右列上半（中缝行之前），详细块在它下面。
-        var layout = new SplitLayout(width, height);
-        var divider = lines.ToList().FindIndex(l => l.Contains('├') && l.Contains('┤') && !l.Contains('┴'));
-        Assert.InRange(divider, 1, lines.Count - 1);
-        Assert.True(divider > layout.StatusRows - 1, "中缝应在状态块下方");
+        // ④ 首条分隔线 = 顶框的下框线；正文从它下面开始。
+        var divider = lines.ToList().FindIndex(l => l.Contains('├') && l.Contains('┤'));
+        Assert.Equal(layout.TopBandRows - 1, divider);
     }
 
     [Fact]
-    public async Task 几何_状态块固定在右上_不随对话滚动()
+    public async Task 几何_顶框固定_不随正文滚动()
     {
         using var h = new TuiHarness("split-fixed");
         var session = NewSession(h);
         await session.StartAsync(Ct);
-
-        for (var i = 1; i <= 12; i++)
+        // ⚠️ 对话里**只有人话**（每轮账本行不进对话）⇒ 要真正超过一屏得多来几轮。
+        for (var i = 1; i <= 40; i++)
         {
             await session.SubmitAsync($"第{i}句话", Ct);
         }
 
         var layout = new SplitLayout(96, 30);
-        var before = session.Frame(96, 30);
-        var beforeLines = SplitRenderer.Render(before);
-        var beforeLeft = beforeLines.Select(l => LeftColumn(l, layout.LeftWidth)).ToArray();
+        var beforeLines = SplitRenderer.Render(session.Frame(96, 30));
 
-        // 把对话滚到顶（左栏动）
-        session.FocusPane(PaneFocus.Input);
-        session.ScrollBy(-999);   // 向上滚到顶（↑ 的方向）
+        session.ScrollBy(-999);   // 正文向上滚到顶（↑ 的方向）
+        var afterLines = SplitRenderer.Render(session.Frame(96, 30));
 
-        var after = session.Frame(96, 30);
-        var afterLines = SplitRenderer.Render(after);
+        // ① 正文那一段确实滚了。
+        var from = layout.TopBandRows;
+        var to = beforeLines.Count - 2 - SplitLayout.StripRowsFor(30) - layout.InputRows;
+        Assert.True(to > from + 1, "正文得真的超过一屏，这条才有意义");
+        Assert.NotEqual(
+            beforeLines.Skip(from).Take(to - from).ToArray(),
+            afterLines.Skip(from).Take(to - from).ToArray());
 
-        // ① 左栏确实滚了。
-        Assert.NotEqual(beforeLeft, afterLines.Select(l => LeftColumn(l, layout.LeftWidth)).ToArray());
-
-        // ② 右列（状态块 + 中缝 + 详细块）**逐字节不动** —— 这就是「固定在右上角」。
-        for (var i = 1; i < beforeLines.Count - 2; i++)
+        // ② **顶框逐字节不动** —— v15 单栏的「固定」就指这一条（原先是「右列固定」）。
+        for (var i = 0; i < layout.TopBandRows; i++)
         {
-            Assert.Equal(RightColumn(beforeLines[i], layout.LeftWidth), RightColumn(afterLines[i], layout.LeftWidth));
+            Assert.Equal(beforeLines[i], afterLines[i]);
         }
+    }
 
-        // ③ 模型层同样不动。
-        Assert.Equal(SplitRenderer.StatusCells(before, layout), SplitRenderer.StatusCells(after, layout));
+    [Fact]
+    public void 输入区_行高随内容立刻变化_只在停稳后收窄()
+    {
+        // v13 修 BUG（主人 2026-09-21 报）：旧的两段口径（键入中只看显式换行 / 停稳才软换行）
+        // 会让行高**跳回一行**、且要等几百毫秒才长高。
+        // 新口径：**行高只按内容算**（立刻、软换行、上限 5 行）；收窄由宿主在停稳后做。
+        var longLine = new string('中', 60);          // 显示宽度 120 列
+
+        // 立刻就是 2 行（不再等停稳）。
+        Assert.Equal(2, SplitRenderer.InputRowsFor(longLine, 80));
+        Assert.Equal(1, SplitRenderer.InputRowsFor("zhongwen", 80));
+
+        // 显式换行照旧算（它是人手敲的）。
+        Assert.Equal(2, SplitRenderer.InputRowsFor("第一行\n短", 80));
+        Assert.Equal(3, SplitRenderer.InputRowsFor("a\nb\nc", 80));
+
+        // 上限：再长也只在 5 行里滚。
+        Assert.Equal(SplitLayout.MaxInputRows, SplitRenderer.InputRowsFor(new string('中', 600), 80));
+        Assert.Equal(400, SplitRenderer.InputSettleMs);                 // 它现在只当「收窄防抖窗口」
+
+        // 行高与渲染**同一把尺子**：段数 = 逻辑行占的显示行数。
+        var segments = SplitRenderer.InputSegments(longLine, 60);
+        Assert.Equal(2, segments.Count);
+        Assert.All(segments, s => Assert.True(TerminalText.WidthOf(s) <= 60));   // 每段不超可用列宽
+        Assert.Equal(longLine, string.Concat(segments));                                            // 切段不丢字
+
+        // 帧高与正文行数跟着变（行高长了一行，正文就少一行）。
+        using var h = new TuiHarness("tui-input-rows");
+        var session = NewSession(h);
+        var one = SplitLayoutFor(session, "");
+        var two = SplitLayoutFor(session, "a\nb");
+        Assert.Equal(one.BodyRows - 1, two.BodyRows);
+    }
+
+    private static SplitLayout SplitLayoutFor(AgentRuntime.Tui.SplitSession session, string input)
+    {
+        _ = session;
+        var rows = AgentRuntime.Tui.SplitRenderer.InputRowsFor(input, 80);
+        return new SplitLayout(80, 30, rows);
+    }
+
+    /// <summary>
+    /// **自绘标记格 == <c>CaretPosition</c> 指的格**（2026-09-22「IME 第二刀」的不变量）。
+    /// <para>为什么必须有这条：终端光标定位用的是**视觉列**，而帧行里 CJK 占 2 格 ⇒ 拿字符下标当列号
+    /// 在纯 ASCII 输入上照样绿，一打中文就偏。空 / ASCII / CJK 三种输入各测一次。</para>
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("abc")]
+    [InlineData("中文")]
+    public void 光标_定位格就是自绘标记格(string input)
+    {
+        var frame = FrameWithInput(input, input.Length);
+        var caret = SplitRenderer.CaretPosition(frame);
+
+        Assert.NotNull(caret);
+        var (row, col) = caret!.Value;
+        var lines = SplitRenderer.Render(frame);
+
+        Assert.InRange(row, 1, lines.Count);
+        Assert.Equal("_", TerminalText.SliceColumns(lines[row - 1], col - 1, 1));
+
+        // 行号必须落在**输入面板**里（末行 = 下边框，其上方 InputRows 行才是面板）。
+        var layout = new SplitLayout(frame.Width, frame.Height, frame.InputRows);
+        Assert.InRange(row, lines.Count - layout.InputRows, lines.Count - 1);
+    }
+
+    /// <summary>只给一条输入缓冲的帧（测光标定位用；其余字段取空值）。</summary>
+    private static SplitFrame FrameWithInput(string input, int caret, int width = 80, int height = 24) => new()
+    {
+        Title = "AgentRuntime TUI",
+        Subtitle = "t",
+        Conversation = [],
+        Regions = [],
+        Totals = new SplitTotals(0, 0, null),
+        RequestNote = string.Empty,
+        Menu = [],
+        MenuSelection = 0,
+        DetailLines = [],
+        DetailScroll = 0,
+        ConversationScroll = 0,
+        Input = input,
+        InputRows = SplitLayout.InputPanelRowsFor(height),
+        Caret = caret,
+        Focus = PaneFocus.Input,
+        Width = width,
+        Height = height,
+    };
+
+    /// <summary>只给一段对话流的帧（测对话行渲染用；其余字段取空值）。</summary>
+    private static SplitFrame FrameWithConversation(params ConversationEntry[] entries) => new()
+    {
+        Title = "AgentRuntime TUI",
+        Subtitle = "t",
+        Conversation = entries,
+        Regions = [],
+        Totals = new SplitTotals(0, 0, null),
+        RequestNote = string.Empty,
+        Menu = [],
+        MenuSelection = 0,
+        DetailLines = [],
+        DetailScroll = 0,
+        ConversationScroll = 0,
+        Input = string.Empty,
+        InputRows = SplitLayout.InputPanelRowsFor(24),
+        Caret = 0,
+        Focus = PaneFocus.Input,
+        Width = 80,
+        Height = 24,
+    };
+
+    [Fact]
+    public void 用户行_you大于号前缀_整行斜体_上下各空一行()
+    {
+        // 主人 2026-09-22 定：对话流里**自己问的那一句**要一眼瞄到 ⇒ `you > ` 前缀（两边各一个空格）
+        // + 整行**斜体** + 上下各空一行。三条都是契约，缺一条人就看不出「这句是我问的」。
+        var frame = FrameWithConversation(
+            new ConversationEntry("you", "再确认一次部署代号"),
+            new ConversationEntry("ai", "好。"));
+        var layout = new SplitLayout(frame.Width, frame.Height, frame.InputRows);
+        var rows = SplitRenderer.ConversationRich(frame, layout).ToList();
+
+        var at = rows.FindIndex(static r => r.Text.StartsWith("you > ", StringComparison.Ordinal));
+        Assert.True(at > 0 && at < rows.Count - 1, $"用户行要在中间（实际第 {at} 行 / 共 {rows.Count} 行）");
+        Assert.Equal("you > 再确认一次部署代号", rows[at].Text);
+        Assert.Equal(string.Empty, rows[at - 1].Text);                       // 上面空一行
+        Assert.Equal(string.Empty, rows[at + 1].Text);                       // 下面空一行
+
+        // 整行统一斜体：行内标记**不抢**角色（用户输入逐字显示，自己打的 `**` / `> ` 不会被当标记）。
+        var span = Assert.Single(rows[at].Spans);
+        Assert.Equal(StyleRole.You, span.Role);
+        Assert.Equal(0, span.Start);
+        Assert.Equal(rows[at].Text.Length, span.Length);
+
+        // 落屏那一笔：SGR `3` = 斜体；三档色深同一个码（字体属性不随色深变）。
+        Assert.Equal("\u001b[3m", StyleTable.Standard.Sgr(StyleRole.You));
+        Assert.Equal("\u001b[3m", StyleTable.Standard16.Sgr(StyleRole.You));
+        Assert.Equal("\u001b[3m", StyleTable.StandardTrueColor.Sgr(StyleRole.You));
+    }
+
+    [Fact]
+    public async Task 本轮被取消_不再把整个会话带走()
+    {
+        // 2026-09-22 01:39 主人真机报「说一句收尾就自动退出」：Ctrl-C 一下 / 思考中按 Enter（插话）取消的是**这一轮**，
+        // 而取消以前没人接 ⇒ TaskCanceledException 冒到 Main ⇒ 未捕获 ⇒ 整个 TUI 被 abort（实测退出码 -6）。
+        // 这里用**会挂住的假模型**把取消卡在「请求在飞」那一刻（真实路径）。
+        using var h = new TuiHarness("split-cancel");
+        var hanging = new FakeModelClient(async (_, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);   // 一直等到被取消
+            return null!;
+        });
+        using var host = RuntimeHost.BootWith(http: null, hanging, h.Config);
+        var router = new PanelRouter(host, h.Ledger, h.Ablation);
+        var session = new SplitSession(host, h.Ledger, router, verbose: false, tuiState: null);
+        await session.StartAsync(Ct);
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        var run = session.SubmitAsync("这句会被取消", cts.Token);
+        await Task.Delay(300, Ct);      // 等它真的进到「等远端」
+        cts.Cancel();                   // = Ctrl-C 一下
+
+        await run;                      // 必须**不抛**（取消不是崩溃）
+
+        var lines = SplitRenderer.Render(session.Frame(96, 30));
+        Assert.Contains(lines, l => l.Contains("本轮已中断", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 口径_顶框说本task与近token_不写本轮()
+    {
+        // 主人 2026-09-22 02:0x / 02:2x：「轮」= 一次模型调用（计算单位）；「生命周期 / task」= 一次用户请求。
+        // v15 单栏：口径全在**顶部框**（会话 / 区栈）—— 不再有「状态块」与「Δ列」。
+        using var h = new TuiHarness("split-wording");
+        var session = NewSession(h);
+        await session.StartAsync(Ct);
+        await session.SubmitAsync("口径", Ct);
+
+        var lines = SplitRenderer.Render(session.Frame(96, 30));
+        Assert.Contains(lines, l => l.Contains("会话", StringComparison.Ordinal) && l.Contains("本 task", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Contains("区栈", StringComparison.Ordinal) && l.Contains("≈token", StringComparison.Ordinal));
+        Assert.DoesNotContain(lines, l => l.Contains("Δ本轮", StringComparison.Ordinal));
+        Assert.DoesNotContain(lines, l => l.Contains("状态 · 本轮", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 提示条_带海蓝角色_且正文与纯文本帧逐字节一致()
+    {
+        // 主人 2026-09-22 02:0x：输入区上方那条提示改海蓝（StyleRole.Hint）。
+        // 角色是零宽标记 ⇒ 不得改变帧正文（plain == rich 闸门照旧）。
+        using var h = new TuiHarness("split-hint");
+        var session = NewSession(h);
+        await session.StartAsync(Ct);
+        await session.SubmitAsync("提示条", Ct);
+
+        var rich = SplitRenderer.RenderRich(session.Frame(96, 30));
+        var plain = SplitRenderer.Render(session.Frame(96, 30));
+
+        Assert.Contains(rich, static r => r.Spans.Any(static s => s.Role == StyleRole.Hint));
+        Assert.Equal(plain, rich.Select(static r => r.Text).ToArray());
+    }
+
+    [Fact]
+    public void 终局正文不再两遍_info行给卡让位()
+    {
+        // 2026-09-22 01:3x 主人真机报：「得解后终局的内容描述了两遍」——
+        // info 行 `[终局] 得解[DONE]：<正文>` 与卡上 `结果：<正文>` 是**同一段文字**。
+        // split 模式掐掉 info 行（卡承载它），辅助行照旧显示（卡上没有它们）。
+        var response = "做完了。\n[DONE] R1 协议区正文无可零损精简";
+        var terminal = TerminalReport.Parse(response).Describe();
+
+        var kept = SplitSession.VisibleInfoLines(
+            [terminal, "[终局] 它在等你（要决定 / 要信息）—— 回一句即可。"],
+            response);
+
+        Assert.Single(kept);
+        Assert.Contains("它在等你", kept[0], StringComparison.Ordinal);
+        Assert.DoesNotContain(kept, l => l.Contains("[DONE]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 绘制_末行之后不写换行_整屏帧不会被上滚一行()
+    {
+        // 坑（2026-09-20 真终端抓到）：末行之后多写一个 \r\n ⇒ 画面整体上滚一行 ⇒
+        // **顶边框（标题 / 协议版本 / task 读秒）被滚掉**。帧高 = 终端行数时，这条必须成立。
+        var output = new StringWriter();
+        var screen = new AgentRuntime.Tui.AnsiScreen(output);
+        screen.Draw(["AAA", "BBB", "CCC"]);
+
+        var text = output.ToString();
+        Assert.Equal(2, text.Split("\r\n").Length - 1);              // 3 行 ⇒ 只在**行间**换行
+        Assert.DoesNotContain("CCC\r\n", text, StringComparison.Ordinal);   // 末行之后没有换行（关键）
+        Assert.Contains("CCC", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -464,104 +710,67 @@ public sealed class TuiSplitTests
         await session.StartAsync(Ct);
         await session.SubmitAsync("/tail \"当前任务: 甲\"", Ct);
 
-        // 清掉面板输出，让详细块回到**区目录**（折叠态）
-        session.CollapseAll();
-
-        // ① 窄（72×20 ⇒ 右列 24 格）：先丢版本、再丢掉指纹列 —— 但 Δ 与次序必须在。
-        var narrow = new SplitLayout(72, 20);
-        Assert.Equal(24, narrow.RightWidth);
-        Assert.Equal(0, narrow.Columns.FingerprintChars);
-        Assert.False(narrow.Columns.ShowVersion);
-
+        // ① 窄（72 列）：顶框完整、行宽不漂；**指纹不再上屏**（v15）。
         var narrowLines = SplitRenderer.Render(session.Frame(72, 20));
         Assert.Equal(20, narrowLines.Count);
         Assert.All(narrowLines, l => Assert.Equal(72, TerminalText.WidthOf(l)));
-
         var narrowText = string.Join("\n", narrowLines);
-        Assert.Contains("R1-P", narrowText, StringComparison.Ordinal);
+        Assert.Contains("会话", narrowText, StringComparison.Ordinal);
+        Assert.Contains("≈token", narrowText, StringComparison.Ordinal);
         Assert.DoesNotContain(session.Frame(72, 20).Regions[0].Fingerprint, narrowText, StringComparison.Ordinal);
 
-        // ② 矮（80×17）：省掉「合计」与「上一轮」行，但六区表仍在，且不错位。
+        // ② 矮（80×17）：顶框降到最低档（会话 + 区栈合计），正文照旧、行宽不错位。
         var shortLayout = new SplitLayout(80, 17);
-        Assert.False(shortLayout.ShowTotalsRow);
-        Assert.False(shortLayout.ShowUsageRow);
-
+        Assert.Equal(2, shortLayout.TopBandContentRows);
         var shortLines = SplitRenderer.Render(session.Frame(80, 17));
         Assert.Equal(17, shortLines.Count);
         Assert.All(shortLines, l => Assert.Equal(80, TerminalText.WidthOf(l)));
-
         var shortText = string.Join("\n", shortLines);
-        Assert.DoesNotContain("合计", shortText, StringComparison.Ordinal);
-        Assert.DoesNotContain("上一轮", shortText, StringComparison.Ordinal);
-        Assert.Contains("R1-P", shortText, StringComparison.Ordinal);
-        Assert.Contains("▸ R2", shortText, StringComparison.Ordinal);
+        Assert.Contains("会话", shortText, StringComparison.Ordinal);
+        Assert.Contains("合计", shortText, StringComparison.Ordinal);
+        Assert.Contains("agent-runtime > ", shortText, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task 几何_左列自顶向下填充_空状态不留半屏空白()
+    public async Task 几何_正文自顶向下填充_空状态不留半屏空白()
     {
         using var h = new TuiHarness("split-topleft");
         var session = NewSession(h);
         await session.StartAsync(Ct);
 
         var layout = new SplitLayout(96, 30);
-        var fresh = SplitRenderer.Render(session.Frame(96, 30));
+        var lines = SplitRenderer.Render(session.Frame(96, 30));
 
-        // ① 会话刚起来（就一行引导语）：内容从**正文第一行**开始 —— 上方不留半屏空白。
-        //    （lines[0] 是顶边框，lines[1] 是左栏标题行，lines[2] 才是第一条消息）
-        Assert.Contains("Tab 切焦点", LeftColumn(fresh[2], layout.LeftWidth), StringComparison.Ordinal);
-        Assert.DoesNotContain("…", LeftColumn(fresh[2], layout.LeftWidth), StringComparison.Ordinal);
+        // 尺寸精确；正文从顶框下框线的下一行开始（不留半屏空白），抬头行有内容。
+        Assert.Equal(30, lines.Count);
+        Assert.Contains("对话", lines[layout.TopBandRows], StringComparison.Ordinal);
+        Assert.Contains(lines, l => l.Contains("agent-runtime > ", StringComparison.Ordinal));
 
-        // ② 内容不够一屏时，空白留在**下方**（最后一个正文行是空的）。
-        Assert.True(string.IsNullOrWhiteSpace(LeftColumn(fresh[layout.BodyRows], layout.LeftWidth)));
-
-        // ③ 内容超过一屏：自动贴底（最新仍在最下），↑ 可回看。
-        for (var i = 1; i <= 12; i++)
-        {
-            await session.SubmitAsync($"第{i}句话", Ct);
-        }
-
-        var atBottom = string.Join("\n", SplitRenderer.Render(session.Frame(96, 30)).Select(l => LeftColumn(l, layout.LeftWidth)));
-        Assert.Contains("第12句话", atBottom, StringComparison.Ordinal);
-        Assert.DoesNotContain("第1句话", atBottom, StringComparison.Ordinal);
-
-        session.FocusPane(PaneFocus.Input);
-        session.ScrollBy(-999);   // 向上滚到顶
-        var atTop = string.Join("\n", SplitRenderer.Render(session.Frame(96, 30)).Select(l => LeftColumn(l, layout.LeftWidth)));
-        Assert.Contains("第1句话", atTop, StringComparison.Ordinal);
-        Assert.DoesNotContain("第12句话", atTop, StringComparison.Ordinal);
+        // 正文区行数 = BodyRows（顶框 + 正文 + 分隔 + 状态条 + 输入 + 下框 = 高）。
+        Assert.Equal(
+            layout.TopBandRows + layout.BodyRows + 1 + SplitLayout.StripRowsFor(30) + layout.InputRows + 1,
+            lines.Count);
     }
 
     [Fact]
-    public async Task 几何_80列下区名字节Δ三列完整且不出现省略号()
+    public async Task 几何_80列下区栈用近token且不出现省略号()
     {
         using var h = new TuiHarness("split-narrow80");
         var session = NewSession(h);
         await session.StartAsync(Ct);
         await session.SubmitAsync("/tail \"当前任务: 甲\"", Ct);
         await session.SubmitAsync("一句话", Ct);
-        session.CollapseAll();
 
-        var layout = new SplitLayout(80, 24);
         var frame = session.Frame(80, 24);
         var lines = SplitRenderer.Render(frame);
-        var right = string.Join("\n", lines.Select(l => RightColumn(l, layout.LeftWidth)));
+        var text = string.Join("\n", lines);
 
-        // ① 窄屏整列略（不截字）：指纹列整体不进来。
-        Assert.Equal(0, layout.Columns.FingerprintChars);
-        Assert.False(layout.Columns.ShowVersion);
-
-        // ② 区名 / 字节 / Δ 三列必须**完整可读**。
-        foreach (var row in frame.Regions)
-        {
-            Assert.Contains(row.Id, right, StringComparison.Ordinal);
-            Assert.Contains(TerminalText.Number(row.Bytes), right, StringComparison.Ordinal);
-            Assert.Contains(TerminalText.Delta(row.Delta), right, StringComparison.Ordinal);
-            Assert.DoesNotContain(row.Fingerprint[..8], right, StringComparison.Ordinal);
-        }
-
-        // ③ 右列一个省略号都不许有（截字就是读不了）。
-        Assert.DoesNotContain("…", right, StringComparison.Ordinal);
+        // v15：区栈在顶框里、用 **≈token**（不再有 字节 / 指纹 列）；放不下**整段丢** ⇒ 不出现省略号。
+        Assert.Contains("区栈", text, StringComparison.Ordinal);
+        Assert.Contains("≈token", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("…", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(frame.Regions[0].Fingerprint, text, StringComparison.Ordinal);
+        Assert.All(lines, l => Assert.Equal(80, TerminalText.WidthOf(l)));
     }
 
     /// <summary>取一行里左列（显示宽度口径切分）。</summary>
@@ -630,6 +839,153 @@ public sealed class TuiSplitTests
         Assert.Null(defaults.Ui);
         Assert.Null(defaults.SnapshotPath);
         Assert.Null(defaults.Cols);
+    }
+
+    // ---------------- 「专家」行（主人 2026-09-22 令）----------------
+
+    /// <summary>手造一个 R1 层（只为「专家」行纯函数测试；段 id 逐字给）。</summary>
+    private static StackLayer R1With(params string[] segmentIds) =>
+        new(StackRegion.R1, 2, "R1", "冷冻区", [], 1, "fp", "v1",
+            [.. segmentIds.Select(id => new StackSegment(id, "1", 1, "fp"))], segmentIds.Length, "文本");
+
+    /// <summary>「专家」行的一项（id + 字节）—— 字节只决定 ≈token 显示。</summary>
+    private static ExpertDomain Expert(string id, int bytes = 4) => new(id, bytes);
+
+    /// <summary>带「专家」域清单的帧（96×30 = 最高档）。</summary>
+    private static SplitFrame FrameWithExperts(IReadOnlyList<ExpertDomain> domains) => new()
+    {
+        Title = "AgentRuntime TUI",
+        Subtitle = "t",
+        Conversation = [],
+        Regions = [],
+        ExpertDomains = domains,
+        Totals = new SplitTotals(0, 0, null),
+        RequestNote = string.Empty,
+        Menu = [],
+        MenuSelection = 0,
+        DetailLines = [],
+        DetailScroll = 0,
+        ConversationScroll = 0,
+        Input = string.Empty,
+        InputRows = SplitLayout.InputPanelRowsFor(30),
+        Caret = 0,
+        Focus = PaneFocus.Input,
+        Width = 96,
+        Height = 30,
+    };
+
+    [Fact]
+    public void 专家域_只认真的装进R1的段_次序按预设域()
+    {
+        // 段次序故意与预设次序相反：**同占用**时输出回到 `KnowledgeDomains` 的展示次序。
+        var layers = new[] { R1With("knowledge.expert.finance", "knowledge.expert.software") };
+        Assert.Equal(["software", "finance"], StackPanel.ExpertDomains(layers).Select(d => d.Id));
+
+        // global 段 / 别的区 / 空 ⇒ 一个都不报（配了不等于装了）。
+        Assert.Empty(StackPanel.ExpertDomains([R1With("rules.global", "knowledge.global")]));
+        Assert.Empty(StackPanel.ExpertDomains([]));
+    }
+
+    [Fact]
+    public void 专家域_技能常驻层的域按预设次序()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "wb-expert-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(
+            Path.Combine(dir, "l1.jsonl"),
+            """{"skill":"a","l1":"法则 A"}""",
+            new UTF8Encoding(false));
+        File.WriteAllText(
+            Path.Combine(dir, "l2.jsonl"),
+            """
+            {"skill":"a","domain":"photography","q":"问题一","ids":["S-a-001"]}
+            {"skill":"a","domain":"software","q":"问题二","ids":["S-a-002"]}
+            {"skill":"b","domain":"software","q":"问题三","ids":["S-b-001"]}
+            """,
+            new UTF8Encoding(false));
+
+        try
+        {
+            var resident = SkillResident.Load(dir);
+            var only = StackPanel.ExpertDomains([], resident);
+            Assert.Equal(["software", "photography"], only.Select(d => d.Id));
+            Assert.True(only[0].Bytes > only[1].Bytes, "按占用降序：software 两行 > photography 一行");
+
+            // 冻结 Expert 段 ∪ 常驻域：同名只出现一次（字节**相加**）。
+            var layers = new[] { R1With("knowledge.expert.software") };
+            var merged = StackPanel.ExpertDomains(layers, resident);
+            Assert.Equal(["software", "photography"], merged.Select(d => d.Id));
+            Assert.Equal(only[0].Bytes + 1, merged[0].Bytes);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void 专家行_高档显示_低档不占行_未装载要如实说()
+    {
+        // 96×30（最高档）：区栈与白板之间多一行「专家」；**每类带自己的 ≈token**（4 字节 ⇒ ≈1）。
+        // 次序由宿主给（占用降序）—— 渲染不再排序，屏上就是宿主那一份。
+        var lines = SplitRenderer.Render(FrameWithExperts([Expert("software", 400), Expert("ops", 40)]));
+        Assert.Contains("专家 | 软件 ≈100 | 流程 ≈10", string.Join("\n", lines), StringComparison.Ordinal);
+
+        // 屏面用**短名**（主人 2026-09-22 定），id 仍进账本：未知名回落 id，绝不编名字。
+        Assert.Equal("凭据", Expert("security").Label);
+        Assert.Equal("某新域", Expert("某新域").Label);
+
+        // 屏上的数字 = **真装进 R1 的那份字节 ÷ 4**（唯一一条：与 prompt 同源，不另算）。
+        var domainBytes = SkillResident.Load(
+            Path.Combine(RepoRoot(), "whitebox/workspace/knowledge/.derived")).DomainBytes();
+        var shown = StackPanel.ExpertDomains([], SkillResident.Load(
+            Path.Combine(RepoRoot(), "whitebox/workspace/knowledge/.derived")));
+        Assert.All(shown, d => Assert.Equal(domainBytes[d.Id] / 4, d.ApproxTokens));
+        Assert.Equal(shown.OrderByDescending(d => d.Bytes).Select(d => d.Id), shown.Select(d => d.Id));
+
+        // 一个都没装 ⇒ 如实写「（未装载）」，不许写预设清单。
+        Assert.Contains(
+            "专家 | （未装载）",
+            string.Join("\n", SplitRenderer.Render(FrameWithExperts([]))),
+            StringComparison.Ordinal);
+
+        // 80×24（中档）：这一行不占地方（版式档位决定，不是内容决定）。
+        var mid = FrameWithExperts([Expert("software")]);
+        var midLines = SplitRenderer.Render(new SplitFrame
+        {
+            Title = mid.Title,
+            Subtitle = mid.Subtitle,
+            Conversation = [],
+            Regions = [],
+            ExpertDomains = mid.ExpertDomains,
+            Totals = mid.Totals,
+            RequestNote = mid.RequestNote,
+            Menu = [],
+            MenuSelection = 0,
+            DetailLines = [],
+            DetailScroll = 0,
+            ConversationScroll = 0,
+            Input = string.Empty,
+            InputRows = SplitLayout.InputPanelRowsFor(24),
+            Caret = 0,
+            Focus = PaneFocus.Input,
+            Width = 80,
+            Height = 24,
+        });
+        Assert.DoesNotContain("专家", string.Join("\n", midLines), StringComparison.Ordinal);
+        Assert.All(midLines, l => Assert.Equal(80, TerminalText.WidthOf(l)));
+    }
+
+    /// <summary>仓库根（测试运行目录在 bin/ 下，往上找到含 `whitebox/` 的那层）。</summary>
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "whitebox")))
+        {
+            dir = dir.Parent;
+        }
+
+        return dir?.FullName ?? throw new InvalidOperationException("找不到仓库根（含 whitebox/ 的那层）。");
     }
 
     private static string Flatten(IEnumerable<string> lines) => string.Join("\n", lines);

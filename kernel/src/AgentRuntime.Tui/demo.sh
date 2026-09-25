@@ -43,21 +43,24 @@ reset_state() {
 
 tui=bin/Debug/net10.0/AgentRuntime.Tui.dll
 
+# 演示要**逐字节稳定**：显式关掉自动接续（mock 回复里没有工具块，本来也不会触发；关掉是为了不依赖这个事实）。
+noauto=--no-auto-continue
+
 # ① plain 转录（先把上一轮的 dump 清掉，避免陈旧文件冒充本次产物）
 rm -f "$here/.demo/stack-dump.txt"
 reset_state
-dotnet "$tui" --config "$here/config.demo.json" --focus E002 \
+dotnet "$tui" --config "$here/config.demo.json" --focus E002 $noauto \
   < "$here/demo-input.txt" > "$out" 2>&1
 
 # ② split 一帧（笔记本半屏目标 96×30）
 reset_state
-dotnet "$tui" --config "$here/config.demo.json" --focus E002 \
+dotnet "$tui" --config "$here/config.demo.json" --focus E002 $noauto \
   --ui split --snapshot "$frame96" --frame-size 96x30 \
   < "$here/demo-frame-input.txt" >> "$out" 2>&1
 
 # ③ split 一帧（下限 80×24：状态块压缩、仍不错位）
 reset_state
-dotnet "$tui" --config "$here/config.demo.json" --focus E002 \
+dotnet "$tui" --config "$here/config.demo.json" --focus E002 $noauto \
   --ui split --snapshot "$frame80" --cols 80 --rows 24 \
   < "$here/demo-frame-input.txt" >> "$out" 2>&1
 

@@ -1,327 +1,690 @@
 # 变更记录（Agent Runtime）
 
-## 0.8.0-dev — **宿主续跑 `--auto-continue`**（2026-09-16 13:4x，主人定）
+## 0.10.19-dev — **没终局也要那篇报告 + 坑 #153 变真闸门**（2026-09-24 21:5x，主人定）
 
-> 口径：**工具结果落地后，[WB] 要能自己接着说话** —— 否则每个工具轮都得人在终端里再敲一句，那就是「不自持」。
-> 依据：`docs/DESIGN-TOOL-FACE.md` §七·5；Stage 1 首跑实测（靠驱动器发「继续」不是长久之计）。**不改协议区**（v7 一个字节未动）。
+> 主人：「30 分钟没给终局的，也**直接出决策报告**，实际早于 100 轮，挺好的，很合适，这个暂时就这么定了，
+> 以后要跑全自动任务再松绑」＋「坑 153 的内容你搞成**真闸门**」。
 
-**内核（不变量：续跑轮不写 UserInput、不接受用户输入、只在尾部追加）**
-- `RuntimeContext` 新增 `IsContinuation`（显式标记，默认 `false` ⇒ 老路径一个字节不变）。
-- `AgentRuntimeEngine` 新增 **`ContinueAsync()`**；`ChatAsync` 与它共用一个私有 `RunAsync(message, continuation, ct)`。
-- `RequestAssembler`：`message` 改为可空；**非续跑轮仍必填**（老契约不松），续跑轮**不追加用户消息**。
-- `AppendStreamModule`：续跑轮**不写 `UserInput` 事件** —— 否则会把工具结果当用户输入又记一条（静默污染流）。
+- **① 被边界打断 ⇒ 没终局也要报告**：`RequestDecisionReport(interrupted:)` 新增一条来路 —— 到上限 / 到预算
+  且**没有终局块**时，宿主照样请它交 `[REPORT]`（专用原文 `CappedReportRequestText`，照样要求写清三件）。
+  `TurnContinuation` 在收口轮之后再加一轮「**边界报告轮**」⇒ 卡上**一定有**那篇报告（这正是人最需要它的时刻）。
+- **② 坑 #153 → 真闸门**：新增 `check_repo_deletions()`（闸门名 **删除登记**，block）：两仓 `svn status` 里的
+  `!`（本机缺失但没登记删除）必须为 **0**；`svn status PROJECT` 已覆盖本机活版（活版在「未提交（代码仓）」
+  里被 `whitebox/` 前缀排除，正需要这项兜住）。落点声明从 `todo` 改 `gate`（pointer = 该函数），
+  `todos_max` 回到 2。负例自证＝**罐头 svn 输出**（有 `!` ⇒ 红 / 没有 ⇒ 绿）。
+- **闸门**：`ContinuationCapTests` 4 例（+「到边界仍没终局，报告也要给出来」）；`TurnContinuationTests` ③④
+  再核轮数（收口轮 + 边界报告轮）。`closeout --selftest` 新增「删除登记（罐头 svn）」单项 ⇒ **15/15**。
+- 全量 `dotnet test` **678/678**；构建 0 警 0 错；`closeout --check` 中「删除登记」= 0 项。
 
-**宿主**
-- `RuntimeHost` 新增 `ContinueTurnAsync()` · `StreamCount` · **`HasToolOutcomeSince(cursor)`**（auto-continue 的**唯一触发判据**：流里真的多了 `ToolResult`/`ToolDenied`；不看模型自述 —— 被拒也是结果）；一轮尾部处理抽成 `FinishTurn` 供两种轮共用。
-- CLI 新增 **`--auto-continue <n>`**（默认 **0 = 关**；不合法报用法错误不静默当 0）：一轮结束后若流里落了工具结果就**不再问人**直接再问一轮，最多 n 次；每次在 stderr 留一行 `[auto-continue]` 痕（**不进 prompt、不改 stdout 口径**）。单发（`--chat` 之外）也生效。
-- Stage 1 驱动器 `e2e-shadow-stage1.py` 因此**不再发「继续」**（流里不再有宿主噪声），并加 `--verbose` 采集规模/命中。
+## 0.10.18-dev — **到边界不再静默停（上限 100 轮 → 收口出终局）+ 指针顺序无关 + 坑 #153**（2026-09-24 21:4x，主人三项定）
+
+> 主人令：① 「上限 100 轮停下来**直接给终局**，这样终局后决策报告可以提示用户『方法是否有效 / 要不要继续 /
+> 大概还剩多少任务』，**防止无上限操作**」；② 指针顺序陷阱「根据你的建议改」；③ 缺的那条坑「根据你的建议改」。
+
+- **① 到边界不许静默停**（病灶：卡 #5/#10 撞上限后宿主**悄无声息地收手** —— 那条痕只发给 `--verbose`、
+  **不进事件流** ⇒ 卡停在「● 进行中」，人看不出为什么，也永远不会有人来问「还要不要继续」）：
+  · `ContinuationSettings.Default.MaxRounds` **25 → 100**；
+  · 撞上限 / 撞预算 ⇒ 进流一条 `Hint`（`RuntimeHost.NoteContinuationCapped`），要它**当场收口**并用一个终局块结束；
+  · 再给它 **≤3 个收口轮**（`TurnContinuation.CapCloseoutRounds`，故意不受预算约束）把话说圆 ⇒ 终局一落地，
+  决策报告照发 —— 那篇里要写清「有效性 / 要不要继续 / 还剩多少」。
+- **② `resolve_pointer` 顺序无关**（真机：`AGENTS.md` 在**存档区**先命中，而存档区当时是旧版 ⇒ needle 必落空、
+  闸门报悬空，其实活版早就改了）：判据改「**任一**根站得住即算」，只在哪个根都站不住时才报悬空。
+- **③ 新坑 #153**：`svn update` 会把「本机删了但没登记」的文件**原样恢复**（`!` ≠ `D`）⇒ 跨副本删除必须
+  `svn delete --force`；落点声明标 `todo`（候选闸门＝两仓 `!` 计数为 0）并显式抬 `todos_max` 2→3。
+- **闸门**：`ContinuationCapTests` 3 例（默认 100 轮 / 撞轮数上限必进流收口且终局+报告照发 / 撞预算同样收口）；
+  `closeout --selftest` 新增「**指针的顺序无关**」单项自证（先命中的副本是旧版也不判悬空；哪儿都没有仍要红）
+  ⇒ **14/14**。
+- 全量 `dotnet test` **677/677**；构建 0 警 0 错；`closeout --check` 三项派生闸门（坑集索引 / 公开变体 / 坑集落点）全绿。
+
+## 0.10.17-dev — **决策报告必须存在：两条来路都认 + 每个终局各要一次**（2026-09-24 21:3x，主人真机报「得解了却没有报告」）
+
+> 现场：卡 #11（「做完了吗」）与卡 #12（「既然这样收尾吧」）都是 `✓ 得解`，卡下却写「未提交决策报告」——
+> 而报告其实**写在同一轮里**（`[DONE]` 与 `[REPORT]` 同一回复）。主人：「决策报告是必须展开的、必须存在的，
+> 不然用户无法根据上一轮的描述继续执行下一轮」。
+
+- **病根一（绑法只认一条来路）**：投影只认「宿主请求（Hint · src=report-request）之后的那一条回复」。
+  模型把报告与终局块写在同一轮（协议并没禁止）⇒ 宿主要在它之后才问，问完它去干别的 ⇒ 报告**看不见**。
+  修：**两条来路都认**（§十·38「多入口装同一份判定」）；并且已经认领的真报告**不许被后一轮的原料盖掉**
+  （盖了屏上就从「报告」变成「未提交」——卡 #11 就是这么丢的）。
+- **病根二（「每个终局一次」的账只在换会话面时清）**：`_reportRequested` / `_taskCloseoutHinted` 过去只在
+  `ReplaceModules()` 里清零 ⇒ **同一个进程里第 2 个任务起再也拿不到**（实测：一个进程只发出过一次 ——
+  请求落在卡 #1/#7/#11，全靠重启进程才又发一次；卡 #8/#12 得解却什么都没有）。
+  修：判据改「**非终局的一轮 = 任务又开工了** ⇒ 此刻清账」。
+- **顺带**：终局轮自带报告 ⇒ 宿主**不再问**（问了它只会去干别的，白烧一轮）。
+- **闸门**：`DecisionReportBindingTests` 6 例（终局轮自带要认领 / 请求后不是报告不许覆盖 / 两处都没有仍写未提交 /
+  正常来路照旧 / 自带 ⇒ 不再问 / **同进程第二个任务仍能要到**）。
+- **真机复算（报告是流上的投影）**：拿今晚那份真流重放 ⇒ 卡 #11/#12 的卡下**当场长出完整报告**（一~四节 + 锚），
+  无需重跑、无需它再交一次。
+- 全量 `dotnet test` **674/674**；构建 0 警 0 错。
+
+## 0.10.16-dev — **多行粘贴收成一次输入（括号粘贴收集器）**（2026-09-24 20:5x，主人真机报 + 令「像 [OC] 一样做个粘贴收集器」）
+
+> 主人现场：把一段多行文字粘进 TUI，回车后它**不是一条消息** —— 每个换行都被当回车，
+> 于是流里多出 N 条 `UserInput`，每条都把当轮**打断**一次（留下 N 条「用户中断了上一轮 ……
+> 该轮没有终局块」的 Hint），而真正活下来的任务文本**只剩最后一行**。
+
+- **病根（两条入口，与坑 #118 同族）**：TUI 只认 `ConsoleKey.Enter`，而**终端支持括号粘贴**
+  （`ESC[200~ … ESC[201~`）—— 支持了却没人接：那串标记被当成普通字符，粘贴体里的换行照旧逐行提交。
+- **实测（先量后定）**：.NET 10 / macOS 真终端上 `Console.ReadKey` **不吞**这些序列，
+  它把 `ESC [ 2 0 0 ~` 逐个键递进来（`Escape`/`'['`/`'2'`/`'0'`/`'0'`/`'~'`），粘贴体里的换行 = `Enter`(char 10)
+  ⇒ 判据是**它后面紧跟着的字节**，**不需要**猜时序（不靠「键来得快就是粘贴」这类启发式）。
+- **修法**：① 新增 `BracketedPaste.cs` —— `PasteCollector` 是**键盘唯一入口**
+  （空闲主循环与「等远端时」的插话回路**共用同一个实例**；各读一次 Console 就会漏掉一半）；
+  ② `AnsiScreen.Enter()/Dispose()` 写 `?2004h` / `?2004l`；
+  ③ 粘到的东西**只落进输入框、不提交**（发不发由人按回车定），多行的在对话里留一句
+  「（粘贴 N 行 / M 字符 —— 已一次收进输入框）」；④ 单块上限 64 KB（超了不收并明说，请落成文件）。
+- **失败路径不丢字**：`Esc` 后跟的字符不是标记 ⇒ 吃进来的字符**按原顺序**放回；粘贴体里的孤立 `ESC` 当内容。
+- **闸门**：`BracketedPasteTests` 10 例（整块只产出一次 / 连续两块 / CR 与 CRLF 归一 /
+  单独 Esc 仍是 Esc / 不匹配时全字还原 / 无标记时逐键原样 / 标记晚到仍识别 / 进出场标记）。
+- **真机 e2e（A/B 对照，零成本 mock）**：A 组发括号标记 ⇒ 流里**恰好 1 条** `UserInput`
+  （正文 `第一行\n第二行\n第三行`）；B 组只发裸换行（修复前的世界）⇒ **3 条** —— 负例证明这个杆有牙。
+- 全量 `dotnet test` **668/668**；构建 0 警 0 错。
+
+## 0.10.15-dev — **工作期间敲的命令按命令执行（不再当插话喂给模型）**（2026-09-22 23:3x，主人真机报）
+
+> 主人现场：工作期间敲 `/result` ⇒ 被当**插话**发给模型（模型回「`/result` 收到…」），并进流成 `UserInput`
+> ⇒ 生命周期聚合**白开一张卡**（`用户：/result`），把真正的任务叙事劈成两半。
+
+- **病根**：同一句输入有**两条入口**（正常提交 / 工作期间的插话），而命令判定只装在了其中一条。
+- **修法**：插话路径（`_pendingSteer`）过同一判定 `SplitSession.SteerIsCommand` —— 命中命令名单 ⇒ `RunCommandAsync`；
+  `exit|quit|/quit` ⇒ 退出；其余 ⇒ 插话（并脱一层 `//` 转义）。
+- **闸门**：`InputCommandRuleTests` 增 6 例（命令 ✓ / 转义 ✗ / 路径 ✗ / 人话 ✗）。
+- 全量 `dotnet test` **621/621**。
+
+## 0.10.14-dev — **修真机 SIGABRT：帧渲染枚举流活表（集合已修改）⇒ 全部改走当拍快照**（2026-09-22 23:28 真机，主人令「修好它」）
+
+> 崩溃自报（`~/.agentruntime/last-crash.txt`，03:49 加的兜底 dump 第一次立功）：
+> `System.InvalidOperationException: Collection was modified; enumeration operation may not execute.`
+> @ `LifecycleAggregator.Aggregate` → `SplitSession.CurrentLifecycle` → `Frame` → `WhileThinkingAsync`（思考态 200ms 重绘拍）。
+
+- **病根**：坑 #88 的修法（「跟线程读一律走 `Snapshot()`」）当年**只落到了部分读者** ——
+  **帧渲染路径**（`SplitSession.CurrentLifecycle` / `AppendToolLines`）与**宿主读口**
+  （`RuntimeHost.HasToolOutcomeSince` / `SessionLifecycle.LastRequest` / `LifecycleOf` / `PanelRouter.CurrentLifecycle`）
+  都还在直读 `Stream.Events`（活表）⇒ 工具结果正在追加时正好重绘一拍 = 未捕获 → **SIGABRT**。
+- **修法**：① `LifecycleAggregator.Aggregate(stream, …)` 重载内部取 **`stream.Snapshot()`**（渲染路径的合法入口）；
+  ② 上述 6 处直读全部改走重载 / `Snapshot()`。
+- **闸门（有牙）**：① 源码闸门 —— `src/AgentRuntime.Tui` / `.Hosting` 里再出现 `.Stream.Events` 即红；
+  ② 投影入口必须含 `stream.Snapshot()`；③ **并发烟囱** —— 一边追加一边走渲染入口投影 2000 次不抛。
+- 全量 `dotnet test` **612/612**。
+
+## 0.10.13-dev — **中断与接续留痕：Ctrl-C 进流 + 交接件带「最后一条用户消息」**（2026-09-22 23:1x，主人令）
+
+> 主人报：按 Ctrl-C 暂停后，紧接着发的那句是**被打断那一轮的接续** —— 却在新会话里被当成**全新问题**，
+> 模型满仓库去猜题意（现场见坑 #126）。
+
+- **同会话内**：取消分支除屏幕那行外，**同时进流**一条 `Hint`（`RuntimeHost.NoteTurnInterrupted`）：
+  「用户中断了上一轮 —— 被打断的是这一句：「…」（该轮**没有终局块**）。下一句用户消息**可能是这一轮的接续**…」
+- **跟 reset**：`HandoverSnapshot` 增 `LastUserMessage` + `LastTurnInterrupted`（**老档缺项默认空/false，照旧可读**）；
+  收尾时从流里推导（最后一条 `UserInput` 之后没有任何 `AgentOutput` ⇒ 未答完）；`/start` 时作为**新流首条 `Hint`**
+  （`RuntimeHost.NoteHandoverContinuation`）交给模型。
+- **不动协议、不增事件 KIND**：复用既有 `SessionEventKind.Hint`（与「收尾提议」同一条通道）。
+- **闸门**：3 条新测试（中断进流 / 跟 reset 接续 / 老交接档兼容）· 全量 **609/609** · 演示三闸门绿。
+
+## 0.10.12-dev — **[WB] 生命周期卡改「一条任务叙事」（五段）+ 求解口径解析容差**（2026-09-22 23:0x，主人令）
+
+> 主人报：「每一个 task 生命周期，都会多轮显示几轮下来的处理结果；最终结果不是落在最后一步的处理结果上」——
+> 要的是「**理解了什么需求 / 打算怎么做 / 过程中发现了什么问题 / 最后做了什么 / 还有什么可能有问题**」这一整套表述。
+
+- **取材**：`LifecycleAggregator`（纯函数）新增 ②`Intent`/`Step`（`[TAIL]` 的 solve/step，解析器与白板**同一份** `SolveHeader`）·
+  ③`Findings`（被拒/失败**带首因**，同类别合并计数）· ④`Actions`/`TouchedPaths`（`ToolResult.Source` 计数 + write/edit 路径去重）·
+  ⑤`RiskNotes`/`RiskNoneCount`/`OpenDraftItems`。**零模型调用、零协议改动**（料全在流里）。
+- **卡的形状**（`LifecyclePresenter.Card`，TUI 与 CLI 同一条投影）：`用户 → 意图 → 打算 → 过程（默认展开）→ 动作（一行聚合）
+  → 结果 → 待你决定/可选 → 风险 → 轨迹（折叠，不变）→ 页脚（不变）`；**缺数据的那几段不画**（不编）。
+- **副产物（真流实测：~44% 静默丢）**：模型的 `solve:`/`step:` 有 **39/88** 写成列表项（`- solve: …`），而解析只认**行首裸标签**
+  ⇒ 白板「求解」面板与卡上「意图/打算」**长期读不到**。`SolveHeader.Parse` 补**列表符号容差**
+  （`-`/`*`/`•`/`·`/`1.`/`1)`/`1、`）；只影响**读取**（白板正文仍逐字进 prompt）。
+- **验证**：`dotnet test` **606/606** · 真流回放（`.stage1/stream-20260922-170759.jsonl`）三张卡五段齐 ·
+  `sync-demo-doc --check` + `verify-demo.sh` + `e2e-presentation` + `e2e-solve-language` 全绿。
+
+## 0.10.11-dev — **TUI 输入判定：只有「已登记命令名」才算命令（粘绝对路径不再被吃掉）**（2026-09-22 22:2x，主人真机报）
+
+> 主人报：把一个绝对路径（`/tmp/Documents/…`）粘进输入区，**整条被当成斜杠命令吃掉**，文本没能发出去。
+
+- **根因**：`PanelRouter.IsCommand` = 「行首是 `/`」⇒ **路径与命令长得一样**，判定维度选错了。
+- **修法（看名字、不看首字符）**：新增**命令名单唯一声明处** `PanelRouter.Commands`（28 条）；
+  `IsCommand` 改为「**首个词命中名单**才算命令」，未登记的一律当**文本**发给模型；
+  另加转义 **`//…` = 强制当文本**（脱一层斜杠），两个 REPL（split / plain）都在**文本路径**上调用 `Unescape`；帮助文案第 1 行同步说清规则。
+- **新闸门** `InputCommandRuleTests`（19 条）：路径 / 未登记 / 转义都当文本；名单内才算命令；
+  **名单 ↔ 帮助文案双向一致**（名单每条都要露面；帮助里出现的每条都必须已登记 —— 修前那种「以为能跑、其实吃掉」由它拦）。
+- **真跑验证（零成本 mock）**：输入绝对路径 ⇒ 流里出现 `UserInput`（E7）且跑出一轮；输入 `//help …` ⇒ 流里是 `/help …` 文本（E9）。
+- **核验**：`dotnet test` **605/605**（586 + 19）· `sync-demo-doc --check` · `verify-demo.sh` 全绿。
+
+## 0.10.10-dev — **TUI：「正在思考」那一行改为与「得解」同色（薄荷绿）**（2026-09-22 17:3x，主人定）
+
+> 主人令：「**显示的『远端模型正在思考 task 02:00 5 轮』，这部分字体颜色改为和『得解』一样的绿色字体，增强识别度**」。
+
+- 落点（按呈现层三分法：**角色一张表，不在调用点写颜色**）：`SplitSession.ThinkingConversation()` 把合成行的 kind
+  由 `info` 改为 **`thinking`**；`SplitView` 给 `thinking` **整行一个角色** = **`StyleRole.Done`**（与卡上「✓ 得解」**同一个角色** —— 换观感改徽章表一处，两处一起走）。
+- 零宽：角色不改变帧正文 ⇒ `plain == rich` 闸门照旧（演示帧与文档**一个字节未变**，`sync-demo-doc --check` + `verify-demo.sh` 绿）。
+- **新闸门**：`ThinkingLineRoleTests`（2 条）—— ① 该行**单一段且角色 == Done**，且与 `LifecyclePresenter.Badge(Done)` 是同一角色；
+  ② `info` 行**不被跟着染色**，且两种 kind 的帧正文逐字节相同。
+- 核验：`dotnet test` **586/586**（584 + 新增 2）。
+
+## 0.10.9-dev — **协议 v20：补「没结束就不发终局块」的负向口径（治「假终局块 ⇒ 任务被判无解」）**（2026-09-22 17:0x，主人定）
+
+> 主人令：「**需要动协议区，这是我们交互体验的重要方面，不能由用户知识库去兜底**」。
+
+**协议区 v19 → v20**（12 行 / 5,558 字符 / **1390 token** ⇒ 预算按「先量后定 + 留余量」重定为 **≤13 行 / ≤1,500 token**）
+- 第 6 条补**四句口径**：① **没结束就不发终局块**（继续干用 `[TAIL]`/`[DRAFT]`/`[FOCUS]`/`[TOOL]`；不发 = 还在推进，是常态）；
+  ② `[NO-SOLUTION]` **只表示「已证此路不通」**，不是「本轮没做完」；③ **同轮还在点工具就不算终局**（终局 = 停）；
+  ④ **停下问人本身就是终局** ⇒ 用 `[NEED-USER]`；自然语言问句不能替代它。
+- **起因（真机现场，可复算，两次同一族）**：① `.stage1/stream-20260922-164509.jsonl` E011 —— 主人第一个问题中途换问题、
+  进入第二个 TASK 生命周期后，模型写了 `[NO-SOLUTION] 本轮不发终端块 —— 取证未完，继续。`
+  ⇒ 运行时照判**无解**（`--lifecycle-show` 回放：#2 ✗ 无解 · 结果：本轮不发终端块），
+  任务当场定格、同轮 **8 个工具的结果回来后再无下一轮**；
+  ② `.stage1/stream-20260922-170759.jsonl` E248 —— 补收尾后它问「**L3 切条现在重建吗？请给 API key 路径**」
+  却**没发终局块** ⇒ 卡 `#3 ● 进行中 24 轮` 悬住、task 钟停表（人看着像卡死；坑 #120）。
+- **根因**：协议第 6 条只写**正面三态**、没写**负向口径** ⇒ 模型被逼成「每轮必须用一个终局块收尾」，于是发明假块。
+- **副本同日重指**：`docs/REPORT-PROTOCOL-ZONE.md` §三 逐字副本（**由代码常量重打**）+ v20 决议段 + 预算表 +
+  §三 标题版本；测试钉住值同步为 **1390 / 1500 / v20**；**行数仍 12 ⇒ 行预算不动**。
+- **只付一次冷启**：两次编辑（r788 第一句 / 本提交第二句）之间**没有真机跑过** ⇒ 只会在主人下次重启后付一次（≈50k token）。
+- **未并入本 bump（写明理由）**：**「答完就收手」行为口径**（主人尚未裁）—— 待裁后随下一次协议 bump 一起进，
+  不为它单独再付一次冷启税。
+- **核验（零成本）**：`--protocol-show` 打出 `v20 · 12 行 / 5558 字符 / ≈1390 token · 预算 ≤1500` 且正文含四句新口径；
+  组装侧由 `RuntimeModeTests`（`Messages[0].Content == ProtocolText.Text`）与 `FocusPipelineTests`（R1-P 占最前）盯住。
+
+## 0.10.8-dev — **协议 v19：`read` 按符号取整段（能力落地，但实测无可测收益）**（2026-09-22 16:4x，主人定）
+
+> 主人令：「**动协议区吧，这次动完基本可以不怎么动了**」。
+
+**协议区 v18 → v19**（12 行 / 5,073 字符 / **1269 token** ⇒ 在预算 ≤13 行 / ≤1,300 token 之内）
+- 第 5 条把 `read` 的键补上 **`symbol`**（`read{path,symbol,maxLines,offset,limit}`），并教一句：
+  「要看清一个东西的定义，就**按名字一次取整段**（`read {"path":"src/X.cs","symbol":"Name"}`），
+  别用小窗口一页一页翻大文件」。
+- 实现：`ReadTool` 的**词边界匹配 + 花括号配平**（启发式：配不平则**截到文件末并明说**；
+  `symbol` 与 `offset/limit/maxLines` **互斥** ⇒ 同时给当场拒）。
+- 同步：`docs/REPORT-PROTOCOL-ZONE.md` §三 副本（闸门 `Gate_ProtocolDocCopy_MatchesCode` 钉住）+ 演示产物重生成
+  （`demo.sh` → `sync-demo-doc.py --write` → `--check` → `verify-demo.sh`）。
+
+**实测（n=6，真机同题「没输 /start 会怎样」）**
+- warm 5 跑：新增 token **13,276 / 10,656 / 10,731 / 25,034 / 22,225**（中位 **13,276**）· 轮数 5~10
+  vs v18 基线 **13,697 / 12,916 / 15,945**（中位 **13,697**）⇒ **基本持平**（差 <3%，落在方差内）。
+- **机制没被用上**：6 跑里 `symbol` 只被调用 **2 次**（其余 4 跑 0 次）⇒ **收益无从谈起**（坑 **#117**）。
+- **一次性成本**：改协议 = 前缀冷启，**首跑多付 ≈ 50k token**（实测 run1 第一轮 `cached=384 / prompt=49,773`）。
+
+**决定**：**保留 v19**（无回归 + 真能力 + 在预算内；再改回去还得再付一次冷启），
+但**能效这条轴判为到顶** —— 五次改动 + 一个能力，**没有一次带来可测收益**；
+同题成本稳定在 **≈1.3 万新增 token / 5~7 轮**。
+
+**证据**：`dotnet test` **584/584** · 文档副本闸门绿 · `sync-demo-doc.py --check` 绿 · `verify-demo.sh` 绿 ·
+`e2e-presentation.py` 全过 · A/B 原始数据 `benchmark/runs/20260922-1619-cap-ab-token-efficiency/v19-symbol/`（6 跑）。
+
+## 0.10.7-dev — **单 lifecycle 能效：结果上限 A/B 证伪 · 用量账本落盘（F）**（2026-09-22 16:0x~16:2x，主人令「按顺序优化」）
+
+**一、结果上限 A/B —— 证伪，代码零净变更**
+
+同题（「没输 `/start` 会怎样」）·真模型 + `frozen-private` A 档·全模块·隔离状态·**五组 × 3 跑**：
+
+| 组 | 轮数中位 | 新增 token 中位 | 结果 KB |
+|---|---|---|---|
+| **cap 2,000（基线）** | **6** | **13,697** | 21 |
+| cap 1,000 | 11 | 20,563 | 25 |
+| cap 4,000 | 7 | 17,330 | 30 |
+| 已读图 + 未读段 | 8 | 21,477 | 31 |
+| 只报「与已读重合」 | 8 | 22,620 | 36 |
+
+**五个方案没有一个赢过基线。** ⇒ **2,000 是这条轴上的局部最优**；页数由**模型的检索策略**决定，不由窗口大小决定。
+两条机制：调小 ⇒ 窗口减半、**调用翻倍**（且总字节不降）；调大 ⇒ 窗口变干净但**体量 +43%**。
+第三/四组是**我做坏的**：列「未读段」= 递一张待办清单 ⇒ 它去读满（+57%）；收紧成只报重合仍涨
+⇒ **「重叠翻页」是「放大镜式细化」，不是浪费**。
+- 证据（全部原始流 + `-v` 诊断 + 复算驱动）：`benchmark/runs/20260922-1619-cap-ab-token-efficiency/`（`summary.md` 给了口径与判据）。
+- 坑集：**#114**（上限两方向都更差）· **#115**（给模型列未读段 = 递待办清单）· **#116**（改工具结果内容 = 改控制面，必须 A/B）。
+- **判据（下次照抄）**：一轮 ≈ **1.0~1.8k** 新 token，而 2,000→1,000 每条只省 ≈250 token ⇒ **省 4~7 条才够买一轮**。
+
+**二、F：用量账本落盘（以前只能写「用量 —」）**
+
+- `TurnLedger`：`From(result, turn)`（**纯函数**，内存账本与落盘账本共用一处口径）· `Append`（JSONL，只追加）·
+  `Load`（**坏行只丢那一条，不抛**）· `Describe`（一行读数：轮数 · 新增 token · 末轮命中率 · 耗时）。
+- 账本随**流卷**走：`<stream>.usage.jsonl`（`RuntimePaths.UsageOf`）⇒ 一次 `reset/start` 换一卷 ⇒ 账也分卷，
+  不会把两节会话的钱混在一个账上。**不配 `stream.path` 就不写**（测试/无头不碰人的目录）。
+- 宿主 `FinishTurn` 每轮追加（拿不到 usage ⇒ **不记**：记一条 0 会让人分不清「没花钱」与「没拿到数」）；
+  CLI `--closeout` 读回并报出真实用量。
+- 两处纪律：① **不写 BOM**（`Encoding.UTF8` 新建文件会写 BOM ⇒ 首行不是严格 JSON，**Python/jq 复算当场报错**）；
+  ② 账本是读数不是关键路径 ⇒ 写失败只告警。
 
 **证据**
-- `dotnet build` 0 警 0 错；`dotnet test` **365/365**（+`AutoContinueTests` 4 条：续跑不写 UserInput · 续跑拒绝用户输入且正常轮仍必填 · 触发判据只看流（工具结果/被拒）· 续跑轮末条不是用户消息）。
-- 真机（Stage 1 第二次跑，见 `docs/REHEARSAL-STAGE1-DOUBLE-RUN.md` §4.2）：prompt 37,936 / **cached 37,760（99.53%）** / uncached 176 / Runtime 开销 32 ms；本轮 0 工具调用 ⇒ 续跑未触发（其真机验证待一个「非动工具不可」的任务）。
+- `dotnet test` **584/584**（+4 `UsageLedgerTests`：往返一致 / 坏行只丢一条 / 读不出给 null 不编数 / 账本路径随流卷 + 无 BOM）。
+- 真机闭环（隔离配置，不碰 `~/.agentruntime`）：一轮跑出 **6 轮账本**（`uncached/ completion` 逐轮可见）⇒
+  `--closeout` 打出 `[收尾·用量] 本卷 6 轮 · 新增 15,586 token · 末轮命中率 96.7% · 耗时合计 18,579ms`。
+- `sync-demo-doc.py --check` 绿 · `verify-demo.sh` 绿 · `e2e-presentation.py` 全部通过。
 
-## 0.7.1-dev — **must-ask 档：发布 / 不可逆命令**（2026-09-16 13:1x，主人定）
+**留白（诚实）**：收尾报告里**两处用量**（卷级 vs 生命周期级）目前一处有数、一处仍写「—」——
+per-lifecycle 用量由 TUI 侧的 `LifecycleCardView.Usages(ledger)` 供给，CLI 拿不到 ⇒ **下一步把落盘账本接进这一处，两处口径合一**。
 
-> 口径：**`svn commit` 这类动作从「需批」升到 must-ask** —— 目的是"让主人还有机会在遇到复杂问题时先停手"。
-> 依据：`docs/DESIGN-TOOL-FACE.md` §四 / §七·4。**不改协议区**（v7 正文一个字节未动）。
+## 0.10.6-dev — **协议 v14 → v18：`[TOOL]` 的吞吐 · 体量 · 形状（五连改 · 事后补录）**（2026-09-22 03:2x–04:1x，主人定）
 
-**新增第三档 `ToolRisk.Critical`（中文说法「发布 / 不可逆（must-ask）」）**
-- 与 `Mutating` 的差别不是"程度感"，而是**两条可断言的硬约束**：
-  ① 审批面**必须**把决定型内容**逐字完整**摆出来（§十·34）——`svn commit -F <文件>` **展开提交信息全文**，不说"见文件"；
-  ② 账本按档单独记（`ApprovalEntry.Risk`）⇒ 事后可按档复核"点过几次头"。
-- **判据唯一声明处**：`ExecCommandRisk.Classify(command)`（命令级）+ `ToolNames.RiskOf(name)`（工具级）。
-  表里只收两类：**发布**（`svn commit` / `git push`）与**不可恢复删除**（`rm` / `rmdir` / `unlink` / `shred` / `dd` / `mkfs`）。
-  **默认方向 fail-closed**：判不出（命令空 / 首词不认识 / 复合命令）⇒ **至少需批**，**绝不降为免批**；判据**故意偏严**（某个参数 token 命中即升级）。
-- **复合命令取最高档**：`svn status && svn commit` ⇒ must-ask（按 `&&` / `||` / `;` / `|` / 换行切分后取 max）。
-- `ITool` 新增 `RiskFor(ToolArgs)`（默认 = `Risk`）—— 让"**同一个工具、不同动作、不同档**"成立；
-  `ToolRunner` 的免批判据由 `RiskOf(name)` 改为 **本次动作档**（`risk != ReadOnly`）。
-- `ExecMessageFiles.ReferencedIn(command)`：从命令里找出 `-F <文件>` / `--file <文件>` 引用的提交信息文件（**只解析不读**）；
-  `ExecTool.Preview` 在 must-ask 档**逐字展开**它（读不到就**明说未展开**，不静默）；
-  展开内容经**同一条截断口径**（截断必明说 + 给完整落点），**不是拼接后绕过预算**。
-- **不做**（另一个方向、需主人单独点头）：把只读命令（`svn status` / `log` / `info` …）降为免批。
-- 测试：**361/361**（+`MustAskTests` 26 条：命令分级正/负例 · 复合取最高档 · 未登记仍 fail-closed ·
-  `RiskFor` 同工具不同档 · 审批面展开提交信息全文 · 读不到时明说 · 账本按档记 · 一次一批不长期放行）。
-- ⚠️ **安全框架（白名单 / 沙箱 / 围栏）仍未做** —— 仍是"后补"，不是遗漏；本档只是**在审批那一刻把信息给全**。
+> **补录说明**：v14~v18 五条协议变更当时**没留 CHANGELOG 条目**（连改五次，只更新了协议正文 / 闸门 / 文档）。本条目按 `docs/REPORT-PROTOCOL-ZONE.md` §三的决议记录、`docs/PITFALLS.md` #110~#113、`memory/2026-09-22.md` §十一 与 SVN 提交（**r777 = v14 · r778 = v15 · r779 = v16 · r782 = v18**）回补；与 `## 0.10.0-dev` 同例（那一条也是事后补录）。
+> 主人口径：① `[TOOL]` **一轮点几个动作是协议层的事**；② 工具 / 环境层面的效率「**不该由用户铁则区承担**」⇒ 协议区容量按需扩容。
 
-## 0.7.0-dev — Protocol v7 + 工具面（G1）+ 审批闸门（G2）（2026-09-16）
+**协议区 v14 → v18**（只改第 2 / 5 条 + 新增第 11 条；**协议正文以外的来源一处未动**；`ProtocolText.Version` = 18，唯一真相源仍是代码常量）
 
-> 依据：`docs/DESIGN-TOOL-FACE.md`（§二 结论选 **B · 文本协议**；§四 审批闸门；§五 不变量 F1~F5；§七 落地；§八 待裁决）。
-> 协议 v7 由主会话定稿并提交（SVN r572）：**正文一个字节未改**，本次只**消费**它（新增的 `[TOOL]` 子句 = 一次回复只允许一次调用 / 必须等结果事件 / 被拒也是结果）。
+- **① v14（03:2x）—— `[TOOL]` 一次回复最多 4 个 + 把 bulk 的边界写清**
+  - **动机**：一场简单提问跑了 **9 轮 / 16.343k new token**，其中 **4 轮是「读一点、看一点、再读一点」** —— 旧文 `one call per reply` 让取证只能一轮一轮地挤，而**每轮都要重发整份上下文**（**轮数是成本的乘数，不是常数**）。
+  - **改了什么**：第 5 条 `one call per reply` ⇒ **一次回复最多 4 个 `[TOOL]`**，按发出顺序逐个执行、逐个回结果事件（一一对应不变）；**超 4 ⇒ 拒**（不取前几个）· **任一块不合语法 ⇒ 整篇拒**（不跑一半）。第 2 条把 `never in bulk` 的**边界**写清（那条规矩管的是 **knowledge**；读源码 / 读文件回答问题是「**一次读够**」）。第 5 条补「`risk:` 写在 **JSON 外面**」（实测模型把 `risk` 塞进 JSON 被拒，白烧一轮）。解析器多块：`Ok / TooMany / Malformed`。
+  - **实测 token 与预算口径**：**11 行 / 3,980 字符 / 995 token** ⇒ 预算重定为 **≤12 行 / ≤1,100 token**（**先量后定**；v13 的 995/1,000 只剩 5 token，一次措辞微调就要重议）。
+  - **依据文档**：`docs/REPORT-PROTOCOL-ZONE.md` §三「v13 → v14」· `docs/PITFALLS.md` **#111**（一轮只准一个动作 ⇒ 每轮买一个动作）· `memory/2026-09-22.md` r777 · `ProtocolZoneTests` / `ToolReportTests`（多次全取 / 超限拒 / 一块坏整篇拒）。
 
-**工具面（G1）**
-- Core 新增 `AgentRuntime.Core.Tooling`：`ToolNames`/`ToolRisk`（封闭集 + 分级）、`ToolReport`（`[TOOL] name {json}` 解析）、
-  `ToolArgs`（JSON-in-text 的受控解析 + 摘要）、`ToolLimits`（**只做上下文保护**，不是安全边界）、
-  `ToolPaths`（**路径真身**：解析 ~ / 相对 / `..` / 符号链接）、`ToolBase` + `read`/`list`/`write`/`edit`、
-  `ITool.Preview` + `ApprovalFace`/`LineDiff`（**知情审批面**）、`IEventSink`（结果必须落成事件）、`InMemoryEventSink`。
-- 解析判据：**一次回复只允许一次调用**（多于一次 ⇒ 拒绝，不取第一个）；JSON 只认**大括号配平**段（转义/字符串内的括号不算）；
-  块头必须**行首**（与既有块同族）。
-- 结果按既有的 **V3 只追加流**记成事件：`ToolResult`（既有 KIND）/ **新增 `ToolDenied`**；行号即地址，可重放（F2）。
-- Modules 新增 `ToolModule`（`tool`）：**零注入**（不改 prompt 一个字节），必须有事件落点（没挂 `append-stream` ⇒ 装配期报错）。
+- **② v15（03:3x）—— 打回自己做坏的那一步：结果上限 8,000 → 2,000 字符**
+  - **动机**：v14 **实测变差** —— 同一提问 **9 轮 / 16.3k → 12 轮 / 37.1k**（工具结果 **13.8 KB → 139.9 KB**，占新 token 的 ~94%）。三条主因缺一不可：① 「读的边界」被放宽 ⇒ 模型**整份文件倒**（单次顶到 8 KB）；② 4 次/轮 × 8 KB = **32 KB/轮**；③ `read`/`list` **路径基准不明**（17 次失败调用）⇒ 轮数反而涨。
+  - **改了什么**：① 第 2 条措辞**收正**（一次要齐「你需要的窗口」，**绝不整份倒**；结果有上限 + 指针，续读用 `offset`）；② 工具结果上限 **8,000 → 2,000 字符**（`ToolLimits.MaxOutputChars`），**每条截断自带指针**（`read` 给 `offset`、其余给 `/trace`）；③ `read` **行窗与字符窗对齐**（装到字符上限为止 ⇒ 头部行号 = 实际可见量）；④ `read`/`list` 失败话术说清错在哪并带上**基准目录**。
+  - **实测 token 与预算口径**：**11 行 / 4,029 字符 / 1008 token** ⇒ **在 ≤12 行 / ≤1,100 token 之内，预算不动**。
+  - **依据文档**：`docs/REPORT-PROTOCOL-ZONE.md` §三「v14 → v15」· `docs/PITFALLS.md` **#112**（**口径只管方向，不管体量；体量得另立闸门**）· `memory/2026-09-22.md` r778。
 
-**改定（2026-09-16 03:00，主人定；由主会话复核后落地）**
-- **砍掉 `exec` / 子进程**：论文里没有这一项 ⇒ `ExecTool`、命令白名单、超时设置**全部移除**；工具集收窄为
-  `read` / `list` / `write` / `edit`。模型若点 `exec` 这类未登记名字 ⇒ 归**对外类 must-ask** ⇒ 默认拒绝（fail-closed）。
-- **取消路径围栏**：目标就是"能改本机任何文件"，安全性**全部压在审批质量上**（`DESIGN-TOOL-FACE` §四·二 S1~S6）。
-  `ToolSandbox`（含 `Root` / "未配置 ⇒ 一律拒"）删除，换成 `ToolLimits`（只留上下文保护上限）+ `ToolPaths`（真身）。
-- **审批面做到"知情"（S2/S3）**：真身绝对路径 + 存在性 + 现有行数/字节；**新文件给全文 / 已存在给 diff（带 +行/−行 精确计数）**
-  / `edit` 给 `oldText → newText` 块；**覆盖已存在文件显著标注**；超预算则截断**明说**并给完整内容落点。
-  审批面**只由 Runtime 从结构化参数渲染**，模型正文进不来（否则模型能伪造提示骗人点头）。
-- **CLI 审批（G2 落地）**：新增 `ConsoleApprovalGate`（审批面进 stderr、答复读 stdin，只认 `y`/`yes`）；
-  **stdin / stderr 任一不是终端 ⇒ 不问人、直接拒**（fail-closed）并说一句人话；EOF ⇒ `Unknown` + 审批者记 `non-interactive`（**绝不谎称有人点头**）。
-- **端到端验证**（PTY 真机驱动，可复算）：`src/AgentRuntime.Cli/e2e-tool-approval.py` —— 点头 ⇒ 文件确实被写入且审批面含真身+全文；
-  拒绝 ⇒ 文件**确实没被创建**。
-- 测试：**333/333**（+ CLI 审批 12 条：非交互 / EOF / y-yes-yes变体 / 拒绝 / 知情面真身与 diff / 一次一批不缓存）。
-- **TUI 审批（G2 的 TUI 落地）**：新增 `TuiApprovalGate` —— 审批面进**右栏详细块**（Runtime 渲染）、键 `y/n`；
-  非交互 ⇒ 拒；取不到键 ⇒ `Unknown` + actor=`non-interactive`。TUI 的按键循环在轮次期间是阻塞的 ⇒ **闸门自己取键**。
-- **右栏折行开关**：`SplitFrame.DetailWrap` —— **只在待审批时**把详细块由「截断」改为「折行」，
-  因为审批的「知情」要求人看得到**完整**真身路径（PITFALLS #46）。
-- **TUI 端到端**：`src/AgentRuntime.Tui/e2e-tool-approval.py`（PTY）—— 右栏出现审批面（含真身 `/private/tmp/…`）；
-  `y` ⇒ 文件真被写入；`n` ⇒ 确实没被创建。**PASS**
-- 测试：**333/333**（+ CLI 审批 12 条 + TUI 审批 5 条）；`verify-demo.sh` 仍绿（无待审批 ⇒ 帧逐字节不变）。
-- 坑集：**#46**（审批面被截断 ⇒ 待决定内容折行永胜截断）· **#47**（E2E 夹具三连坑：按键切分 / 提示吃 stdin / 回显缺块头）。
-- **exec 回归（2026-09-16 12:58 主人改定）**：新增 `ExecTool`（`{"command":"…","timeoutSeconds":?}`）——
-  理由：**[WB] 要自持**（自己跑 `svn` 与 `tools/frozen-build/build-frozen-corpus.py`）；
-  **安全框架后补**（命令白名单 / 沙箱 / 目录围栏都**还没做**，是"后补"不是遗漏）。
-  本版只守三条（都是"别把会话搞死"而非安全）：超时（默认 60s、硬上限 600s）、输出上限（**超限明说**）、走审批闸门。
-  语义：**非 0 退出是"结果"**（跑了但失败），不是拒绝；审批面给**完整命令原文 + 工作目录 + 超时**（S2）。
-- **自持闭环已实测**（`src/AgentRuntime.Cli/e2e-exec-selfsustain.py`，PTY）：[WB] 自己跑 `svn info` ⇒ exit 0；
-  自己跑语料重建闸门 `build-frozen-corpus.py --check` ⇒ exit 0 并回传校验输出。
-- 测试 333 → **335**（exec 在册 + 真跑得动 + 审批面原文 三条新断言）。
+- **③ v16（03:4x）—— 第 5 条补「工具名 + 各工具的键」**
+  - **动机**：v15 实测模型仍先用 `exec {"cmd":…}` 猜键（3 条拒绝）—— 协议**只给过 `read {"path":…}` 一个例子，既没有名单、也没有键名** ⇒ 第一次调用就得猜。
+  - **改了什么**：第 5 条补上工具面 `read{path,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds}`；这张面由 `ToolNames.FaceText` **同一处渲染**（协议正文与拒绝话术共用），闸门 `Gate_协议正文里的工具面_与代码同一份渲染` 钉住「**协议写的 = 运行时认的**」（改参数名 ⇒ 测试立刻红）。
+  - **实测 token 与预算口径**：**11 行 / 4,138 字符 / 1035 token** ⇒ **在 ≤12 行 / ≤1,100 token 之内，预算不动**。
+  - **依据文档**：`docs/REPORT-PROTOCOL-ZONE.md` §三「v15 → v16」· `docs/PITFALLS.md` **#110**（拒绝话术一次把整张契约说完，同源）· `memory/2026-09-22.md` r779。
 
-**审批闸门（G2）**
-- `IApprovalGate` + 四个实现：默认 `NonInteractiveApprovalGate`（非交互 / 无 TTY ⇒ **拒绝**）、`UnknownApprovalGate`（判不出 ⇒ Unknown ⇒ 当拒绝）、
-  `ScriptedApprovalGate`（测试）、`OneShotApprovalGate`（**一次一批**：摘要取走即失效，不产生长期放行）。
-- 分级：`read` / `list` 免批（**不打扰人**，闸门根本不被调用）；`write` / `edit` / `exec` 需批；未登记的工具名归**对外类（must-ask）**⇒ 默认拒绝。
-- `ApprovalLedger`：只追加、可落 JSONL，**不进 prompt**（F5 逐字节断言）；**模型不得自批**（`Approved` 的 actor 非 `human` ⇒ 抛错）。
-- 参数体检在**审批之前**：不该请人批准一个连参数都写错了的动作。
-- `exec` 的沙箱边界**只**做四件事（首词白名单 / 工作目录限定 / 超时 / 输出上限），**白名单为空或未配根 ⇒ 一律拒绝**；边界本身列为**待主人裁决**（不自造）。
+- **④ v17（03:4x）—— 新增第 11 条「东西在哪 + 怎么干得快」**
+  - **动机**：v16 那一跑 **7 轮里 3 轮纯在找代码在哪**（模型在 `whitebox/` 里 grep C#）—— **信息缺失税**；而且它**不该由用户铁则区承担**（工具 / 环境层面的效率属**协议区**）。主人令：「工具调用级别的效率问题应该是协议层的事……**扩大协议区的容量**」。
+  - **改了什么**：**新增第 11 条** —— cwd（工具相对路径基准 = 运行时工作目录，仓库根 = 上两级）· 宿主代码在 `src/`（Core / Hosting / Tui / Cli）· 本工作区文件在 `whitebox/workspace/`（`whitebox/` 下没有 C# 源码）；**先定位（grep / find）、再只读你要的那一窗**，绝不整份倒（结果有上限且自带指针），把轮次花在判断上、不花在翻页上。
+  - **实测 token 与预算口径**：**12 行 / 4,719 字符 / 1180 token** ⇒ 预算**扩容**为 **≤13 行 / ≤1,300 token**（先量后定，留 ~10% 余量）。
+  - **依据文档**：`docs/REPORT-PROTOCOL-ZONE.md` §三「v16 → v17」· `ProtocolText.cs` 的 v16/v17 段（含主人 2026-09-22 03:45 定的口径）· `memory/2026-09-22.md` §十一·四·1（候选清单）。
 
-**测试**
-- 新增 3 个测试类 **35** 条：`ToolFaceTests`（F1 不改已有段字节 / F2 结果是事件·行号即地址·可重放 / F3 `/ablate tool` 关得掉但协议区摘不掉·且关了真的不兑现 /
-  F4 fail-closed（Unknown / 默认非交互 / 一次一批没点头 / 模型自批不算）+ **正例控制组「批准后确实执行」** / F5 账本不进 prompt 逐字节不变 / 装配闸门 / 块头清单 / 名单一致）、
-  `ToolReportTests`（解析 8 条 + 沙箱越界 + 各工具边界，负例有牙）、`ApprovalGateTests`（一次一批 / 模型不得自批 / 账本只追加）。
-- `ProtocolZoneTests` 的块头清单断言按 v7 更新（`ReportBlockHeaders` 4 → **5**，补 `[TOOL]`）；`ProtocolText` 正文与预算**一字未动**。
-- **320/320 全绿**（基线 285 + 35）；`dotnet build` **0 错 0 警**。
+- **⑤ v18（04:1x）—— 把 `[TOOL]` 的形状说死 + 给带引号的完整示例**
+  - **动机**：v16 的**紧凑形状被模型照抄** ⇒ 键没引号的 JSON 被拒。真机实测一场 **11 轮**问答里 **3 轮纯浪费**（E003 / E004 / E005 三条 `ToolDenied`，第 4 轮才自己改对）。根因：那张「键清单」**长得像 JSON**，而它其实只是**名字的列表** —— **给模型看的示范里，形状的权重远大于散文描述**。
+  - **改了什么**：第 5 条**把形状说死**并给**带引号的完整示例** —— `shape: [TOOL] name {"key":"value"} risk: none`、例 `[TOOL] read {"path":"src/Program.cs","maxLines":80} risk: none`；键清单**降级为附录**并注明是 **`key names per tool`**（是**名字**，不是 JSON）—— **键清单不能替代形状**。**同步（非协议区、0 缓存代价）**：拒绝话术 `ToolRunner.ToolFaceContract` 补带引号示例，并把过时的「一次回复只发一个」改成「最多 4 个」（v14 起上限 = 4，旧文案在**教错上限**）；`ToolArgs` / `ToolReport` 的提示话术与注释同步成新形状。
+  - **实测 token 与预算口径**：**12 行 / 4,841 字符 / 1211 token** ⇒ **在 ≤13 行 / ≤1,300 token 之内，预算不动**。
+  - **依据文档**：`docs/REPORT-PROTOCOL-ZONE.md` §三「v17 → v18」（**逐字改动与决议记录**）· `docs/PITFALLS.md` **#113** · `ProtocolZoneTests.Gate_协议正文里的工具面_与代码同一份渲染` / `ToolFaceTests`。
 
-**顺手修**：`RuntimeHost.BuildModules` 的 `effective` 漏拷 `skill` 段（PITFALLS #14 同类静默丢配置）⇒ 补上；并把工具面的沙箱/闸门/账本透传给 `ModuleRegistry.Create`。
+**协议区预算轨迹**：v13 ≤1,000/实测 903 → **v14 ≤1,100/995** → v15 ≤1,100/1008 → v16 ≤1,100/1035 → **v17 ≤1,300/1180** → **v18 ≤1,300/1211**（口径：**先量后定**；现由 `Gate_ProtocolBudget_IsWithinLimits_AndRankZero` 钉住 1211 token / 12 行）。当前指纹 **`4a1112f2a6f1`**（`whitebox` 栈表口径，R1-P @ v18 / 4,841 字节）。
 
-**未做（本轮）**：CLI / TUI 的审批交互 UI（待裁决 Q2）；`--tool-*` 命令行开关（待裁决 Q4）；真机 API 验收（由主人做）。
+**过程成本的账（诚实记）**：协议区每改一次 = **全端缓存前缀归零一次**。本窗连改 **5 次**（v13→…→v18）＝ 当天最贵的「过程成本」⇒ **「同一批修正一次做完」不是口号，是省钱**（`memory/2026-09-22.md` §十一·三·6）。协议正文**只加版本、从不删历史**，`--rollback` 随时可回。
 
-## 0.6.0-dev — Protocol v5（协议区扩容：L1/L2/L3 + 铁则 + memory-index + 各区契约，2026-09-16）
+**证据**（本次回补时逐条真机复跑，非引用旧数）
+- `dotnet test` **580/580**（失败 0 · 跳过 0）—— 较 0.10.5 的 600 少，因 v13「**闸门族清理**」删去审批闸门用例（600 → 564 → 563，见 `memory/2026-09-22.md`）；此后本窗新增用例（v14 多块解析 / 工具面漂移闸门 / v18 形状断言等）回补至 580。
+- `python3 src/AgentRuntime.Tui/sync-demo-doc.py --check` **绿**（6 节产物与文档逐行一致）。
+- `bash src/AgentRuntime.Tui/verify-demo.sh` **绿**（帧与文档一致，墙钟已归一化）。
+- `python3 src/AgentRuntime.Tui/e2e-presentation.py` ⇒ **全部通过**（含 `always` 真上色 / `never` 零 SGR / 屏上不留标记）。
+- `--protocol-show` 真机输出：**v18 · 12 行 / 4841 字符 / ≈1211 token**（口径 ~4 字符/token）· 预算 **≤13 行 且 ≤1300 token**。
 
-> 依据：`docs/DESIGN-SKILL-LAYERS.md` §十（主人 2026-09-15 23:4x 定「协议区扩容」）；协议区规格：`docs/REPORT-PROTOCOL-ZONE.md` §三/§四/§七 Q8i。
-> 协议区仍是「只写怎么对话，不写怎么做人」；协议变更 = 改头部 = 缓存整体归零 ⇒ **一次做完**（v4 → v5）。
+## 0.10.5-dev — **TaskLifecycle L4：收尾报告里的生命周期摘要（审计）· 四期收口**（2026-09-21 22:4x）
 
-**协议 v5（R1-P）**
-- `ProtocolText.Version` `"4"` → **`"5"`**：第 1 条读序改按层（`rules (constraints, they win) -> knowledge (L1 law + L2 problem map, detail by id) -> memory (an index, not history) -> events -> [TAIL] -> [DRAFT] -> [FOCUS]`）；第 2 条改「**按 id 索取、不得整份读**」（`Read by id, never in bulk`）；第 3 条补 KIND 封闭集 + 历史不可变（原第 2/3 条合并）。
-- **`[SKILL] S-xxx-007` 自报段不写**：Runtime 侧「按 id 装载 L3」尚未实现，写进去 = 协议承诺了运行时不兑现的动作 ⇒ 静默失败；第 2 条「按 id 索取、不得整份读」已覆盖语义，待 skill 装载落地后随内核版本升 v6。
-- **预算重定**：`DeclaredMaxLines` 10 → **8**、`DeclaredMaxTokens` / `MaxTokens` 240 → **280**（正文**一个字节不删**；设计预估 20 行 / 640 token，实际落地 **6 行 / 1029 字符 / 258 token**）。段前缀与段上限（`FocusPrefix` / `TailPrefix` / `TailMaxLines=12` / `DraftPrefix` / `DraftMaxLines=16` / `ReportBlockHeaders`）**一个字节未动**。
-- 版本号仍**只进 `FrozenManifest` 账本，不进 prompt**。
+**本批**
+- `LifecyclePanel.CloseoutLines(report)`：一段汇总（`N 个生命周期 · 轮次合计 · 工具 · 拒绝 · 用量`）+ **状态分布**
+  + **需要人看一眼的子**（没终局 / 在等人：`#id 状态 请求（N 轮 · 工具 N · 事件 E…~E…）`）。
+  L4 的判据不是「多一行」，而是：**「模型自己停了、却没声明终局」这种形状在收尾时看得见**（坑 #92/#93 同族）。
+- `CloseoutReport.LifecycleLines`（init 属性）+ `SessionLifecycle.Closeout/Reset` 接上事件流投影；
+  `PanelRouter` 把 `TurnLedger` 的每轮账一起传（**用量是宿主账本，不在流里** —— 给不了就写「—」，不臆造）。
+- CLI `--closeout` 也输出同一段（**同一个函数**，不抄一份）；事件流从磁盘读（CLI 无常驻内存流）。
 
-**测试**
-- `ProtocolZoneTests.Gate_ProtocolBudget_IsWithinLimits_AndRankZero` 按新实测值断言（行数=6 · 字符=1029 · token=258 · Rank 0），P1~P4 四条闸门（来源只能是代码 / 收尾不可改 / 用户不可摘 / 预算+Rank0）仍全绿；`TuiInvariantTests` 区栈版本标签同步 v4 → v5。
-- **基线 261 全绿**（D1 只重述闸门，不增删测试）；`dotnet build` **0 错 0 警**。
+**真机证据**（拿 09-21 [WB] 那次「收不了尾」的会话跑 CLI `--closeout`）：
+```
+[收尾·生命周期] 本次会话 3 个生命周期 · 轮次合计 14 · 工具 10 · 拒绝 1 · 用量 —
+[收尾·生命周期] 状态：✓ 得解 0 · ✗ 无解 0 · ⏳ 等人 3 · ⚠ 未终局 0 · ● 进行中 0
+[收尾·生命周期] ⚠ 需要人看一眼（没终局 / 在等人）3 个：…
+```
+—— 这一段自己就说出了 R5：三个任务**全部停在「等人」**。
 
-**TUI（P4 / P5 面板补齐，`docs/DESIGN-V4.4-TUI.md` §三）**
-- **P4 焦点 · 悬空标签告警**：新增 `FocusService.Verify`（口径与 `CurrentTailService.Verify` / `DraftService.Verify` 一致）；显式焦点/分叉后引用流里不存在的标签 ⇒ `FocusPanel` 报警不静默。
-- **P5 快照 · 账本补「模型」字段**：`SnapshotPanel.Describe` 增 `[快照] 模型`（换模型后一眼对账）。
-- **P5 快照/恢复 · `/fork` 入口**：`PanelRouter` + `ResumeSupport.ForkStream` —— 只分叉不续写、原流只读保留、目标已存在拒绝覆盖；续写仍走 `/resume`。
-- **P6 消融 · 可见反馈**：`AblationService.Apply` 改「**本会话已摘**」；右栏状态块与 Δ 在 `/ablate` 后当场刷新（`StateChangingCommands` 驱动）。
-- **HelpLines / 文档**：`/fork` 进面板清单；`docs/TUI-DEMO-SAMPLE.md` 按键表 + §三/§六/§七/§八 样例帧随 `demo.sh` 重出（协议 v5：1029 字节 / `efda91f2ed1e`，逐字节一致）。
-- **测试**：新增 **7** 条（`Focus_Verify_悬空标签` / `P4_焦点面板` / `P5_快照模型` / `P5_fork` ×2 / `消融本会话已摘` / `Split_ablate_右栏反馈`），**268/268 全绿**（基线 261）。
+**证据**：`dotnet test` **600/600**（+4）· 语料 A/B `--check` 双绿 · `sync-demo-doc.py --check` 绿 · `verify-demo.sh` 绿。
 
-**文档**：`docs/REPORT-PROTOCOL-ZONE.md`（§三 v5 正文 + §四 P4 + §七 Q8i）、`docs/DESIGN-PROTOCOL-ZONE.md`（§四 预算表 / §五 首版内容 / §八 对照表）、`docs/DESIGN-SKILL-LAYERS.md` §十（标注已落地，诚实写明「设计预估 20 行 / 640 token，实际落地 6 行 / ≤280 token」）、`docs/CHANGELOG.md`（本条）。
+## 0.10.4-dev — **TaskLifecycle L3：决策卡（认选项 + `/decide`）· 确认不动协议区**（2026-09-21 22:4x）
 
-**未做（本轮）**：不提交 SVN（由主人做）；不跑真机 API（真机验收由主人做）。
+**本批**
+- `LifecyclePresenter.DecisionOptions(lifecycle)`：从 `[NEED-USER]` 正文里认出**圈号枚举**（`①~⑳`）⇒ 卡上多一块
+  `可选： / 1. … / 2. … /（回一句即可，例：`/decide 2`）`；全文照旧逐字上屏（决定型内容不截断）。
+  **认不出就返回空，绝不编造选项**（口令：只认真实流里出现过的形状）。
+- `/decide [n]`（TUI，实现在 `SplitSession`）：不带参数 = 选项列到右栅详细块；带参数 = **把那条选项的原文
+  当作一条用户消息发出去**（与人手打**同一条路径**）⇒ 选完开新卡并沿 `AnswersId` 指回本张。
+  口径：这是**输入便利**，不是新协议。
+- `PanelRouter.HelpLines()` 补 `/decide` 一行。
 
-## 0.5.0-dev — V4.3 Dynamic Draft（动态草稿区 R5 + 次序重排，2026-09-15）
+**关于协议区（R1-P）**：本批与 L0~L2 **一个字不改**。判据（两问 + 代价）与证据写在
+`docs/DESIGN-LIFECYCLE-UX.md` §十：协议区 **v12 / 11 行 / 3459 字符 / 865 token**，指纹 `2c19c11e4646` 与本批前一致；
+三条架构口径是**宿主不变量**（模型不需知道）⇒ 进设计文档 + 收尾抽进 METHODOLOGY，**不进协议区**。
 
-> 论文 §4.2（非确定性例外）/ §5.1 第 **7** 项：把「讨论中的构想 / 未定稿需求 / 未验证假设」单独隔离到**唯一允许大删大改**的区域（R5）。
-> 规格书：`docs/DESIGN-V4.3-DRAFT-REGION.md`（定稿：主人 2026-09-15 23:2x 点头 Q5~Q9 五条）；协议区规格：`docs/REPORT-PROTOCOL-ZONE.md` §三/§四/§七 Q8h。
-> 本次把「**次序重排**（R3 居末）与 R5 同一次做完」（Q9：同一处闸门，分开做等于两次改头部）。
+**证据**：`dotnet test` **596/596**（+4）· 决策卡单测（认出 / 认不出不编 / 选完带指针）。
 
-**协议 v4（R1-P，改头部 ⇒ 缓存整体归零）**
-- `ProtocolText.Version` `"3"` → **`"4"`**：第 1 条**读序**改为 `frozen rules/knowledge/memory (stable) -> events (E###, append-only) -> [TAIL] (working state) -> [DRAFT] (open, unsettled items) -> [FOCUS] (ids to attend)`；第 4 条自报条补 `[DRAFT]` 块（格式/上限与 `[TAIL]` 并列，触发同为「任务/待办/草稿变化时」）。
-- 新增与协议同处声明的段常量：`DraftPrefix` / `DraftMaxLines = 16` / `DraftMaxChars = 3000` / `FocusPrefix` / `ReportBlockHeaders`（块头清单唯一声明处）。
-- **预算放宽 Q5**：`DeclaredMaxLines` 8 → **10**、`DeclaredMaxTokens` / `MaxTokens` 200 → **240**（正文**一个字节不删**；实测 **6 行 / 849 字符 / 213 token**）；`--protocol-show` 新增 `[DRAFT]` 上限行；`docs/REPORT-PROTOCOL-ZONE.md` §三 逐字文本升 v4、§四 P4、§七 新增 **Q8h**。
+## 0.10.3-dev — **TaskLifecycle L2：左栏生命周期卡（原地更新 → 固化）**（2026-09-21 23:0x）
 
-**区域序重述（R3 居末）**
-- `DeterminismGate`：规范序改为 **R2 → R4 → R5 → R3**（`DynamicSequence` / `DynamicSequenceText` 为**唯一声明处**）；
-  **记号（区编号 R2/R3/R4/R5）与位置（规范序下标）分离**（`DynamicRank` / `DynamicPosition`）—— 旧版用一个数字兼做两者，R3 居末后表达不出来；
-  新增 **「R3 之后不得有任何段」** 判据（由位置单调 + R3 位置最大共同守住），违序仍**报错不纠正**；
-  旧名 `EnsureFocusIsLastDynamicRegion` 保留为薄包装（现在**名副其实**）；Help 文本 / 注释里的旧序 `R2 → R3 → R4 → R5` 全部同步。
+**本批（**左栏不再逐轮铺对话**）**
+- 新增 `src/AgentRuntime.Tui/LifecycleCardView.cs`：一次用户请求在左栏只占**两条条目**（`you` + 一张卡），
+  卡**原地更新**（内容变、条目不增），生命周期了结后**固化**（不再被后续轮次改写）。
+  用的全是现成件：投影来自事件流，用量来自 `TurnLedger`，画法来自 `LifecyclePresenter`。
+- `SplitSession`：请求开始开卡（并先把**上一张卡按关账时的真实状态重画一次**再固化 —— 否则冻结的是过期快照）；
+  每轮 `RefreshCard()` 原地重画；正文 / 工具行**不再逐轮进对话**（它们归卡与 `/trace`，`--verbose` 仍可看逐轮流水）。
+- 新增面板 `/trace`（当前生命周期完整轨迹，展开态**不截断**）· `/result`（末轮正文原文）；
+  `SplitView` 为 `lifecycle` 条目留了无前缀位置；`GUIDE-TUI-USAGE.md` 补 P8 一行。
+- `LifecyclePresenter.Card(..., includeRequest:)`：TUI 里不重复画「用户：…」（上面那条 `you` 行已说过）。
+- **演示文档变成可再生成的**：新增 `src/AgentRuntime.Tui/sync-demo-doc.py`（按节锚点拼产物 + `--check`），
+  与 `verify-demo.sh` 成对使用；`docs/TUI-DEMO-SAMPLE.md` 已重新同步；mock provider 现在照协议以终局块收尾。
 
-**R5 实现（以 R4 为模板逐一对齐）**
-- Core：`Core/Draft/` —— `DraftState`（不可变，`DraftSources`） / `DraftOptions`（上限默认取协议区） / `DraftService`（纯函数 `Normalize` / `TryParseReport` / `ExtractTags` / `Snapshot` / `Render` / `IsOverLimit` / `DescribeOverLimit` / `Verify` / `Diff`） / `DraftEntry` / `DraftStore`（**唯一真相源**：原子**整块**写；**坏文件报错**，口径与 `focus.json`「可重建⇒降级」相反） / `IDraftRegionModule`。
-- Modules：`DynamicDraftModule`（只贡献 `[DRAFT]` 段；空草稿**零注入**；观察回复末尾自报 ⇒ **整块覆盖**存储区；超限 ⇒ 报告并沿用上一版，不截断不卡轮）；**不允许局部编辑入口**（无 `Remove`/`Move`/`Patch`/public setter —— 「删/改/重排」只能靠整块覆盖）。
-- 配置：`RuntimeConfiguration` 新增 `dynamicDraft`（**只留 `storePath`**；出现 `maxLines`/`maxChars`/`reportHint` ⇒ 显式拒绝）+ `KnownModules` 加 `dynamic-draft`；`ModuleRegistry` 注册。
-- 快照/恢复：`RuntimeSnapshot.DynamicDraft`（`Capture(..., draft)`）；`SnapshotService.VerifyDraft`（复用 `VerifyFocus`/`VerifyTail` 口径）；`--resume` 报告悬空标签 + 照读草稿。
-- CLI：`--draft-show`（只读：全文/来源/轮次/余量/存储路径/写入口）/ `--draft "文本"`（人工覆盖）/ `--draft-clear` / `--draft-report on|off` + help 文本。
-- **解析分节（必要修正）**：一个回复可同时带 `[TAIL]` 与 `[DRAFT]` ⇒ R4 / R5 的 `TryParseReport` 均改为「**遇到下一个块头即停**」（块头清单 = `ProtocolText.ReportBlockHeaders`；否则先解析的那块会吞掉后一块的正文 —— 见 PITFALLS #30）；对只带一块的历史回复逐字节无影响。
+**闸门**：`LifecycleCardViewTests.闸门_三轮自续跑在对话里只占一张卡` —— 3 轮内部动作 ⇒ 对话里 **2 条条目**、
+`ai` 条数为 0；另有「原地更新 / 了结固化 / 未终局时末轮正文顶上结果位」三条。
 
-**测试**
-- 新增 `DraftServiceTests` / `DraftStoreTests` / `DraftStreamTests` / `DraftResumeTests` / `DraftGateTests`（规格 I1~I20 每条钉一个测试名 + 存储区/配置/分节符硬性质）；
-  V4.2 的旧次序测试（原 `Gate_DynamicRegionOrder_IsEnforced` 旧断言、`Gate_FocusBeforeTail_IsEnforced`）按新规范序**作废并重述**到 `DraftGateTests`。
-- **221/221 全绿**（基线 199，新增 24，作废 2）；`dotnet build` **0 错 0 警**。
+**证据**：`dotnet test` **592/592** · `sync-demo-doc.py --check` 绿 · `verify-demo.sh` 绿 ·
+语料 A/B `--check` 双绿 · 96×30 帧三条请求 = 三张卡（帧已入库）。
 
-**未做（本轮）**：不提交 SVN（由主人做）；不跑真机 API（真机验收由主人做）。
+## 0.10.2-dev — **TaskLifecycle L1：卡片化呈现 + 「需要分清楚」的分卡指针**（2026-09-21 22:4x，主人定）
 
-## 0.4.0-dev — V4.2 Current Tail（当前尾部 R4，2026-09-15）
+> 主人对 L0 三问的裁决：① 边界「**需要分清楚**」 ② 折叠粒度「**先就这样**」 ③ 不落盘「**OK**」。
 
-> 论文 §15 / §5.1 第 5 项：把「现在在干什么」的**工作台白板**单独立一个家（R4），持久化在 Runtime 本地。
-> 规格书：`docs/DESIGN-V4.2-CURRENT-TAIL.md`（v3 定稿）；协议区规格：`docs/REPORT-PROTOCOL-ZONE.md`。
-> 三阶段分别入库：**Phase A = r530**、**Phase B = r531**、**Phase C = r533**（本文一并对齐口径）。
+**本批**
+- **「需要分清楚」（主人定，改的是 L0 的边界口径）**：不再把后来的用户消息并进上一张卡；
+  **每条用户消息开自己的卡**，若它出现时上一张卡正**等人**（末个终局块 `[NEED-USER]`）⇒ 记一条指针
+  `TaskLifecycle.AnswersId`（「我答的是哪张卡的决策」）。理由：流里两句都只是 `UserInput`，
+  **分不出「回答决策」与「另问一事」** ⇒ 并卡会把无关的话吞进别人的卡里；拆卡 + 指针两样都保得住。
+- 新增 `Hosting/Panels/LifecyclePresenter.cs`（**L1**）——只说角色，不含任何颜色：
+  - 徽章 `✓ 得解 / ⏳ 等人 / ● 进行中 / ✗ 无解 / ⚠ 未终局`（角色：Done / Todo / Attention / Warn）
+  - 决策点列表（**决定型内容不截断**）+ `接在 #N 的决策点之后` 指针行
+  - **折叠**执行轨迹（“已折叠 N 条”），但**被拒的调用与决策点永不折叠**
+  - 页脚统计（轮 / 工具 / 拒绝 / 风险声明 / 用量；**无账就写「—」不写 0**）+ 总览表
+  - `LifecyclePanel` 改为“取数 + 框”，措辞与角色全交给 Presenter（**唯一声明处**）
+- CLI：`--lifecycle-show` 走新 Presenter，新增 `--lifecycle-expand`（展开轨迹）。
+- `Hosting` → `Presentation` 项目引用（方向：宿主 → 呈现；Core 仍不认识呈现层）。
+- 坑（本批实测）：本仓 `InvariantGlobalization=true` ⇒ `{x:P0}` 会插出空格（`90 %`）⇒ 百分比一律 `F0 + "%"`。
 
-**Phase A（r530）· 协议区 R1-P**
-- 新增 `FrozenZone.Protocol`（Rank 0，排在 Rules 之前）；`Core/Protocol/ProtocolText`（英文协议文本 v2 **唯一声明处**：`[FOCUS]` / `[TAIL]` 格式与上限）+ `Modules/ProtocolModule`（内容只来自常量，类型上无别的入口）。
-- 四条闸门：P1 来源只能是代码（`RuntimeConfiguration` 无协议区路径/开关；`--domains` 不作用于协议区）、P2 收尾不可改（`CloseoutService` 晋升白名单显式排除）、P3 用户不可摘（组合根强制装配 + 结果层 `EnsureProtocolPresent`）、P4 预算闸门。
-- 迁移：配置项 `focus.reportHint` 删除（残留该键 ⇒ **显式拒绝**，不静默忽略）；`docs/DESIGN-OO.md` 冻结区由三区升为四区；`PITFALLS.md` #25。测试 **169 → 176**。
+**证据**：`dotnet test` **586/586**（+11）· 真实流回放：39 条流 ⇒ **3 张卡**且 #2/#3 带指针（分清楚落地）·
+拒绝行在折叠态仍在 · `--lifecycle-expand` 展开后 18 条轨迹一条不少。
 
-**Phase B（r531）· 模式重定义**
-- `--bare` 新基线 = 协议区 + 本轮用户消息（「裸聊 = 与 V0 逐字节等价」旧口径作废）；新增 `--vacuum`（Core.Configuration.VacuumMode，一条 system 都没有，P3 闸门的唯一天然例外、**不是用户可选档位**）；新增 `--protocol-show` 与 `--api-key-file <path>`（只传路径，密钥不进 argv / 日志 / 配置）。
-- 帮助文本把第三道闸门表述改为 `R2 → R3 → R4 → R5`；配置新增 `currentTail` 段（本 Phase 只落配置面）。测试 **176 → 179**。
+## 0.10.1-dev — **TaskLifecycle L0：Turn 是计算单位，不是交互单位**（2026-09-21 22:4x）
 
-**Phase C（r533）· R4 接线 + 不变式 I1~I18**
-- Core：`Core/Tail/`（`CurrentTailState` 不可变 / `CurrentTailOptions`（上限默认取协议区）/ `CurrentTailService` 纯函数 / `CurrentTailStore` **唯一真相源**（原子写；**坏文件报错**，与 `focus.json` 的「可重建 ⇒ 降级」**口径相反**））+ `ITailRegionModule`。
-- Modules：`CurrentTailModule`（只贡献 `[TAIL]` 段；空空板**零注入**；观察回复末尾自报 ⇒ **覆盖**存储区；超限 ⇒ 报告并沿用上一版，不截断不卡轮）。
-- 闸门：`DeterminismGate.EnsureDynamicRegionOrder`（动态区规范序 **R2 → R3 → R4 → R5**，等价于「焦点之后只允许 R4/R5」）—— V4.1 的「焦点必须居末」由此**放宽**（旧名 `EnsureFocusIsLastDynamicRegion` 保留为薄包装直接转调）；违序仍**报错不纠正**。
-- 配置：`KnownModules` 增 `current-tail`；`currentTail` 只留 `storePath`（出现 `maxLines`/`maxChars`/`reportHint` ⇒ 显式拒绝）。
-- 快照/恢复：`RuntimeSnapshot.CurrentTail`（往返一致；旧快照缺字段 ⇒ 空默认；`SchemaVersion` **不 +1**）；`Capture(..., tail)`；`SnapshotService.VerifyTail`（复用 `VerifyFocus` 口径）；`--resume` 报告悬空标签。
-- CLI：`--tail-show`（只读：白板全文 + 来源 + 轮次 + 上限余量 + 存储路径）/ `--tail "文本"`（人工纠偏）/ `--tail-clear` / `--tail-report on|off`。
-- 测试：新增 **20** 条（I1~I18 每条钉一个测试名 + 2 条存储区硬性质），**199/199 全绿**（基线 179）；`dotnet build` **0 错 0 警**。
-- 协议区预算（**主人 2026-09-15 22:09 按 A 定**）：**预算 ≤8 行 / ≤200 token**（行数不变、token 上限 160 → 200；**协议文本本身不动**）—— `ProtocolText.DeclaredMaxTokens` / `MaxTokens` = 200（P4 闸门：行数 ≤8 · token ≤200 · 必须 Rank 0 不变），逐字正文实测 **6 行 / 723 字符 / 181 token = 在预算内**（不再计为偏离）；`--protocol-show` 预算行、`DESIGN-OO.md` 协议区附录与 README 模块表同步。规格正文（REPORT / DESIGN-PROTOCOL-ZONE）的预算行由主人更新，本会话未动。
-- 真机对照：新增尺子 `benchmark/tools/v42-tail-ab.py`（四组 × 4 轮 = 16 次调用，新种子冷启动，组间盐隔离）：**R4 每轮变 ⇒ 稳定前缀命中不降**（无 R4 组 cached 2560；每轮改白板组 2432~2688，只丢尾部自身 1~2 个 64 块）；冷启动每组 turn 1 恰 `cached=128`（协议区头 2 块）⇒ 协议区稳定带来的长期命中成立；正确率 4/4 × 4 组。真机发现：模型未按协议自报 `[TAIL]`（B 组 4/4 轮白板恒空，按 I16 沿用上一版）。
+> 主人（与 GPT 讨论定稿）：「WhiteBox 的核心问题不是信息太多，而是**把内部执行层直接当成了用户交互层**」
+> 「**Turn 是 Runtime 的执行单位；TaskLifecycle 才是用户的交互单位**」。
 
-**协议文本 v3 + 自报遵从率实测（主人 2026-09-15 22:22 按 A + C 定）**
-- `ProtocolText.Version` = **"3"**：第 4/5 条由「可选自报」改为**条件强制**（`when the task or todos change, add a [TAIL] block`）；实测 **6 行 / 742 字符 / 186 token**（仍在 ≤8 行 / ≤200 token 预算内），P4 与 PITFALLS #25 的钉住数字随之更新（181 → 186）。按「协议变更 = 改头部 = 缓存归零」，本次属**内核版本级**变更。
-- 尺子增强：`--model <id>`（换模型 = 换变量，组间仍隔离）+ 每条记录新增 `tail_reported` 字段 + 汇总新增 **J4 · 自报遵从率**（从此「模型配不配合」是可量的数字，不靠感觉）。
-- **实测（各 16 次调用）**：`deepseek-flash` 与 `deepseek-v4-pro` 的 B 组 **自报率均 0/4** —— 与 v2（optional）**同值**。根因不是模型能力：本夹具里**任务/待办根本没变**（按第 5 条省略**合规**），且探针题写「只回代号」与「末尾再加一段」**指令冲突** ⇒ **这个夹具区分不了「不遵守」与「正确省略」**，得重的不是协议字眼而是**量法**（已入 PITFALLS #29）。
-- 缓存侧**再次成立**：R4 每轮变时 D 组 cached ≥ A 组（flash `[128,2432,2432,2560]` vs `[0,2560,2560,2560]`；pro `[256,256,2432,2432]` vs `[0,0,2432,2432]`），正确率仍 4/4。原始数据：`benchmark/runs/20260915-2231-v42-tail-v3-{flash,pro}/`。
-- **自报遵从率（量法修正后的肯定结论，2026-09-15 23:0x）**：上面那 0/4 是**量法问题**（夹具里任务从不变 ⇒ 省略合规；探针题「只回代号」与自报段抢指令）。另建量表 `benchmark/tools/v42-tail-compliance.py`（**任务每轮真的变化** + 探针不抢指令）后，**纯协议驱动组自报率 = 4/4 = 100%**（显式要求组同），白板内容逐轮累积（当前任务/待办/遗留/暂停/已完成）—— 同一模型、同一协议，**差异全部来自夹具设计**（见 PITFALLS #29）。原始数据：`benchmark/runs/20260915-2255-v42-tail-compliance-flash/`。
-- 新尺子：`benchmark/tools/v42-tail-compliance.py`（遵从率量表：`--model` 可换模型；输出 `records.jsonl` + `summary.md`，含回答原文/是否自报/存储区白板/token）。
+**本批（L0：聚合层，不碰 TUI、不碰协议、不碰缓存）**
+- 新增 `src/AgentRuntime.Core/Lifecycle/`：
+  - `TaskLifecycle`（用户视角的**一条记录**：请求 / 状态 / 轮数 / 工具 / 拒绝 / 风险声明 / 决策点 / 结果 / 轨迹 / 切片起止 / 用量）
+  - `TaskLifecycleStatus` 五态：`Running` · `WaitingForUser` · `Done` · `NoSolution` · **`Unsettled`（未终局）**
+  - `LifecycleAggregator`（**纯函数**：事件流 → 生命周期；不读文件、不看钟、不写盘、不调模型）
+  - `LifecycleReport`（`SetupEvents` 会话装配 / `TotalEvents` 对账）
+- **边界规则**（唯一声明处）：一条 `UserInput` 开一张卡；末个终局块是 `[NEED-USER]` ⇒ 下一句是**答复**，同一张卡继续；
+  还没轮到模型说话的第二句不另开卡（防幽灵空卡）；首个用户请求之前的事件归**会话装配**。
+- 新增 `Hosting/Panels/LifecyclePanel.cs` + CLI `--lifecycle-show`：**无头纯文本投影**（只读回放，不调模型、不需密钥、不写盘）。
+- **三条架构口径**（写进 `docs/DESIGN-LIFECYCLE-UX.md` §四）：*Turn 是计算单位，不是交互单位* ·
+  *TaskLifecycle 是 Agent 与 Human 的默认交互边界* · *Runtime 可产生任意多个内部 Turn，**不得**因此产生等量的用户界面消息* ——
+  闸门形式 = `对话里的生命周期记录数 == 1`（有用例钉住：5 轮自续跑 ⇒ `Assert.Single`）。
+- 设计文档：`docs/DESIGN-LIFECYCLE-UX.md`（含四期落地表 L0~L4 与三处待主人拍板）。
 
-## 0.3.0-dev — V4.1 Semantic Focus（语义焦点，2026-09-15）
+**证据**：`dotnet test` **575/575**（+15 用例）· 真实流回放（`.stage1/`，非造）：
+18 条 ⇒ **1** 个生命周期 / 8 轮 / `[得解]` / 拒绝 1；39 条 ⇒ **1** 个 / 14 轮 / `[等人]` / 决策点 2；
+160 条 ⇒ **3** 个（三条用户消息 = 三张卡）/ 54 轮。
 
-> 论文 §4.5。**要解决的是注意力稀释，不是「每个 turn 省 token」**：一行 band，换「长程任务不必被迫收尾重拉」。
-> 规格书：`docs/DESIGN-V4.1-SEMANTIC-FOCUS.md`（定稿 v5，逐条实现，不自行改设计）。
+**边界（诚实说）**：用量（token / 耗时）**不在事件流里**（账本不是正文）⇒ 离线回放显示「—」，**不显示 0**；
+由宿主 `TurnLedger` 供给（L1 接）。
 
-**Core/Stream（Tag = 身份）**
-- `SessionEvent` 新增 **`Tag`**（`E001`；**身份**）；`Seq` 退回**位置**（只进 JSONL 账本，**不渲染**）；`Render()` 行首改为 Tag（`E001 [MEMORY] …`）⇒ 标签可直接被模型自报引用。
-- `EventTag`（新增）：标签格式的**唯一声明处**（`Format` / `TryParseNumber` / `Compare` / `MaxNumber`；数字语义排序，非字符串）。
-- `SessionAppendStream`：新身份入口 `Append`（`tag = max(既有)+1`，空流从 1 起 ⇒ 重放可算出同样标签）+ 重放/分叉专用 `AppendPreservingTag`；`ValidateInvariants` 新增「标签 session 内唯一」。
-- `SessionStreamStore`（JSONL）新增 `tag` 字段；**旧文件缺该字段 ⇒ `tag = "E"+seq`**（等价迁移，不炸旧数据）。
-- `SessionEventKind` 新增 **`FocusReport`**（模型自报，§四）。
+## 0.10.0-dev — **呈现层（人类阅读）· 权限 v12 兜底命令 · 收尾机制两修法**（2026-09-21 20:0x~22:1x，主人定）
 
-**Core/Focus（新增，全纯函数）**
-- `FocusState`（不可变 record：Tags + 账本；**无 setter / Remove / Insert**）、`FocusReport`、`FocusWeights`、`FocusOptions`（K=16 / **minWeight=0.95** / 半衰期=40 / band 一行封顶）、`FocusService`（`Normalize` / `Weigh` / `Resolve` / `Diff` / `Render` / `Snapshot` / `Reconcile`，**不读挂钟时间**）、`FocusCache`（`focus.json`，**只加速**）、`IFocusRegionModule`（R3 标记）。
+> 主人：「让 WB 侧拥有类似 OpenClaw 的人机交互机制，特别是在**人类阅读**方面的能力」（黄字专名 / 蓝字注意 / 简单表格）。
+> ⚠️ 本批当时**漏记 CHANGELOG**，此处按 `memory/2026-09-21.md` 补录（r720~r728）。
 
-**第三道闸门（Frozen/DeterminismGate）**
-- 新增 `EnsureFocusIsLastDynamicRegion`：焦点必须在**全部动态区之后**（含 `append-stream`）；违反 ⇒ **报错，不纠正**。
+- **r720/r721 权限 v12 兜底命令 `/strict on|off`**：会话级开关，开时 `Decide()` **忽略模型的 `risk:` 声明**
+  （等价未声明 ⇒ 按旧分类逐条问人），硬红线照旧；落在 `Tui/PanelRouter.cs`（**先读代码纠正了任务书里写错的落点**）。
+- **r722/r723/r725 呈现层 v1 → v1.2**：**语义（角色）/ 样式（`StyleTable` 唯一声明处）/ 终端字节（落屏）三分**；
+  标记 `[[role]]…[[/]]`（面板保持字符串 ⇒ T3 纯文本产物零改动，`RichText.ToMarkup()` 往返）；
+  配色抄 OpenClaw 主题原色并**去掉 `1;` 提亮**（主人先嫌灰、再嫌艳，两次都只需改那一张表）；
+  抽**零依赖项目** `src/AgentRuntime.Presentation/` + `PresentationWriter` **一处包住 stdout**（CLI 106 个打印点不逐个改）。
+  两条硬闸门：`纯文本帧 == 富文本帧的正文`（逐字节）· 关掉配色 = 逐字节等于正文。
+- **r724/r727 收尾机制两修法**：收尾件「**应有而缺失**」态（`CloseoutChecklist`）+ 顶层文件**指针自检**
+  （`AGENTS.md` 点名的文件必须存在）—— 对应坑 **#92/#93**（连续两天假绿的真因）。
+- **r726 冻结语料按版本纪律重算** A/B（rules 8→9 · knowledge 21→22 · memory.index 8→9；**显式 `--out`**）。
 
-**Modules**
-- `FocusModule`（新增）：**不实现** `IFrozenZoneModule`；只贡献一行 band；**空焦点零注入**；不覆写 `ObserveAsync`（观察无副作用）。
-- `AppendStreamModule`：`ObserveAsync` 解析回复末尾自报 ⇒ 作为 `FocusReport` 事件 **append** 进流（仅当挂了 focus：消融铁则的接线点）；解析不到 ⇒ 不报错。
+**证据**：`dotnet test` **560/560** · `verify-demo.sh` 绿 · 语料 A/B `--check` 双绿 · PTY 上色 e2e 12/12。
 
-**Snapshot / Cli**
-- `RuntimeSnapshot.Focus` 预留位**启用**（存**事件 Tag**；`Capture` 带上当前焦点）；旧快照缺该字段走空默认，**SchemaVersion 不 +1**；新增 `SnapshotService.VerifyFocus`（悬空标签必报）；`Fork` 改为**保 Tag、重排 Seq**。
-- CLI 新增 `--focus-show` / `--focus E###,…` / `--focus-clear` / `--focus-policy report|explicit`；配置新增 `focus` 段（§六 默认值）；组合根每轮写 `focus.json` 缓存并在 `--resume` 时校验悬空标签。
+## 0.9.9-dev — **权限别再问十几次（收尾窗口常开）· 新权限架构设计（v12 草案）**（2026-09-20 16:1x，主人定）
 
-**测试 / 实验**
-- 新增 **20 个**用例（I1~I17 逐条 + 默认值/标签格式/协议解析 3 条），**168/168 全绿**（现有 148 全绿 + 新增 20）；`dotnet build` **0 错 0 警**。
-- 新增 A/B 实验尺子 `benchmark/tools/v41-focus-ab.py`（221 事件夹具、A/B 流**逐字节相同**、先写判据）。真机 A/B 已做（2026-09-15 19:03，`deepseek-flash`，阈值 0.95）：**A 6/6 = B 6/6** ⇒ 准确率**无可复现提升**，按 §十 判据落「**架构成立、收益未证**」（夹具天花板效应，待长流/更强干扰复验）；band 增量 +45 token/轮、cached 命中率持平、Release 每轮开销 < 0.2ms。数据：`benchmark/runs/20260915-1915-v41-focus-ab-real-t095/NOTES.md`。
-- **收益验证移交社区（主人 2026-09-15 20:39 定）**：本机要测出 A/B 差异需要 **≥500k token 上下文**，成本高 ⇒ **不定「降级为账本-only」**，而是保留**判据 + 尺子 + 夹具**、公开邀请社区复跑并回填四项指标；方案与数据入 **`docs/EXPERIMENT-V4.1-FOCUS.md`**（版本化），见规格书 §十二。
-- **默认阈值下调（主人 2026-09-15 决定）**：`minWeight` 1.0 → **0.95**（单次自报从「只撑 Δ=0」变「撑 3 个 turn」）；尺子同步改 0.95，模型 id 改用提供商清单里的 `deepseek-flash`；新增测试 `Focus_SingleReport_SurvivesThreeTurns`，合计 **169/169 全绿**。
-- 离线取证：① 221 条夹具上焦点落在当前任务的两条事实（`[FOCUS] E208 E216`），三个已结束任务的标签因衰减全部退场；② Release 暖进程每轮开销 **< 0.2ms**（流放大 10× 至 2161 条，增量不变）；③ mock provider 下 A/B 各 6 轮管线跑通。
+> 主人：「一次收尾要按十几次权限授权，似乎还是不太对，我们需要的是一个**更加宽泛的权限约束方式**」+
+> 「**远端 AI 是否需要拥有一部分权限应该由远端 AI 自己判定**……只在它认为会损害电脑 / 公共安全时才申请确认 —— **架构上需要升级**」。
 
-## 0.2.0-dev — V2 冻结区（进行中，逐 Phase 汇报）
+**本批（小、立刻见效）**
+- 新增 `lifecycle.window: closeout｜always`（**默认 always**，`config.stage1.json` 已开）：
+  配置声明的那几类目标（WB 语料 / 记忆 / handoff / 知识库 / 公告板 / 坑集 / 流水线命令形状）在**整个 tasklife** 里静默放行
+  —— 之前只在 `/closeout` 那一刻开窗，而 task 级的写发生在任务中，所以照样逐条问（「按十几次」的真因）。
+- 启动时逐条打印放行了什么（决定型内容要看得见）+ 边界（硬红线仍拦）+ 随时可核（`/grants` · `/session --check` · `/grants-clear`）。
 
-> 目标：把 Cache Boundary 之上的**稳定前缀**从「一段手填字符串」升级为**结构化的冻结区**。
-> 分 7 个 Phase 推进（0 数据模型 → 1 三模块骨架 → 2 指纹与闸门 → 3a/3b 语料 → 4 收尾水位线 → 5 实测扩展）。
+**新权限架构（设计已入库，实现待下一轮）**：`docs/DESIGN-APPROVAL-V12.md`
+- 核心：**风险由模型自判并声明**（`[TOOL] … risk: none|<可能坏在哪>`）· 运行时只守**六类硬红线**
+  （受保护路径 / 凭据 / 发布不可逆 / 提权 / 可疑可执行 / 全局破坏面）· **不声明 = 按旧分类（不放松）** ·
+  「声明 none 却撞红线」⇒ 拒绝 + **记一条 `RiskClaim`**（撒谎会被记下来）。
+- 落地六步清单、审批面改 **←/→ + Enter（默认「不同意」）**、审计事件 `RiskClaimed`、测试三条 —— 都写在设计文档里。
 
-**Phase 6 — V3 Append Stream（2026-09-14，纯离线 + 真机复验）**
-- 新增 `AgentRuntime.Core.Stream`：`SessionEventKind`（封闭标签集）、`SessionEvent`（get-only record；`Render()` → `001 [KIND] 正文`）、`SessionAppendStream`（只追加：序号由流分配、`Since(cursor)` 增量读、`ValidateInvariants()` 守卫）、`SessionStreamStore`（JSONL 只追加持久化；重放期校验序号连续）。
-- 新增模块 `append-stream`：流按序贡献为消息（用户/助手保持角色，其余 system）；`ObserveAsync` 把本轮 user/agent 追加进流；`AppendDocument()` = **L3 逐条加载**。与 `session` **互斥**（配置校验拦）。
-- CLI 新增离线命令（不需要密钥）：`--append <file> [--kind] [--source]`、`--stream <path>`、`--stream-show [--stream-tail n]`。
-- **可执行不变量**：序号 1..N 严格连续；坏文件/坏流抛错（不静默带病）；反射测试断言「没有删除/插入/重排入口」「事件无可写属性」。
-- 真机实测：`--append` 两本技能 → prompt **24,569 → 29,504**；第二轮（从文件重放）`cached 29,312 / 29,542 = 99.2%`、uncached 230；Runtime 开销 6.0–6.3ms（含流渲染）。
-- 测试：**133/133**（新增 15 个），0 警告。
+**证据**：`dotnet test` **516/516** · 设计文档入库
 
-**Phase 0 — 冻结区数据模型 + 稳定序列化 + 守卫测试（2026-09-14，纯离线）**
-- 新增 `AgentRuntime.Core.Frozen`：`FrozenZone`（Knowledge/Rules/MemoryIndex）、`FrozenLayer`（Global/Expert/Project）、`KnowledgeDomain` + **17 个预设专业领域**（含 `misc` 杂项兜底）、`FrozenSection`（最小可版本单元）、`FrozenSnapshot`（规范排序 + 校验 + 稳定渲染 + 字节指纹）。
-- **两条不变量入测试**：① 规范顺序唯一（Knowledge → Rules → MemoryIndex；层内 Global → Expert[域按 id 排序] → Project）；② 字节稳定（内容不变 ⇒ `PromptText` / `Id` 与输入顺序、换行风格无关）。
-- **版本号不进 prompt**（版本是账本，不是内容）；换行统一归一化为 LF（跨端同内容 ⇒ 同字节）。
-- 测试：新增 14 个守卫用例，全解决方案 **68/68 通过**（零网络）。
+## 0.9.8-dev — **停止 / 插话 · 右栏就地展开（白板/草稿/焦点常态化）**（2026-09-20 15:4x，主人定）
 
-**Phase 1b — 层级修正 + 面向对象设计说明（2026-09-14，纯离线）**
-- **层级**：`Rules` 为**绝对顶层**，`Knowledge` 与 `MemoryIndex` **并列**在其下；新增 `FrozenZoneTier` + `FrozenZoneTopology`（层级与序列化次序的唯一声明处）。规范序列化次序 = Rules → Knowledge → MemoryIndex。
-- **OO 表达**：新增 `ContentZoneModuleBase`（并列内容层基类）；`RulesModule` 直接继承 `FrozenZoneModuleBase`，`KnowledgeModule`/`MemoryIndexModule` 继承 `ContentZoneModuleBase` —— **继承树即层级声明**。
-- 新增 `docs/DESIGN-OO.md`（类图 + 层级 + 不变式表 + 扩展点），并约定**所有交付/部署必须随附**。
-- 测试：83/83 通过（新增层级 / OO 层次用例）。
+**插话与临时停止（主人 15:3x：「运行中临时停止，插话的能力还没有做」）**
+- **工作期间仍然收键**（`WhileThinkingAsync` 里 `Console.KeyAvailable` 轮询；重定向输入时自动跳过）：
+  - **Ctrl-C** = 停止当前轮（两下 = 整个退出，与既有语义一致）；
+  - **Enter** = **插话**：先停当前轮，再把输入行里这句作为**下一条用户消息**发出去（[OC] 的 `/steer` 同形），并在对话流留一行痕；
+  - Backspace / ←→ / Esc = 就地编辑输入行（所以「边等边把下一句想好」是可行的）。
+- 实现点：`RunTurnAsync` 拆成「外层循环 + `RunTurnOnceAsync`」——插话留下的那一句由外层接着发（不递归、不丢）。
 
-**Phase 1 — 三区模块骨架 + 域过滤 + 清单命令（2026-09-14，纯离线）**
-- 新增模块 `rules` / `knowledge` / `memory-index`，均继承 `FrozenZoneModuleBase`（OO 硬区分；删整个 DLL 仍可裸聊）。
-- Core 新增接缝：`IFrozenContentSource`（内容来源，Phase 3 换文件实现）、`FrozenSlot`、`FrozenContent`、`FrozenSelection`（域/项目选择）。
-- 配置新增 `frozen.domains` / `frozen.project`；CLI 新增 `--domains` / `--list-domains` / `--list-misc`（后两者不需要密钥）。
-- 领域过滤：空选择 = 全部加载；只选某域 = 其余域不进 prompt。
-- 测试：81/81 通过（新增 13 个；含「去掉知识模块后规则模块贡献逐字不变」的消融不变量）。
+**右栏就地展开（主人 15:3x：「白板和草稿以及焦点，默认展开即可……展开后应该还是在原地的那个展开图标下面放一个详细内容，
+图标此时是展开的状态，而不是现在这样占用掉第二块状态区域」）**
+- 区栈表里 **R4 / R5 / R3 默认就地展开**：正文紧跟**它自己那一行**渲染（`▾ 当前解：…` / `· 求解步：…`），图标呈展开态。
+- **撤掉独立的「自报区」**（同一份内容不再占第二块）；`详细` 块保留给面板输出 / 区目录。
+- 行数纪律不变：**先给详细块留够**（`DetailMinRows + 1`），不够就少展开几行；三级降级（长形→短形→计数），**不截字、不出省略号**。
 
-**Phase 2 — 确定性闸门 + 全局指纹 + 版本账本（2026-09-14，纯离线）**
-- `IFrozenZoneModule`（冻结区标记接口；不实现即算动态区）+ `DeterminismGate`（冻结区整体前置 + 区内部规范序；同一区重复/次序颠倒 → 报错）。
-- `FrozenPrefix.Assemble`：全局指纹（各区段汇成一个整体快照）；组装点（`ModuleRegistry`）已接入闸门。
-- `FrozenManifest`：版本账本 = 段→版本 + 整段指纹；JSON **逐字节确定**、可往返、可 `Diff`（新增/删除/改版），无时间戳。
-- 测试：83 → 96（+13）；0 警告 0 错误。
+**证据**：`dotnet test` **516/516** · 真机 80×24 帧实测（R4/R5/R3 就地展开、无第二块）· 演示文档同窗重生成 `verify-demo.sh` 绿
 
-**Phase 3a — 磁盘语料来源 + 产品最小引导语料（2026-09-14，纯离线）**
-- 新增 `FileFrozenContentSource`：区/层/领域 → `frozen/` 文件映射；**版本从文件头取**（`<!-- frozen: version=N -->`，不进 prompt），无头则用正文哈希兜底；缺失文件 = 不贡献（切域省 token 的基础）；**非法标识拒绝**（防目录穿越）。
-- 配置新增 `frozen.root`（相对路径按**配置文件所在目录**解析）；配置指向不存在目录 → **报错**（不静默少加载）。
-- 产品语料 `frozen/`（**干净、随源码发布**）：只含「如何引导用户使用本软件」的最少必要内容。
-- 测试：96 → 105；mock provider 端到端实证（3 条消息 = 铁则 + 知识 + 用户）。
+**待办**：**甲**（让 WB 真自持：把语料里 `~/.openclaw/workspace` 的出处改指 WB 自己 + 重新派生 + 晋级一次）—— 下一批做。
+## 0.9.7-dev — **修 P0 崩溃（帧渲染 vs append 竞态）· 输入法行高抖动**（2026-09-20 15:3x，主人真机报）
 
-**Phase 3b — 可公开的实测语料（2026-09-14，纯离线）**
-- 新增 `benchmark/tools/build-public-corpus.py`：从真实资料按字符预算切片 + **去隐私**（人名/本机路径/内网地址/账号/口令/令牌/电话/网盘码/金额 → 占位符）+ **构建后自检必须 0 命中**。
-- 产出 `benchmark/AgentRuntime.Benchmark/corpus/{rules,knowledge,memory}.md`（17990 字符 ≈ 9569 token，10k 档）——**可公开**，他人可复现。
-- `benchmark.config.json` 默认指向仓库内 corpus/（私有全量素材仍可临时切换）；`--plan` 实叏 L2 = 18058 字符。
+**P0 · 收尾时 abort（`Collection was modified`）**
+- 真机栈：`FocusService.Weigh`（枚举 `stream.Events`）← `FocusModule.CurrentFocus`（**属性 getter**）← `SelfReport()` ← `Frame()` ←
+  渲染回调 ← `WhileThinkingAsync` ← `TurnContinuation` ⇒ **续跑轮在 append 的同时，帧渲染在枚举同一个列表**。
+- 修：① 写入口 `AppendPreservingTag` **持锁**；② 新增 `SessionAppendStream.Snapshot()`（持锁拷贝当拍表）；
+  ③ **渲染路径改走快照**（`FocusService` 那处枚举）。
+- 坑集 **#88**：`IReadOnlyList` 只保证「你不改」，不保证「没别人改」；**渲染路径的输入必须是当拍不可变的**。
 
-**Phase 4 — 收尾 / 水位线最小版（2026-09-14，纯离线）**
-- 新增 `CloseoutWatermark`（Runtime 层，Session 之外：账本 + 游标 + 时刻）与 `CloseoutService`（Inspect / Perform / PendingMisc）。
-- 新增 `FrozenJson`（账本类文件统一 JSON 口径）。
-- CLI：`--closeout`（校验前缀 → 上报 misc → 推进水位线）；正常启动检测「未收尾」并提示（交互终端下可直接收尾）；`--list-misc` 改为读配置的冻结语料。
-- 默认 `config.json` 启用三区模块（此前只有 `session` → 前缀为空）。
-- **本阶段尚不做**：会话游标（待 V3 Append Stream）与「自动收敛知识库新版本」—— 收尾只记账 + 推进水位，不改写语料。
-- 测试：105 → 114（+9）；0 警告 0 错误。
+**输入法把输入区行高顶起来（BUG）**
+- 根因：行数按**显示宽度软换行**算，而中文输入法候选串会短暂进入输入缓冲 ⇒ 宽度过一屏 ⇒ 多一行（抖动）。
+- 修：**行高只由显式换行决定**（`1 + count('\n')`，上限 5）；单行长文本回到**行内水平滚动**（光标始终可见）。
+  取舍写明：长文本不再自动折行（换输入法不再顶行高、行高与内容一一对应可断言）。
+- 坑集 **#89**：别用**外部输入的形状**驱动布局（输入法 / 粘贴 / 组合键都可能带来自己控制不了的瞬态）。
 
-**Phase 5 — T07 新增 + 真实实测（2026-09-14）**
-- 新增场景 **T07 冻结版本变更**：同一档位上 `v1→v1` / `v1→追加尾部` / `v1→改头部`，各 2 轮；**每变体独立 salt + 首轮冷启动自检**。
-- 语料切换到仓库内**可公开** corpus/（真实资料去隐私切片）。
-- **实测（61 次真实调用 / $0.021011 / 61s，`runs/20260914-211355-v2-frozen-final/`）**：
-  - **T06**：L1 稳定追加稳定后命中 896 / **省 61%**；L2 命中 **9600 / 省 78.2%**；动态前置两档均 **0 命中 / 省 0%**；经 Runtime 与手工直调**一致**。
-  - **T07（最有价值的新结果）**：改头部 → 命中 **0**、省 0%（成本 $0.001368 vs $0.000297 ≈ **4.6×**）；追加尾部 → 命中 **9600**、省 **78.3%**（保留）。⇒ **改哪里比改多少更重要**，支撑「追加式演进」。
-  - **T04**：裸聊多轮**任务失败** ❌；+session 全过 ✅（Session 买到的是能力）。
-  - **T05**：`system-rules` 每调用固定 +24 prompt token；`session` 买到能力。
-  - **全套**：prompt 225,632 · 命中 104,576（46.3%）· 实际 $0.021011 vs 全未缓存 $0.032723（**省 35.8%**）· Runtime 开销 **≤1.8ms**。
-- **修正自己的实验缺陷**：T07 首版三变体**共用 salt** → 变体间互相预热（首轮即命中 9472）→ 改为**每变体独立 salt** 并加冷启动自检告警。
+**证据**：`dotnet test` **515 → 516**（+输入区行高回归测试）
 
-## 0.1.0 — 2026-09-14（内核封版：V0 裸聊 + V1 模块管线）
+**待办（主人本次一并提的，未做）**：① 运行中**临时停止 / 插话**；② 右栏**白板/草稿/焦点默认展开 + 就地展开**（不占第二块）；
+③ **知识库版本查询去了 [OC] 目录**（已定位原因，见回复：WB 自持语料里仍写着 `~/.openclaw/workspace` 路径）。
 
-**内核**
-- V0 最小闭环：一句话进 → 组装最小 Request → OpenAI 兼容 API → 原样返回。
-- V1 模块管线：`IRuntimeModule` 契约 + 配置驱动开关；**裸聊模式永远可用**（去掉全部模块 = 等价 V0）。
-- 模块 `session`（多轮会话，内存态）、`system-rules`（顶端铁则/人格注入）。
-- `AgentRuntime.Modules` 独立程序集：删除该 DLL，Runtime 仍可裸聊运行。
-- 计时口径：`RuntimeTiming.RuntimeOverheadMs = TotalMs − ProviderCallMs`（单一定义处）。
+## 0.9.6-dev — **收尾收口（D/C/F/H/I）+ TUI 会话边界清屏 / 重载**（2026-09-20 15:0x，主人定）
 
-**工程**
-- 技术基线：C# 14 / .NET 10 LTS / `net10.0` / Console CLI / `System.Net.Http` / `System.Text.Json`。
-- 测试：xUnit **v3**（3.2.2），54 个用例，**全离线零网络**。
-- 交付：`run.sh` 启动器（`--bare` / `--modules` / `--chat`）。
+> 主人口径：「都做掉；以及 TUI 的配合是否有做 —— **reset 后窗口里很多显示信息都应该清空回到 0 的状态**；
+> **start 后再次载入必须的上下文以及白板、草稿等**」。
 
-**度量（尺子）**
-- `benchmark/AgentRuntime.Benchmark`：独立实验系统（**Runtime 永不引用 Benchmark**）。
-- 场景：T01 基线 / T02 重复请求 / T04 会话维度 / T05 模块消融 / **T06 冻结上下文阶梯**。
-- 语料：真实素材（铁则 → 知识 → 记忆）按字符预算切片，**token 校准**到 1k / 10k 档。
-- 实验纪律：变体隔离（salt 置**冻结前缀最前**，杜绝互相预热缓存）；原始记录落 `records.jsonl`，报告可复算。
+**TUI 会话边界（主人点名）**
+- `/reset` · `/start` 现在是**会话边界命令**：执行完 `ResetSessionDisplay()` ——
+  **对话流清空**（只留一行边界：「本会话已收尾（历史归档、事件流清空；白板/草稿已定格成末态）」/「新会话已开始（从末态装载）」）·
+  **命中账本清空**（`TurnLedger.Clear()`：账本是会话级的，否则右栏「上一轮」拿上一节的数字说话）· **task 钟归零** ·
+  **Δ 基准 / 上一轮实发 / 续跑预览 / 滚动位置 / 审批面** 全部清掉；随后 `RefreshAsync` 重算「现在这一份」。
+- `/start` 补进「改状态命令」清单（此前它不触发刷新 ⇒ 右栏会留着上一节的区栈）。
+- **白板 / 草稿不清**：它们是工作台面（reset 定格、start 从末态装载）——清的是**会话级读数**。
+- 边界命令的关键几行（`[重开] …` / `[开始] …`）**进对话流**：人看得见交接发生了。
+- start 报告再加一行 `[开始] 上一卷做到哪：…`（末态的 `solve:` / `step:` 行，来自 `SolveHeader`）：新会话一眼知道接着做什么。
 
-**首轮实测结论（DeepSeek V4 Flash，2026-09-14）**
-- 10k 冻结上下文：稳定前缀 + 只追加 → 输入 token 命中 **98.4%**，单轮成本**省 78.7%**（$0.000299 vs $0.001417）。
-- 反例（动态内容前置）：5 轮**全部 0 命中**，成本 4.7 倍。
-- Runtime 自身开销：**最大 1.3ms / 平均 0.1ms**。
+**D · task 收尾提示**：任务一了结（`[DONE]` / `[NO-SOLUTION]`），若收尾件（handoff / 坑）没交 ⇒ 运行时**主动说**并把同一条
+进流成 `Hint`（模型也看得见）；每任务只提示一次；没配工作区就什么都不说（不假装查过）。
+
+**C · 两个水位并排**：收尾报告里同时打 **会话水位**（前缀指纹 + 流游标 + 时刻）与 **记忆水位**（整理到哪一天 + 之后几篇未抽象），
+并写明「**会话水位 ≠ 知识水位**」。
+
+**F · 上一卷摘要（lite）**：`start` 报告带出末态的求解口径（`solve:` / `step:`）——够用版；完整摘要仍由模型在收尾时写进 handoff。
+
+**H · 卷清单**：新命令 **`/sessions`** —— 列出所有事件流卷（标出当前那卷、大小、时间、已污染标记），并给出「回某一卷」的可照抄命令
+（收尾只归档不删 ⇒ 历史永远在）。
+
+**I · 收尾报告落盘**：`<lifecycle.handover 同目录>/closeout-<stamp>.md`（屏上会滚走，账本要留得住）；落盘失败不影响收尾但会说明。
+
+**E**：由「收尾窗口 + 流水线命令 + `/closeout` 一气呵成」覆盖（清单不再需要人工照做）。
+
+**证据**：`dotnet test` **515/515** · e2e(mock) **28/28** · 真机 `/closeout` 实跑：收尾窗口 6 条逐条列出（含永久例外边界）·
+两水位并排 · 报告落盘 `<home>/.agentruntime/closeout-20260920-150616.md` · `/sessions` 列出卷并给回卷命令
+
+## 0.9.5-dev — **收尾窗口（静默放行）· 唯一停顿点**（2026-09-20 14:5x，主人定）
+
+> 主人口径：① 「**静默放行即可** —— 用户发现某个记忆有问题 / 某个知识没抽象时，可以随时问 AI 目前的状况、随时验证」；
+> ② 「这部分在**收尾阶段默认放行**，因为这是用户明确授权的 tasklife 收尾动作……**整个收尾都应该是一气呵成，用户授权一次就全部自动静默走完**；
+> **停下来的点只在**：收尾做完之后，是 `reset` + 自动 `start`，还是**只 reset**」。
+
+**收尾窗口（`Core/Security/CloseoutWindow.cs`）**
+- 收尾开始时，按配置推出「收尾**必须**动的那些东西」，用既有**范围授权**机制一次性记下（会话级、易失）：
+  写 → 知识库正文 / 当日记忆 / handoff / knowledge（晋级）/ BULLETIN / 坑集；执行 → **配置里声明过的那几条流水线命令形状**（python3 …）。
+- 之后同一批动作**不再逐条问人**；`/reset`（会话结束）时**一并撤销**。报告逐条写明放行了什么（决定型内容要看得见）。
+- **边界不越**：must-ask（发布/不可逆）· 宽能力 · 可疑可执行 · 受保护目标**仍然会问**（判定次序保证，不是约定）。
+  随时可核：`/grants`（放行了什么）· `/session --check`（账目）· `/grants-clear`（一键收窄）。
+
+**唯一停顿点（`/closeout` · `/reset [--start]`）**
+- `/closeout`：收尾一气呵成（收尾窗口 + 收尾件 + 流水线命令 + 定格末态），末尾给**唯一的二选一**：
+  `/reset --start`（结束并立刻开新会话）｜ `/reset`（只结束，不自动开）。
+- `/reset --start`：reset + start 连做（一气呵成）；`/reset`：只 reset。
+
+**⚠️ 本批实发一起事故 + 修复（要记）**
+- 会话指针刚上线时**还没加「显式配置才启用」的闸**，14:45 那批测试**读到真指针** ⇒ **把测试事件写进了真会话流**
+  （同一文件出现两段 `seq`），WB 拒写（保护生效：`事件流文件被破坏：期望序号 11，实际 8`）。
+- 修复：生命周期集成改为**选择加入**（`lifecycle.handover` 显式配置才读/写指针与末态），测试夹具补 `HandoverExplicit`；
+  被污染的那卷已移出（`.corrupt-20260920`），指针清空，会话回到干净起点（`/session --check` 三项 ✅）。
+- 教训入坑集：**「默认路径」必须与「显式配置」分开判** —— 否则测试/旁路进程会写到真状态上（同一族的坑：默认落点 = 隐式全局状态）。
+
+**证据**：`dotnet test` **515/515**（+收尾窗口 1 条）· 真机 `/session --check` 三项 ✅ · 收尾窗口在真机 `/closeout` 输出里逐条列出
+
+## 0.9.4-dev — **协议 v11：操作手册进冻结区（AI 自己跑收尾）· 会话指针（跨进程）· 一致性检查 · 收尾流水线**（2026-09-20 14:4x，主人定）
+
+> 主人口径（14:4x）：「把**整个流程的操作手法写入冻结区协议区**，这样远端 AI 也能理解这些内容，那么远端 AI 可以帮我把这些都自动做了，**就不需要人类介入**做这些东西了」+「你开工吧，一并做了」。
+
+**协议 v10 → v11**（11 行 / 3,122 字符 / 781 token；预算 **≤12 行 / ≤800 token**，先量后定）
+- 第 7 条由「三层」扩成**可执行的操作手册**（三层各交什么 + 谁执行）；新增第 8 条：**命令与路径由运行时在收尾到期时打印**
+  （配置声明，不写死进协议），AI 按序执行、逐个报结果、**失败即停并说清哪一步**；新增第 9 条 reset/start 语义 +
+  **「不需要人类步骤」**：任务了结 + 运行时报达标 ⇒ AI 自己跑 closeout + reset + start。
+- **安全栏写进协议**：晋级**只加版本、从不删历史**（`--rollback` 随时回）⇒ 自动化不牺牲可逆性。
+
+**A. 会话指针（跨进程续接，`Core/Frozen/SessionPointer.cs`）** —— 从今天起**不必再手改配置**
+- `closeout` 写 running、`reset` 写 closed、`start` 写 running；启动时读：running ⇒ 接上那条流（`--stream` 显式仍优先）；
+  **closed ⇒ 启动时自动 start**（新空流 + 从末态装载 `[TAIL]`/`[DRAFT]`）。
+- 实测（真机，两进程）：reset 后重启 ⇒ `上次已收尾、未 start ⇒ 自动 start`，新流 `stream-20260920-144449.jsonl`，
+  白板 9 行 / 草稿 7 行从末态装载 ✓
+
+**G. 一致性检查（`/session --check`）**：指针 ↔ 当前流 · 水位线 ↔ 流游标 · 末态 ↔ 白板存储，三项只读核对（不修，如实报）。
+
+**B-lite. 收尾流水线（配置声明）**：`lifecycle.pipeline` = 命令列表；收尾报告把它们**按序打印**（含规则：
+逐个跑、逐个报、失败即停、可回滚）。`config.stage1.json` 已填四条（emit → closeout → promote → 语料 check → 索引 check）。
+
+**证据**：`dotnet test` **514/514** · 真机两次进程验证（自动 start ✅ + `/session --check` 三项 ✅）
+**未做（诚实留白）**：D（task 级收尾的主动提示：终局时若 handoff/坑未交 ⇒ 发 Hint）、C 的「两个水位同屏对照行」、E/F/H/I 见回复表。
+
+## 0.9.3-dev — **`whitebox` 启动器（PATH 命令）· Ctrl-C 两下退出 · 顶边框上滚修复**（2026-09-20 14:3x，主人定）
+
+> 主人要求（14:3x）：① 进终端后输入 **`whitebox`** 就能进 TUI（任意目录），**Ctrl-C 两下**退出回终端；
+> ② 「你认为 WB 侧在收尾的部分可能还缺什么能力？」（答案见 `docs/DESIGN-SOLVE-LANGUAGE.md` §四·6 与回复）。
+
+**`whitebox`（PATH 命令，`/opt/homebrew/bin/whitebox` → 仓库内 `src/AgentRuntime.Tui/whitebox`）**
+- **cwd 无关**：脚本自解**符号链接**到真身再切目录（踩过：`dirname $0` 拿到的是 `/opt/homebrew/bin`）。
+- **dll 过期就自动编译**（WB 会自己改自己的代码 ⇒ 不重编就会跑旧二进制）；编译失败**不挡路**但打印警告。
+- 启动口径**不重复**：一律交给同目录 `run.sh`（cwd / 默认配置 / dll 缺失提示都归它）。
+
+**Ctrl-C 两下退出（`CtrlCQuit`）**
+- 一下 = **中断当前轮**（每轮一个 `CancellationTokenSource`，只中断这一轮）；两下（2 秒内）= 退出，
+  退出前**先恢复终端**（显示光标 + 离开备用屏）再 `Environment.Exit(130)` —— 不赌 finally 能跑到。
+- 两条路都接（`CancelKeyPress` 信号路径 + `ReadKey` 按键路径），计数逻辑同一份。
+- ⚠️ **诚实留白**：自动化验证台（tmux）里 `trap "" INT` 会让子进程**继承 SIG_IGN** ⇒ ^C 对应用无效，
+  所以「两下退出」**只在我这边验到 ①②（进得去 / 一下不退）**，③ 请在真终端手按两下确认；
+  **已验证**的退出方式仍是 `Ctrl-Q` 与 `/quit`。
+
+**顺带修一个真 bug（顶边框被上滚）**
+- `AnsiScreen.Draw` 在**最后一行之后**也写 `\r\n` ⇒ 满屏帧在真终端里**整体上滚一行** ⇒
+  **顶边框（标题 / 协议版本 / task 读秒）滚出屏幕**（tmux 实测抓到）。改为只在**行间**换行。
+- 回归测试：`绘制_末行之后不写换行_整屏帧不会被上滚一行`；`e2e-ctrl-c.sh` 里也断言顶边框可见。
+- ⚠️ 这条同时意味着：主人此前「白板/草稿打开后没发现」可能有**两个**原因 —— 自报区被省掉（已修）+ 顶边框/首行被滚掉（本修）。
+
+**证据**：`dotnet test` **514/514** · `whitebox --help`（cwd=~）✅ · `sh src/AgentRuntime.Tui/e2e-ctrl-c.sh`（①②✅，③ 见留白）
+
+## 0.9.2-dev — **closeout → reset → start（三步流程）· TUI 交互打磨**（2026-09-20 14:0x，主人定）
+
+> 主人口径（13:5x）：① 白板/草稿是**远端 AI 每一步都在改**的东西——「继承」= **收尾时定格最后状态，新会话（start）从它开始**；
+> ② WB 侧要**手动走一遍**看知识库晋级与流程是否正确 ⇒ 先把能力补上；③ TUI 要更像 [OC]：白板草稿在最右侧状态区看得见 ·
+> 输入区**自动换行且面板跟着长高** · **不必每轮都往对话面板写**（只写必要的人机沟通）· 读秒是**整个 task 生命周期的读秒**（需要人并停下时也停）。
+
+**会话生命周期：三步（`/closeout` → `/reset` → `/start`）**
+- `Closeout`：**新增末态定格** —— 收尾那一刻的白板 / 草稿写进 `lifecycle.handover`（默认 `~/.agentruntime/handover.json`，原子写、坏文件报错）。
+- `Reset`：收尾 + **旧流原地归档** + 流置空；会话进入「**已收尾、待 start**」的真空档 —— 宿主 `SessionClosed` / `PendingHandover` 可查，
+  **真空档不接受轮次**（TUI 两条路径都拒绝并提示）。新流不再由 reset 建（结束与开始分开）。
+- `Start`（新）：新空事件流 + **白板与草稿从末态装载**（故意在测试里先清空存储态，证明是「装载」不是「碰巧还在」）；
+  会话还在跑时 start 被拒（先 `/reset`）。
+- 新命令 `/session`：一眼看出在链条哪一节 + 第几次 reset/start + 末态摘要。
+
+**TUI（主人要的 [OC] 手感）**
+- **白板 / 草稿在最右侧状态区看得见**：① 状态表 R4/R5 行加**首行摘要**（放得下才加）；② 自报区门限从 `BodyRows>=18` 降到 `>=8`
+  （原先矮窗口整块省掉 ⇒ 主人「打开后没发现」的正是这个）；③ 自报区**三级降级**（长形 → 短形 → 计数），任意宽度都不截字、不出省略号；
+  ④ 白板 R4 **优先两行**（当前解 / 求解步是决定型内容）；⑤ 自报区**先给详细块留 `DetailMinRows=3`**，不许把区目录挤没。
+- **输入区自动换行 + 面板长高**：软换行（上限 5 行），续行按提示符缩进对齐，光标按显示宽度定位；正文行数 = 高 − 3 − 输入行数。
+- **对话只留人话**：每轮账本行不再进对话（`--verbose` 才进）；续跑痕进右栏详细块 —— 「必要的才写进交互面板」。
+- **task 读数**：整个 task 生命周期计时（`task 00:42 · 3 轮`），挂在顶栏（零额外行高）；等审批**暂停**、交回话筒 / 报终局**停表**。
+
+**证据**
+- `dotnet build` 0 警 0 错；`dotnet test` **513 → 513 全绿**（新增 `收尾_定格末态…` / `开始_新会话从末态装载…`，改 4 条几何/自报区断言）。
+- 端到端（mock）：`python3 src/AgentRuntime.Tui/e2e-solve-language.py` ⇒ **28/28**（+三步流程四项断言、收尾件六项）；证据 `benchmark/runs/<ts>-v10-solve-lifecycle/`。
+- 演示文档同窗重生成（帧变了）：`demo.sh` → `build-demo-doc.py` → `verify-demo.sh` 全绿。
+
+## 0.9.1-dev — **收尾三层（协议 v10）· 收尾件检查（WB 侧判据）**（2026-09-20 13:4x，主人定）
+
+> 口径（主人 2026-09-20 13:3x）：① **只维护 WB 侧**（OC 侧固定不动、不再双跑）；② 「WB 侧头部几天没跑、缓存命中早已失效
+> ⇒ **现在就改，不必攒着**」；③ 提醒：**WB 侧的知识收敛与晋级那一块被忘了** —— 除了踩坑集与会话记忆，
+> **还有哪些知识来源要一起收敛并晋级**。
+> 设计说明：`docs/DESIGN-SOLVE-LANGUAGE.md` §四·5（收尾三层）与 §五（**知识来源清单**八类）。
+
+**协议 v9 → v10**（正文 **10 行 / 2,699 字符 / 675 token**；预算 ≤12 行 / ≤700 token —— 先量后定）
+- 第 7 条重写为**收尾三层**：**task 收尾**（每个终局块之后：该 task 的 handoff 条目 + 有教训就交坑条目）·
+  **session 收尾**（reset 之前：把本会话产出的**全部知识源**抽象进 L1/L2 → **晋级知识库新版本** → **推进记忆水位** → 记收尾水位线）·
+  **reset**（换一条空事件流）。
+- 为什么现在改：**并窗口纪律的目的是「别白付缓存归零」，不是「攒着」** —— WB 侧头部几天没跑、命中早已失效 ⇒ 此刻归零代价 ≈ 0。
+
+**内核（数据化，非散文）**
+- `Core/Protocol/CloseoutLayers.cs`：**三层**（Id / 时机 / 义务）+ **`KnowledgeSources`（八类知识来源）** —— 协议文本、检查清单、文档共用一份。
+- 新增配置段 `lifecycle`：`workspace`（WB 语料工作区根）· `pitfalls`（坑集路径）；**留空 = 不校验**（不编默认路径）。
+
+**宿主：收尾件检查（`Hosting/CloseoutChecklist.cs`）** —— 把「收尾要交什么」从散文变成**看得见的清单**
+- 五项 + 四态：记忆（**水位之后的日记篇数**）· handoff（**今天几件**，按**命名约定**认，不拿时间戳当证据）·
+  坑集（今天几条）· 知识库（**只报事实**：版本 / md 指纹 / 账本指纹 / 是否相等 + 该跑的命令）· 未收敛 misc；
+  状态 = ✅ 已对齐 / ⏳ 待处理 / ➖ 未配 / ❓ 看不清（**「没配」与「没交」严格分开**）。
+- `/closeout` 与 `/reset` 的报告里都带这段（**缺件只报不拦**：拦下的唯一后果是人不收尾，知识照样不收敛）。
+- **不复制判定逻辑**：知识库的「态 / 可晋级」判定与晋级动作归 `knowledge-repo.py`（单一来源）。
+
+**证据**
+- `dotnet build` 0 警 0 错；`dotnet test` **501 → 512**（+`CloseoutChecklistTests` 11 条：没配 ⇒ 明说未配 · 水位之后的日记 · 水位读不出 ⇒ Unknown ·
+  handoff/坑集按当日 · 知识库只报指纹事实 · 三层与八类源是数据且与正文对得上）。
+- 端到端（mock）：`python3 src/AgentRuntime.Tui/e2e-solve-language.py` ⇒ **24/24**（+收尾件五件断言）；
+  证据 `benchmark/runs/<时间戳>-v10-solve-lifecycle/`（含夹具工作区 `work/`）。
+- 演示文档同窗重生成（协议版本进栈表）：`demo.sh` → `build-demo-doc.py` → `verify-demo.sh` 全绿；公开坑集派生 `--check` 绿。
+
+**坑集**：**#84**（判据用「改过时间」⇒ 假绿：命名约定才承载语义）· **#85**（「没配」「看不清」「没交」是三件事，混成一个 `false` ⇒ 清单会被当噪音关掉）。
+**#86**（自称「只读」的工具其实会写：`knowledge-repo.py --closeout` 会追加审计条目 ⇒ 「只读」是相对范围说的）。
+
+## 0.9.0-dev — **求解语言 + 会话生命周期（协议 v9）**（2026-09-20 12:3x，主人定稿）
+
+> 口径（主人 2026-09-20 12:3x 三句定稿）：① 命名取 **Solve Step**；② 终局用**独立块**（「感觉需要硬核一些」）；
+> ③ 预算放宽到 **≤10 行 / ≤600 token**（**以实测为准**）。
+> 一次做完四件（**改协议正文 = 缓存整体归零，挤牙膏 = 多次归零**）。设计说明：`docs/DESIGN-SOLVE-LANGUAGE.md`。
+
+**协议区 v8 → v9**（正文 **9 行 / 2,390 字符 / 598 token**；`ProtocolText`）
+- 新增第 4 条**求解语言**：Equation / Known Conditions / Solution / **Solve Step（求解步）** / Solution Set / Intervention；
+  并定义 `Solve Step` 的**可观测边界**（一串 Turn，出口 = 不再请求工具 或 需要人）。
+- 旧第 4 条 → 第 5 条：`[TAIL]` **首两行**改成 `solve:` / `step:`（白板承担「当前解 / 求解步 i」，**不新增块**）。
+- 新增第 6 条**终局三态**：`[DONE]` / `[NO-SOLUTION]` / `[NEED-USER]`（**三个独立块**，互斥）。
+- 新增第 7 条**收尾 / 重开**：closeout（收敛 + 水位线）与 reset（新空事件流）是**设计内的交接**；
+  稳定前缀与 `[TAIL]`/`[DRAFT]` **继承**、事件**不继承** ⇒ 白板草稿必须**自持**；上下文达窗口 **20%** 且任务了结 ⇒ **提议**收尾 + 重开。
+- 预算：行 ≤10、token ≤600（声明与闸门同步；`Gate_ProtocolBudget_IsWithinLimits_AndRankZero` 钉住 598/600）。
+
+**内核（三个新件，全部纯函数 / 可复算）**
+- `Core/Protocol/TerminalReport.cs` —— 终局三态解析：取最后一个块 · **互斥**（多于一个 ⇒ 报冲突，按最后一个处理）· **整词匹配**（`[DONEX]` 不算）· 解析不到 ⇒ `None`（老路径逐字节不变）。
+- `Core/Protocol/ContextBudget.cs` —— 「该收尾了」判据：`ProposeRatio = 0.20`（**唯一声明处**）+ 窗口未知 ⇒ 不提议。
+- `Core/Tail/SolveHeader.cs` —— 白板首两行的 `solve:` / `step:` 解析（只看最前连续两行；没写**不算错、不代写**）。
+- `SessionEventKind.Hint` —— **宿主对模型说的一句话**（目前只有收尾提议）：token 用量模型看不见 ⇒ 必须由宿主进流，否则协议第 7 条不可兑现（`PITFALLS #83`）。
+
+**宿主（`RuntimeHost` / `SessionLifecycle`）**
+- 一轮尾部新增：**终局留痕**（屏上 `[终局] 得解：…`；冲突要报）+ **预算行 + 收尾提议**（同一档只提一次）。
+- 自动接续**在终局处敢停**（`TurnContinuation`：`host.LastTerminal.IsTerminal` ⇒ 停，留一行痕）—— 此前停判据只有「没点工具」。
+- **`SessionLifecycle`**（新）：`Closeout`（校验前缀 → 上报 misc → 记**真实流游标** → 推进水位线）与
+  `Reset`（**先收尾再换流**；旧流**原地归档**；焦点清空；白板/草稿**同键继承**；旧恢复点另存）。
+- ⚠️ **顺带修掉的真坑**（`PITFALLS #82`）：会话内重建（`/ablate` · `/resume` · 新 `/reset`）此前**不带审批闸门** ⇒ 重建后工具面静默退回「非交互一律拒」。修法 = 宿主留住闸门/账本，重建复用（有 `Assert.Same` 测试）。
+
+**宿主命令 / 配置**
+- TUI：新增 **`/closeout`** · **`/reset`**（`PanelRouter` + `/help` + `--help` + 横幅预算行）。
+- 配置：新增 **`contextWindow`**（token；0 = 未知 ⇒ **不提议**）—— 窗口是**模型事实**放配置，20% 是**内核策略**放代码常量。
+
+**证据**
+- `dotnet build` 0 警 0 错；`dotnet test` **489 → 501**（+`SolveLanguageTests` 12 条：终局解析 3 · 预算判据 2 · 求解口径 1 · 宿主终局/提议/敢停 3 · 重开 3）。
+- 端到端（mock，零成本，可复算）：`python3 src/AgentRuntime.Tui/e2e-solve-language.py` ⇒ **18/18**；
+  证据 `benchmark/runs/<时间戳>-v9-solve-language/`（转录 + 逐项断言 + 状态产物：旧流字节不变 / 新流只含重开后轮次 / 白板草稿同键 / 焦点清空 / 水位线真实游标）。
+- 演示文档同窗重生成（横幅改了）：`demo.sh` → `build-demo-doc.py` → `verify-demo.sh` 全绿。
+

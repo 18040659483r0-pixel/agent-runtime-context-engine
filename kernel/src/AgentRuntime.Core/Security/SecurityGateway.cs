@@ -16,7 +16,31 @@ public enum SecurityVerdict
 }
 
 /// <summary>一条判定结论 + 人话理由（理由进账本与事件，**不进 prompt**）。</summary>
-public sealed record SecurityDecision(SecurityVerdict Verdict, string Reason);
+/// <param name="Verdict">要不要问人。</param>
+/// <param name="Reason">人话理由（进账本 / 事件，不进 prompt）。</param>
+/// <param name="Claim">
+/// 这条结论与模型的 <c>risk:</c> 声明是什么关系（协议 v12；未声明 ⇒ <see cref="RiskClaimOutcome.None"/>）。
+/// 由 <see cref="Tooling.ToolRunner"/> 据此记一条 <c>RiskClaimed</c> 审计事件。
+/// </param>
+public sealed record SecurityDecision(
+    SecurityVerdict Verdict,
+    string Reason,
+    RiskClaimOutcome Claim = RiskClaimOutcome.None);
+
+/// <summary>
+/// **模型的 <c>risk:</c> 声明**在这条判定里被怎样对待（协议 v12 第 5 条；<c>docs/DESIGN-APPROVAL-V12.md</c> §五）。
+/// </summary>
+public enum RiskClaimOutcome
+{
+    /// <summary>没声明（旧行为：逐条问人）。</summary>
+    None,
+
+    /// <summary>声明 <c>none</c> 且未碰硬红线 ⇒ **自主放行**（记审计，人随时可核）。</summary>
+    Honored,
+
+    /// <summary>声明 <c>none</c> 却撞上硬红线 / must-ask ⇒ 动作照旧被拦，并记一条「声明与事实不符」。</summary>
+    Contradicted,
+}
 
 /// <summary>
 /// **安全网关（判定层）** —— <c>docs/DESIGN-SECURITY-GATEWAY.md</c> §二 / §9.6 的落地。
@@ -30,10 +54,19 @@ public sealed record SecurityDecision(SecurityVerdict Verdict, string Reason);
 /// <item><b>must-ask 档</b>（发布 / 不可逆 / 未登记工具）⇒ <b>ASK 且永不记住</b>；</item>
 /// <item><b>宽能力</b>（解释器 / 构建 / 容器）⇒ <b>ASK 且永不记住</b>（洞 W1）；</item>
 /// <item><b>可疑可执行</b>（本会话刚写出来 / 拿回来的）⇒ <b>ASK 且永不记住</b>（例 7 / 洞 W2）；</item>
-/// <item>否则：有 <b>Grant</b> ⇒ <b>ALLOW</b>；没有 ⇒ <b>ASK</b>（首次必须有人点头）。</item>
+/// <item><b>范围授权</b>（人点头时选了「记住这个范围」）⇒ <b>ALLOW</b>；但写类里「写 → 执行」链的形状
+/// （<c>.git/</c> · 构建文件 · 脚本，见 <see cref="SecurityPolicy.ScopeCarveOut"/>）**照旧每次问**；</item>
+/// <item>否则：有 <b>Grant</b>（一事一批）⇒ <b>ALLOW</b>；没有 ⇒ <b>ASK</b>（首次必须有人点头）。</item>
 /// </list>
 /// <para>
-/// <b>易失</b>：Grant 只在内存（进程结束即失效）⇒ 恢复 / 重启 / <c>--fork</c> 后重新问人（V2 §9.4）。
+/// <b>v12（本次）：判定链头部插一层 <c>risk:</c> 声明</b>（<c>docs/DESIGN-APPROVAL-V12.md</c>）——
+/// 模型自判「无害」且在**硬红线之外** ⇒ 放行（记审计）；声明了别的 / 没声明 ⇒ 走上面那套。
+/// <b>硬红线永不受声明影响</b>：受保护目标 / 提权 / 凭据（上面 ①②③） · 发布不可逆（<see cref="ToolRisk.Critical"/>） ·
+/// 可疑可执行（R5）。声明 <c>none</c> 而撞在上面 ⇒ 照旧拦，并记一条「声明与事实不符」。
+/// </para>
+/// <para>
+/// <b>易失</b>：Grant（含范围授权）只在内存（进程结束即失效）⇒ 恢复 / 重启 / <c>--fork</c> 后重新问人（V2 §9.4）。
+/// 可见性：<c>/grants</c> 列清单、<c>/grants-clear</c> 一键撤销（撤销 = 回到问人，不是禁用工具）。
 /// </para>
 /// <para>
 /// <b>与审批账本的分工</b>：人点头 ⇒ 账本记一条（已有实现）；<b>Grant 复用不写账本</b> ——
@@ -112,41 +145,103 @@ public sealed class SecurityGateway
     /// <summary>要人点头的次数（诊断用）。</summary>
     public int Asked { get; private set; }
 
-    /// <summary>判定一次动作。</summary>
-    public SecurityDecision Decide(SecurityAction action, ToolRisk risk)
+    /// <summary>
+    /// 因**模型声明 <c>risk: none</c> 且未碰硬红线**而自主放行的次数（v12；收尾报告给一行汇总）。
+    /// <para>它只升不降、只在内存（进程结束即失效）—— 与 Grant 同一生命周期。</para>
+    /// </summary>
+    public int AutoAllowedByClaim { get; private set; }
+
+    /// <summary>
+    /// **声明与事实不符**的次数（v12）：声明 <c>none</c> 却撞上硬红线 / must-ask ⇒ 拦下并记账。
+    /// <para>与 <see cref="AutoAllowedByClaim"/> 一起进收尾报告 —— 「模型撒谎会被记下来」（设计 §五·3）。</para>
+    /// </summary>
+    public int ContradictedClaims { get; private set; }
+
+    /// <summary>
+    /// **严格模式**（会话级开关；<c>/strict on</c> 开、<c>/strict off</c> 关，**出厂默认关**）——
+    /// 协议 v12 的**兜底 / 收回手段**（<c>docs/DESIGN-APPROVAL-V12.md</c> §五·2「一键回到『全部要问』（不用改配置）」）。
+    /// <para>
+    /// 打开时 <see cref="Decide"/> **忽略模型的 <c>risk:</c> 声明**（等价于「未声明」⇒ 按旧分类逐条问人）：
+    /// 只读照旧免批，其余动作回到「首次必须有人点头」的老口径。
+    /// **与声明无关的那几类照旧被分类标记**（受保护目标 / 提权 / 凭据 / must-ask / 可疑可执行）——
+    /// v13 起它们**只留档、不拦截**（主人：「凭据和私钥，暂时也放行」）。
+    /// </para>
+    /// <para>
+    /// 与 <c>/grants-clear</c> 的分工：本开关只管「声明」这一层；**已授权的一事一批 / 范围授权仍在**
+    /// （要一并收窄用 <c>/grants-clear</c>）。两者都易失（进程结束即失效，不动配置）。
+    /// </para>
+    /// </summary>
+    public bool StrictMode { get; set; }
+
+    /// <summary>判定一次动作（<paramref name="riskClaim"/> = 模型自报的 <c>risk:</c> 声明；未声明 ⇒ null）。</summary>
+    public SecurityDecision Decide(SecurityAction action, ToolRisk risk, string? riskClaim = null)
     {
         ArgumentNullException.ThrowIfNull(action);
+
+        // v12：声明 none ⇒ 凡硬红线（①②③ 与 must-ask / 可疑可执行）拦下时，这条结论标为「矛盾」。
+        //   严格模式（/strict on）**忽略声明** —— 等价于「未声明」，于是声明既不被采纳也不记矛盾：
+        //   判定全程按旧分类逐条问人，正是「一键回到全部要问」。
+        var claimed = !StrictMode && ApprovalClaim.IsNone(riskClaim);
+        var contradiction = claimed ? RiskClaimOutcome.Contradicted : RiskClaimOutcome.None;
 
         // ① 受保护目标：写 / 删 / 读，以及「命令里碰到了它」。
         if (action.Capability is Capability.FsWrite or Capability.FsDelete or Capability.FsRead)
         {
             if (SecurityPolicy.IsProtected(action.Target))
             {
-                return Deny($"目标 {action.Target} 在**受保护范围**内（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（策略内核，见 §9.6）。");
+                return Deny($"目标 {action.Target} 在**受保护范围**内（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（策略内核，见 §9.6）。", contradiction);
             }
         }
 
         if (action.Capability == Capability.ProcExec && SecurityPolicy.CommandTouchesProtected(action.Target))
         {
-            return Deny($"命令里出现了**受保护路径**（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（§9.6）。");
+            return Deny($"命令里出现了**受保护路径**（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（§9.6）。", contradiction);
         }
 
         // ② 提权：身份不是授权（V2 例 4）。
         if (action.Capability == Capability.ProcExec && SecurityPolicy.IsPrivilegeEscalation(action.Target))
         {
-            return Deny("提权类命令（sudo / su / doas / launchctl …）⇒ 直接拒绝：**Identity 是纪律，Capability 才是授权**。");
+            return Deny("提权类命令（sudo / su / doas / launchctl …）⇒ 直接拒绝：**Identity 是纪律，Capability 才是授权**。", contradiction);
         }
 
         // ③ 凭据形状的目标：改它就是改信任根。
         if (action.Capability is Capability.FsWrite or Capability.FsDelete && SecurityPolicy.IsCredentialLike(action.Target))
         {
-            return Deny($"目标 {action.Target} 形状像**凭据**（api_key / *.pem / .env …）⇒ 直接拒绝。");
+            return Deny($"目标 {action.Target} 形状像**凭据**（api_key / *.pem / .env …）⇒ 直接拒绝。", contradiction);
         }
 
         // ④ 只读免批（受保护的读已在 ① 拒了）—— 不打扰人。
         if (risk == ToolRisk.ReadOnly)
         {
             return Allow("只读动作（不改任何状态）⇒ 免批。");
+        }
+
+        // ④·五 **v12：模型的 risk 声明**（判定权归属升级）—— 判定链头部插的那一层。
+        //    声明 `none` = 模型自判「不会损害电脑 / 用户数据 / 公共安全」。
+        //    但它**越不过硬红线**（上面 ①②③ 已先判，撞上就标矛盾），也越不过两类运行时才知道的事：
+        //      ・must-ask 档（R3：发布 / 不可逆）—— 「推出去给别人看见」「删了回不来」不接受自判；
+        //      ・可疑可执行（R5：本会话刚写出来的东西）—— 那个东西的形状是运行时的事实，模型看不见。
+        //    其余（含「宽能力」：解释器 / 构建 / 容器）⇒ 放行 + 记一条审计（人随时可核、可 /grants 回看）。
+        if (claimed)
+        {
+            if (risk is ToolRisk.Critical or ToolRisk.Outbound)
+            {
+                return Ask(
+                    $"声明 risk: none，但本动作属 must-ask 档（{ToolNames.Describe(risk)}：发布 / 不可逆）⇒ 声明越不过它，仍要人点头。",
+                    RiskClaimOutcome.Contradicted);
+            }
+
+            if (action.Untrusted)
+            {
+                return Ask(
+                    "声明 risk: none，但这个可执行文件**是本会话里刚写出来的**（运行时看得见、模型看不见的事实）⇒ 仍要人点头。",
+                    RiskClaimOutcome.Contradicted);
+            }
+
+            AutoAllowedByClaim++;
+            return Allow(
+                $"模型自判 risk: none 且未碰硬红线 ⇒ 放行（已记审计：本轮自主放行 {AutoAllowedByClaim} 条）。",
+                RiskClaimOutcome.Honored);
         }
 
         // ⑤ **预授权**（人带外事先签的字，带范围 + 有到期）：命中确切目标 ⇒ 放行。
@@ -177,7 +272,22 @@ public sealed class SecurityGateway
             return Ask("这个可执行文件**是本会话里刚写出来的**（来源可疑）⇒ 必须重新点头（V2 例 7：Action 每一次都独立授权）。");
         }
 
-        // ⑨ 复用：授权过一次的同类动作不再问（主人的话）。
+        // ⑨ **范围授权**（主人 2026-09-17 02:52 选 A）：人**一次点头**记住的「同类族」（会话级、进程结束即失效）。
+        //    它排在 must-ask / 宽能力 / 可疑可执行 **之后** ⇒ 那三类天生盖不住；硬拒（①②③）更在前。
+        //    写类还要过**永久例外**：.git/ · 构建文件 · 脚本这些「写 → 执行」链的形状照旧问。
+        if (Grants.CoversScope(action.Capability, action.Target) is { } scope)
+        {
+            if (action.Capability is Capability.FsWrite or Capability.FsDelete
+                && SecurityPolicy.ScopeCarveOut(action.Target))
+            {
+                return Ask($"{action.Target} 属**范围授权的永久例外**（.git/ · 构建文件 · 脚本 —— 写它们可能是在写一个会被执行的东西）⇒ 照旧每次问。");
+            }
+
+            AutoAllowed++;
+            return Allow($"本会话已授权范围：{GrantScopes.Describe(scope)} ⇒ 放行（例外形状仍会问）。");
+        }
+
+        // ⑩ 复用：授权过一次的同类动作不再问（主人的话）。
         if (Grants.Covers(action.Capability, action.Target, Now))
         {
             AutoAllowed++;
@@ -200,6 +310,16 @@ public sealed class SecurityGateway
         Grants.Add(action.Capability, action.Target);
     }
 
+    /// <summary>
+    /// 人点头时**另外选了「记住这个范围」** ⇒ 记一条范围授权（会话级、易失）。
+    /// <para>只有「人当场选」那条路径能调；没选就不调（不自动升级粒度）。</para>
+    /// </summary>
+    public void OnHumanApprovedScope(ScopeGrant scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+        Grants.AddScope(scope);
+    }
+
     /// <summary>动作真的执行完之后调用：成功的写入会污染该路径（后续执行它 ⇒ 可疑）。</summary>
     public void OnExecuted(SecurityAction action, bool ok)
     {
@@ -211,17 +331,28 @@ public sealed class SecurityGateway
         }
     }
 
-    private SecurityDecision Deny(string reason)
+    private SecurityDecision Deny(string reason, RiskClaimOutcome claim = RiskClaimOutcome.None)
     {
         Denied++;
-        return new SecurityDecision(SecurityVerdict.Deny, reason);
+        if (claim == RiskClaimOutcome.Contradicted)
+        {
+            ContradictedClaims++;   // 声明 none 却撞上硬拒 ⇒ 记一条「声明与事实不符」
+        }
+
+        return new SecurityDecision(SecurityVerdict.Deny, reason, claim);
     }
 
-    private SecurityDecision Ask(string reason)
+    private SecurityDecision Ask(string reason, RiskClaimOutcome claim = RiskClaimOutcome.None)
     {
         Asked++;
-        return new SecurityDecision(SecurityVerdict.Ask, reason);
+        if (claim == RiskClaimOutcome.Contradicted)
+        {
+            ContradictedClaims++;
+        }
+
+        return new SecurityDecision(SecurityVerdict.Ask, reason, claim);
     }
 
-    private static SecurityDecision Allow(string reason) => new(SecurityVerdict.Allow, reason);
+    private static SecurityDecision Allow(string reason, RiskClaimOutcome claim = RiskClaimOutcome.None) =>
+        new(SecurityVerdict.Allow, reason, claim);
 }

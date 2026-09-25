@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
@@ -22,58 +24,203 @@ public sealed class ReadTool : ToolBase
 {
     public override string Name => ToolNames.Read;
 
-    protected override string[] AllowedArguments => ["path", "maxLines", "offset", "limit"];
+    protected override string[] AllowedArguments => ["path", "symbol", "maxLines", "offset", "limit"];
 
     public override string Describe(ToolArgs args) => $"read {args.Canonical}";
 
-    /// <summary>体检：必填 <c>path</c>（审批之前就要能确定「读哪一个」）。</summary>
+    /// <summary>体检：必填 <c>path</c>（审批之前就要能确定「读哪一个」）；<c>symbol</c> 与行窗参数互斥。</summary>
     public override void Validate(ToolArgs args)
     {
         base.Validate(args);
         args.RequireString("path");
+
+        // v19：`symbol`（按名字取整段）与 `offset`/`limit`/`maxLines`（按行窗取一段）是**两种读法**，
+        // 同时给就说不清要哪一个 ⇒ 当场拒（fail-closed：宁可让它重发一次，也不猜它想要哪个）。
+        if (!string.IsNullOrWhiteSpace(args.OptionalString("symbol"))
+            && (args.OptionalInt("offset") is not null
+                || args.OptionalInt("limit") is not null
+                || args.OptionalInt("maxLines") is not null))
+        {
+            throw new ToolUsageException(
+                "symbol 与 offset/limit/maxLines 不能同时给 —— 要说清是「按名字取整段」（symbol）还是「按行窗取一段」（offset+limit），二选一。");
+        }
+    }
+
+    /// <summary>
+    /// **按符号定位那一整段**（v19 的实质）—— 词边界匹配 + 花括号配平。
+    /// <para>
+    /// 为什么要它（2026-09-22 实测）：同一道题六跑，<c>SessionLifecycle.cs</c>（582 行）被
+    /// <c>read</c> <b>3~9 次</b>，每次一个小窗口顺着往下滑 —— 而每次读都是**一轮完整上下文重发**。
+    /// 上限调小（1,000）把页数翻倍、token **+50%**；调大（4,000）体量 +43%、token +27%；
+    /// 在结果里附「已读图 / 未读段 / 一次要齐」又**全部更差**（附待办清单 ⇒ 它去读满）。
+    /// ⇒ 三个方向都证明：**病不在窗口，而在「要几次才够」** —— 给一个能**一次拿到整段定义**的读法。
+    /// </para>
+    /// <para>
+    /// 启发式，**说清楚了才算诚实**：从**首个匹配行**起找 <c>{</c>（本行往后 3 行内），再花括号配平到收尾。
+    /// 字符串 / 注释里的花括号会干扰（C# 的 <c>"{"</c>）⇒ 配不平就**截到文件末并明说**，不编边界。
+    /// </para>
+    /// </summary>
+    /// <returns>起止行（0 基）、匹配处数、以及一句「边界怎么来的 / 哪里不保准」。</returns>
+    private static (int Start, int End, int Hits, string? Why) LocateBySymbol(IReadOnlyList<string> lines, string symbol)
+    {
+        var rx = new Regex(
+            $@"(?<![A-Za-z0-9_]){Regex.Escape(symbol)}(?![A-Za-z0-9_])",
+            RegexOptions.CultureInvariant);
+
+        var hits = new List<int>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (rx.IsMatch(lines[i]))
+            {
+                hits.Add(i);
+            }
+        }
+
+        if (hits.Count == 0)
+        {
+            return (0, 0, 0, null);
+        }
+
+        var start = hits[0];
+
+        // 找块头：本行或往后 3 行内的第一个 `{`（属性/签名跨行是常事）。
+        var open = -1;
+        for (var i = start; i < Math.Min(start + 4, lines.Count) && open < 0; i++)
+        {
+            if (lines[i].Contains('{', StringComparison.Ordinal))
+            {
+                open = i;
+            }
+        }
+
+        if (open < 0)
+        {
+            return (start, start, hits.Count, "这词后面没有 `{`（不是块状定义）⇒ 只给这一行");
+        }
+
+        var depth = 0;
+        for (var i = open; i < lines.Count; i++)
+        {
+            foreach (var ch in lines[i])
+            {
+                if (ch == '{')
+                {
+                    depth++;
+                }
+                else if (ch == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return (start, i, hits.Count, null);
+                    }
+                }
+            }
+        }
+
+        return (start, lines.Count - 1, hits.Count, "花括号没配平（字符串/注释里的 `{` 会干扰）⇒ 边界截到文件末，保准的部分只有前几行");
     }
 
     protected override async ValueTask<ToolOutcome> RunAsync(ToolContext context, ToolArgs args, CancellationToken cancellationToken)
     {
         var path = ToolPaths.Normalize(args.RequireString("path"));
 
-        var requested = args.OptionalInt("limit") ?? args.OptionalInt("maxLines") ?? context.Limits.MaxReadLines;
-        if (requested <= 0)
-        {
-            throw new ToolUsageException($"maxLines/limit 必须为正整数，实际 {requested}。");
-        }
+        var symbol = args.OptionalString("symbol")?.Trim();
 
-        var from = args.OptionalInt("offset") ?? 1;          // 从 1 起的行号（与 [OC] 同语义）
-        if (from < 1)
+        if (Directory.Exists(path))
         {
-            throw new ToolUsageException($"offset 必须为从 1 起的行号（正整数），实际 {from}。");
+            // 2026-09-22 实测：模型把**目录**当文件读（`read "…/projects/AgentRuntime"`），
+            // 旧话术回「文件不存在」⇒ 它以为路径错了、又猜了 5 轮路径。**错要说得具体**。
+            return ToolOutcome.Failure($"read {args.Canonical} → 失败：那是个**目录**（用 list 列它）：{path}。");
         }
-
-        var limit = Math.Min(requested, context.Limits.AbsoluteMaxReadLines);
 
         if (!File.Exists(path))
         {
-            return ToolOutcome.Failure($"read {args.Canonical} → 失败：文件不存在（{path}）。");
+            return ToolOutcome.Failure(
+                $"read {args.Canonical} → 失败：文件不存在（{path}）；相对路径的**基准目录** = {Environment.CurrentDirectory}（要往外走就用 ../…）。");
         }
 
         var all = await File.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false);
+
+        // 两种读法（二选一，冲突已在 Validate 里拒）：① v19 按符号取整段；② 按行窗取一段。
+        int from;
+        int limit;
+        string? head = null;                                 // 摘要前缀（符号定位时用它说出「取的是哪一段」）
+        if (!string.IsNullOrEmpty(symbol))
+        {
+            var (start, end, hits, why) = LocateBySymbol(all, symbol);
+            if (hits == 0)
+            {
+                return ToolOutcome.Failure(
+                    $"read {args.Canonical} → 失败：本文件里没有 `{symbol}` 这个词（共 {all.Length} 行）；"
+                    + "先定位（exec 的 grep -n）再读，或直接给 offset。");
+            }
+
+            from = start + 1;
+            limit = end - start + 1;
+            head = $"符号「{symbol}」⇒ 第 {from}~{end + 1} 行 / 共 {all.Length} 行"
+                 + (hits > 1 ? $"（本文件共 {hits} 处匹配，这里给**第一处**；要别处就给 offset=那一处行号）" : "（唯一匹配）")
+                 + (why is null ? string.Empty : $"；⚠️ {why}");
+        }
+        else
+        {
+            var requested = args.OptionalInt("limit") ?? args.OptionalInt("maxLines") ?? context.Limits.MaxReadLines;
+            if (requested <= 0)
+            {
+                throw new ToolUsageException($"maxLines/limit 必须为正整数，实际 {requested}。");
+            }
+
+            from = args.OptionalInt("offset") ?? 1;          // 从 1 起的行号（与 [OC] 同语义）
+            if (from < 1)
+            {
+                throw new ToolUsageException($"offset 必须为从 1 起的行号（正整数），实际 {from}。");
+            }
+
+            limit = Math.Min(requested, context.Limits.AbsoluteMaxReadLines);
+        }
+
+        limit = Math.Min(limit, context.Limits.AbsoluteMaxReadLines);   // 两种读法都不能越过硬上限
+
+        // 逐行装到**字符上限**为止：截断点必须与给出去的续读指针**一致**。
+        // 旧写法先取行窗、再用字符窗砍正文 ⇒ 头部写「400/632 行」而实际可见量少得多
+        // （PITFALLS「两层截断别拿一层当另一层」的坑：模型按头部行号下结论会漏内容）。
         var window = all.Skip(from - 1).ToArray();
         var taken = Math.Min(window.Length, limit);
-        var truncatedByLines = window.Length > taken;
+        var cap = context.Limits.MaxOutputChars;
 
-        var body = string.Join('\n', window.Take(taken));
-        var (clamped, truncatedByChars) = Clamp(body, context.Limits.MaxOutputChars);
+        var fitted = 0;
+        var used = 0;
+        while (fitted < taken)
+        {
+            var need = window[fitted].Length + (fitted == 0 ? 0 : 1);
+            if (used + need > cap)
+            {
+                break;
+            }
 
-        var next = from + taken;                              // 截断时把**下一段起点**写进结果（自解释；不改前缀）
-        var tail = truncatedByLines ? $"（截断：上限 {limit} 行 ⇒ 用 offset={next} 接着读）" : string.Empty;
-        var summary = from == 1
-            ? (truncatedByLines ? $"{taken}/{all.Length} 行{tail}" : $"{all.Length} 行")
-            : (taken == 0
-                ? $"第 {from} 行起到文件末尾为空（共 {all.Length} 行）"
-                : $"第 {from}~{from + taken - 1} 行 / 共 {all.Length} 行{tail}");
+            used += need;
+            fitted++;
+        }
 
-        var text = $"read {args.Canonical} → {summary}\n{clamped}";
-        return ToolOutcome.Success(text, truncatedByLines || truncatedByChars);
+        var more = fitted < window.Length;                   // 还有没给出去的
+        var byChars = fitted < taken;                        // 是字符窗先到（而不是行窗）
+        var body = string.Join('\n', window.Take(fitted));
+        var next = from + fitted;                            // 截断时把**下一段起点**写进结果（自解释；不改前缀）
+        var tail = more
+            ? $"（截断：{(byChars ? $"字符上限 {cap}" : $"行数上限 {limit}")} ⇒ 用 offset={next} 接着读；全文在 /trace）"
+            : string.Empty;
+        var summary = head is not null
+            ? $"{head}{(fitted == 0 ? $"；⚠️ 这一段开头就放不下（单条结果上限 {cap} 字符）" : string.Empty)}{tail}"
+            : (from == 1
+                ? (more ? $"{fitted}/{all.Length} 行{tail}" : $"{all.Length} 行")
+                : (window.Length == 0
+                    ? $"第 {from} 行起到文件末尾为空（共 {all.Length} 行）"
+                    : fitted == 0
+                        ? $"第 {from} 行起放不下（单条结果上限 {cap} 字符）—— 把窗口改小或提高 offset（共 {all.Length} 行）"
+                        : $"第 {from}~{from + fitted - 1} 行 / 共 {all.Length} 行{tail}"));
+
+        var text = $"read {args.Canonical} → {summary}\n{body}";
+        return ToolOutcome.Success(text, more);
     }
 }
 
@@ -92,9 +239,15 @@ public sealed class ListTool : ToolBase
     {
         var path = ToolPaths.Normalize(args.OptionalString("path") ?? ".");
 
+        if (File.Exists(path))
+        {
+            return ValueTask.FromResult(ToolOutcome.Failure($"list {args.Canonical} → 失败：那是个**文件**（用 read 读它）：{path}。"));
+        }
+
         if (!Directory.Exists(path))
         {
-            return ValueTask.FromResult(ToolOutcome.Failure($"list {args.Canonical} → 失败：目录不存在（{path}）。"));
+            return ValueTask.FromResult(ToolOutcome.Failure(
+                $"list {args.Canonical} → 失败：目录不存在（{path}）；相对路径的**基准目录** = {Environment.CurrentDirectory}（要往外走就用 ../…）。"));
         }
 
         var entries = Directory.EnumerateFileSystemEntries(path)
@@ -158,16 +311,53 @@ public sealed class WriteTool : ToolBase
         var path = ToolPaths.Normalize(args.RequireString("path"));
         var content = args.RequireString("content");
 
+        // 2026-09-23：写「一个目录」过去会直接抛 UnauthorizedAccessException（难读）⇒ 明说 + 点明基准目录。
+        if (Directory.Exists(path))
+        {
+            return ToolOutcome.Failure(
+                $"write {args.Canonical} → 失败：那是个**目录**（要写文件就得给文件名）：{path}；"
+                + $"相对路径的**基准目录** = {Environment.CurrentDirectory}（要往外走就用 ../…）。");
+        }
+
+        var existed = File.Exists(path);
+        var before = existed ? FileEvidence.Sha256(path) : null;
+        var hadBytes = existed ? new FileInfo(path).Length : 0;
+
         var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory))
+        var madeDirectory = false;
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
         {
             Directory.CreateDirectory(directory);
+            madeDirectory = true;
         }
 
         await File.WriteAllTextAsync(path, content, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken)
             .ConfigureAwait(false);
 
-        return ToolOutcome.Success($"write {args.Canonical} → 已写入 {System.Text.Encoding.UTF8.GetByteCount(content)} 字节（{path}）。");
+        // 结果**先说落点与体量**，参数回显放后面：写大正文时回显会把结论淹掉，
+        // 一眼看不到「写到哪儿、变了没有」⇒ 2026-09-23 那次「写入像成功了、其实没进仓库」就是这么来的。
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(content);
+        var after = FileEvidence.Sha256(path);
+        var verdict = !existed ? "新建"
+            : before == after ? "覆盖（与写入前逐字节相同）"
+            : $"覆盖（{hadBytes} → {new FileInfo(path).Length} 字节）";
+
+        var text = $"write → 落点 {path} · {bytes} 字节 · {verdict} · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}"
+                 + $"\n（参数回显：{args.Canonical}）";
+
+        if (madeDirectory)
+        {
+            text += $"\n⚠️ 落点的上级目录是本次**新建**的：{directory}"
+                  + $"（相对路径是按**工具 cwd** = {Environment.CurrentDirectory} 拼出来的 —— 先确认这就是你要的位置，坑 #135）";
+        }
+
+        if (FileEvidence.IsTempArea(path))
+        {
+            text += $"\n⚠️ 落点在**系统临时区**（{FileEvidence.TempRootOf(path)}）：正文 / 知识**不该写这里**（只放中间产物）；"
+                  + "要进仓库请用绝对路径写进项目根 / 活版 / 存档区。";
+        }
+
+        return ToolOutcome.Success(text);
     }
 }
 
@@ -232,7 +422,9 @@ public sealed class EditTool : ToolBase
 
         if (!File.Exists(path))
         {
-            return ToolOutcome.Failure($"edit {args.Canonical} → 失败：文件不存在（{path}）。");
+            return ToolOutcome.Failure(
+                $"edit {args.Canonical} → 失败：文件不存在（{path}）；"
+                + $"相对路径的**基准目录** = {Environment.CurrentDirectory}（要往外走就用 ../…）。");
         }
 
         var content = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
@@ -250,11 +442,20 @@ public sealed class EditTool : ToolBase
         }
 
         var updated = content.Replace(oldText, newText, StringComparison.Ordinal);
+        var before = FileEvidence.Sha256(path);
         await File.WriteAllTextAsync(path, updated, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken)
             .ConfigureAwait(false);
+        var after = FileEvidence.Sha256(path);
 
-        return ToolOutcome.Success(
-            $"edit {args.Canonical} → 已替换 1 处（{oldText.Length} 字符 → {newText.Length} 字符；{path}）。");
+        var text = $"edit → 落点 {path} · 替换 1 处（{oldText.Length} 字符 → {newText.Length} 字符）"
+                 + $" · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}"
+                 + $"\n（参数回显：{args.Canonical}）";
+        if (FileEvidence.IsTempArea(path))
+        {
+            text += $"\n⚠️ 落点在**系统临时区**（{FileEvidence.TempRootOf(path)}）：正文 / 知识**不该写这里**。";
+        }
+
+        return ToolOutcome.Success(text);
     }
 
     private static int CountOccurrences(string content, string needle)

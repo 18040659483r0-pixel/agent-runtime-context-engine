@@ -127,7 +127,7 @@ public static class FocusService
         var reports = new List<(IReadOnlyList<string> Tags, int Turn)>();
         var turn = 0;
 
-        foreach (var @event in stream.Events)
+        foreach (var @event in stream.Snapshot())
         {
             if (@event.Kind == SessionEventKind.UserInput)
             {

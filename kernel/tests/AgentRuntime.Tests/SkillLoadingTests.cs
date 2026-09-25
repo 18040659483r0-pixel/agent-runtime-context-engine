@@ -268,7 +268,14 @@ public sealed class SkillLoadingTests
     {
         // 闸门：窗口常数的**唯一声明处 = 协议区**（四处各写一份 = 口径分裂的标本）；
         // 窗宽必须 ≥ 64（[TAIL] ≤12 行 + [DRAFT] ≤16 行 + 正文）——缩它就等于让某个块静默消失。
-        Assert.Equal(64, ProtocolText.ReportScanLines);
+        Assert.Equal(78, ProtocolText.ReportScanLines);
+        // P2（2026-09-24）：窗口 = **各段上限之和 + 余量**（不再是拍的 64）——
+        // 报告块 30 行上线后，64 会被 TAIL(12)+DRAFT(16) 压爆，而压爆的形状是**静默不装载**。
+        // 下面这条断言才是真正的不变量；上一行只把当前值钉住（改了段上限就该改它）。
+        Assert.True(
+            ProtocolText.ReportScanLines >= ProtocolText.ReportMaxLines + ProtocolText.TailMaxLines
+                + ProtocolText.DraftMaxLines + ProtocolText.ToolMaxCallsPerReply,
+            "窗口必须容得下「各段上限之和」——否则最后那一段会被静默丢掉。");
     }
 
     // ---------------- 模块接线：模型点名 ⇒ 按 id 进流 ----------------

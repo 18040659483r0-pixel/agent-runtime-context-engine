@@ -114,4 +114,19 @@ public static class ToolNames
     /// <c>svn</c> 与语料重建脚本；先前「没有跑命令这一项」的口径已作废。</para>
     /// </summary>
     public static string ListText => string.Join(" / ", All);
+
+    /// <summary>
+    /// **工具面的一行紧凑写法（名字 + 各工具的键）** —— 协议正文与拒绝话术**共用同一处渲染**。
+    /// <para>为什么要共用：协议第 5 条要把这张面写进模型眼前的正文（它才不会去猜 <c>cmd</c> / <c>bash</c>），
+    /// 拒绝话术也要说同一张面；两处各写一份 ⇒ 迟早分裂（而这两处恰好是模型唯一看得到的工具说明）。
+    /// 顺序按 <see cref="All"/> 定死 ⇒ 字节稳定、可 diff、可测。</para>
+    /// </summary>
+    public static string FaceText(IEnumerable<ITool> tools)
+    {
+        ArgumentNullException.ThrowIfNull(tools);
+        var byName = tools.ToDictionary(static t => t.Name, StringComparer.OrdinalIgnoreCase);
+        return string.Join(
+            " ",
+            All.Where(byName.ContainsKey).Select(n => $"{n}{{{string.Join(",", byName[n].ArgumentNames)}}}"));
+    }
 }

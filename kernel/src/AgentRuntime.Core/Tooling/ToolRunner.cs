@@ -9,10 +9,13 @@ namespace AgentRuntime.Core.Tooling;
 /// <param name="Event">记进流的那条事件（没有动作时为 null）。</param>
 /// <param name="Denied">是否被拒（<c>TOOL_DENIED</c>）。</param>
 /// <param name="Detail">人话说明（拒绝原因 / 执行摘要）。</param>
-public sealed record ToolRunResult(ToolParseStatus Status, SessionEvent? Event, bool Denied, string? Detail)
+public sealed record ToolRunResult(ToolParseStatus Status, IReadOnlyList<SessionEvent> Events, bool Denied, string? Detail)
 {
     /// <summary>什么都没发生（回复里没有 <c>[TOOL]</c> 块 —— 绝大多数轮次）。</summary>
-    public static ToolRunResult Nothing { get; } = new(ToolParseStatus.None, null, false, null);
+    public static ToolRunResult Nothing { get; } = new(ToolParseStatus.None, [], false, null);
+
+    /// <summary>恰好一条事件时的那一条（单调用读法的兼容入口；多调用看 <see cref="Events"/>）。</summary>
+    public SessionEvent? Event => Events.Count == 1 ? Events[0] : null;
 }
 
 /// <summary>
@@ -21,12 +24,13 @@ public sealed record ToolRunResult(ToolParseStatus Status, SessionEvent? Event, 
 /// 固定五步，顺序不能换（每一步的判据都能单独测）：
 /// </para>
 /// <list type="number">
-/// <item><b>解析</b>：一次回复**只允许一次**调用（多于一次 ⇒ 拒绝，不取第一个）；语法不合 ⇒ 拒绝。</item>
+/// <item><b>解析</b>：一次回复最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 次调用（v14；超过 ⇒ 拒绝，不取前几个）；
+/// 任一块语法不合 ⇒ **整篇拒绝**（不跑一半）；合语法 ⇒ **按发出顺序**逐个执行（一一对应）。</item>
 /// <item><b>认工具</b>：名字未登记 ⇒ 拒绝（归 <see cref="ToolRisk.Outbound"/> ⇒ must-ask，而默认没有通道 ⇒ 拒）。</item>
 /// <item><b>体检参数</b>：JSON 对象 / 无重复键 / 无未声明键 ⇒ 否则拒绝（**在审批之前**：不该请人批准一个语法都不合法的动作）。</item>
-/// <item><b>要批就批</b>：只读免批（不打扰人）；改动类走闸门，**一次一批**；
-/// 非 <see cref="ApprovalDecision.Approved"/>（含 <see cref="ApprovalDecision.Unknown"/>）⇒ 拒绝；**每一步都进账本**。
-/// 档位按 <see cref="ITool.RiskFor"/> 取（同工具不同动作可以不同档：<c>exec</c> 的发布 / 不可逆命令 ⇒ must-ask）。</item>
+/// <item><b>留档 + 放行</b>（v13）：只读免批；判定层判 ASK / DENY 的动作**不再问人** —— 记一条
+/// <c>PERMISSION_FILED</c> 事件 + 账本一条（带完整审批面），然后**照常执行**；安全由远端 AI 的纪律承担
+/// （协议 v13 第 5/6 条：终局前自判）。档位仍按 <see cref="ITool.RiskFor"/> 取。</item>
 /// <item><b>执行并记事件</b>：结果按 V3 只追加通道记成事件（<c>TOOL_RESULT</c> / <c>TOOL_DENIED</c>）—— F2：行号即地址，可重放。</item>
 /// </list>
 /// <para>
@@ -40,14 +44,12 @@ public sealed class ToolRunner
     public ToolRunner(
         IEventSink sink,
         IReadOnlyList<ITool>? tools = null,
-        IApprovalGate? gate = null,
         ApprovalLedger? ledger = null,
         ToolLimits? limits = null,
         SecurityGateway? security = null)
     {
         Sink = sink ?? throw new ArgumentNullException(nameof(sink));
         Tools = tools ?? ToolSet.Default();
-        Gate = gate ?? new NonInteractiveApprovalGate();
         Ledger = ledger ?? new ApprovalLedger();
         Limits = limits ?? ToolLimits.Default;
         Security = security;
@@ -68,22 +70,19 @@ public sealed class ToolRunner
     /// <summary>已装工具。</summary>
     public IReadOnlyList<ITool> Tools { get; }
 
-    /// <summary>审批闸门（默认 <see cref="NonInteractiveApprovalGate"/> ⇒ 非交互一律拒）。</summary>
-    public IApprovalGate Gate { get; }
-
     /// <summary>审批账本（**不进 prompt**）。</summary>
     public ApprovalLedger Ledger { get; }
 
-    /// <summary>上下文保护上限（**不是安全边界** —— 判「能不能做」的唯一入口是审批闸门）。</summary>
+    /// <summary>上下文保护上限（**不是安全边界** —— v13 起 runtime 不做硬拦，执行前只**留档**）。</summary>
     public ToolLimits Limits { get; }
 
     /// <summary>
-    /// **安全网关（判定层）**：null = 关闭（保持旧行为：所有改动类动作一律走闸门）。
+    /// **安全网关（判定层）**：null = 关闭（只按只读 / 改动分档，改动类一律留档）。
     /// <para>不为 null 时，闸门之前多一步判定：</para>
     /// <list type="number">
     /// <item><b>DENY</b>（受保护目标 / 提权 / 凭据）⇒ 直接拒绝，**不进入审批**；</item>
     /// <item><b>ALLOW</b>（本会话授权过的同类动作）⇒ **不打扰人**（主人 19:14：「授权过一次的确实不需要再次授权」）；</item>
-    /// <item><b>ASK</b>（首次 / must-ask / 宽能力 / 可疑可执行）⇒ 走既有闸门，点头后记 Grant。</item>
+    /// <item><b>ASK</b>（首次 / must-ask / 宽能力 / 可疑可执行）⇒ v13：**留档 + 放行**（不再问人）。</item>
     /// </list>
     /// </summary>
     public SecurityGateway? Security { get; }
@@ -102,12 +101,32 @@ public sealed class ToolRunner
             case ToolParseStatus.None:
                 return ToolRunResult.Nothing;
 
-            case ToolParseStatus.Multiple:
+            case ToolParseStatus.TooMany:
             case ToolParseStatus.Malformed:
-                return Deny(parse.Call?.Raw ?? ProtocolText.ToolPrefix, parse.Error ?? "工具块不合语法。", turn, sessionId);
+                return Deny(parse.Status, parse.Call?.Raw ?? ProtocolText.ToolPrefix, parse.Error ?? "工具块不合语法。", turn, sessionId);
 
             default:
-                return await HandleCallAsync(parse.Call!, turn, sessionId, cancellationToken).ConfigureAwait(false);
+            {
+                // v14：一次回复最多 ToolMaxCallsPerReply 次 —— **按发出顺序逐个**执行，每个各记一条事件
+                // （一一对应不变：第 i 个动作 ⇒ 第 i 条结果）。任一块不合语法则根本走不到这里（解析阶段整篇拒）。
+                var events = new List<SessionEvent>();
+                var denied = false;
+                string? detail = null;
+
+                foreach (var call in parse.Calls)
+                {
+                    var one = await HandleCallAsync(call, turn, sessionId, cancellationToken).ConfigureAwait(false);
+                    events.AddRange(one.Events);
+
+                    if (one.Denied)
+                    {
+                        denied = true;
+                        detail = detail is null ? one.Detail : $"{detail}；{one.Detail}";
+                    }
+                }
+
+                return new ToolRunResult(ToolParseStatus.Ok, events, denied, detail);
+            }
         }
     }
 
@@ -121,8 +140,9 @@ public sealed class ToolRunner
         if (!ToolNames.IsKnown(call.Name))
         {
             return Deny(
+                ToolParseStatus.Ok,
                 call.Raw,
-                $"未登记的工具 \"{call.Name}\"（最小集：{ToolNames.ListText}）⇒ 拒绝；未登记的名字归对外类动作（must-ask），没有通道时不执行。",
+                $"未登记的工具 \"{call.Name}\"（最小集：{ToolNames.ListText}）⇒ 拒绝（fail-closed：不认识的动作绝不猜着做）；请改用最小集里的名字重发 —— 这一条**不是要人点头**（v13 起没有闸门），只是不合协议。",
                 turn,
                 sessionId);
         }
@@ -138,7 +158,7 @@ public sealed class ToolRunner
         }
         catch (ToolUsageException ex)
         {
-            return Deny(call.Raw, ex.Message, turn, sessionId);
+            return Deny(ToolParseStatus.Ok, call.Raw, ex.Message, turn, sessionId);
         }
 
         var risk = tool.RiskFor(args);
@@ -155,56 +175,50 @@ public sealed class ToolRunner
         {
             // 判定层：Capability → Target → Policy（唯一声明处是 SecurityPolicy / SecurityGateway）。
             securityAction = SecurityClassifier.Classify(tool.Name, args, action, Security.Grants);
-            var verdict = Security.Decide(securityAction, risk);
 
-            if (verdict.Verdict == SecurityVerdict.Deny)
-            {
-                return Deny(call.Raw, $"{verdict.Reason} ⇒ 拒绝执行（不进审批）。", turn, sessionId);
-            }
+            // v12：把模型的 risk: 声明一并交给判定层（未声明 ⇒ null ⇒ 按旧行为逐条问人）。
+            var verdict = Security.Decide(securityAction, risk, call.RiskClaim);
 
-            // 已授权过的同类动作 ⇒ 不打扰人（Grant 复用不写审批账本：它不是「人点头」这个事实）。
-            requiresHuman = verdict.Verdict == SecurityVerdict.Ask;
+            // 声明被处理过（自主放行 / 声明与事实不符）⇒ 各记一条**审计事件**：
+            // 主人随时可核「本轮哪些动作是模型自判放行的」，也看得见「声明撞红线」的账。
+            RecordRiskClaim(verdict, call, action);
+
+            // v13 **二版**（主人 2026-09-21 23:1x：「凭据和私钥，暂时也放行，不要有任何硬约束」）：
+            // 判定层**不再有阻断档** —— Deny 也只降为**留档**：分类与理由照记进留档，动作照跑。
+            // 敏感数据将来由一套**拦在 runtime 内**的专门框架处理，不靠这里硬拦。
+            requiresHuman = verdict.Verdict is SecurityVerdict.Ask or SecurityVerdict.Deny;
             securityNote = verdict.Reason;
         }
 
+        // ④·v13 **留档 + 放行**（主人 2026-09-21 定：「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」）。
+        //     判定层判 Ask 的动作**不再问人**：先把它**留档**（事件一行 + 账本一条带完整审批面），然后照常执行。
+        //     为什么不再问：在 tasklifecycle 内部，问人只有两种形状 —— 假动作（模型自判就放行了）或死结
+        //     （人不点，整条任务停在那儿）。安全改由**远端 AI 的纪律**承担（协议 v13 第 5/6 条：
+        //     终局之前自判，有巨大损失风险就停下用语言问人）。
         if (requiresHuman)
         {
-            // 审批面**由 Runtime 从结构化参数渲染**（S3）—— 模型文本进不来。
-            // 路径真身（S1）与工具执行时算的是同一条口径（ToolPaths）。
+            // 审批面**由 Runtime 从结构化参数渲染**（决定型内容；模型文本进不来）——
+            // 路径真身与工具执行时算的是同一条口径（ToolPaths）。
             var face = tool.Preview(args, Limits);
-
-            var request = new ApprovalRequest(
-                tool.Name,
-                risk,
-                call.ArgumentsJson,
-                args.Canonical,
-                action,
-                turn,
-                sessionId,
-                face,
-                ToolPaths.NormalizePathArgument(args))
-            {
-                SecurityNote = securityNote,
-            };
-
-            var decision = await Gate.DecideAsync(request, cancellationToken).ConfigureAwait(false);
+            var why = securityNote ?? $"本档本该问人（{ToolNames.Describe(risk)}）";
 
             Ledger.Record(
-                turn, tool.Name, risk, action, request.Digest, decision, Gate.Actor, ReasonFor(decision), sessionId);
+                turn,
+                tool.Name,
+                risk,
+                action,
+                ApprovalDigest.Of(tool.Name, args.Canonical, ToolPaths.NormalizePathArgument(args)),
+                ApprovalDecision.Filed,
+                ApprovalActors.Runtime,
+                why,
+                sessionId,
+                string.Join('\n', face.Render()));
 
-            if (decision != ApprovalDecision.Approved)
-            {
-                var why = decision == ApprovalDecision.Denied
-                    ? $"未获批准（审批者：{Gate.Actor}）"
-                    : $"无法判定审批（没有有效的点头；审批者：{Gate.Actor}）";
-                return Deny(call.Raw, $"{why} ⇒ 拒绝执行（fail-closed）。", turn, sessionId);
-            }
-
-            // 人点头 ⇒ 把**可复用的那一类**记成会话 Grant（must-ask / 宽能力 / 可疑可执行三类**永不**记）。
-            if (securityAction is not null)
-            {
-                Security!.OnHumanApproved(securityAction, risk);
-            }
+            // 事件正文**必须短**：它会被重放回上下文（大段内容留在账本里）。
+            Sink.Append(
+                SessionEventKind.PermissionFiled,
+                $"{Short(action)} → 留档：{why} · 已按 v13 放行（未问人）",
+                "permission-file");
         }
 
         // ⑤ 执行并记事件。
@@ -217,7 +231,7 @@ public sealed class ToolRunner
         catch (ToolUsageException ex)
         {
             // 边界判定失败 = 拒绝（不是「跑了但失败」）。
-            return Deny(call.Raw, ex.Message, turn, sessionId);
+            return Deny(ToolParseStatus.Ok, call.Raw, ex.Message, turn, sessionId);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
@@ -233,15 +247,57 @@ public sealed class ToolRunner
             Security!.OnExecuted(securityAction, outcome.Ok);
         }
 
-        return new ToolRunResult(ToolParseStatus.Single, @event, false, outcome.Text);
+        return new ToolRunResult(ToolParseStatus.Ok, [@event], false, outcome.Text);
     }
 
-    private ToolRunResult Deny(string callText, string reason, int turn, string? sessionId)
+    /// <summary>
+    /// **把 <c>risk:</c> 声明的处理结局记成审计事件**（协议 v12；<c>docs/DESIGN-APPROVAL-V12.md</c> §五）。
+    /// <para>未声明（<see cref="RiskClaimOutcome.None"/>）⇒ 不记（绝大多数轮次 —— 不往流里灌噪音）。</para>
+    /// <para>声明撞硬红线时也**照记**：那是「模型说无风险，事实相反」的账，正是设计里要留的那一条。</para>
+    /// </summary>
+    private void RecordRiskClaim(SecurityDecision verdict, ToolCall call, string action)
     {
-        var text = $"{callText} → 拒绝：{reason}";
-        var @event = Sink.Append(SessionEventKind.ToolDenied, text, "tool-face");
-        return new ToolRunResult(ToolParseStatus.Single, @event, true, reason);
+        if (verdict.Claim == RiskClaimOutcome.None)
+        {
+            return;
+        }
+
+        var claim = call.RiskClaim ?? ApprovalClaim.None;
+        var text = verdict.Claim == RiskClaimOutcome.Honored
+            ? $"risk: {claim}（模型自判）⇒ 自主放行 · {action}"
+            : $"risk: {claim}（模型自判）与硬线冲突 ⇒ {verdict.Reason}";
+
+        Sink.Append(SessionEventKind.RiskClaimed, text, "risk-claim");
     }
+
+    private ToolRunResult Deny(ToolParseStatus status, string callText, string reason, int turn, string? sessionId)
+    {
+        // （v13 二版后本方法只服务**协议/语法**类拒绝：判不出 / 多调用 / 未登记工具 / 参数不合 ——
+        //  "判定层不同意" 已经不再走这条路。）
+        //
+        // 为什么每条拒绝都**附上完整工具面**（2026-09-22 主人真机实测后加）：拒绝话术原先**一次只暴露一个约束**
+        // —— 先猜错名字、再猜错键、最后才暴露「risk 写在 JSON 外」，一场简单提问为此白烧 3 轮（≈5k new token）。
+        // fail-closed 不变：不认识的动作仍然拒；变的只是「拒的时候把话说全」。
+        var text = $"{callText} → 拒绝：{reason} {ToolFaceContract()}";
+        var @event = Sink.Append(SessionEventKind.ToolDenied, text, "tool-face");
+        return new ToolRunResult(status, [@event], true, reason);
+    }
+
+    /// <summary>
+    /// **工具面契约（一次说全）** —— 拒绝话术的唯一渲染处。
+    /// <para>顺序按 <see cref="ToolNames.All"/> 定死 ⇒ 消息字节稳定、可 diff、可测。</para>
+    /// </summary>
+    private string ToolFaceContract() =>
+        "【工具面】可用："
+        + ToolNames.FaceText(_tools.Values)
+        + "；形状：[TOOL] 「名字」 {\"键\":\"值\"} risk: 「none|…」（**JSON 的键要带引号**，例：[TOOL] read {\"path\":\"a.txt\"} risk: none；"
+        + "上面那份键清单只是**键名**、不是能照抄的 JSON；risk 写在 JSON **外面**、与 [TOOL] **同一行**；一次回复最多 4 个"
+        // 2026-09-22（坑 #130，A 案）：真机反复被拒的是「多行正文塞进 JSON」而不是「键没引号」——
+        // 话术必须**同时**覆盖这一条，否则被拒的模型改不对（它按话术去查引号，可它错的是换行）。
+        + "；**多行正文不要塞进单行 JSON**（字符串里出现真换行就不是合法 JSON —— 要写长内容请用 `edit` 工具改文件）"
+        // 2026-09-24（坑 #157，同族第三个病因）：模型把 shell 正则搬进 JSON 串（`grep 'a\|b'`）⇒ `\|` `\(` 是非法 JSON 转义。
+        // 同一族第三个病因 ⇒ 话术要点名「串里只许有 JSON 的转义」，否则被拒的模型仍然只去查引号。
+        + "；**字符串里只许有 JSON 的转义**（引号 / 反斜杠 / 斜杠 / b f n r t / uXXXX）—— 正则里的 `\\(` `\\|` 在 JSON 里非法，直接写 `(` `|` 或用 `grep -F`）。";
 
     private static string Describe(ITool tool, ToolArgs args, ToolCall call)
     {
@@ -256,10 +312,15 @@ public sealed class ToolRunner
         }
     }
 
-    private static string ReasonFor(ApprovalDecision decision) => decision switch
-    {
-        ApprovalDecision.Approved => "人工点头（一次一批：本次点头只覆盖这一个动作）",
-        ApprovalDecision.Denied => "审批者明确拒绝",
-        _ => "判不出（没有有效点头）⇒ 按 fail-closed 当拒绝",
-    };
+    /// <summary>
+    /// 留档事件正文里 action 的长度上限（**唯一声明处**）。
+    /// <para>事件会重放回上下文 ⇒ 不许把大段内容（write 的全文等）灌进去；全文留在账本里。</para>
+    /// </summary>
+    private const int FiledEventMaxChars = 240;
+
+    /// <summary>把留档事件里的 action 截短（**明说截过**，不静默）。</summary>
+    private static string Short(string action) =>
+        action.Length <= FiledEventMaxChars
+            ? action
+            : action[..FiledEventMaxChars] + "…（全文在账本）";
 }

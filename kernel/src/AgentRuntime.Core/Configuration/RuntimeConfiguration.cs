@@ -57,6 +57,21 @@ public sealed class RuntimeConfiguration
     public int SessionMaxTurns { get; set; }
 
     /// <summary>
+    /// **模型上下文窗口**（token；0 = 未知）—— 「这条会话还装得下多少」的分母。
+    /// <para>
+    /// 它是**模型事实**（不是策略），所以放配置；而「达 20% 就提议收尾」是**内核策略常量**
+    /// （<see cref="Protocol.ContextBudget.ProposeRatio"/>）—— 两者分开，避免「改配置 = 改协议」。
+    /// </para>
+    /// <para>窗口未知 ⇒ 宿主**不提议**收尾（不拍脑袋），其余行为一字不变。</para>
+    /// </summary>
+    [JsonPropertyName("contextWindow")]
+    public int ContextWindow { get; set; }
+
+    /// <summary>上下文占窗口多少时提议收尾 + 重开（窗口未配 ⇒ 不提议）。</summary>
+    public Protocol.BudgetStatus BudgetOf(int promptTokens, bool estimated = false) =>
+        Protocol.BudgetStatus.Of(promptTokens, ContextWindow, estimated);
+
+    /// <summary>
     /// 冻结区（V2）选择：**拉起前定**的专业领域与项目。
     /// <para>域选择会改变冻结前缀 ⇒ 缓存整体失效，所以只能在拉起前设置（将来 GUI 的定位）。</para>
     /// </summary>
@@ -68,6 +83,14 @@ public sealed class RuntimeConfiguration
     /// </summary>
     [JsonPropertyName("stream")]
     public StreamConfiguration Stream { get; set; } = new();
+
+    /// <summary>
+    /// **会话生命周期（收尾三层）的工作区**：收尾件检查要扫的根（协议 v10 第 7 条）。
+    /// <para>配了它 ⇒ <c>/closeout</c> 会扫 <c>memory/</c>（水位之后的日记）· <c>handoff/</c>（今天的条目）·
+    /// <c>knowledge/</c>（版本 + 指纹事实）；留空 ⇒ **不校验**（明说，不假装查过）。</para>
+    /// </summary>
+    [JsonPropertyName("lifecycle")]
+    public LifecycleConfiguration Lifecycle { get; set; } = new();
 
     /// <summary>
     /// 运行时快照（V4 Runtime Snapshot）：**恢复点账本**（只记位置，不存正文）。
@@ -258,6 +281,22 @@ public sealed class RuntimeConfiguration
             throw new InvalidDataException("sessionMaxTurns 不能为负数。");
         }
 
+        if (ContextWindow < 0)
+        {
+            throw new InvalidDataException("contextWindow 不能为负数（0 = 未知 ⇒ 不提议收尾）。");
+        }
+
+        if (Lifecycle.Window is not ("closeout" or "always"))
+        {
+            throw new InvalidDataException($"lifecycle.window 只支持 \"closeout\" / \"always\"，当前为 \"{Lifecycle.Window}\"。");
+        }
+
+        var blankCommand = Lifecycle.Pipeline.FirstOrDefault(string.IsNullOrWhiteSpace);
+        if (blankCommand is not null)
+        {
+            throw new InvalidDataException("lifecycle.pipeline 里有空命令：要么去掉，要么写清（空串会被当成「配过了」）。");
+        }
+
         try
         {
             new FrozenSelection(Frozen.Domains, Frozen.Project).Validate();
@@ -359,6 +398,55 @@ public sealed class RuntimeConfiguration
         path.StartsWith("~/", StringComparison.Ordinal)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), path[2..])
             : path;
+}
+
+/// <summary>
+/// **会话生命周期（收尾三层）** 的配置：**只含路径**（协议文本与三层义务由协议区声明，配置无权改）。
+/// <para>路径相对配置文件目录解析（与 <c>stream.path</c> / <c>frozen.root</c> 同规）；留空 = 不校验。</para>
+/// </summary>
+public sealed class LifecycleConfiguration
+{
+    /// <summary>WB 语料工作区根（<c>memory/</c> · <c>handoff/</c> · <c>knowledge/</c> 在它下面）；留空 = 不校验。</summary>
+    [JsonPropertyName("workspace")]
+    public string? Workspace { get; set; }
+
+    /// <summary>
+    /// **收尾窗口的开放模式**：<c>closeout</c>（默认 = 只在 <c>/closeout</c> 那一刻开）｜<c>always</c>（整个会话常开）。
+    /// <para>主人 2026-09-20 16:1x：「现在一次收尾要按十几次权限授权……我们需要的是一个更加宽泛的权限约束方式」——
+    /// task 级的收尾件（handoff / 坑）发生在任务过程中，只在 <c>/closeout</c> 开窗 ⇒ 那些写还在窗外逐条问。
+    /// <c>always</c> = 把「配置声明的那几类目标」在整个 tasklife 里静默放行（v13：分类仍算，但只留档、不拦截）。</para>
+    /// </summary>
+    [JsonPropertyName("window")]
+    public string Window { get; set; } = "closeout";
+
+    /// <summary>踩坑集文件（如项目 <c>docs/PITFALLS.md</c>）；留空 = 不校验这一项。</summary>
+    [JsonPropertyName("pitfalls")]
+    public string? Pitfalls { get; set; }
+
+    /// <summary>
+    /// **收尾流水线的命令**（收尾到期时由运行时**原样打印**，远端 AI 按序执行）：
+    /// 如 <c>python3 tools/skill-repo/knowledge-repo.py --out … --closeout</c> → <c>--promote</c> → 派生 → 重建语料。
+    /// <para>为什么不写死在协议/代码里：命令与路径是**这台机器的部署事实**（配置的活）；协议只说「按运行时给的命令做」。</para>
+    /// <para>留空 = 不打印（收尾仍由人/AI 按文档手做）。</para>
+    /// </summary>
+    [JsonPropertyName("pipeline")]
+    public List<string> Pipeline { get; set; } = [];
+
+    /// <summary>
+    /// **末态快照落点**（收尾时写、<c>start</c> 时读）：白板与草稿的最后状态。
+    /// <para>留空 = 默认 <c>~/.agentruntime/handover.json</c>（与水位线同目录）。</para>
+    /// </summary>
+    [JsonPropertyName("handover")]
+    public string? Handover { get; set; }
+
+    /// <summary>
+    /// **配置里是否显式写了 <c>handover</c>**（生命周期集成是**选择加入**的）。
+    /// <para>为什么要有这一位：会话指针住在末态快照旁边 ⇒ 没配 handover 时不读指针、不写指针 ——
+    /// 否则**默认路径会落到真实 <c>~/.agentruntime</c>**，测试之间互相污染（实测：40 条测试被打红）。
+    /// 显式配了才启用「跨进程续接」这一整套。</para>
+    /// </summary>
+    [JsonIgnore]
+    public bool HandoverExplicit { get; set; }
 }
 
 /// <summary>

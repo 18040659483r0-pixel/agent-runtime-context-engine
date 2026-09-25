@@ -35,10 +35,25 @@ internal sealed class TuiOptions
 
     public bool Verbose { get; private set; }
 
+    /// <summary><c>--auto-continue N</c>：自动接续的**安全上限**轮数（**0 = 关**，与 CLI 同名同义）。</summary>
+    public int? AutoContinueRounds { get; private set; }
+
+    /// <summary><c>--no-auto-continue</c>：显式关掉自动接续（与 <c>--auto-continue 0</c> 等价）。</summary>
+    public bool NoAutoContinue { get; private set; }
+
+    /// <summary><c>--auto-budget &lt;分钟&gt;</c>：自动接续的**经过时间**预算（0 = 不限）。</summary>
+    public int? AutoBudgetMinutes { get; private set; }
+
     public bool Help { get; private set; }
 
     /// <summary><c>--ui split|plain</c> 的原值（null = 默认 split，但会在不合适的环境自动降级）。</summary>
     public string? Ui { get; private set; }
+
+    /// <summary><c>--color auto|always|never</c>（默认 auto）—— 落屏上色的策略；关掉即纯文本。</summary>
+    public string? Color { get; private set; }
+
+    /// <summary><c>--color-depth auto|16|256</c>（默认 auto）—— 色深；256 ＝ 鲜艳档。</summary>
+    public string? ColorDepth { get; private set; }
 
     /// <summary><c>--snapshot &lt;file&gt;</c>：无头渲染一帧到文件（双栏布局可复算 / 可 diff）。</summary>
     public string? SnapshotPath { get; private set; }
@@ -105,8 +120,23 @@ internal sealed class TuiOptions
                 case "--verbose" or "-v":
                     options.Verbose = true;
                     break;
+                case "--auto-continue" when i + 1 < args.Length:
+                    options.AutoContinueRounds = ParseInt(args[++i], "--auto-continue");
+                    break;
+                case "--no-auto-continue":
+                    options.NoAutoContinue = true;
+                    break;
+                case "--auto-budget" when i + 1 < args.Length:
+                    options.AutoBudgetMinutes = ParseInt(args[++i], "--auto-budget");
+                    break;
                 case "--ui" when i + 1 < args.Length:
                     options.Ui = args[++i];
+                    break;
+                case "--color" when i + 1 < args.Length:
+                    options.Color = args[++i];
+                    break;
+                case "--color-depth" when i + 1 < args.Length:
+                    options.ColorDepth = args[++i];
                     break;
                 case "--snapshot" when i + 1 < args.Length:
                     options.SnapshotPath = args[++i];
@@ -132,7 +162,32 @@ internal sealed class TuiOptions
         return options;
     }
 
-    /// <summary>整数参数解析（非法即报错，不静默取默认）。</summary>
+    /// <summary>
+    /// 自动接续设置（**TUI 的默认是开**：≤25 轮 / ≤30 分钟兜底）。
+    /// <para>与 CLI 的区别只在默认值：CLI 的 <c>--auto-continue</c> 默认 0（关），TUI 默认开；
+    /// 两侧的**开关名与语义相同**（<c>--auto-continue 0</c> = 关），所以不会出现「同名两套意思」。</para>
+    /// </summary>
+    public ContinuationSettings Continuation
+    {
+        get
+        {
+            if (NoAutoContinue || AutoContinueRounds == 0)
+            {
+                return ContinuationSettings.Off;
+            }
+
+            return new ContinuationSettings
+            {
+                Enabled = true,
+                MaxRounds = AutoContinueRounds ?? ContinuationSettings.Default.MaxRounds,
+                Budget = AutoBudgetMinutes is { } minutes
+                    ? TimeSpan.FromMinutes(minutes)
+                    : ContinuationSettings.Default.Budget,
+            };
+        }
+    }
+
+    /// <summary>整数参数解析（非法即报错，不静默取默认）。</summary></summary>
     private static int ParseInt(string value, string option) =>
         int.TryParse(value, out var parsed)
             ? parsed

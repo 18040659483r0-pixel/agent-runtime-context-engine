@@ -53,10 +53,11 @@ public sealed class PreAuthorizationTests
     public void 文件被手改_校验和不符_载入即报错_不静默降级()
     {
         var path = TempFile();
-        new PreAuthorizationStore(path).Issue(Capability.FsWrite, "/tmp/a", TimeSpan.FromMinutes(10), "n", T0);
+        // 用**命令类**能力：路径类目标签发时会归一到真身，字面替换就换不动它了（本测试测的是校验和，不是归一）。
+        new PreAuthorizationStore(path).Issue(Capability.ProcExec, "svn commit -m a", TimeSpan.FromMinutes(10), "n", T0);
 
         // 手改一个字节：把目标改成别处（典型的"给自己偷偷加一条"）。
-        var text = File.ReadAllText(path).Replace("/tmp/a", "/tmp/b", StringComparison.Ordinal);
+        var text = File.ReadAllText(path).Replace("svn commit -m a", "svn commit -m b", StringComparison.Ordinal);
         File.WriteAllText(path, text);
 
         Assert.Throws<InvalidDataException>(() => new PreAuthorizationStore(path));
@@ -163,7 +164,7 @@ public sealed class PreAuthorizationTests
     [Fact]
     public async Task 全链路_预授权让无人轮次真的执行_而会话Grant_仍然易失()
     {
-        // 端到端：装了预授权的 Runner 在**没有任何人**的情况下把动作跑完（闸门根本没有被问）。
+        // 端到端：装了预授权的 Runner 在**没有任何人**的情况下把动作跑完（runtime 根本没问人）。
         var dir = Path.Combine(Path.GetTempPath(), "wb-preauth-run-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var target = Path.Combine(dir, "unattended.txt");
@@ -174,15 +175,15 @@ public sealed class PreAuthorizationTests
         gateway.Grants.LoadPreAuthorized(store, DateTimeOffset.Now);
 
         var sink = new TestSink();
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Denied);   // 就算有人也只会拒绝
-        var runner = new ToolRunner(sink, gate: gate, security: gateway);
+        var ledger = new ApprovalLedger();
+        var runner = new ToolRunner(sink, ledger: ledger, security: gateway);
 
         var result = await runner.HandleAsync($$"""
             [TOOL] write {"path":"{{target}}","content":"unattended"}
             """, 1, "s", TestContext.Current.CancellationToken);
 
         Assert.False(result.Denied);
-        Assert.Equal(0, gate.AskCount);                 // 没有人被问过
+        Assert.Empty(ledger.Entries);                   // 没有人被问过，连留档都不需要（预授权已覆盖）
         Assert.True(File.Exists(target));               // 事真的做了
     }
 

@@ -30,7 +30,6 @@ public static class ModuleRegistry
         VacuumMode vacuum = VacuumMode.Off,
         string? sessionId = null,
         ToolLimits? toolLimits = null,
-        IApprovalGate? toolGate = null,
         ApprovalLedger? toolLedger = null)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -196,7 +195,7 @@ public static class ModuleRegistry
 
             foreach (var slot in toolSlots)
             {
-                modules[slot] = new ToolModule(sink, toolLimits, toolGate, toolLedger, security: SecurityGateway.ForRuntime());
+                modules[slot] = new ToolModule(sink, toolLimits, toolLedger, security: SecurityGateway.ForRuntime());
             }
         }
 

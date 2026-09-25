@@ -10,6 +10,7 @@ cd projects/AgentRuntime
 python3 tools/frozen-build/build-frozen-corpus.py --tier A     # 生成 A 档
 python3 tools/frozen-build/build-frozen-corpus.py --tier B     # 生成 B 档（A + 项目文档索引）
 python3 tools/frozen-build/build-frozen-corpus.py --check       # 幂等校验（CI 用）
+python3 tools/frozen-build/build-frozen-corpus.py --bump all    # 声明一次 bump：版本 +1 + 刷新源锚 + 重写产物
 python3 tools/frozen-build/build-frozen-corpus.py --spec        # 打印段清单（唯一声明处）
 ```
 
@@ -18,7 +19,7 @@ python3 tools/frozen-build/build-frozen-corpus.py --spec        # 打印段清�
 1. **唯一声明处**：段清单 = `build-frozen-corpus.py` 顶部 `SPEC`（`--spec` 可打印），别处不得再定义结构。
 2. **逐字节确定**：LF、无 BOM、无时间戳、索引按 id（NFC）排序 —— 重跑必得同一份字节。
 3. **正文与账本分离**：版本头 `<!-- frozen: version=N -->` 与 `_manifest.json` 只服务账本，**不进 prompt**；指纹按**去掉版本头**的正文算。
-4. **版本闸门**：源变了而 `versions.json` 没 bump → `--check` 报错。**改内容必须同时改版本号。**
+4. **版本闸门有两道**：① 产物 ≠ 重算 ⇒ 报「源改了但没重跑」；② **源锚** —— `versions.json` 的 `source_sha256` 钉着「**上次 bump 时的正文 sha**」，源内容一变就必须 `--bump`（**重跑产物不会让它变绿** —— 只靠①时，重跑就把闸门骗绿了）。⇒ **改内容 = 改版本号**，唯一动作就是 `--bump <key>|all`（同一动作里刷新锚 + 重写产物；源未变时拒绝空 bump）。
 5. **L3 只留索引**：技能 / 踩坑集 / 交接 / 项目文档 / 工具 的**正文不进冻结区**，只留索引；正文将来按需**逐条**进 Append Stream（依赖 V3）。
 
 ## 档位

@@ -192,6 +192,28 @@ public sealed class SkillResident
     }
 
     /// <summary>
+    /// 单条 L2 行渲染成 prompt 的**唯一口径** —— <see cref="Render"/> 与「按域计字节」共用这一处，
+    /// 不许两处各拼一遍（否则「屏上说的占用」与实际注入字节会静默分叉）。
+    /// </summary>
+    private static string RenderL2Line(L2Line row) =>
+        $"- [{row.Domain}] {row.Question} → 见 L3 {string.Join(' ', row.Ids)}\n";
+
+    /// <summary>
+    /// **每个域在常驻层里贡献的字节**（按 <see cref="RenderL2Line"/> 逐字计）。
+    /// <para>L1 不参与：它是「有哪些技能」的目录，没有域这个属性（分摊只会把数字变成猜的）。</para>
+    /// </summary>
+    public IReadOnlyDictionary<string, int> DomainBytes()
+    {
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var row in _l2)
+        {
+            map[row.Domain] = map.GetValueOrDefault(row.Domain) + Encoding.UTF8.GetByteCount(RenderL2Line(row));
+        }
+
+        return map;
+    }
+
+    /// <summary>
     /// 渲染常驻文本。**格式即契约**（协议区之外的稳定前缀）：改这里的字节 = 缓存归零，要当版本事件对待。
     /// </summary>
     private string Render()
@@ -208,8 +230,7 @@ public sealed class SkillResident
         sb.Append("L2：具体问题 → 指向 L3 条（").Append(_l2.Count).Append(" 条；域过滤：").Append(filter).Append("）\n");
         foreach (var row in _l2)
         {
-            sb.Append("- [").Append(row.Domain).Append("] ").Append(row.Question)
-              .Append(" → 见 L3 ").Append(string.Join(' ', row.Ids)).Append('\n');
+            sb.Append(RenderL2Line(row));
         }
 
         return sb.ToString();

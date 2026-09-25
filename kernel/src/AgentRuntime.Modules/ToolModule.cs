@@ -16,10 +16,9 @@ namespace AgentRuntime.Modules;
 /// （F1/F5 的结构性保证：审批账本、沙箱、闸门怎么变都不会动到已有段的字节）。</item>
 /// <item><b>只经事件通道</b>：结果 / 拒绝都按 <see cref="IEventSink"/>（= 既有 V3 只追加流）记成事件
 /// —— F2：行号即地址、可重放。</item>
-/// <item><b>不问就不动</b>：需要审批的动作走宿主注入的 <see cref="IApprovalGate"/>；
-/// 默认闸门是 <see cref="NonInteractiveApprovalGate"/>（非交互 ⇒ 拒绝）——
+/// <item><b>留档 + 放行</b>（v13）：本该问人的动作**不再问人** —— 记一条留档（事件 + 账本）后照常跑；
 /// **没有路径围栏**（主人 2026-09-16 03:00 定：目标就是「能改本机任何文件」），
-/// 因此判「能不能做」的唯一入口是审批闸门，<see cref="ToolLimits"/> 只管不把上下文撑爆。</item>
+/// 安全由远端 AI 的纪律承担（协议 v13）；<see cref="ToolLimits"/> 只管不把上下文撑爆。</item>
 /// </list>
 /// <para>
 /// 与 <c>append-stream</c> 的关系：**本模块必须有事件落点**（结果必须是事件）——
@@ -35,12 +34,11 @@ public sealed class ToolModule : RuntimeModuleBase
     public ToolModule(
         IEventSink sink,
         ToolLimits? limits = null,
-        IApprovalGate? gate = null,
         ApprovalLedger? ledger = null,
         IReadOnlyList<ITool>? tools = null,
         SecurityGateway? security = null)
     {
-        Runner = new ToolRunner(sink, tools, gate, ledger, limits, security);
+        Runner = new ToolRunner(sink, tools, ledger, limits, security);
     }
 
     public override string Name => ModuleName;

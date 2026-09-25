@@ -1,12 +1,58 @@
 # METHODOLOGY · 全平台通用项目方法论（L1/L2 顶层）
 
-> **定位（方案 B，2026-09-11 用户定）**：本文件是**知识唯一家 + 顶层常驻入口**，**只承载 L1 泛用 / L2 中间两层抽象**。
-> **L3 最细颗粒度**：留在各项目 `PITFALLS.md` / 项目方法论 doc（**素材层，不装载**）。
-> **项目级方法论入口**：见 `INDEX.md` §四（总索引）；**素材层**：`memory/`、`handoff/`、`PITFALLS*.md` 不常驻，需细节才定点 read / `memory_search`。
-> **用法**：遇问题**第一反应 = 查本文件（L1/L2）→ 按索引下钻**到坑集 / skill。
-> 维护：全端可编辑，改后公告板发索引 ｜ 助手-MACARM 2026-08-29 初稿。
+> **定位（方案 B）**：本文件 = **知识唯一家 + 顶层常驻入口 + 唯一索引入口**，只承载 **L1 泛用 / L2 中间**两层抽象。
+> **L3**（技能正文 / 项目 `PITFALLS.md` / `handoff/` / 项目文档 / `TOOLS.md`）**一律不常驻**，按下方索引下钻，或用 `memory_search` / `memory_get` 定点取。
+> **用法**：遇问题**第一反应 = 查本文件 → 按索引下钻**；>10 KB 的文件只读它顶部的索引节。
+> **体量闸门**（2026-09-22 微型收尾立，防复发）：§十 **单条 ≤300 B** · **条数 ≤45** · 本文件 **≤25 KB** · **单次收尾净增 ≤600 B** ⇒ `python3 scripts/methodology-guard.py --check`。
+> **精简留痕（2026-09-22）**：73,215 B → 本次；**旧 §十 89 条全文 + 原文件全文**在 `handoff/21-方法论条目归档-2026-09-22.md`（寻址 `归档 §十·N` / `归档 §原·<节名>`）。
+> 维护：全端可编辑，改后 `BULLETIN.md` 发索引；**顶部只在收尾更新**。助手-MACARM 2026-08-29 初稿。
 
----
+## 索引（唯一入口）· 要做什么 → 看哪里
+
+> 人工导航；机器索引用 `python3 tools/frozen-build/build-frozen-corpus.py --spec`。**行预算 ≤150 B**（超了说明这行在替正文干活）。
+
+| 要做什么 / 触发词 | 主技能 | 坑集 / 设计文档（L3，按需 read） |
+|---|---|---|
+| 不确定看哪个 → 先路由 | `tools/task-router/`（Win）· `memory_search`（Mac） | — |
+| **日常找知识（skills 未装）** | `knowledge/knowledge.md`（L1 法则 + L2 问题地图） | 按 id 取 L3：`skill-repo/<skill>/L3.jsonl`（第 N 行 = 第 N 条） |
+| **坑集 / 交接逐条定位** | `tools/skill-repo/l3-unify.py` | `projects/AgentRuntime/docs/DESIGN-L3-UNIFY.md` |
+| 铁则 / 流程 / 启动 / 收尾 | `AGENTS.md`（唯一家） | — |
+| 环境 / 主机 / 平台事实（谁注入什么） | — | `TOOLS.md` |
+| 跨端共享 / 公告板 / SVN 三端协作 | `svn-workflow` | `BULLETIN.md` · `handoff/03` |
+| 编辑文件安全（原子回滚 / 锚点 / LF / `write`=覆盖） | `agent-file-editing` | 归档 §十·67 |
+| 有界面程序 DEBUG · UIA 真机截图 | `windows-uia-automation` · `screenshot-uia` | `NodeMesh/deploy/15` |
+| 日志式排障（FLAG 埋点） | `log-debug` | — |
+| C#/.NET WPF 桌面 | `csharp-wpf-development` | `handoff/07` |
+| macOS SwiftUI App / 套壳 App | `swiftui-desktop-app` · `webview-app` | `SequenceRunner/mac/PITFALLS.md` |
+| PowerShell 5.1 脚本 | `powershell-51-scripting` | `handoff/02` · `handoff/07` |
+| 图标 / 上架素材 / 中文图 | `icon-forge` · `taobao-listing-assets` · `macos-chinese-image-text` | — |
+| 图片压缩 / 本地 OCR | `image-compress` · `image-ocr` | MEMORY 铁则#1 |
+| 授权 / 发码 / 激活 / 打包 | `license-delivery` · `license-keygen` · `dual-track-release` | `handoff/04` · AGENTS 铁则 5 |
+| Windows 部署（自启 / 防火墙 / publish） | `windows-deployment` | `sales/<product>/deliverables/` |
+| 增量归档 / 媒体扫描配对 / 语音存档 | `incremental-archive` · `media-scan-pairing` · `voice-archive` | — |
+| **上下文成本 / 消融 / 头部精简 / 遵从率** | `llm-context-benchmark` · `context-index-maintenance` | 归档 §十·6/7/22 |
+| **知识库精简 / 冻结点搬家** | `knowledge-slim-plan` · `artifact-relocation-check` | `handoff/15` |
+| **一轮值不值这个钱（能效）** | `agent-turn-cost-triage` | 归档 §十·75~82 |
+| **闸门「应有而缺失」/ 豁免落点** | `expected-set-gates` | 归档 §十·9/30/46/58 |
+| TUI 上色 / 人读呈现 / 单栏版式 | `tui-presentation-layer` · `tui-frame-budget` | 归档 §十·34/57/60/73 · `projects/AgentRuntime/docs/DESIGN-PRESENTATION.md` |
+| 意外退出 / 进程自己没了 | `unexpected-exit-triage` | 归档 §十·68 |
+| 崩溃后启动失败 / 找不到文件 | `launch-failure-triage` | — |
+| 两副本同步（运行时 vs 版本库） | `workspace-copy-sync` | 归档 §十·19/20/32/33 |
+| 发布切片 / 公开变体 / 去人名 | `public-slice-publish` | `docs/PUBLISH-v4.0-RUNBOOK.md` · `tools/pre-publish-scan.sh` |
+| 架构论文立证（GitHub） | `architecture-paper-publishing` | `analysis/` 论文稿 |
+| 文档 ↔ 生成物同步 | `generated-view-sync` | `handoff/19` |
+| 常驻层改动的缓存代价 | `prompt-header-change` | 归档 §十·7/79 |
+| **协议区（不可变契约）** | — | `projects/AgentRuntime/docs/{REPORT,DESIGN}-PROTOCOL-ZONE.md` · 归档 §十·21/66 |
+| **[WB] 宿主架构 / 生命周期卡 / 求解语言** | — | `docs/DESIGN-LIFECYCLE-UX.md` · `DESIGN-SOLVE-LANGUAGE.md` · 归档 §十·62~65 |
+| **[WB] 安全网关 / 审批 / 预授权** | — | `docs/DESIGN-SECURITY-GATEWAY.md` · `DESIGN-APPROVAL-V12.md` · 归档 §十·37/42~45 |
+| **[WB] 门序 G7/G8 · 宿主切换** | — | `docs/G7-DAILY-CHECKLIST.md` · `REPORT-HOST-SWITCH-PREMORTEM.md` |
+| **[WB] 项目坑集（700+ 行）** | — | `projects/AgentRuntime/docs/PITFALLS.md` |
+| 模型速度 / 费用 | `model-speed-benchmark` | — |
+| 跨端消息 / 指令协作 | — | `handoff/13`（NodeMesh 协议） |
+| **他端记忆（WIN端 · Windows 端）** | 索引 → `agents/WIN端/MEMORY-INDEX.md`（**第二区域 · append-only；不进本端冻结区**） | `agents/WIN端/MEMORY.md`（按节读） |
+| **本次精简前的旧条目全文** | — | `handoff/21-方法论条目归档-2026-09-22.md` |
+
+**仓库结构**：`software-company/{ workspace（跨端共享）, projects, sales, analysis, deploy }`。`svn update` 后**首要检查区** = `workspace/BULLETIN.md`（只读顶部 `🧭 索引` 节）。
 
 ## 〇、总纲：一个项目从 0 到交付的 7 阶段
 
@@ -14,196 +60,92 @@
 立项 → 设计 → 实现 → DEBUG → 测试验收 → 交付部署 → 运维迭代
 ```
 
-- 每阶段有**标准动作 + 铁则 + 经验索引**（见下）。
 - 三条全局铁则：**数据安全可恢复** / **改动留痕进 SVN** / **验收必须有证据**。
-- 角色分工（用户定）：**助手 = 需求/分析/营销/素材**，**WIN端 = Windows 实现**；助手不写实现代码，只写「要什么/为什么/验收标准」。
+- 角色分工（用户定）：**助手 = 需求/分析/营销/素材**，**WIN端 = Windows 实现**；助手不写实现代码，只写「要什么 / 为什么 / 验收标准」。
 
-## 〇·五、Tool First 铁则（2026-09-07 用户定，最高优先级）：先找工具再思考
+## 〇·五、Tool First 铁则：先找工具再思考（最高优先级）
 
-- **不让模型「记住工具」，默认「先找工具/资源，再进模型推理」**；AI 是流水线中的一环，不是唯一核心。
-- **收到任务固定顺序**：①有没有 skill？②查本文件（L1/L2）？③有没有适用的小工具/分析器？④都没有才进模型深度推理。
-- **让模型只看精简后的几十行关键点**，不喂几千行原始日志/代码/文档。
-- **能力调度器**：`workspace/tools/task-router/route.ps1`——任务描述 → 命中能力(skill/pitfall/doc/alias) → 名称+路径+速览 → 模型 read 锚点段即可推理（索引由 `build-index.ps1` 自动构建）。
-- **长期**：PITFALLS、METHODOLOGY、skill、小工具都视为「能力」，统一纳入调度前置分发。
-
----
+- 固定顺序：① skill？② 本文件（L1/L2）？③ 小工具/分析器？④ 才进模型深推；**让模型只看精简后的几十行**。细则与「能力前置分发」→ **`AGENTS.md` 铁则 2**（唯一家）。
 
 ## 一、立项（需求阶段）
 
-**标准动作**
-1. **方向验证先行**：同类是否被占位 → 查 `analysis/方向验证记录-2026-08-11.md` 的 5 轮验证模式。
-2. **立项文档**：`analysis/<产品>.md`——定位、目标客户、技术栈、验收标准。
-3. **跑通全流程优先**：第一单用低价屠夫款跑通「产品→上架→发货→授权」完整链路，再谈利润。
-
-**铁则**
-- 需求三件套：**要什么 / 为什么 / 验收标准**（验收标准必须可测量、可截图证明）。
-- 技术选型默认值：Windows 桌面 = **C#/.NET + WPF**；服务端 = **Razor Pages + SQLite**；跨平台壳 = **SwiftUI/WPF + WebView2**（skill `webview-app`）；工具类 = C# 类库 + xunit。
-
-**经验索引**：FileBatchTool 立项 `analysis/文件批量处理工具.md`；授权基础设施 `handoff/04-授权系统设计.md`。
-
----
+1. **方向验证先行**：查 `analysis/方向验证记录-*.md` 的验证模式。
+2. **立项文档** `analysis/<产品>.md`：定位 / 目标客户 / 技术栈 / 验收标准。
+3. **跑通全流程优先**：第一单用低价屠夫款跑通「产品→上架→发货→授权」，再谈利润。
+- **需求三件套铁则**：**要什么 / 为什么 / 验收标准**（可测量、可截图证明）。
+- 默认技术选型：Windows 桌面 = **C#/.NET + WPF**；服务端 = **Razor Pages + SQLite**；跨平台壳 = **SwiftUI/WPF + WebView2**；工具类 = **类库 + xunit**。
 
 ## 二、设计（方案阶段）
 
-**标准动作**
-1. 多方案对比时**用户面命名避免歧义**（内部码可 A/B/C，用户面用 ALPHA/BETA/SIGMA）。
-2. **数据安全设计先行**：删除/移动必须可恢复（回收站+撤销日志）；目标已存在绝不覆盖（冲突三选一）。
+1. 多方案对比时**用户面命名避免歧义**（内部码 A/B/C，用户面 ALPHA/BETA/SIGMA）。
+2. **数据安全设计先行**：删除/移动必须可恢复（回收站 + 撤销日志）；目标已存在绝不覆盖（冲突三选一）。
 3. **资源安全设计**：内存敏感操作设硬上限；超大文件不做自动批量，给清单交人工。
-4. **授权方案复用**：`SoftwareLicense` 通用库（伪在线激活+本机绑定+每版本一套号），后期切真在线仅配置开关。
-5. **免费限量可配**：MaxFreeFiles/MaxFreeBytes 常量化，便于测试与营销调整。
-
-**铁则**
-- 设计评审必问「**数据找得回来吗**」。
-- 版本号/序列号算法：校验位权重必须与模数互质；测试垃圾码须含禁用字符。
-- 架构取舍给结论+理由（用户是架构师，别写论文）。
-
-**经验索引**：DiskSpaceSaver `docs/PITFALLS.md` #5/#6；发码 `skills/license-delivery`。
-
----
+4. **授权方案复用** `SoftwareLicense` 通用库；免费限量 `MaxFreeFiles/MaxFreeBytes` 常量化可配。
+- **铁则**：设计评审必问「**数据找得回来吗**」；版本号/序列号校验位权重与模数互质、测试垃圾码含禁用字符；架构取舍给**结论 + 理由**（用户是架构师，别写论文）。
 
 ## 三、实现（编码阶段）
 
-**标准动作**
-1. **编码统一 UTF-8**；外部对接才转码且显式标注。
-2. 新增文件**立即 `svn add`**（漏入库 → 别端编译不过）。
-3. 改核心文件后跑**命令行全 sln 编译**验证（VS Error List 可能是 Ghost 假错）。
-4. 每替换/每步编辑后**立即 read 核对**（edit 多块替换可能误匹配改坏，血泪）。
+1. **编码统一 UTF-8**；外部对接才转码且显式标注。2. 新增文件**立即 `svn add`**（漏入库 ⇒ 别端编译不过）。3. 改核心文件后跑**命令行全 sln 编译**验证（VS Error List 可能是 Ghost 假错）。4. 每替换/每步编辑后**立即 read 核对**。
 
-**跨平台铁则**
-- **UI 响应性**：UI 线程永不阻塞——耗时/阻塞操作（解码/压缩/加密/IO/网络）一律走**异步通道**（Task.Run/GCD/async-await）；结果回 UI 用 Dispatcher/主队列；后台任务可取消 + 低优先级 QoS。用户操作响应 < 100ms。
+**跨平台铁则（不可越过）**
+- **UI 线程永不阻塞**：耗时/阻塞操作（解码/压缩/加密/IO/网络）一律走**异步通道**；结果回 UI 用 Dispatcher/主队列；后台任务可取消 + 低优先级 QoS；响应 < 100ms。
 - **后台线程绝不碰 UI 控件**：后台入口先取 UI 值为局部变量；回 UI 用 `Dispatcher.BeginInvoke`；Log 用线程安全方法。
 - **UI 联动重建单入口**：同步/写值方法绝不触发重建；仅用户输入触发一次；改前查环（否则 StackOverflow）。
-- **集合索引用 for 的 index 逐个传**，别用 `Count` 当单元素 Tag。
-- **每步视图必须有 `OnEnter()` 回显快照**（只有 IsVisibleChanged 触发的视图会永久卡初始态）。
+- **每步视图必须有 `OnEnter()` 回显快照**（只靠 IsVisibleChanged 触发的视图会永久卡初始态）。
 - **序列化兼容**：旧字段不能删（XmlSerializer 遇未知属性抛）；格式重写别丢行前缀。
-- **操作任务持久化**（多步骤/长耗时/可能中断者必做）：命名任务 + 任务文件(JSON 快照) + 阶段状态机——①含 version/阶段/设置/进度(已处理清单)/结果；②每步自动保存 + 关闭兜底；③断点续做（重开 → 列未完成 → 恢复阶段 → 跳过已完成）；④恢复前校验源文件存在性；⑤UI `OnEnter()` 回显；⑥保存失败要有提示，绝不静默丢数据。
+- **多步骤任务持久化**（长耗时/可能中断者必做）：命名任务 + JSON 快照 + 阶段状态机（含 version/阶段/设置/进度）、每步自动保存 + 关闭兜底、断点续做、恢复前校验源文件、保存失败必须提示，**绝不静默丢数据**。
 
-**平台分支索引**
+**主题 / UI 标准**：必须支持**深色/浅色**（跟随系统 + 三态切换 + 记忆，**含弹窗/悬浮层/新窗口**；验收切一遍深色）；**颜色一律变量化**；高频 UI 抽两端共用组件；固定尺寸先测内容高度。
 
-| 平台 | 技能 | 踩坑集 |
-|---|---|---|
-| C#/WPF | `skills/csharp-wpf-development` | `handoff/07-踩坑集归类-WinWPF`、`DiskSpaceSaver/docs/PITFALLS.md` |
-| macOS SwiftUI/自动化 | `skills/webview-app`、`skills/icon-forge` | `SequenceRunner/mac/PITFALLS.md` |
-| PowerShell 5.1 | `skills/powershell-51-scripting` | `handoff/02`、`handoff/07` |
-| SVN | `skills/svn-workflow` | `handoff/03` |
-| 文件编辑安全 | `skills/agent-file-editing` | r122 血泪 |
-
-**主题标准（跨平台）**
-- **必须支持深色/浅色**：默认跟随系统 + 用户三态切换（auto→light→dark）+ 选择记忆。
-- **颜色一律变量化**：Web 用 CSS 变量；WPF 用 DynamicResource；SwiftUI 用 Color assets。**含全屏 modal/弹窗/悬浮层/新建窗口都必须变量化**；验收时每个视图切一遍深色（像素级白底检测）。
-
-**UI 模块化与布局**
-- 高频 UI 抽为**两端共用组件**（单一实现、行为统一）。
-- 固定尺寸容器先测内容高度（防溢出）；注意 Z 序；长文本/多列用双列 Grid；大列表用虚拟化；数据类显示用 `override ToString`。
-
-**macOS 专属要点**：进程检测用 **libproc**（`proc_listallpids`，NSWorkspace 有缓存）；.NET 应用 Process 启动须注入 **DOTNET_ROOT**（launchd 自动注入，Process 不会）；CGWindow 读标题需屏幕录制权限；最小化窗口不在 onScreen 列表；终端自动化别走 API（未来用 UIA）。
-
-**Web 前端要点**：改 JS 必须 `node --check`；API 字段 camelCase 别写错（**用 node 模拟 fetch 验证，别用 PowerShell**）；页面加 no-cache 头；页面问题三步（node --check → 加调试字段区分数据/渲染 → node 模拟验证）。
-
----
+**平台细节各回其家**（本文件只留上面那些跨平台铁则）：C#/WPF → `csharp-wpf-development`｜macOS SwiftUI → `swiftui-desktop-app` / `webview-app`（libproc / `DOTNET_ROOT` / CGWindow 权限等**全在 skill 内**）｜PowerShell 5.1 → `powershell-51-scripting`｜Web 三步（`node --check` → 加调试字段 → node 模拟验证）。
 
 ## 四、DEBUG（排障阶段）
 
 **标准流程（有界面程序）**
 ```
-UIA 确认现状(读窗口/控件/像素，绝不先猜代码) → 分析实现逻辑 → 修改 →
-重新编译(命令行权威) → UIA 再验证 → 关 debug 实例
+UIA 确认现状（读窗口/控件/像素，绝不先猜代码） → 分析实现逻辑 → 修改 →
+命令行重编译（权威） → UIA 再验证 → 关 debug 实例
 ```
-细节：skill `windows-uia-automation`。
 
-**排查方法论（最值钱）**
-- **日志先行**：先加日志再复现，别反复猜；crash 日志落盘。
-- **发送类问题**：先查服务端日志/API 是否收到（区分「没发出」vs「发出没到」）。
-- **编译以命令行 MSBuild 为权威**；VS Error List 大量报错可能是 Ghost/IntelliSense 假错。
-- **VS 缓存陈旧**：改 csproj 后报错 → 关 VS、删 `.vs`+bin/obj、全 restore。
-- **exe 被锁定 MSB3026/3027**：编译失败≠编译失败（csc 已成功），先关运行中实例。
-- **无读图能力**：界面核查用 UIA + 像素采样/OCR，不用 image 模型。
-
-**调试标识法**：页面标题栏直接显示判定字段 → 一锤定位数据/渲染问题；代码动态 new 的按钮 InvokePattern 可能不触发 → 用真实鼠标点击验证。
-
----
+- **日志先行**：先加日志再复现（发送类问题先查服务端是否收到），别反复猜；crash 日志落盘。
+- **编译以命令行 MSBuild 为权威**；VS Error List 大量报错多为 Ghost/IntelliSense 假错；改 csproj 后报错 ⇒ 关 VS、删 `.vs` + bin/obj、全 restore。
+- **exe 被锁定 MSB3026/3027**：编译失败 ≠ 编译失败（csc 已成功），先关运行实例。
+- **无读图能力**：界面核查用 UIA + 像素采样/OCR，不用 image 模型；调试标识法 = 标题栏直接显示判定字段。
+- 细节 → skill `windows-uia-automation`。**macOS 不做 UIA**（要验证走后台 CLI / PTY；要看屏请用户自己看）。
 
 ## 五、测试 / 验收
 
-**证据等级**：`真机截图实证 > 官方后台 > 转述`
-- 交互态（下拉/弹窗）模拟器做不出 → **真机截图**；静态界面可模拟。
-- 截图验收要**像素级检测**主色占比（防黑屏/白屏废图）。
-
-**标准动作**：①每项目标配冒烟/E2E 脚本；②测试副作用控制（用无害目标）；③跨端链路按验收判定表逐项核对；④免费限量用最小值跑批量路径。
-
-**铁则**：说「完成了」必须有证据（测试输出/截图/日志）；改完必须验证；部署后先刷新验证加载新版本。
-
----
+- **证据等级**：`真机截图实证 > 官方后台 > 转述`；交互态（下拉/弹窗）模拟器做不出 ⇒ **真机截图**；截图验收要**像素级检测**主色占比（防黑屏/白屏废图）。
+- **标准动作**：① 标配冒烟/E2E 脚本；② 测试副作用控制（用无害目标）；③ 跨端链路按验收判定表逐项核对。
+- **铁则**：说「完成了」**必须有证据**（测试输出/截图/日志）；改完必须验证；部署后先刷新验证加载新版本。
 
 ## 六、交付 / 部署
 
-- **Windows 部署**：skill `windows-deployment`（开机自启 / 防火墙 / publish / 进程占用）。出包前关运行中的程序与锁文件的 VS。
-- **交付流程**：①交付物入库 `sales/<product>/deliverables/`；②售卖包传网盘（固定地址+提取码:<略> `skills/license-delivery`（生成占用→话术→标记已发→验收，防重复）；④上架素材 `skills/taobao-listing-assets`；⑤图标 `skills/icon-forge`。
+- **Windows 部署** → skill `windows-deployment`（自启 / 防火墙 / publish / 进程占用）；出包前关运行中的程序与锁文件的 VS。
+- **交付流程**：① 交付物入库 `sales/<product>/deliverables/`；② 售卖包传网盘（固定地址 + 提取码:<略> 发码 skill `license-delivery`（生成占用→话术→标记已发→验收，防重复）；④ 上架素材 `taobao-listing-assets`；⑤ 图标 `icon-forge`。
+- **交付必附「面向对象设计说明」**（强制）：**类图 + 层级声明 + 不变式表（每条对应一个测试名）+ 扩展点** —— 目标是**让读者不看源码即可判断设计是否正确**（范例 `projects/AgentRuntime/docs/DESIGN-OO.md`）。
 - **售后话术**：退款用自信承诺「不能满足你的需求，可退」。
-
----
 
 ## 七、运维 / 迭代
 
-- **周更版本兜底**（授权 v1 定位：防君子 + 提高转卖门槛，不防专业破解）。
-- 版本号变更 → 新序列号批次（每版本一套号）；免费限量/价格走配置不改代码。
-- 迭代必做：新坑立即回写项目 PITFALLS + 通用经验进 skill。
-
----
+- **周更版本兜底**（授权 v1 定位：防君子 + 提高转卖门槛，不防专业破解）；版本号变更 ⇒ 新序列号批次；免费限量/价格走配置不改代码。
+- 迭代必做：新坑**立即回写项目 `PITFALLS.md`** + 通用经验进 skill。
 
 ## 八、协作与同步（跨端，每天用）
 
-- **SVN 工作流**（skill `svn-workflow`）：命令带证书参数；**commit 后必须 `svn update` 核对版本号**；新增文件务必入库；中文路径用 ASCII 名入库；同一时间只在一台机器改同一文件。
-- **公告板 `BULLETIN.md`**：`svn update` 后的**首要检查区**（按条目/索引扫，不全量加载）；命中自己的条目 → 提示用户确认 → 执行 → 标 ✅。
-- **NodeMesh 指令协议**：见 `handoff/13-NodeMesh协作协议-从AGENTS下沉-2026-09-14.md`；铁则——**测试指令必须由其它端发出，严禁自测**；busy 时入等待队列。
-- **Skill 同步**：skill 全端一套，新增/修改 → push SVN + 公告板 `📢 [Skill]`。
-- **知识分层**：memory（原始素材）→ handoff（交接素材）→ skill（操作说明书）→ **METHODOLOGY（L1/L2 顶层常驻）**；**L3 细节 → 项目 PITFALLS（素材层，不装载）**。
+- **SVN**（skill `svn-workflow`）：命令带证书参数 · **提交后必须 `svn update` 核对版本号** · 新增文件务必入库 · 中文路径用 ASCII 名入库 · 提交信息一律 `-F` **且显式列出路径** · 同一时间只在一台机器改同一文件。
+- **公告板 `BULLETIN.md`**：`svn update` 后的**首要检查区**（只读顶部 `🧭 索引` 节）；命中自己的条目 → 确认 → 执行 → 标 ✅。
+- **知识分层**：memory（素材）→ handoff（交接）→ skill（说明书）→ **本文件（L1/L2 常驻）**；**L3 细节 → 项目 `PITFALLS.md` / 设计文档（不装载）**。
+- **入库两问判据**：① **含不含凭据？**（含 ⇒ **任何仓库都不行**）② **能不能给一个陌生工程师看？**（不能 ⇒ **GitHub 绝不上**）。不含凭据且属公司知识资产 ⇒ SVN 内网照常入库；**私有语料只进 SVN、绝不进 GitHub**；凭据只走环境变量/本地文件；运行产物（`bin/ obj/ runs/ dist/`）都不入库。**发布前必跑** `projects/AgentRuntime/tools/pre-publish-scan.sh <暂存目录>`。
+- **NodeMesh 指令协议** → `handoff/13`；铁则——**测试指令必须由其它端发出，严禁自测**。
+- **Skill 同步**：全端一套，新增/修改 → push SVN + 公告板 `📢 [Skill]`；**修改权无「本轮用过」限制**（见 归档 §十·24 · AGENTS 铁则 4）。
 
----
+## 九、速查表
 
-## 九、速查表：要做 X → 看什么
+> 已并入本文**顶部「索引（唯一入口）」**（2026-09-14 收尾重构）。
 
-| 要做的事 | 主技能 | 踩坑/设计文档 |
-|---|---|---|
-| 不确定看哪个 skill/坑 → 先路由 | task-router | `INDEX.md` |
-| Windows 桌面工具(C#/WPF) | `csharp-wpf-development` | `handoff/07`、DiskSpaceSaver PITFALLS |
-| 有界面程序 DEBUG | `windows-uia-automation` | `NodeMesh/deploy/15` |
-| macOS 套壳 App/自动化 | `webview-app`、`icon-forge` | `SequenceRunner/mac/PITFALLS.md` |
-| 授权/发码/激活 | `license-delivery` + `license-keygen` | `handoff/04` |
-| 淘宝上架/素材/文案 | `taobao-listing-assets` | `taobao-listing-assets/` |
-| 图标制作 | `icon-forge` | `projects/IconForge/README.md` |
-| PowerShell 5.1 脚本 | `powershell-51-scripting` | `handoff/02` |
-| SVN 三端协作 | `svn-workflow` | `handoff/03` |
-| 文件编辑安全 | `agent-file-editing` | DiskSpaceSaver PITFALLS #16 |
-| 图片上传压缩 | `image-compress` | MEMORY 铁则#1 |
-| Windows 部署交付 | `windows-deployment` | Sales deliverables |
-| 语音录音转写存档 | `voice-archive` | `projects/voice-assistant/` |
-| 修 bug 出双轨包 | `dual-track-release` | AGENTS 铁则 5 |
-| 架构论文立证 | `architecture-paper-publishing` | AGENTS/论文仓库 |
-| 跨端消息/指令协作 | NodeMesh（项目） | `handoff/13` |
-| **项目级方法论（L3）** | — | **`INDEX.md` §四** |
+## 十、通用工程铁则（法则骨架，45 条）
 
----
-
-## 十、通用工程铁则（L1/L2，跨项目）
-
-> 各条源自项目实战抽象；**L3 细节（项目/代码/文件名）见对应项目 PITFALLS / skill**，此处只留通用骨架。
-
-1. **产物隔离与依赖持久化**：为运行服务的中间产物（缓存/解压/临时包）放**系统缓存或临时区**，**不进用户可见区**；用户区只留元数据 + 交付物。生命周期成对（成功即清、中止保留，兼顾续做与磁盘）。**程序自产目录必须写进自身扫描/枚举的排除名单**，否则「产物↔源」同名互相覆盖 → **静默错数据**（不报错）。跨会话要用的元数据（映射表/清单/指纹）**持久化进任务/实体本身** + 读取多级回退。取消要落到**阶段边界**。无效前置拦在入口（逻辑 guard + UI 禁用 + 文字提示三件套）。
-2. **异步结果写共享缓存 → 携带上下文代数**：异步结果写入「按业务序号索引」的共享缓存/UI 时，必须携带**上下文标识（代数/epoch）**并在**写入点**校验——**别用序号当身份**；否则陈旧回调把旧上下文数据写进新上下文同序号（症状：串图/错位等**静默错数据**）。调度处捕获代数 → 完成回调**先清 pending 再校验代数、不符即丢**；换上下文的入口（常不止一处）封装成一个方法统一调用。
-3. **稳定暂停与原子产物**：大体积/多阶段产物用**临时文件 + 逐项取消检查 + 原子改名**（目标路径绝不落半成品）；**续做不重清已完成**；版本号若是**独立产品线就各自累计**，勿为对齐别端回改。
-4. **交付双轨**：内部验证产物与对外交付产物分成两支时，必须**同时更新两侧**并各自留可复核证据——任一侧失真，判断就错。（详见 skill `dual-track-release`）
-5. **可插拔模块 + 裸聊等价基线（能力可增删、价值可度量）**：把每一项框架能力（会话/记忆/知识/铁则/路由）做成**可单独开关的模块**，且「全部关掉」必须等价于最小基线（裸聊）。三条硬约束：① 模块只能「增加/贡献」，**不得改写核心行为**；② 去掉任一模块，其余模块行为**逐字不变**（无隐式依赖）；③ 模块单独成程序集、可整体摘除。**为什么**：只有能拔掉，才能测出每个模块的**边际价值**（消融实验）；功能一多就再也说不清「哪一层值多少」。落地见 `benchmark/`（尺子）与 skill `llm-context-benchmark`。
-6. **度量与实验纪律（尺子独立 · 变体隔离 · 冷启动自检）**：任何「省了多少 / 快了多少」的主张必须来自**独立于被测物**的度量系统。四条不可省：① 尺子不与被测物同源（**被测物永不引用尺子**）；② 变体隔离——每变体语料带唯一 salt 且**置于稳定前缀最前面**；③ **冷启动自检**——每变体首轮命中必须为 0，否则数据作废；④ 原始记录逐条落盘，结论**可复算**。**实测事实**（DeepSeek 官方，2026-09-14）：前缀缓存按 **64 token 块**对齐；稳定前缀 + 只追加 → 命中随冻结规模升至 **98.4%**、单轮成本 **−78.5%**；**动态内容前置 → 命中归零、成本 4.7×**。由此升级为铁则：**动态内容永不前置**。规程详见 skill `llm-context-benchmark`。
-
----
-
-## 十一、三层颗粒度方法论（知识抽象写法）
-
-> 任何知识/能力抽象成方法论，按三层，从抽象到落地。
-- **L1 泛用形态**：适用场景一句话 + 最抽象流程。
-- **L2 中间形态**：某类场景的具体化（有 UI / 有磁盘存档等）。
-- **L3 具体形态**：落到某项目/代码（留项目 doc / 代码，不进本文件顶部）。
-- 例：`incremental-archive`（增量归档通用能力）。
-
-## 十二、收尾 · 水位驱动（铁则）
+> **只留法则本体**：判据全文 / 实测数值 / 平台 L3 在 `归档 §十·N` 或下游家；**新条先过体量闸门**。
+> **1 产物隔离与生命周期**：为运行服务的中间产物放系统缓存/临时区，不进用户可见区；**自产目录必须进自身扫描排除名单**（否则「产物↔源」同名互覆 ⇒ 静默错数据）。→ 归档 §十·1
+> **2 产物与异步两纪律**：稳定暂停 + 原子产物（临时文件 / 逐项取消 / 原子改名，续做不重清）；异步结果写共享缓存**必须在写入点校验上下文代数**。→ 归档 §十·2/3

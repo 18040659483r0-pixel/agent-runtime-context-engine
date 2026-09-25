@@ -1,5 +1,19 @@
 {
-  "rules.global": 8,
-  "knowledge.global": 20,
-  "memory.index": 8
+  "rules.global": 11,
+  "knowledge.global": 31,
+  "memory.index": 14,
+  "source_sha256": {
+    "rules.global": {
+      "tier": "A",
+      "sha256": "032a4fc90970883b815b4d764a96f9121d92388b9c03d5ff13eb60145d41e2b2"
+    },
+    "knowledge.global": {
+      "tier": "A",
+      "sha256": "0eac459e3a93e9ab9750cd55762cd584c51df65317715571e19b2b16f1f7f8a8"
+    },
+    "memory.index": {
+      "tier": "A",
+      "sha256": "075318f3ba10e832a5839bc36662dde7f29eb5bbfe731cec95a6909483ddd379"
+    }
+  }
 }

@@ -309,6 +309,8 @@ def main() -> int:
     ap.add_argument("--tier", default="A", choices=["A", "B"])
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--spec", action="store_true")
+    ap.add_argument("--bump", metavar="KEY|all", default=None,
+                    help="声明一次 bump：版本号 +1、刷新源锚，并重写产物（改内容必须走这里）")
     args = ap.parse_args()
 
     ws, shared, out = Path(args.workspace), Path(args.shared), Path(args.out)
@@ -331,16 +333,12 @@ def main() -> int:
     ledger = {"tier": args.tier, "fingerprint": fingerprint, "sections": manifest,
               "note": "账本不进 prompt；版本号在 tools/frozen-build/versions.json"}
 
+    if args.bump:
+        return do_bump(here, args, manifest, ledger, rendered, out)
     if args.check:
-        return check(out, rendered, ledger)
+        return check(out, rendered, ledger, versions)
 
-    for rel, text in rendered:
-        target = out / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
-        print(f"[语料] {rel:22s} {len(text.encode()) / 1024:7.1f} KB  version={next(m['version'] for m in manifest if m['out'] == rel)}")
-    (out / "_manifest.json").write_text(
-        json.dumps(ledger, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    write_products(out, rendered, ledger)
     (out / "FROZEN.md").write_text(
         "# 冻结区语料（私有：SVN 内网可入库，**GitHub 绝不发布**）\n\n"
         "- 本目录由 `tools/frozen-build/build-frozen-corpus.py` **确定性生成**，**不要手改**。\n"
@@ -356,8 +354,72 @@ def main() -> int:
     return 0
 
 
-def check(out: Path, rendered: list[tuple[str, str]], ledger: dict) -> int:
-    """幂等校验：产物必须与「用当前源重算」逐字节一致，且版本纪律成立。"""
+def write_products(out: Path, rendered: list[tuple[str, str]], ledger: dict) -> None:
+    """写产物 + 账本（正文与账本分离；产物是派生物，禁手改）。"""
+    for rel, text in rendered:
+        target = out / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        print(f"[语料] {rel:22s} {len(text.encode()) / 1024:7.1f} KB  version={next(m['version'] for m in ledger['sections'] if m['out'] == rel)}")
+    (out / "_manifest.json").write_text(
+        json.dumps(ledger, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def do_bump(tool_dir: Path, args, manifest: list[dict], ledger: dict,
+            rendered: list[tuple[str, str]], out: Path) -> int:
+    """声明一次 bump：把 **源锚** 钉到当前正文 sha、版本号 +1，然后重写产物。
+
+    为什么要有它（2026-09-23）：只靠「产物 vs 重算」抓不住「**重跑了但没 bump**」——
+    重跑之后两边天然一致，版本号却没动（改内容 = 改前缀 = 缓存代价，绝不能静默）。
+    锚放在 `versions.json`（**只有本子命令会改**）⇒ 源内容一变就必须 bump，否则 `--check` 一直红。
+    """
+    versions = load_versions(tool_dir)
+    key_by_out = {e["out"]: e["version_key"] for e in SPEC}
+    anchored = versions.setdefault("source_sha256", {})
+    chosen = list(key_by_out.values()) if args.bump == "all" else [args.bump]
+    unknown = [k for k in chosen if k not in key_by_out.values()]
+    if unknown:
+        print(f"[bump] ❌ 不认识的 version_key：{', '.join(unknown)}"
+              f"（可选：{' / '.join(key_by_out.values())} / all）", file=sys.stderr)
+        return 2
+
+    changed = 0
+    for section in manifest:
+        key = key_by_out[section["out"]]
+        if key not in chosen:
+            continue
+        now = section["sha256"]
+        was = anchored.get(key)
+        if was and was.get("tier") == ledger["tier"] and was.get("sha256") == now:
+            print(f"[bump] {key}：源未变（锚已一致）⇒ **拒绝空 bump**")
+            continue
+        old_version = versions.get(key, 1)
+        versions[key] = int(old_version) + 1
+        anchored[key] = {"tier": ledger["tier"], "sha256": now}
+        section["version"] = str(versions[key])          # 版本头随之一并升
+        changed += 1
+        print(f"[bump] {key}：version {old_version} → {versions[key]}（锚 tier={ledger['tier']} · {now[:12]}）")
+
+    if changed == 0:
+        return 1
+
+    (tool_dir / "versions.json").write_text(
+        json.dumps(versions, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # 重写产物：正文一字不动，只把头里的版本号换成新号。
+    for i, (rel, text) in enumerate(rendered):
+        section = next(m for m in ledger["sections"] if m["out"] == rel)
+        head, sep, rest = text.partition("\n")
+        if head.startswith("<!-- frozen: version="):
+            rendered[i] = (rel, f"<!-- frozen: version={section['version']} -->{sep}{rest}")
+
+    write_products(out, rendered, ledger)
+    print(f"[bump] 已声明 {changed} 处变更；产物已重写（档位 {ledger['tier']}）。")
+    return 0
+
+
+def check(out: Path, rendered: list[tuple[str, str]], ledger: dict, versions: dict) -> int:
+    """幂等校验：产物必须与「用当前源重算」逐字节一致，且**版本与源锚**纪律成立。"""
     bad = 0
     for rel, text in rendered:
         target = out / rel
@@ -379,6 +441,22 @@ def check(out: Path, rendered: list[tuple[str, str]], ledger: dict) -> int:
                 bad += 1
         if old["fingerprint"] == ledger["fingerprint"]:
             print(f"[校验] 指纹未变：{ledger['fingerprint'][:16]}…")
+
+    # **源锚**（2026-09-23）：上面那条只抓得住「源改了但产物没重跑」；
+    # 重跑之后 manifest 与重算天然一致 ⇒ 「**重跑了但没 bump**」原本无人管（版本号静默不变 = 前缀静默变）。
+    # 锚放在 `versions.json`（只有 `--bump` 会改它）⇒ 源一变就必须走 `--bump`，重跑不会让它变绿。
+    key_by_out = {e["out"]: e["version_key"] for e in SPEC}
+    anchored = versions.get("source_sha256") or {}
+    for new_s in ledger["sections"]:
+        key = key_by_out[new_s["out"]]
+        was = anchored.get(key)
+        if was is None:
+            print(f"[校验] ❌ {new_s['out']} 源未锚定（key={key}）→ 先跑 --bump {key}（或 --bump all）", file=sys.stderr)
+            bad += 1
+        elif was.get("tier") == ledger["tier"] and was.get("sha256") != new_s["sha256"]:
+            print(f"[校验] ❌ {new_s['out']} 源内容与「上次 bump 的锚」不一致 ⇒ **必须 bump**"
+                  f"（改内容就得改版本号）：--bump {key}；重跑产物**不会**让它变绿", file=sys.stderr)
+            bad += 1
     if bad:
         print(f"[校验] ❌ {bad} 项不合格", file=sys.stderr)
         return 1

@@ -9,7 +9,7 @@ namespace AgentRuntime.Core.Tooling;
 /// </para>
 /// <para>
 /// <b>语义澄清（本次改造的关键）</b>：不再有 <c>Root</c>，因此也**没有**「未配置 ⇒ 一律拒绝」这一档 ——
-/// 判「能不能改」的 ONLY 入口是审批闸门（<see cref="IApprovalGate"/>），不是本类。
+/// 判「能不能改」不再由 runtime 硬拦（v13：留档 + 纪律），本类只负责不把上下文撑爆。
 /// 本类<b>不构成</b>也<b>不自称</b>沙箱：它拦不住任何东西，只是"别把上下文撑爆"。
 /// </para>
 /// <para>
@@ -30,8 +30,16 @@ public sealed class ToolLimits
     /// <summary><c>list</c> 最多列几项（超出记「已截断」）。</summary>
     public int MaxListEntries { get; init; } = 500;
 
-    /// <summary>单次工具结果最多多少字符（超出**截断并明说**；不静默截）。</summary>
-    public int MaxOutputChars { get; init; } = 8000;
+    /// <summary>
+    /// 单次工具结果最多多少字符（超出**截断并明说**；不静默截）。
+    /// <para><b>2026-09-22 实测后从 8,000 降到 2,000</b>（主人令 A）：同一道简单提问，
+    /// 一场工具结果共 **139.9 KB（占总新 token 的 ~94%）**，其中 **13 次是「整份文件倒」**（单次满 8 KB）——
+    /// 一轮 4 次调用就能灌进 **32 KB**。降到 2,000 后按那场数据估：结果体量 **140 KB → ~60 KB**。
+    /// </para>
+    /// <para>降上限的前提是**指针准**：每条截断都自带「接下来怎么拿」（<c>read</c> 给 <c>offset</c>、其余给 <c>/trace</c>），
+    /// 否则省下的字节会变成多出来的轮数（一轮 ≈ 一次整份上下文重发）。</para>
+    /// </summary>
+    public int MaxOutputChars { get; init; } = 2000;
 
     /// <summary>
     /// <c>exec</c> 默认超时（秒）—— **不是安全边界**，只是「别把会话挂死」。

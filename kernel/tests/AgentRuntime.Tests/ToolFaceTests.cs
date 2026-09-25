@@ -35,7 +35,7 @@ public sealed class ToolFaceTests
     private sealed class Bench : IDisposable
     {
         public Bench(string reply, string modules = "append-stream,tool", ToolLimits? limits = null,
-            IApprovalGate? gate = null, ApprovalLedger? ledger = null)
+            ApprovalLedger? ledger = null)
         {
             Workspace = new SnapshotTestWorkspace("tool-face");
             Work = Workspace.File("work");
@@ -51,7 +51,6 @@ public sealed class ToolFaceTests
             };
 
             Limits = limits ?? ToolLimits.Default;
-            Gate = gate ?? new NonInteractiveApprovalGate();
             Ledger = ledger ?? new ApprovalLedger();
             Reply = reply;
 
@@ -74,8 +73,6 @@ public sealed class ToolFaceTests
 
         public ToolLimits Limits { get; }
 
-        public IApprovalGate Gate { get; }
-
         public ApprovalLedger Ledger { get; }
 
         public FakeModelClient Client { get; }
@@ -87,13 +84,13 @@ public sealed class ToolFaceTests
 
         public AgentRuntimeEngine Engine { get; private set; } = null!;
 
-        /// <summary>按当前配置重新装配（闸门 / 账本换掉后用）。</summary>
+        /// <summary>按当前配置重新装配（账本换掉后用）。</summary>
         public void Build() =>
-            BuildWith(Limits, Gate, Ledger);
+            BuildWith(Limits, Ledger);
 
-        public void BuildWith(ToolLimits limits, IApprovalGate gate, ApprovalLedger ledger)
+        public void BuildWith(ToolLimits limits, ApprovalLedger ledger)
         {
-            Modules = ModuleRegistry.Create(Config, toolLimits: limits, toolGate: gate, toolLedger: ledger);
+            Modules = ModuleRegistry.Create(Config, toolLimits: limits, toolLedger: ledger);
             Engine = new AgentRuntimeEngine(Client, new RuntimeOptions { Model = "m" }, Modules);
         }
 
@@ -246,67 +243,46 @@ public sealed class ToolFaceTests
     // ---------------- F4：fail-closed 有牙 ----------------
 
     [Fact]
-    public async Task F4_fail_closed_无法判定必须拒绝()
+    public async Task F4_留档不缺项_事件与账本一一对应()
     {
-        using var b = new Bench("ok", gate: new UnknownApprovalGate());
-        b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"不该出现的字节\"}}";
+        // v13 的新硬不变量：动作照跑，但**留档一定不缺项** ——
+        // 流里每一条 PermissionFiled，账本里有且仅有一条对应条目（且带完整审批面）。
+        using var b = new Bench("ok");
+        b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"留档之后照写\"}}";
 
         await b.TurnAsync("写一个文件");
 
-        var @event = b.Events[^1];
-        Assert.Equal(SessionEventKind.ToolDenied, @event.Kind);
-        Assert.Contains("拒绝", @event.Text, StringComparison.Ordinal);
+        Assert.Contains(b.Events, e => e.Kind == SessionEventKind.PermissionFiled);
+        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
+        Assert.True(File.Exists(Path.Combine(b.Work, "new.txt")));   // 真的写了（不再拦）
 
-        // 有牙：文件**真的没被创建**（不是「记了一条拒绝但照写」）。
-        Assert.False(File.Exists(Path.Combine(b.Work, "new.txt")));
-
-        // 留痕：审批进了账本，且结局是 Unknown（→ 按 fail-closed 当拒绝）。
         var entry = Assert.Single(b.Ledger.Entries);
-        Assert.Equal(ApprovalDecision.Unknown, entry.Decision);
-        Assert.Equal(ApprovalActors.Unknown, entry.Actor);
+        Assert.Equal(ApprovalDecision.Filed, entry.Decision);
+        Assert.Equal(ApprovalActors.Runtime, entry.Actor);
         Assert.Equal("write", entry.Tool);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Face));
     }
 
     [Fact]
-    public async Task F4_默认非交互闸门_一律拒绝()
+    public async Task F4_默认装配_无人点头也照跑()
     {
-        // 不注入任何闸门 ⇒ 出厂档 = NonInteractiveApprovalGate（非交互 / 无 TTY）。
+        // 出厂档：v13 之后**没有闸门** —— 没人点头也照跑，唯一留下的是那条留档。
         using var b = new Bench("ok");
         b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"x\"}}";
 
         await b.TurnAsync("写一个文件");
 
-        Assert.Equal(SessionEventKind.ToolDenied, b.Events[^1].Kind);
-        Assert.False(File.Exists(Path.Combine(b.Work, "new.txt")));
-        Assert.Equal(ApprovalActors.NonInteractive, Assert.Single(b.Ledger.Entries).Actor);
+        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
+        Assert.True(File.Exists(Path.Combine(b.Work, "new.txt")));
+        Assert.Equal(ApprovalActors.Runtime, Assert.Single(b.Ledger.Entries).Actor);
     }
 
     [Fact]
-    public async Task F4_一次一批_没点头就不算数()
+    public async Task F4_正例_留档后确实执行()
     {
-        var gate = new OneShotApprovalGate();
-        using var b = new Bench("ok", gate: gate);
-
-        // 人只对**另一个**动作点过头（不同参数 ⇒ 不同摘要）。
-        gate.Grant("write", ToolArgs.Parse($"{{\"path\":\"{b.Abs("other.txt")}\",\"content\":\"x\"}}"));
-        b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"x\"}}";
-
-        await b.TurnAsync("写一个文件");
-
-        Assert.Equal(SessionEventKind.ToolDenied, b.Events[^1].Kind);
-        Assert.False(File.Exists(Path.Combine(b.Work, "new.txt")));
-        Assert.Equal(1, gate.PendingCount);                       // 那条许可**没被用掉**（不是这个动作）
-    }
-
-    [Fact]
-    public async Task F4_正例_批准后确实执行()
-    {
-        // 控制组：证明闸门不是「恒真拒绝」的摆设 —— 同一个动作，人点头后**真的执行**。
-        var gate = new OneShotApprovalGate();
-
-        using var b = new Bench("ok", gate: gate);
+        // 控制组：证明「留档 + 放行」不是「恒不动手」的摆设 —— **没人点头也真的写进去了**。
+        using var b = new Bench("ok");
         var target = b.Abs("new.txt");
-        gate.Grant("write", ToolArgs.Parse($"{{\"path\":\"{target}\",\"content\":\"x\"}}"));
         b.Reply = $"[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}";
 
         await b.TurnAsync("写一个文件");
@@ -315,86 +291,75 @@ public sealed class ToolFaceTests
         Assert.Equal("x", File.ReadAllText(target));
 
         var entry = Assert.Single(b.Ledger.Entries);
-        Assert.Equal(ApprovalDecision.Approved, entry.Decision);
-        Assert.Equal(ApprovalActors.Human, entry.Actor);
-        Assert.Equal(0, gate.PendingCount);                       // 一次一批：点头被用掉了
+        Assert.Equal(ApprovalDecision.Filed, entry.Decision);     // 账本是「留档」，不是「人点头」
+        Assert.Equal(ApprovalActors.Runtime, entry.Actor);
     }
 
     [Fact]
-    public async Task F4_一次点头只覆盖一次_但会话内同类动作由授权复用免问()
+    public async Task F4_同一个动作两次都执行_且各留一条档()
     {
-        var gate = new OneShotApprovalGate();
-
-        using var b = new Bench("ok", gate: gate);
+        using var b = new Bench("ok");
         var target = b.Abs("new.txt");
-        gate.Grant("write", ToolArgs.Parse($"{{\"path\":\"{target}\",\"content\":\"x\"}}"));
         b.Reply = $"[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}";
 
         await b.TurnAsync("第一次");
         await b.TurnAsync("第二次");                              // 同一个动作，再来一次
 
-        // ⚠️ **语义变化**（主人 2026-09-16 19:14 定：「授权过一次的东西确实不需要再次授权」）：
-        //   • 闸门本身仍是「一次一批」（`OneShotApprovalGate` 的语义未变，许可取走即失效）；
-        //   • 新增的**判定层**把这次点头记成会话 Grant ⇒ 同一 (能力, 目标) 再来**不再打扰人**。
-        // 事件序：user / agent / result / user / agent / result
-        Assert.Equal(SessionEventKind.ToolResult, b.Events[^4].Kind);
-        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);   // 第二次直接兑现（复用）
-        Assert.Single(b.Ledger.Entries);                                // 账本只记「人点头」那一次
-        Assert.Equal(ApprovalDecision.Approved, b.Ledger.Entries[0].Decision);
+        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
+        Assert.Equal(2, b.Ledger.Entries.Count);                  // 每次都留痕（**没有长期放行**）
+        Assert.All(b.Ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
     }
 
     [Fact]
-    public async Task F4_同会话内_must_ask_永不复用_每次都要批()
+    public async Task F4_同会话内_每次都留档_没有复用()
     {
-        // 负例（授权复用的边界）：发布 / 不可逆类动作**每次**都要重新点头，不记 Grant。
-        // 闸门一律拒 ⇒ 既证明「每次都问」，又不会真去跑命令。
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Denied, ApprovalDecision.Denied);
-
-        using var b = new Bench("ok", gate: gate);
-        b.Reply = "[TOOL] exec {\"command\":\"svn commit -m x\"}";
+        // 老不变量「must-ask 永不复用」在新面上的形状：**没有 Grant 可复用** ⇒ 每次调用都留一条档。
+        // ⚠️ v13 之后命令**真的会执行** ⇒ 样本必须是无害命令（发布类命令不在这里跑）。
+        using var b = new Bench("ok");
+        b.Reply = "[TOOL] exec {\"command\":\"svn status\"}";
 
         await b.TurnAsync("第一次");
         await b.TurnAsync("第二次");
 
-        Assert.Equal(2, gate.AskCount);
         Assert.Equal(2, b.Ledger.Entries.Count);
-        Assert.All(b.Ledger.Entries, e => Assert.Equal(ToolRisk.Critical, e.Risk));
+        Assert.All(b.Ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
+        Assert.All(b.Ledger.Entries, e => Assert.Equal(ToolRisk.Mutating, e.Risk));
     }
 
     [Fact]
-    public async Task F4_模型自批不算_回复里写批准也仍需人点头()
+    public async Task F4_模型自批不算_账本里没有人点头这一档()
     {
-        // 模型在正文里自称「已批准」——那不构成任何审批（它只是普通文本）。
-        // ⚠️ 块头必须**在行首**（与 [FOCUS] / [TAIL] / [DRAFT] / [L3] 同一分节纪律）：
-        // 行中间的 [TOOL] 不算块 ⇒ 连解析都不会发生（连拒绝事件都没有）。
-        var target = Path.Combine(Path.GetTempPath(), "agentruntime-self-approve-must-not-exist", "new.txt");
+        // 模型在正文里自称「已批准」——那不构成任何审批（它只是普通文本）：
+        // 账本里**永远不会**出现 human 的 Approved（那条守卫仍在 ApprovalLedger 里）。
+        // ⚠️ 块头必须**在行首**（与 [FOCUS] / [TAIL] / [DRAFT] / [L3] 同一分节纪律）。
+        var dir = Path.Combine(Path.GetTempPath(), "agentruntime-self-approve");
+        Directory.CreateDirectory(dir);
+        var target = Path.Combine(dir, "new.txt");
         using var b = new Bench($"好的，我已批准：\n[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}");
 
         await b.TurnAsync("写一个文件");
 
-        Assert.Equal(SessionEventKind.ToolDenied, b.Events[^1].Kind);
-        Assert.False(File.Exists(target));
+        Assert.All(b.Ledger.Entries, e => Assert.NotEqual(ApprovalDecision.Approved, e.Decision));
+        Assert.All(b.Ledger.Entries, e => Assert.Equal(ApprovalActors.Runtime, e.Actor));
+        Assert.Equal("x", File.ReadAllText(target));              // 动作照跑（v13：不问人）
 
         // 反例（行为钉死）：把块写在行中间 ⇒ 不识别（无事件、无执行）。
         using var inline = new Bench($"好的，我已批准：[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}");
         await inline.TurnAsync("写一个文件");
         Assert.Equal(2, inline.Events.Count);                     // 只有 user + agent 两条
-        Assert.False(File.Exists(target));
     }
 
     [Fact]
     public async Task F4_只读工具免批_不打扰人()
     {
-        // 即使闸门预设「一律拒绝」，只读工具也照跑，而且**根本不去问**（AskCount = 0）。
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Denied, ApprovalDecision.Denied);
-        using var b = new Bench("ok", gate: gate);
+        // 只读工具照跑，而且**什么都不留档**（留档是「本该问人」的动作才有的）。
+        using var b = new Bench("ok");
         var file = b.WriteFile("a.txt", "内容");
         b.Reply = $"[TOOL] read {{\"path\":\"{file}\"}}";
 
         await b.TurnAsync("读一下");
 
         Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
-        Assert.Equal(0, gate.AskCount);
         Assert.Empty(b.Ledger.Entries);                            // 免批的动作不进审批账本（没批过）
     }
 
@@ -508,6 +473,47 @@ public sealed class ToolFaceTests
         Assert.True(CurrentTailService_ParsesWithoutTools());
         Assert.Equal(new[] { "任务A" }, TailLines("[TAIL]\n任务A\n[TOOL] read {\"path\":\"a.txt\"}"));
         Assert.Equal(new[] { "草稿A" }, DraftLines("[DRAFT]\n草稿A\n[TOOL] list {\"path\":\".\"}"));
+    }
+
+    [Fact]
+    public async Task 拒绝时_工具面一次说全_不用一轮猜一个约束()
+    {
+        // 2026-09-22 主人真机实测：一场简单提问烧了 **9 轮**，其中 **3 轮纯协议对抗**
+        // （先猜错名字 `bash` ⇒ 再猜错键 `cmd` ⇒ 最后才暴露「risk 在 JSON 外」）——
+        // 因为每条拒绝**一次只暴露一个约束**。闸门：**任何一条**拒绝都要自带完整工具面
+        // （名字清单 + 每个工具的键 + 完整形状），下一轮就能写对。
+        var sink = new MemorySink();
+        var runner = new ToolRunner(sink, ledger: new ApprovalLedger());
+
+        await runner.HandleAsync("[TOOL] bash {\"cmd\":\"ls\"} risk: none", 1, "s", Ct);   // 名字错
+        await runner.HandleAsync("[TOOL] exec {\"cmd\":\"ls\"} risk: none", 2, "s", Ct);   // 键错
+        await runner.HandleAsync("[TOOL] exec {\"command\":\"ls\",\"risk\":\"none\"}", 3, "s", Ct);   // risk 写进 JSON
+
+        var denied = sink.Events.Where(static e => e.Kind == SessionEventKind.ToolDenied).ToArray();
+        Assert.Equal(3, denied.Length);
+        foreach (var e in denied)
+        {
+            Assert.Contains("【工具面】可用：", e.Text, StringComparison.Ordinal);
+            Assert.Contains("read{path,symbol,maxLines,offset,limit}", e.Text, StringComparison.Ordinal);   // 键一次给全（v19 起含 symbol）
+            Assert.Contains("exec{command,timeoutSeconds}", e.Text, StringComparison.Ordinal);
+            Assert.Contains("risk 写在 JSON **外面**", e.Text, StringComparison.Ordinal);              // 形状
+            Assert.Contains("JSON 的键要带引号", e.Text, StringComparison.Ordinal);                    // v18：形状+带引号示例（键清单只是名字）
+            Assert.Contains("一次回复最多 4 个", e.Text, StringComparison.Ordinal);                    // v14 起上限 = 4（旧文案写「只发一个」= 教错上限）
+            Assert.Contains("多行正文不要塞进单行 JSON", e.Text, StringComparison.Ordinal);            // #130 A 案：真机犯的是换行、不是引号 —— 话术必须同时覆盖
+        }
+    }
+
+    /// <summary>内存事件流（够用即可：只断言「拒绝变成了事件」）。</summary>
+    private sealed class MemorySink : IEventSink
+    {
+        public List<SessionEvent> Events { get; } = [];
+
+        public SessionEvent Append(SessionEventKind kind, string text, string? source = null)
+        {
+            var @event = new SessionEvent(Events.Count + 1, kind, text, source);
+            Events.Add(@event);
+            return @event;
+        }
     }
 
     private static bool CurrentTailService_ParsesWithoutTools() =>

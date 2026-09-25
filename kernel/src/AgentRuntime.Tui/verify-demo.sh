@@ -26,7 +26,7 @@ frames = [b for b in blocks if b.startswith("┌─ AgentRuntime TUI")]
 
 def norm(text):
     # 墙钟数值归一化：任意 [数字(.数字)]ms → ms（其余字节不动）。
-    return re.sub(r"[0-9]+(?:\.[0-9]+)?ms", "ms", text)
+    return re.sub(r"[0-9]+(?:\.[0-9]+)?\s*ms", "ms", text)
 
 def file_text(path):
     return open(path, encoding="utf-8").read()

@@ -19,6 +19,7 @@
     <ProjectReference Include="..\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
     <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
     <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Presentation\AgentRuntime.Presentation.csproj" />
   </ItemGroup>
 
   <ItemGroup>

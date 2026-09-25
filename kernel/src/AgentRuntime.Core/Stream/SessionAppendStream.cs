@@ -17,14 +17,36 @@ public sealed class SessionAppendStream
 {
     private readonly List<SessionEvent> _events = [];
 
+    /// <summary>
+    /// **并发守卫**（2026-09-20 真机崩溃后加）：宿主/续跑轮在 append 的同时，**帧渲染**可能在读
+    /// （`FocusService.Weigh` 枚举事件 → `Collection was modified`）。
+    /// 写入口一律持锁；**跨线程读一律走 <see cref="Snapshot"/>**（当拍拷贝）。
+    /// </summary>
+    private readonly object _gate = new();
+
     /// <summary>当前游标（= 已追加的事件数）。</summary>
     public long Cursor => _events.Count;
 
     /// <summary>事件数。</summary>
     public int Count => _events.Count;
 
-    /// <summary>只读视图（调用方拿不到可变集合）。</summary>
+    /// <summary>
+    /// 只读视图（调用方拿不到可变集合）——**只在确定同线程、且没有并发 append 时用**。
+    /// <para>凡是「可能与 append 并发」的读（尤其是**帧渲染**路径）：用 <see cref="Snapshot"/>。</para>
+    /// </summary>
     public IReadOnlyList<SessionEvent> Events => _events;
+
+    /// <summary>
+    /// **当拍快照**（持锁拷贝）：给「可能与 append 并发」的读者用（帧渲染 / 面板 / 诊断）。
+    /// <para>为什么必须快照而不是加锁遍历：渲染要**快且不阻塞**写；拷贝一列表事件 << 一次崩溃或一次卡顿。</para>
+    /// </summary>
+    public IReadOnlyList<SessionEvent> Snapshot()
+    {
+        lock (_gate)
+        {
+            return _events.ToArray();
+        }
+    }
 
     /// <summary>追加一条事件；序号由流分配（**不接受调用方指定**，防止跳号/乱序）。</summary>
     public SessionEvent Append(SessionEventKind kind, string text, string? source = null) =>
@@ -41,9 +63,12 @@ public sealed class SessionAppendStream
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
 
-        var @event = new SessionEvent(_events.Count + 1, kind, text, source, tag);
-        _events.Add(@event);
-        return @event;
+        lock (_gate)   // 写入口持锁：读者（`Snapshot`）才拿得到一张**自洽**的当拍表。
+        {
+            var @event = new SessionEvent(_events.Count + 1, kind, text, source, tag);
+            _events.Add(@event);
+            return @event;
+        }
     }
 
     /// <summary>追加一批（保持给定顺序，逐条分配序号）。</summary>

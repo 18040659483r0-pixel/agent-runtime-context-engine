@@ -19,7 +19,24 @@
   "_skill_comment": "V6 接线（#5）：L3 地址表 = [WB] **自持**语料根里的派生索引（可重建、只读）。配了它，模型自报 [SKILL] S-xxx-NNN 才会真的按 id 把 L3 正文追加进流（不配就空转：地址表缺失 ⇒ 不接，不猜默认路径）。",
   "skill": { "repo": "../../whitebox/workspace/knowledge/.derived/l3.jsonl", "resident": "../../whitebox/workspace/knowledge/.derived" },
 
-  "stream": { "path": "../../.stage1/stream.jsonl", "maxEvents": 0 },
+  "_lifecycle_comment": "收尾三层（协议 v10 第 7 条）：收尾件检查要扫的工作区 = [WB] 自持语料根（memory/ · handoff/ · knowledge/ 在它下面）；坑集 = 项目 docs/PITFALLS.md。留空 = 不校验（会在收尾报告里明说）。",
+  "lifecycle": { "workspace": "../../whitebox/workspace", "pitfalls": "../../docs/PITFALLS.md", "handover": "~/.agentruntime/handover.json", "window": "always" },
+
+  "_contextWindow_comment": "模型上下文窗口（token）。0/缺 = 未知 ⇒ **不提议收尾**（协议第 7 条的 20% 判据靠它）。填入你的模型窗口即开；宁可未知，也不写错数。",
+  "contextWindow": 0,
+
+  "_stream_comment": "**当前会话的流**。唯一真相源是会话指针 ~/.agentruntime/session.json（启动时按它接上）；本字段是**首次拉起 / 无指针时**的默认口径 —— 两者应当一致，不一致时 /session 会报「指针 ↔ 当前流不一致」。每次 closeout→reset→start 会新建一卷 stream-<stamp>.jsonl，旧卷原地归档（--stream 可回它）⇒ **重开后把本字段同步成新卷**（2026-09-22 修：此前一直停在 09-20 那一卷、实际挂的是 09-21 卷 —— 坑 #92 同族）。",
+  "_pipeline_comment": "收尾流水线（协议 v11 第 8 条）：收尾到期时运行时**原样打印**，远端 AI 按序执行、逐个报结果、失败即停。★ 全部走 **WB 自持**路径（不核对 OC 的共享 workspace —— 主人 16:0x 定：两者结构本就不同）。**路径一律用 `$WB_LIVE` / `$WB_ROOT`**（启动时注入；工具 cwd = 活版，见 AGENTS 启动铁则）。",
+  "pipeline": [
+    "python3 $WB_LIVE/scripts/knowledge-repo.py --repo $WB_LIVE/skill-repo --out $WB_LIVE/knowledge",
+    "python3 $WB_LIVE/scripts/knowledge-repo.py --out $WB_LIVE/knowledge --closeout",
+    "python3 $WB_LIVE/scripts/knowledge-repo.py --out $WB_LIVE/knowledge --promote",
+    "python3 $WB_LIVE/scripts/knowledge-repo.py --out $WB_LIVE/knowledge --derive-only",
+    "python3 $WB_ROOT/tools/frozen-build/build-frozen-corpus.py --workspace $WB_LIVE --out $WB_ROOT/frozen-private --tier A",
+    "python3 $WB_LIVE/scripts/knowledge-index.py --ws $WB_LIVE --check"
+  ],
+
+  "stream": { "path": "../../.stage1/stream-20260922-011446.jsonl", "maxEvents": 0 },
   "snapshot": { "path": "../../.stage1/snapshot.json" },
   "focus": { "path": "../../.stage1/focus.json" },
   "currentTail": { "storePath": "../../.stage1/tail" },

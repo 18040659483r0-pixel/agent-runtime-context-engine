@@ -20,7 +20,7 @@ public sealed class AutoContinueTests
 
     private sealed class Bench : IDisposable
     {
-        public Bench(string modules = "append-stream,tool", IApprovalGate? gate = null)
+        public Bench(string modules = "append-stream,tool")
         {
             Workspace = new SnapshotTestWorkspace("auto-continue");
             StreamPath = Workspace.File("stream.jsonl");
@@ -33,16 +33,14 @@ public sealed class AutoContinueTests
                 Stream = new StreamConfiguration { Path = StreamPath },
             };
 
-            Gate = gate ?? new NonInteractiveApprovalGate();
             Client = new FakeModelClient((_, _) => Task.FromResult(Response(Reply)));
-            Modules = ModuleRegistry.Create(Config, toolGate: Gate, toolLedger: new ApprovalLedger());
+            Modules = ModuleRegistry.Create(Config, toolLedger: new ApprovalLedger());
             Engine = new AgentRuntimeEngine(Client, new RuntimeOptions { Model = "m" }, Modules);
         }
 
         public SnapshotTestWorkspace Workspace { get; }
         public string StreamPath { get; }
         public RuntimeConfiguration Config { get; }
-        public IApprovalGate Gate { get; }
         public FakeModelClient Client { get; }
         public IReadOnlyList<IRuntimeModule> Modules { get; }
         public AgentRuntimeEngine Engine { get; }
@@ -115,13 +113,15 @@ public sealed class AutoContinueTests
         var cursor = b.Events.Count;
         Assert.False(HasToolOutcome(b.Events, 0));
 
-        // 工具结果事件（exec 被拒也算结果：模型必须知道它没被允许）。
-        b.Reply = "[TOOL] exec {\"command\":\"svn commit -F /tmp/x\"}";
-        Assert.Equal("[TOOL] exec {\"command\":\"svn commit -F /tmp/x\"}", b.Reply);
-        await b.Engine.ChatAsync("请提交", Ct);
+        // 工具结果事件（v13：本该问人的动作**留档后照跑** ⇒ 落的是 ToolResult；
+        // 只有协议 / 语法类违规才落 ToolDenied。两条都算「有结果」，宿主据此续跑。）
+        // ⚠️ 样本必须**无害**：v13 之后命令会**真的执行**，不能再拿 `svn commit` 当样本。
+        b.Reply = "[TOOL] exec {\"command\":\"svn status\"}";
+        await b.Engine.ChatAsync("看一下状态", Ct);
 
         Assert.True(HasToolOutcome(b.Events, cursor));
-        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.ToolDenied);
+        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.PermissionFiled);
+        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.ToolResult);
     }
 
     // ---------------- ④ 续跑不改前缀字节（只在尾部追加） ----------------

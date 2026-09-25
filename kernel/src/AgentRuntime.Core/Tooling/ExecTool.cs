@@ -280,8 +280,8 @@ public sealed class ExecTool : ToolBase
             return body;
         }
 
-        // **超限明说**（不静默截）—— 截断必须让人/模型知道"后面还有"。
+        // **超限明说**（不静默截）—— 截断必须让人/模型知道"后面还有"，并给出**下一步怎么拿**。
         return body[..limits.MaxOutputChars]
-            + $"\n…（截断：仅前 {limits.MaxOutputChars} 字符，共 {body.Length} 字符）";
+            + $"\n…（按字符上限截断：只给前 {limits.MaxOutputChars} 字符，共 {body.Length} 字符 ⇒ 全文在 /trace；要精准的部分就把命令收窄（grep / head））";
     }
 }

@@ -58,7 +58,9 @@ class Handler(BaseHTTPRequestHandler):
         # 工具面 E2E 专用分支（不影响下面那条固定回显）：
         #   用户消息以 "@tool " 开头 ⇒ 回一段**行首**的 [TOOL] 块（真实模型回复的等价物）。
         #   用法：@tool write {"path":"/tmp/x.txt","content":"hi"} —— 便于在 TUI 里敲不出来换行时也能驱动一次工具调用。
-        reply = f"[mock] 收到：{first_user}"
+        # 默认回显**照着协议收尾**（v9 第 6 条：一条任务以一个终局块结束）——
+        # 否则演示里每张生命周期卡都停在「进行中」，看不出终止态与「结果」长什么样。
+        reply = f"[mock] 收到：{first_user}\n[DONE] 已处理：{first_user}"
 
         # 取**最后一条**以 "@tool " 开头的 user 消息（多轮时不能用"第一条"，否则会拿旧目标）。
         # 回的是**带 [TOOL] 块头**的一行 —— 协议要求块头在行首，这里正好是一行的开头。
@@ -72,6 +74,37 @@ class Handler(BaseHTTPRequestHandler):
         )
         if tool_payload is not None:
             reply = "[TOOL] " + tool_payload
+
+        # 求解语言 E2E 专用分支（协议 v9）：用户消息以 "@done " / "@no-solution " / "@need-user " 开头
+        # ⇒ 回一段**带终局块**的回复（真实模型回复的等价物）。
+        # 用法：@done 把求解语言接进 WB —— 便于在 REPL 里驱动「终局 → 收尾提议」这条链。
+        terminal_payload = next(
+            ((prefix, m["content"][len(prefix):].strip())
+             for m in reversed(messages)
+             if m.get("role") == "user"
+             and isinstance(m.get("content"), str)
+             for prefix in ("@done ", "@no-solution ", "@need-user ")
+             if m["content"].startswith(prefix)),
+            None,
+        )
+        if terminal_payload is not None:
+            prefix, body = terminal_payload
+            block = {"@done ": "[DONE]", "@no-solution ": "[NO-SOLUTION]", "@need-user ": "[NEED-USER]"}[prefix]
+            reply = "做完了。\n%s %s\n[TAIL]\nsolve: %s\nstep: 1 -- 收尾\n- 无" % (block, body, body)
+
+        # 白板口径分支（协议 v9）："@tail <solve>|<step>" ⇒ 回一段带 solve / step 首两行的 [TAIL] 块。
+        tail_payload = next(
+            (m["content"][len("@tail "):].strip()
+             for m in reversed(messages)
+             if m.get("role") == "user"
+             and isinstance(m.get("content"), str)
+             and m["content"].startswith("@tail ")),
+            None,
+        )
+        if tail_payload is not None:
+            solve, _, step = tail_payload.partition("|")
+            reply = "好。\n[TAIL]\nsolve: %s\nstep: %s\n- 待办一\n[FOCUS] E001" % (solve.strip(), step.strip() or "1 -- 起步")
+
 
         # 固定回显 + 固定 usage：让 Benchmark 的 T01/T02/T03 有确定性基线。
         self._json(200, {

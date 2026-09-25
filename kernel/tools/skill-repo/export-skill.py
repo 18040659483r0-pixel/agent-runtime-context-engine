@@ -35,11 +35,26 @@ def first_diff(a: bytes, b: bytes):
 
 
 def reconstruct(repo_skill_dir: Path):
-    """仓库 → (bytes, meta, 副本明细)。"""
+    """仓库 → (bytes, meta, 副本明细)。
+
+    **两类技能的不变量不同**（2026-09-24 分家后）：
+      · **内联型**（L4 是从本 SKILL.md 的段里分出来的）：`frontmatter + Σ(L3 ∪ L4 按 start_line 序)` == SKILL.md；
+      · **references 型**（L4 另有源 `references/*.md`）：L4 的 `source` 指向别处且**无 `start_line`**
+        ⇒ 不参与本往返（它由 `build-l4.py --check` 守）。
+    判据用**字段存在性**（`start_line`），不用技能名 —— 名字会改，形状不会。
+    """
     meta = json.loads((repo_skill_dir / ".meta.json").read_text(encoding="utf-8"))
-    l3_path = repo_skill_dir / "L3.jsonl"
-    recs = [json.loads(ln) for ln in l3_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
-    recs.sort(key=lambda r: r["seq"])
+
+    def rd(fn):
+        p = repo_skill_dir / fn
+        if not p.exists():
+            return []
+        return [json.loads(ln) for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+    l3 = rd("L3.jsonl")
+    l4 = rd("L4.jsonl")
+    inline4 = [r for r in l4 if "start_line" in r]
+    recs = sorted(l3 + inline4, key=lambda r: r["start_line"]) if inline4 else sorted(l3, key=lambda r: r["seq"])
     ends_nl = meta["source"]["body_ends_with_newline"]
     body = "\n".join(r["text"] for r in recs) + ("\n" if ends_nl else "")
     data = (meta["frontmatter_raw"] + body).encode("utf-8")
@@ -92,8 +107,8 @@ def main():
         lines.append("# round-trip 逐字节比对：%s\n" % d.name)
         lines.append("- 源：`%s`（%d 字节，sha256 `%s`）" % (src, len(raw), sha_b(raw)[:16]))
         lines.append("- 导出：`%s`（%d 字节，sha256 `%s`）" % (sk_out / "SKILL.md", len(data), sha_b(data)[:16]))
-        lines.append("- 条数：%d（seq 1..%d）；frontmatter 保留：%s" % (len(recs), recs[-1]["seq"] if recs else 0,
-                                                                      bool(meta.get("frontmatter_raw"))))
+        lines.append("- 条数：%d（frontmatter 保留：%s；末条 id：%s）" % (
+            len(recs), bool(meta.get("frontmatter_raw")), recs[-1]["id"] if recs else "—"))
         lines.append("- **结论：%s**" % ("逐字节相等 ✅" if equal else "存在差异 ❌"))
         if not equal:
             lines.append("\n- 首个差异字节偏移：%d（源 %d 字节 / 导出 %d 字节）" % (diff_at, len(raw), len(data)))

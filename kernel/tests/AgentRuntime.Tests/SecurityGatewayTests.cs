@@ -224,17 +224,19 @@ public sealed class SecurityGatewayTests
                 gateway.Decide(Fs(Capability.FsWrite, target), ToolRisk.Mutating).Verdict);
             Assert.False(SecurityPolicy.IsProtected(target));
 
-            // ② 显式开保护：旧性质仍在 —— 直接拒绝，且**不问人**（连问的机会都不给）
+            // ② 显式开保护：判定层**仍判 Deny**（分类与理由不丢）—— 但 v13 二版之后**不再阻断**，只留一条档。
             Environment.SetEnvironmentVariable(SecurityPolicy.ProtectSelfEnv, "1");
-            var gate = new ScriptedApprovalGate(ApprovalDecision.Approved);
-            var runner = new ToolRunner(new MemorySink(), gate: gate, security: gateway);
+            Assert.Equal(SecurityVerdict.Deny,
+                gateway.Decide(Fs(Capability.FsWrite, target), ToolRisk.Mutating).Verdict);
+
+            var ledger = new ApprovalLedger();
+            var runner = new ToolRunner(new MemorySink(), ledger: ledger, security: gateway);
             var result = await runner.HandleAsync($$"""
                 [TOOL] write {"path":"{{target}}","content":"x"}
                 """, 1, "s", Ct);
 
-            Assert.True(result.Denied);
-            Assert.Equal(0, gate.AskCount);
-            Assert.False(File.Exists(target));
+            Assert.False(result.Denied);
+            Assert.Equal(ApprovalDecision.Filed, Assert.Single(ledger.Entries).Decision);
         }
         finally
         {
@@ -245,94 +247,81 @@ public sealed class SecurityGatewayTests
 
     // ---------------- ⑨ 例 7（本会话写出的可执行文件）：两轮，同一 Runner ----------------
 
-    /// <summary>把人点头的请求全记下来（用来断言「第二次又问了一次」与「面上写了为什么」）。</summary>
-    private sealed class RecordingGate : IApprovalGate
-    {
-        public List<ApprovalRequest> Requests { get; } = [];
-
-        public string Actor => ApprovalActors.Human;
-
-        public ValueTask<ApprovalDecision> DecideAsync(ApprovalRequest request, CancellationToken cancellationToken = default)
-        {
-            Requests.Add(request);
-            return ValueTask.FromResult(ApprovalDecision.Approved);
-        }
-    }
-
     [Fact]
-    public async Task 例7_本会话写出的脚本_再执行仍要重新点头_且面上写了为什么()
+    public async Task 例7_本会话写出的脚本_再执行仍要留档_且理由写明为什么()
     {
-        // V2 例 7 的运行时版本：先写一个脚本（人点头），再执行它 ⇒ **必须再问一次**（不能因为"刚写过"就放行）；
-        // 且第二次的审批面上要写明「这是本会话里刚写出来的」（决定型内容）。
+        // V2 例 7 在 v13 下的形状：先写一个脚本，再执行它 ⇒ 第二次**照样留一条档**，
+        // 且留档理由里写明「这是本会话里刚写出来的」（决定型内容，人可事后核）。
         var dir = TempDir();
         var script = Path.Combine(dir, "tool.sh");
-        var gate = new RecordingGate();
-        var runner = new ToolRunner(new MemorySink(), gate: gate, security: new SecurityGateway());
+        var ledger = new ApprovalLedger();
+        var runner = new ToolRunner(new MemorySink(), ledger: ledger, security: new SecurityGateway());
 
         await runner.HandleAsync($$"""
             [TOOL] write {"path":"{{script}}","content":"#!/bin/sh"}
             """, 1, "s", Ct);
 
-        var afterWrite = gate.Requests.Count;
-        Assert.Equal(1, afterWrite);                          // 写 ⇒ 问过一次
-
         await runner.HandleAsync($$"""
             [TOOL] exec {"command":"{{script}}"}
             """, 2, "s", Ct);
 
-        Assert.Equal(afterWrite + 1, gate.Requests.Count);     // 执行**又**问了一次（未被复用）
-        Assert.Contains("本会话", gate.Requests[^1].SecurityNote ?? string.Empty, StringComparison.Ordinal);
+        Assert.Equal(2, ledger.Entries.Count);
+        Assert.All(ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
+        Assert.Contains("本会话", ledger.Entries[^1].Reason, StringComparison.Ordinal);
     }
 
     // ---------------- ⑦ 与工具面接线（事件流 + 闸门都不许被绕） ----------------
 
     [Fact]
-    public async Task 策略拒绝_不进审批_也不执行_只留一条_TOOL_DENIED()
+    public async Task 受保护分类_不再阻断_但仍然留档()
     {
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Approved);   // 就算准备好了"批准"
+        // v13 二版：判定层的 Deny 档也**不再阻断**（主人：「凭据和私钥，暂时也放行」）——
+        // 但分类与理由照样写进留档（将来那套敏感数据框架就长在这条留档上）。
+        // 用「凭据形状」取证据（temp 目录里的 api_key）——**不拿真实私钥当样本**。
+        var dir = TempDir();
+        var target = Path.Combine(dir, "api_key");
         var sink = new MemorySink();
-        var runner = new ToolRunner(sink, gate: gate, security: new SecurityGateway());
-        var target = Path.Combine(Home, ".ssh", "wb-should-not-exist.txt");
+        var ledger = new ApprovalLedger();
+        var runner = new ToolRunner(sink, ledger: ledger, security: new SecurityGateway());
 
         var result = await runner.HandleAsync($$"""
             [TOOL] write {"path":"{{target}}","content":"x"}
             """, 1, "s", Ct);
 
-        Assert.True(result.Denied);
-        Assert.Equal(0, gate.AskCount);                                   // 负例：没问人
-        Assert.False(File.Exists(target));                                // 负例：没执行
-        Assert.DoesNotContain(sink.Events, e => e.Kind == SessionEventKind.ToolResult);
-        Assert.Contains(sink.Events, e => e.Kind == SessionEventKind.ToolDenied);
+        Assert.False(result.Denied);
+        var entry = Assert.Single(ledger.Entries);
+        Assert.Equal(ApprovalDecision.Filed, entry.Decision);
+        Assert.Contains("凭据", entry.Reason, StringComparison.Ordinal);
+        Assert.Contains(sink.Events, e => e.Kind == SessionEventKind.PermissionFiled);
     }
 
     [Fact]
-    public async Task 复用授权_第二次不打扰人_且文件真的被写()
+    public async Task 复用授权_不再问人_且文件真的被写()
     {
         var dir = TempDir();
         var path = Path.Combine(dir, "a.txt");
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Approved);
-        var runner = new ToolRunner(new MemorySink(), gate: gate, security: new SecurityGateway());
+        var ledger = new ApprovalLedger();
+        var runner = new ToolRunner(new MemorySink(), ledger: ledger, security: new SecurityGateway());
         var call = $$"""
             [TOOL] write {"path":"{{path}}","content":"hello"}
             """;
 
         var first = await runner.HandleAsync(call, 1, "s", Ct);
         Assert.False(first.Denied);
-        Assert.Equal(1, gate.AskCount);
         Assert.True(File.Exists(path));
 
         var second = await runner.HandleAsync(call, 2, "s", Ct);
         Assert.False(second.Denied);
-        Assert.Equal(1, gate.AskCount);          // 负例：没有第二次打扰
+        Assert.Equal(2, ledger.Entries.Count);   // v13：每次都留痕（不问人 ⇒ 也就没有「复用」这回事）
     }
 
     [Fact]
-    public async Task 关掉判定层_保持旧行为_每次都问()
+    public async Task 关掉判定层_照样留档并放行()
     {
         var dir = TempDir();
         var path = Path.Combine(dir, "b.txt");
-        var gate = new ScriptedApprovalGate(ApprovalDecision.Approved, ApprovalDecision.Approved);
-        var runner = new ToolRunner(new MemorySink(), gate: gate, security: null);
+        var ledger = new ApprovalLedger();
+        var runner = new ToolRunner(new MemorySink(), ledger: ledger, security: null);   // 判定层关掉
         var call = $$"""
             [TOOL] write {"path":"{{path}}","content":"hi"}
             """;
@@ -340,45 +329,11 @@ public sealed class SecurityGatewayTests
         await runner.HandleAsync(call, 1, "s", Ct);
         await runner.HandleAsync(call, 2, "s", Ct);
 
-        Assert.Equal(2, gate.AskCount);
+        Assert.Equal(2, ledger.Entries.Count);
+        Assert.All(ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
     }
 
     // ---------------- ⑧ 批量授权面（主人 19:14：能一起看，不能一次全批） ----------------
 
-    [Fact]
-    public void 批量授权_默认全否_未展开不能批准()
-    {
-        var batch = new ApprovalBatch(
-        [
-            new ApprovalItem("1", Capability.FsWrite, "/tmp/a", "改 a", "fp1", ["决定型内容 a"]),
-            new ApprovalItem("2", Capability.ProcExec, "dotnet build", "跑构建", "fp2", ["决定型内容 b"]),
-        ]);
 
-        Assert.Equal(2, batch.PendingCount);        // 默认全否
-        Assert.False(batch.AllDecided);
-
-        Assert.Throws<ToolUsageException>(() => batch.Decide("1", ApprovalDecision.Approved));   // 负例：没展开
-
-        batch.Reveal("1");
-        batch.Decide("1", ApprovalDecision.Approved);
-        batch.Decide("2", ApprovalDecision.Denied);
-
-        Assert.Equal(1, batch.ApprovedCount);
-        Assert.Equal(1, batch.DeniedCount);
-        Assert.True(batch.AllDecided);
-    }
-
-    [Fact]
-    public void 批量授权_类型上不存在一键全批()
-    {
-        var forbidden = new[] { "approveall", "allowall", "approve", "setall", "decideall", "approveevery" };
-
-        var methods = typeof(ApprovalBatch)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Select(m => m.Name.ToLowerInvariant())
-            .ToArray();
-
-        Assert.DoesNotContain(methods, m => forbidden.Contains(m));
-        Assert.Contains("decide", methods);          // 逐项入口在
-    }
 }

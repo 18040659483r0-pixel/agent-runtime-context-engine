@@ -38,6 +38,15 @@ public abstract class FrozenZoneModuleBase : RuntimeModuleBase, IFrozenZoneModul
     /// <summary>内容来源（唯一接缝）。</summary>
     protected IFrozenContentSource Source { get; }
 
+    /// <summary>
+    /// 本区内容来源的**只读出口**（唯一接缝，子类不外传）。
+    /// <para>为什么要有它（主人 2026-09-22 令）：技能**常驻层（L1+L2）**是挂在知识区来源上的
+    /// **装饰器**，而顶层 TUI 的「专家」行要报「R1 里**实际**装了哪些专家分类」
+    /// ⇒ 只能从**真装的来源**读（<see cref="SkillResidentContentSource.Resident"/>），
+    /// 不能从配置反推（配了但没内容 = 没装载）。</para>
+    /// </summary>
+    public IFrozenContentSource ContentSource => Source;
+
     /// <summary>本次要加载的领域 / 项目选择（拉起前定）。</summary>
     protected FrozenSelection Selection { get; }
 

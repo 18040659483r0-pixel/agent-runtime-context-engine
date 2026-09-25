@@ -117,7 +117,8 @@ public sealed class SkillIndex
         var ids = new List<string>();
 
         foreach (var file in Directory
-            .EnumerateFiles(root, "L3.jsonl", SearchOption.AllDirectories)
+            .EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
+            .Where(p => Path.GetFileName(p) is "L3.jsonl" or "L4.jsonl")
             .OrderBy(p => p, StringComparer.Ordinal))
         {
             var index = FromJsonl(file);

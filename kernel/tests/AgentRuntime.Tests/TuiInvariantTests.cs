@@ -313,7 +313,7 @@ public sealed class TuiInvariantTests
         var protocol = layers.Single(l => l.Region == StackRegion.R1P);
         Assert.Equal(StackPanel.BytesOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Bytes);
         Assert.Equal(StackPanel.FingerprintOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Fingerprint);
-        Assert.Equal("v8", protocol.VersionLabel);
+        Assert.Equal("v22", protocol.VersionLabel);   // 协议 v22：第 12 条·决策报告（含 `body:` 成品正文位）—— 主人 2026-09-24 19:1x/夜 定
 
         // R1 = 全部冻结段（与 FrozenPrefix 的拼接口径一致）。
         var frozen = layers.Single(l => l.Region == StackRegion.R1);

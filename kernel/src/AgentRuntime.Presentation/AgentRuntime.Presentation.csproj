@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Presentation</RootNamespace>
+    <AssemblyName>AgentRuntime.Presentation</AssemblyName>
+    <!-- **呈现层**（语义 → 样式 → 终端字节）：把「角色」翻译成颜色 / 加粗 / 表格的**宿主共用**一层。
+         三件套边界：① 零第三方库（手写 SGR）；② 不依赖任何其它项目（不是内核语义，不进 prompt）；
+         ③ 两个宿主（TUI / CLI）共用同一条投影（纯文本产物 == 屏上正文）。 -->
+  </PropertyGroup>
+
+</Project>

@@ -48,8 +48,43 @@ public enum SessionEventKind
     /// </summary>
     ToolDenied,
 
+    /// <summary>
+    /// **模型的 <c>risk:</c> 声明被处理**（协议 v12 第 5 条；依据 <c>docs/DESIGN-APPROVAL-V12.md</c> §五）。
+    /// <para>
+    /// 两种结局共用这一个标签，正文里写清是哪种（事件是只追加的事实，不另立标签）：
+    /// ① <b>声明 <c>none</c> 而放行</b>（未碰硬红线）⇒ 记下**自主放行**的事实，人随时可核（收尾报告给一行汇总）；
+    /// ② <b>声明 <c>none</c> 却撞上硬红线</b>（受保护目标 / 提权 / 凭据 / 发布不可逆 / 可疑可执行）⇒
+    /// 动作照旧被拦，另记一条「声明与事实不符」—— <b>撒谎会被记下来</b>（设计 §五·3）。
+    /// </para>
+    /// </summary>
+    RiskClaimed,
+
+    /// <summary>
+    /// **权限留档**（协议 v13；依据 <c>docs/DESIGN-APPROVAL-V13.md</c> §三）。
+    /// <para>
+    /// Runtime **不再**在任务内部向人索要授权：判定层判为 <c>Ask</c> 的动作一律**留档 + 放行**。
+    /// 本事件是那条留档的**正文**（进流 ⇒ 会被重放回上下文）⇒ 必须**短**、一行：
+    /// <c>&lt;action 原文&gt; → 留档：&lt;为什么本档本该问人&gt; · 已按 v13 放行（未问人）</c>。
+    /// 完整的决定型内容（真身路径 / diff）在**账本**里（<c>ApprovalLedger</c>，<b>不进 prompt</b>）。
+    /// </para>
+    /// <para>与 <see cref="RiskClaimed"/> 的分工：那条记「模型自判无风险 ⇒ 自主放行」；
+    /// 本条记「本该问人、但按 v13 不问人只留档」。</para>
+    /// </summary>
+    PermissionFiled,
+
     /// <summary>Worker 分析结果。</summary>
     WorkerResult,
+
+    /// <summary>
+    /// **宿主对模型说的一句话**（v9）—— 目前只有一种：上下文达窗口 20% 且任务已终局时的
+    /// **收尾提议**（协议第 7 条：<c>When the runtime says the context reached 20% of the window…</c>）。
+    /// <para>
+    /// 为什么用事件而不是藏在诊断里：token 用量是 **provider 的事实**，模型自己看不见 ⇒
+    /// 宿主必须**说出来**它才可能照协议第 7 条提议收尾；而事件是唯一的「宿主对模型」通道。
+    /// </para>
+    /// <para>与 <see cref="ToolResult"/> 同族：都是**宿主产生**的事实，不是模型的输出。</para>
+    /// </summary>
+    Hint,
 
     /// <summary>
     /// **模型自报的语义焦点**（V4.1 §四）：本轮实际用到 / 依据的事件标签。

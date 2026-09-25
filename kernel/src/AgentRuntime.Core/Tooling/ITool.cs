@@ -60,6 +60,14 @@ public interface ITool
     void Validate(ToolArgs args);
 
     /// <summary>
+    /// 本工具**允许的参数名**（子类声明；报错话术 / 帮助用）。
+    /// <para>为什么要暴露出来：2026-09-22 主人真机实测 —— 一场简单提问烧掉 **3 轮**，全是
+    /// 「一次只暴露一个约束」（先猜错名字 ⇒ 再猜错键 ⇒ 最后才暴露 <c>risk</c> 的位置）。
+    /// 拒绝时把「名字 / 每个工具的键 / 形状」一次给全，下一轮就能写对。</para>
+    /// </summary>
+    IReadOnlyList<string> ArgumentNames { get; }
+
+    /// <summary>
     /// **审批面**（S2/S3）：纯函数 + 只读地把"要改哪个文件、改成什么样"摆出来给人看。
     /// <para>⚠️ 它**绝不复用模型输出**：审批面由 Runtime 从结构化参数渲染（否则模型能伪造提示骗人点头）。</para>
     /// </summary>
@@ -88,6 +96,9 @@ public abstract class ToolBase : ITool
 
     /// <summary>本工具允许的参数名（子类声明；未声明的键 ⇒ 拒绝）。</summary>
     protected abstract string[] AllowedArguments { get; }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> ArgumentNames => AllowedArguments;
 
     public abstract string Describe(ToolArgs args);
 
@@ -123,7 +134,12 @@ public abstract class ToolBase : ITool
     /// <summary>真正干活的半边（参数已体检）。</summary>
     protected abstract ValueTask<ToolOutcome> RunAsync(ToolContext context, ToolArgs args, CancellationToken cancellationToken);
 
-    /// <summary>把一段正文按上限截断并**明说**（唯一截断口径）。</summary>
+    /// <summary>
+    /// 把一段正文按上限截断并**明说**（唯一截断口径）。
+    /// <para>为什么还要给「怎么接着拿」：2026-09-22 实测一次提问的工具结果共 **140 KB**（占那一场新 token 的 ~94%），
+    /// 其中 13 次是「整份文件倒」（单次满 8 KB）。上限降到 2,000 字符后，**指针必须能让模型一步拿到下一段**，
+    /// 否则省下的字节会变成多出来的轮数（一轮 ≈ 一次整份上下文重发）。</para>
+    /// </summary>
     protected static (string Text, bool Truncated) Clamp(string text, int maxChars)
     {
         if (text.Length <= maxChars)
@@ -131,6 +147,6 @@ public abstract class ToolBase : ITool
             return (text, false);
         }
 
-        return (text[..maxChars] + $"\n…（截断：仅前 {maxChars} 字符，共 {text.Length} 字符）", true);
+        return (text[..maxChars] + $"\n…（按字符上限截断：只给前 {maxChars} 字符，本条共 {text.Length} 字符 ⇒ 全文在 /trace；要接着看就缩小窗口 / 给 offset）", true);
     }
 }

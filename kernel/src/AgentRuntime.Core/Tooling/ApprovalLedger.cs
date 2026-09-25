@@ -28,6 +28,12 @@ public sealed record ApprovalEntry(
     string Reason,
     string? SessionId = null)
 {
+    /// <summary>
+    /// **留档时的完整审批面**（v13；决定型内容：真身路径 / diff —— §十·34）。
+    /// <para>它只进**账本**（<b>不进 prompt</b>）：事件里那条留档**必须短**，完整内容放这里供人事后核对。</para>
+    /// </summary>
+    public string? Face { get; init; }
+
     /// <summary>一行账本文本（人眼可读、可 diff）。</summary>
     public string Render() =>
         $"#{Seq} turn {Turn} {Tool} [{ToolNames.Describe(Risk)}] {Decision} by {Actor} · {ArgumentsDigest} · {Action}" +
@@ -83,7 +89,8 @@ public sealed class ApprovalLedger
         ApprovalDecision decision,
         string actor,
         string reason,
-        string? sessionId = null)
+        string? sessionId = null,
+        string? face = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tool);
         ArgumentException.ThrowIfNullOrWhiteSpace(actor);
@@ -97,7 +104,10 @@ public sealed class ApprovalLedger
         }
 
         var entry = new ApprovalEntry(
-            _entries.Count + 1, turn, tool, risk, action, argumentsDigest, decision, actor, reason, sessionId);
+            _entries.Count + 1, turn, tool, risk, action, argumentsDigest, decision, actor, reason, sessionId)
+        {
+            Face = face,
+        };
         _entries.Add(entry);
         Persist(entry);
         return entry;
@@ -143,6 +153,7 @@ public sealed class ApprovalLedger
             actor = entry.Actor,
             reason = entry.Reason,
             session = entry.SessionId,
+            face = entry.Face,
         }, WriteOptions);
 
         File.AppendAllText(Path, json + "\n", new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));

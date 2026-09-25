@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -41,6 +42,12 @@ HYBRID_ID_SUFFIX = "000"
 SMALL_FILE_HYBRID_CAP = 2000           # 整份 ≤ 此值 ⇒ 直接 hybrid（收益比策略的硬闸门）
 DEFAULT_ENDPOINT = "https://api.deepseek.com/chat/completions"
 DEFAULT_MODEL = "deepseek-flash"
+
+#: 密钥默认来源 = **运行时自己用的那一把**：config.*.json 的 `apiKeyFile`（本机 = `~/.agentruntime/api_key`），
+#: 也可用环境变量 `AGENTRUNTIME_API_KEY_FILE` 覆盖。
+#: 为什么要有默认（主人 2026-09-22 17:3x 指出）：密钥本来就摆在运行时手边，
+#: **再向主人要一次是多余的门槛** —— 工具自己去找，别让人替工具跑腿。
+DEFAULT_KEY_FILE = os.path.expanduser(os.environ.get("AGENTRUNTIME_API_KEY_FILE") or "~/.agentruntime/api_key")
 MAX_TOKENS = 32000          # 注意：deepseek-flash 是**带思维链**的模型，reasoning_tokens 与正文共用这个上限
 RETRY_DELAYS = [2, 5, 15]
 
@@ -1186,7 +1193,8 @@ def main():
     ap.add_argument("--skills", required=True, help="技能源目录（含 <name>/SKILL.md；只读）")
     ap.add_argument("--out", required=True, help="仓库输出根目录")
     ap.add_argument("--only", default=None, help="只处理这些技能（逗号分隔）")
-    ap.add_argument("--api-key-file", default=None, help="密钥文件路径（只传路径）")
+    ap.add_argument("--api-key-file", default=DEFAULT_KEY_FILE,
+                    help="密钥文件路径（默认 = 运行时那一把：%s；只传路径，内容不读不打印）" % DEFAULT_KEY_FILE)
     ap.add_argument("--model", default=DEFAULT_MODEL, help="模型（默认 %s）" % DEFAULT_MODEL)
     ap.add_argument("--endpoint", default=DEFAULT_ENDPOINT, help="OpenAI 兼容端点")
     ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS,

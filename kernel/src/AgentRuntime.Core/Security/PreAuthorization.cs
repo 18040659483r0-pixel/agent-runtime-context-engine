@@ -106,13 +106,26 @@ public sealed class PreAuthorizationStore
             throw new ToolUsageException($"预授权有效期必须在 0 ~ {MaxLifetime.TotalHours:0} 小时之间（无期限授权 = 永久后门）。");
         }
 
+        // **路径类能力的目标先归一到真身**，与判定侧 <c>action.Target</c> 同一口径。
+        // 否则 macOS 上 `/var/…` 与 `/private/var/…` 两种拼法会让预授权**静默不命中**
+        // （判据是字符串相等 ⇒ 恒假），进而把「人签过字」悄悄降级成「再问一次」（PITFALLS #139 / §十·54）。
+        // 命令类能力（ProcExec / NetRequest）的 target 是**命令原文**，不能当路径归一。
+        var normalized = IsPathTarget(capability) ? NormalizePath(target) : target;
+
         var entry = new PreAuthorization(
-            $"PA-{_entries.Count + 1:0000}", capability, target, now, now + lifetime, note);
+            $"PA-{_entries.Count + 1:0000}", capability, normalized, now, now + lifetime, note);
 
         _entries.Add(entry);
         Save();
         return entry;
     }
+
+    /// <summary>该能力的目标是不是**路径**（只有路径类才归一；命令类是命令原文）。</summary>
+    private static bool IsPathTarget(Capability capability) =>
+        capability is Capability.FsRead or Capability.FsWrite or Capability.FsDelete;
+
+    /// <summary>路径类目标归一到**真身**（判不出 ⇒ 原样返回）—— 与判定侧 <c>action.Target</c> 同一口径。</summary>
+    private static string NormalizePath(string target) => ToolPaths.NormalizeOrSelf(target);
 
     /// <summary>按编号撤销（返回是否撤到了）。</summary>
     public bool Revoke(string id, DateTimeOffset now)

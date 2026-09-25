@@ -38,6 +38,7 @@ public static class TailPanel
         lines.Add($"[尾部] 存储路径    : {store.PathFor(null)}（唯一真相源；坏文件报错，不降级）");
         lines.Add($"[尾部] 文件        : {(store.Exists(null) ? "存在" : "不存在（空默认 = 零注入）")}");
         lines.Add($"[尾部] 来源        : {state.Source}");
+        lines.Add($"[尾部] 求解        : {SolveHeader.Parse(state.Lines).Describe()}（v9 口径：[TAIL] 首两行 solve / step）");
         lines.Add($"[尾部] 轮次        : {state.Turn}");
         lines.Add($"[尾部] 上限        : ≤{options.MaxLines} 行 / ≤{options.MaxChars} 字符（协议区声明，配置无权改）");
         lines.Add($"[尾部] 余量        : {options.MaxLines - state.LineCount} 行 / {options.MaxChars - state.CharCount} 字符");

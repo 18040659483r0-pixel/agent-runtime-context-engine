@@ -33,6 +33,24 @@ public enum StackRegion
     R3,
 }
 
+/// <summary>
+/// 「专家」行的一项：**一个专家知识分类 + 它在 R1 里占的字节**（主人 2026-09-22 令：要按占用排序并显示）。
+/// <para>字节口径 = 该域在 R1 里贡献的正文 UTF-8 字节（冻结 Expert 段用 <c>StackSegment.Bytes</c>；
+/// 技能常驻层用 <c>SkillResident.DomainBytes</c> 的逐字口径）—— **与 prompt 同源**，不另算一份。</para>
+/// </summary>
+public sealed record ExpertDomain(string Id, int Bytes)
+{
+    /// <summary>≈token：口径与协议区一致（~4 字节/token）；屏面上标了 ≈ 就是估算。</summary>
+    public int ApproxTokens => Bytes / 4;
+
+    /// <summary>
+    /// 屏面**短名**（主人 2026-09-22 定：id 不动，只换显示名 —— 问「ops 是什么」时看屏就懂）。
+    /// <para>未知名回落 id（**绝不编一个名字**）。注意：**短名只上屏，绝不进 prompt** ——
+    /// 常驻层的 <c>[域]</c> 标签与段 id 仍用 <see cref="Id"/>，那是冻结前缀的字节。</para>
+    /// </summary>
+    public string Label => KnowledgeDomains.Find(Id)?.ShortName ?? Id;
+}
+
 /// <summary>区里的一个最小单元（冻结区 = 一个段，有账本版本；动态区 = 一条贡献消息，无版本）。</summary>
 public sealed record StackSegment(string Id, string Version, int Bytes, string Fingerprint);
 
@@ -136,6 +154,72 @@ public static class StackPanel
             IFocusRegionModule => StackRegion.R3,
             _ => StackRegion.R2,
         };
+    }
+
+    /// <summary>
+    /// **R1 里实际装载的专家知识分类**（主人 2026-09-22 令：顶层 TUI 要有「专家」一行）。
+    /// <para>判据只有一条：<b>段真的在 R1 里</b>（段 id 形如 <c>knowledge.expert.&lt;域&gt;</c> /
+    /// <c>rules.expert.&lt;域&gt;</c>）。空选择会展开成全部**预设**域，但内容文件不存在就**不产段** ——
+    /// 所以这里读出来的是「装了什么」，不是「配了什么」（不谎报装载）。</para>
+    /// <para>次序 = 段的实际次序（= 稳定前缀的字节次序）；同一个域只出现一次。</para>
+    /// </summary>
+    public static IReadOnlyList<ExpertDomain> ExpertDomains(
+        IReadOnlyList<StackLayer> layers,
+        AgentRuntime.Core.Skill.SkillResident? resident = null)
+    {
+        ArgumentNullException.ThrowIfNull(layers);
+
+        var found = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        // ① 冻结区 Expert 段的域（段 id 形如 `knowledge.expert.<域>`；内容文件不存在就不产段）。
+        foreach (var layer in layers)
+        {
+            if (layer.Region != StackRegion.R1)
+            {
+                continue;
+            }
+
+            foreach (var segment in layer.Segments)
+            {
+                var at = segment.Id.IndexOf(".expert.", StringComparison.Ordinal);
+                if (at < 0)
+                {
+                    continue;
+                }
+
+                var domain = segment.Id[(at + ".expert.".Length)..];
+                if (domain.Length > 0)
+                {
+                    found[domain] = found.GetValueOrDefault(domain) + segment.Bytes;
+                }
+            }
+        }
+
+        // ② 技能常驻层（L1+L2）的域 —— 它同样进 R1（走冻结区来源的装饰器），且**每行都带域**；
+        //    真机上「有分类」指的正是这一层（冻结 Expert 文件往往还没写）。
+        //    字节按**渲染那一处**的逐字口径算（`SkillResident.DomainBytes`）⇒ 屏上与 prompt 同源。
+        if (resident is not null)
+        {
+            foreach (var (domain, bytes) in resident.DomainBytes())
+            {
+                found[domain] = found.GetValueOrDefault(domain) + bytes;
+            }
+        }
+
+        // 次序（主人 2026-09-22 令）：**占用降序** —— 最多的排最前；
+        // 同占用按 `KnowledgeDomains` 预设次序（唯一声明处），未知名按 id ⇒ 稳定 ⇒ 帧可 diff。
+        var rank = KnowledgeDomains.All
+            .Select((d, i) => (d.Id, Rank: i))
+            .ToDictionary(static x => x.Id, static x => x.Rank, StringComparer.Ordinal);
+
+        return
+        [
+            .. found
+                .OrderByDescending(static kv => kv.Value)
+                .ThenBy(kv => rank.TryGetValue(kv.Key, out var r) ? r : int.MaxValue)
+                .ThenBy(static kv => kv.Key, StringComparer.Ordinal)
+                .Select(static kv => new ExpertDomain(kv.Key, kv.Value)),
+        ];
     }
 
     /// <summary>UTF-8 字节数（口径与「前缀指纹」一致：UTF-8 / LF）。</summary>

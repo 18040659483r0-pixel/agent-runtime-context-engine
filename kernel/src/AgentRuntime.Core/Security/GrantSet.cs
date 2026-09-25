@@ -1,3 +1,5 @@
+using AgentRuntime.Core.Tooling;
+
 namespace AgentRuntime.Core.Security;
 
 /// <summary>
@@ -20,7 +22,34 @@ namespace AgentRuntime.Core.Security;
 public sealed class GrantSet
 {
     private readonly List<(Capability Capability, string Target, PreAuthorization? PreAuth)> _grants = [];
+    private readonly List<ScopeGrant> _scopes = [];
     private readonly HashSet<string> _tainted = new(StringComparer.Ordinal);
+
+    /// <summary>本会话已授权的**范围**（人点头时选了「记住这个范围」；诊断 / 面板用，顺序不保证）。</summary>
+    public IReadOnlyList<ScopeGrant> Scopes => _scopes;
+
+    /// <summary>记一条**范围授权**（只能由「人当场选了记住范围」那条路径调用）。</summary>
+    public void AddScope(ScopeGrant scope)
+    {
+        ArgumentNullException.ThrowIfNull(scope);
+
+        if (!string.IsNullOrWhiteSpace(scope.Scope))
+        {
+            _scopes.Add(scope);
+        }
+    }
+
+    /// <summary>这条动作在不在已授权的某个范围里（没有 ⇒ null）。</summary>
+    public ScopeGrant? CoversScope(Capability capability, string target) =>
+        _scopes.FirstOrDefault(scope => GrantScopes.Covers(scope, capability, target));
+
+    /// <summary>撤销全部**范围**授权（面板的一键撤销）。返回撤销了几条。</summary>
+    public int ClearScopes()
+    {
+        var count = _scopes.Count;
+        _scopes.Clear();
+        return count;
+    }
 
     /// <summary>有效条目数（会话 Grant + 预授权）。</summary>
     public int Count => _grants.Count;
@@ -91,16 +120,20 @@ public sealed class GrantSet
     public void Clear() => _grants.RemoveAll(g => g.PreAuth is null);
 
     /// <summary>记「本会话写出了这个路径」（文件本身 + 它所在目录都算污染）。</summary>
-    public void NoteWritten(string? normalizedPath)
+    public void NoteWritten(string? path)
     {
-        if (string.IsNullOrWhiteSpace(normalizedPath))
+        if (string.IsNullOrWhiteSpace(path))
         {
             return;
         }
 
-        _tainted.Add(normalizedPath);
+        // **自己归一，不假定调用方已归一**：写入侧与比对侧必须落到**同一条真身**。
+        // 否则同一份文件的两个拼法（macOS `/var` ↔ `/private/var`）会让污染集**静默不命中**
+        // ⇒ 「本会话刚写出来的可执行文件」被判成「来源可信」（PITFALLS #139 / §十·54）。
+        var normalized = ToolPaths.NormalizeOrSelf(path);
+        _tainted.Add(normalized);
 
-        var directory = Path.GetDirectoryName(normalizedPath);
+        var directory = Path.GetDirectoryName(normalized);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             _tainted.Add(directory);
@@ -108,8 +141,8 @@ public sealed class GrantSet
     }
 
     /// <summary>这个路径是不是本会话写出来的（⇒ 执行它必须重新点头，永不自动放行）。</summary>
-    public bool IsTainted(string? normalizedPath) =>
-        !string.IsNullOrWhiteSpace(normalizedPath) && _tainted.Contains(normalizedPath);
+    public bool IsTainted(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && _tainted.Contains(ToolPaths.NormalizeOrSelf(path));
 
     /// <summary>污染集快照（诊断 / 测试）。</summary>
     public IReadOnlyList<string> Tainted() => _tainted.OrderBy(s => s, StringComparer.Ordinal).ToArray();
