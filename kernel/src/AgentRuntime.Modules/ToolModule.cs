@@ -36,9 +36,15 @@ public sealed class ToolModule : RuntimeModuleBase
         ToolLimits? limits = null,
         ApprovalLedger? ledger = null,
         IReadOnlyList<ITool>? tools = null,
-        SecurityGateway? security = null)
+        SecurityGateway? security = null,
+        PendingToolQueue? pending = null,
+        ToolNames.Role role = ToolNames.Role.Master,
+        string? pitfallsInbox = null)
     {
-        Runner = new ToolRunner(sink, tools, ledger, limits, security);
+        // **本类不按角色收窄**：没显式传工具集 ⇒ 全集（逐字兼容 —— 夹具与既有调用点不因「剥 master」被波及）。
+        // 角色的收窄只发生在**真实装配点**（`ModuleRegistry` 给 master / worker 各传各的面）；
+        // 这条纪律的来历：把收窄写进默认构造 ⇒ 当场 4 条工具面测试连带红（改动漏到未显式声明的地方）。
+        Runner = new ToolRunner(sink, tools, ledger, limits, security, pending, role, pitfallsInbox);
     }
 
     public override string Name => ModuleName;

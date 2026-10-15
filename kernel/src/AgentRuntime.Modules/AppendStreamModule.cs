@@ -100,7 +100,16 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     /// <summary>**逐条加载**一份 L3 文档进流（并落盘）。返回新事件（含分配到的序号）。</summary>
     public SessionEvent AppendDocument(SessionEventKind kind, string text, string? source = null)
     {
-        var @event = Stream.Append(kind, text, source);
+        // **空正文不进流**（2026-10-15 真机教训，提到**唯一写入口**）：
+        //   某条 append 喂了空串 ⇒ <see cref="SessionEvent"/> 的断言抛 ArgumentException('text')
+        //   ⇒ 冒泡到 <c>Program.Main</c> 的 config 分支 ⇒ **只打一行 [config]、退出码 2、不留任何痕迹退出**
+        //   （主机上查了两小时才定位）。⇒ 这里**不写空事件、也不让整轮炸掉**，
+        //   改成一条**显式事实**（正文里直接写明「哪一种事件为空 + 来源」——那正是我们要的凶手）。
+        var body = string.IsNullOrWhiteSpace(text)
+            ? $"[空正文] ⚠️ 本轮有一条 {kind} 事件正文为空 —— 不写空事件（流的不变量：正文非空）；来源 {source ?? "—"}，轮次由宿主补全。"
+            : text;
+
+        var @event = Stream.Append(kind, body, source);
         _store?.Append(@event);
         return @event;
     }
@@ -132,17 +141,34 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
         // 否则会把工具结果当成用户输入又记一条事件（静默污染流）。
         var userText = request.Messages.Count > 0 ? request.Messages[^1].Content : string.Empty;
 
-        if (!context.IsContinuation && !string.IsNullOrWhiteSpace(userText))
+        if (context.IsRuntimeNotice)
+        {
+            // **运行时提示**（2026-10-09 主人令）：催稿 / 语法提示是**运行时说的**，不是用户输入 ⇒ 记成 Hint。
+            // 形状上就分得开「谁说的」 —— 否则聚合器会把它数成新 task（真机：17 次派发被数成 42）。
+            if (!string.IsNullOrWhiteSpace(userText))
+            {
+                AppendDocument(SessionEventKind.Hint, userText);
+            }
+        }
+        else if (!context.IsContinuation && !string.IsNullOrWhiteSpace(userText))
         {
             AppendDocument(SessionEventKind.UserInput, userText);
         }
 
         var output = response.FirstText();
-        var agentEvent = AppendDocument(SessionEventKind.AgentOutput, output);
+
+        // ⚠️ **空回复不进流**（流的不变量是「正文非空」，见 SessionAppendStream 的校验）。
+        // 空内容是**上游模型行为**（偶发）而不是数据错误 —— **跳过**而不是抛错；
+        // 抛错会把「模型这一轮没吐字」升级成「整轮炸掉」（实证：最小 Worker 首跑即撞）。
+        SessionEvent? agentEvent = null;
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            agentEvent = AppendDocument(SessionEventKind.AgentOutput, output);
+        }
 
         // V4.1 §四：把远端模型的**非确定性自报**固化成流里的事实（只追加、不改历史）。
         // 解析不到 ⇒ 什么都不做（模型没配合不是数据错误，不报错）。
-        if (_captureFocusReports && FocusService.TryParseReport(output, out var tags))
+        if (_captureFocusReports && agentEvent is not null && FocusService.TryParseReport(output, out var tags))
         {
             var report = new FocusReport { Tags = tags, Turn = context.Turn, TurnTag = agentEvent.Tag };
             AppendDocument(SessionEventKind.FocusReport, report.Text);

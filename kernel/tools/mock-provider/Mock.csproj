@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MockProvider</RootNamespace>
+    <AssemblyName>MockProvider</AssemblyName>
+    <!-- **[WB] OpenAI 兼容 mock provider**（`tools/mock-provider/mock_server.py` 的 C# 替身 · A1）。
+         **不属于 Runtime 组成部分**：开发/离线验证用（无密钥、不花钱、不联网）。
+         住 `tools/`：它是工具，且 R1 只扫 `src/`。
+         零新增 JSON 代码：收发**复用 runtime 自己的对外线类型**
+         （`AgentRuntime.Models.ChatModels` + `OpenAICompatibleClient.RequestSerializerOptions`，即 R1 白名单里的「对外线」）。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+  </ItemGroup>
+
+</Project>

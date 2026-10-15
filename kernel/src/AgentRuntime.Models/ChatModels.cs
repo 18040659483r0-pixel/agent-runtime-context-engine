@@ -39,6 +39,21 @@ public sealed class ChatRequest
 
     [JsonPropertyName("stream")]
     public bool? Stream { get; set; }
+
+    /// <summary>
+    /// 请求档位（OpenAI 兼容的 <c>service_tier</c>；DeepInfra：<c>flex</c> −20% / <c>priority</c> +50% / 不传=标准）。
+    /// <para><c>null</c> ⇒ **不发该字段**（主 provider 不设 ⇒ 请求体逐字节与从前一致）。</para>
+    /// </summary>
+    [JsonPropertyName("service_tier")]
+    public string? ServiceTier { get; set; }
+
+    /// <summary>
+    /// **推理档位**（OpenAI 兼容的 <c>reasoning_effort</c>：<c>minimal</c> / <c>low</c> / <c>medium</c> / <c>high</c>）。
+    /// <para><c>null</c> / 空 ⇒ **不发该字段**（端点用自己的默认档 —— 主 provider 不设时请求体逐字节与从前一致）。
+    /// 与 [OC] 侧 think 级别对齐用（2026-10-11 主人令：M1 量级差的追查）。</para>
+    /// </summary>
+    [JsonPropertyName("reasoning_effort")]
+    public string? ReasoningEffort { get; set; }
 }
 
 /// <summary>
@@ -61,8 +76,35 @@ public sealed class ChatResponse
     [JsonPropertyName("usage")]
     public TokenUsage? Usage { get; set; }
 
+    /// <summary>
+    /// **实收档位**（上游回显的 <c>service_tier</c>）。
+    /// <para>为什么要收它：DeepInfra 对**不支持**的档位会**静默按标准档服务、按标准价计费且不报错** ⇒
+    /// 光发参数不算数，必须拿回显核对（判据在 <c>IServiceTierProbe</c> / 规格 03）。</para>
+    /// </summary>
+    [JsonPropertyName("service_tier")]
+    public string? ServiceTier { get; set; }
+
     /// <summary>取第一个 choice 的文本；无 choice 时返回空串（不抛异常，交给上层判定）。</summary>
     public string FirstText() => Choices.Count > 0 ? Choices[0].Message?.Content ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// **剥掉正文里的控制标记**（模型侧 special token —— 控制，不是内容）：就地清洗每个 choice 的 <c>Content</c>。
+    /// <para>为什么要放在类型上（而不是散在客户端）：这是**响应体自己的不变量** —— 进流 / 上屏 / 下一轮 prompt
+    /// 读的都是这一份正文，剥除只能有**一个口**（见 <see cref="ControlTokens"/>：标记留在正文里会自我强化）。</para>
+    /// <para>幂等；没有可剥的 ⇒ 一个字节不改。</para>
+    /// </summary>
+    public ChatResponse StripControlTokens()
+    {
+        foreach (var choice in Choices)
+        {
+            if (choice.Message is { } message && ControlTokens.HasAny(message.Content))
+            {
+                message.Content = ControlTokens.Strip(message.Content);
+            }
+        }
+
+        return this;
+    }
 }
 
 public sealed class ChatChoice

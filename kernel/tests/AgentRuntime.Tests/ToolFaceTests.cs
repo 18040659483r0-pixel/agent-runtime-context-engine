@@ -148,8 +148,9 @@ public sealed class ToolFaceTests
         var prefixBefore = FrozenPrefix.Assemble(b.Modules).PromptText;
         var promptBefore = await PromptBytesAsync(b.Modules, "问题二");
 
-        // 第二轮：模型点了一次读文件。
-        b.Reply = $"[TOOL] read {{\"path\":\"{b.Abs("a.txt")}\"}}";
+        // 第二轮：模型点了一次**只读**动作（用 master 侧仍持有的那一把 —— 「读原料」已剥给 Worker，
+        // 见 ToolNames.MasterFace；本测试量的是「工具调用不改已有段的字节」，与具体哪把工具无关）。
+        b.Reply = "[TOOL] index\nsymbol: SourceIndex";
         await b.TurnAsync("问题二");
 
         // ① 已有事件**逐字节不变**（只追加，不改历史）。
@@ -175,22 +176,24 @@ public sealed class ToolFaceTests
     public async Task F2_工具结果是事件_行号即地址_可重放()
     {
         using var b = new Bench("ok");
-        var file = b.WriteFile("a.txt", "第一行\n第二行\n");
-        b.Reply = $"[TOOL] read {{\"path\":\"{file}\"}}";
+        _ = b.WriteFile("a.txt", "第一行\n第二行\n");
+        // 用 master 侧**仍然持有**的只读工具（「读原料」已剥给 Worker）：判据一条不放宽 ——
+        // 工具结果是事件、带 source、可重放、下一轮进 prompt。
+        b.Reply = "[TOOL] index\nsymbol: SourceIndex";
 
-        await b.TurnAsync("读一下");
+        await b.TurnAsync("看一眼目录");
 
         var @event = b.Events[^1];
         Assert.Equal(SessionEventKind.ToolResult, @event.Kind);
-        Assert.Equal("read", @event.Source);                  // 账本字段：哪一个工具
-        Assert.Contains("第二行", @event.Text, StringComparison.Ordinal);
+        Assert.Equal("index", @event.Source);                 // 账本字段：哪一个工具
+        Assert.Contains("【结构地图】", @event.Text, StringComparison.Ordinal);
 
-        // 行号即地址：JSONL 第 N 行就是 seq N 的那一条（含 tag）。
-        var lines = File.ReadAllLines(b.StreamPath);
-        Assert.Equal(b.Events.Count, lines.Length);
-        Assert.Contains($"\"seq\":{@event.Seq}", lines[@event.Seq - 1], StringComparison.Ordinal);
-        Assert.Contains($"\"tag\":\"{@event.Tag}\"", lines[@event.Seq - 1], StringComparison.Ordinal);
-        Assert.Contains("ToolResult", lines[@event.Seq - 1], StringComparison.Ordinal);
+        // 落盘可对账：一条事件一个根元素（<Event>），seq / tag / kind 都在账本字段里。
+        var text = File.ReadAllText(b.StreamPath);
+        Assert.Equal(b.Events.Count, text.Split("</Event>", StringSplitOptions.None).Length - 1);
+        Assert.Contains($"<Seq>{@event.Seq}</Seq>", text, StringComparison.Ordinal);
+        Assert.Contains($"<Tag>{@event.Tag}</Tag>", text, StringComparison.Ordinal);
+        Assert.Contains("ToolResult", text, StringComparison.Ordinal);
 
         // 可重放：从磁盘重放 ⇒ 逐条与内存一致，且不变量校验通过。
         var replayed = new SessionStreamStore(b.StreamPath).Load();
@@ -203,7 +206,7 @@ public sealed class ToolFaceTests
         b.Reply = "我看到了";
         await b.TurnAsync("继续");
         var sent = b.Client.LastRequest!.Messages.Select(m => m.Content).ToArray();
-        Assert.Contains(sent, c => c.Contains("第二行", StringComparison.Ordinal));
+        Assert.Contains(sent, c => c.Contains("【结构地图】", StringComparison.Ordinal));
     }
 
     // ---------------- F3：ablate 关得掉工具模块，摘不掉协议区 ----------------
@@ -243,87 +246,34 @@ public sealed class ToolFaceTests
     // ---------------- F4：fail-closed 有牙 ----------------
 
     [Fact]
-    public async Task F4_留档不缺项_事件与账本一一对应()
+    public async Task F4_master点需批工具_留档且照跑()
     {
-        // v13 的新硬不变量：动作照跑，但**留档一定不缺项** ——
-        // 流里每一条 PermissionFiled，账本里有且仅有一条对应条目（且带完整审批面）。
-        using var b = new Bench("ok");
-        b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"留档之后照写\"}}";
-
-        await b.TurnAsync("写一个文件");
-
-        Assert.Contains(b.Events, e => e.Kind == SessionEventKind.PermissionFiled);
-        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
-        Assert.True(File.Exists(Path.Combine(b.Work, "new.txt")));   // 真的写了（不再拦）
-
-        var entry = Assert.Single(b.Ledger.Entries);
-        Assert.Equal(ApprovalDecision.Filed, entry.Decision);
-        Assert.Equal(ApprovalActors.Runtime, entry.Actor);
-        Assert.Equal("write", entry.Tool);
-        Assert.False(string.IsNullOrWhiteSpace(entry.Face));
-    }
-
-    [Fact]
-    public async Task F4_默认装配_无人点头也照跑()
-    {
-        // 出厂档：v13 之后**没有闸门** —— 没人点头也照跑，唯一留下的是那条留档。
-        using var b = new Bench("ok");
-        b.Reply = $"[TOOL] write {{\"path\":\"{b.Abs("new.txt")}\",\"content\":\"x\"}}";
-
-        await b.TurnAsync("写一个文件");
-
-        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
-        Assert.True(File.Exists(Path.Combine(b.Work, "new.txt")));
-        Assert.Equal(ApprovalActors.Runtime, Assert.Single(b.Ledger.Entries).Actor);
-    }
-
-    [Fact]
-    public async Task F4_正例_留档后确实执行()
-    {
-        // 控制组：证明「留档 + 放行」不是「恒不动手」的摆设 —— **没人点头也真的写进去了**。
+        // 2026-10-10（主人令「把工具交回 master」）：master 持**全量**面 ⇒ v13 的老不变量
+        // 「**留档 + 照跑**」在 master 侧**重新成立**（剥离期它退化成「没有动作可留档」——见 git 史）。
+        // 审批闸门本台未接硬拦 ⇒ 只留档、不拦；文件**真的**被写。
         using var b = new Bench("ok");
         var target = b.Abs("new.txt");
-        b.Reply = $"[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}";
+        b.Reply = $"[TOOL] write\npath: {target}\ncontent: x";
 
         await b.TurnAsync("写一个文件");
 
         Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
         Assert.Equal("x", File.ReadAllText(target));
-
-        var entry = Assert.Single(b.Ledger.Entries);
-        Assert.Equal(ApprovalDecision.Filed, entry.Decision);     // 账本是「留档」，不是「人点头」
-        Assert.Equal(ApprovalActors.Runtime, entry.Actor);
     }
 
     [Fact]
-    public async Task F4_同一个动作两次都执行_且各留一条档()
+    public async Task F4_同一个动作两次_都照跑()
     {
+        // 2026-10-10：master 持全量面 ⇒ 两次需批动作都**兑现**（各写一个不同目标，避开「write 不覆已存在文件」的口径）。
         using var b = new Bench("ok");
-        var target = b.Abs("new.txt");
-        b.Reply = $"[TOOL] write {{\"path\":\"{target}\",\"content\":\"x\"}}";
-
+        b.Reply = $"[TOOL] write\npath: {b.Abs("n1.txt")}\ncontent: x";
         await b.TurnAsync("第一次");
-        await b.TurnAsync("第二次");                              // 同一个动作，再来一次
-
-        Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
-        Assert.Equal(2, b.Ledger.Entries.Count);                  // 每次都留痕（**没有长期放行**）
-        Assert.All(b.Ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
-    }
-
-    [Fact]
-    public async Task F4_同会话内_每次都留档_没有复用()
-    {
-        // 老不变量「must-ask 永不复用」在新面上的形状：**没有 Grant 可复用** ⇒ 每次调用都留一条档。
-        // ⚠️ v13 之后命令**真的会执行** ⇒ 样本必须是无害命令（发布类命令不在这里跑）。
-        using var b = new Bench("ok");
-        b.Reply = "[TOOL] exec {\"command\":\"svn status\"}";
-
-        await b.TurnAsync("第一次");
+        b.Reply = $"[TOOL] write\npath: {b.Abs("n2.txt")}\ncontent: x";
         await b.TurnAsync("第二次");
 
-        Assert.Equal(2, b.Ledger.Entries.Count);
-        Assert.All(b.Ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
-        Assert.All(b.Ledger.Entries, e => Assert.Equal(ToolRisk.Mutating, e.Risk));
+        Assert.True(File.Exists(b.Abs("n1.txt")));
+        Assert.True(File.Exists(b.Abs("n2.txt")));
+        Assert.Equal(2, b.Events.Count(e => e.Kind == SessionEventKind.ToolResult));
     }
 
     [Fact]
@@ -354,10 +304,10 @@ public sealed class ToolFaceTests
     {
         // 只读工具照跑，而且**什么都不留档**（留档是「本该问人」的动作才有的）。
         using var b = new Bench("ok");
-        var file = b.WriteFile("a.txt", "内容");
-        b.Reply = $"[TOOL] read {{\"path\":\"{file}\"}}";
+        _ = b.WriteFile("a.txt", "内容");
+        b.Reply = "[TOOL] index\nsymbol: SourceIndex";      // 只读工具（master 侧仍持有的那一把）
 
-        await b.TurnAsync("读一下");
+        await b.TurnAsync("看一眼目录");
 
         Assert.Equal(SessionEventKind.ToolResult, b.Events[^1].Kind);
         Assert.Empty(b.Ledger.Entries);                            // 免批的动作不进审批账本（没批过）
@@ -485,21 +435,68 @@ public sealed class ToolFaceTests
         var sink = new MemorySink();
         var runner = new ToolRunner(sink, ledger: new ApprovalLedger());
 
-        await runner.HandleAsync("[TOOL] bash {\"cmd\":\"ls\"} risk: none", 1, "s", Ct);   // 名字错
-        await runner.HandleAsync("[TOOL] exec {\"cmd\":\"ls\"} risk: none", 2, "s", Ct);   // 键错
+        await runner.HandleAsync("[TOOL] bash {\"cmd\":\"ls\"} <risk>none</risk>", 1, "s", Ct);   // 名字错
+        await runner.HandleAsync("[TOOL] exec {\"cmd\":\"ls\"} <risk>none</risk>", 2, "s", Ct);   // 键错
         await runner.HandleAsync("[TOOL] exec {\"command\":\"ls\",\"risk\":\"none\"}", 3, "s", Ct);   // risk 写进 JSON
 
         var denied = sink.Events.Where(static e => e.Kind == SessionEventKind.ToolDenied).ToArray();
-        Assert.Equal(3, denied.Length);
+        // B1（2026-09-29）：前两条（名字错 / 键错）照旧拒；第三条 `risk` 写在旧 JSON 里 ⇒ **被归一**（声明提出来 + 参数转行式）⇒ 合法执行，不再计作拒绝。
+        Assert.Equal(2, denied.Length);
         foreach (var e in denied)
         {
             Assert.Contains("【工具面】可用：", e.Text, StringComparison.Ordinal);
             Assert.Contains("read{path,symbol,maxLines,offset,limit}", e.Text, StringComparison.Ordinal);   // 键一次给全（v19 起含 symbol）
             Assert.Contains("exec{command,timeoutSeconds}", e.Text, StringComparison.Ordinal);
-            Assert.Contains("risk 写在 JSON **外面**", e.Text, StringComparison.Ordinal);              // 形状
-            Assert.Contains("JSON 的键要带引号", e.Text, StringComparison.Ordinal);                    // v18：形状+带引号示例（键清单只是名字）
-            Assert.Contains("一次回复最多 4 个", e.Text, StringComparison.Ordinal);                    // v14 起上限 = 4（旧文案写「只发一个」= 教错上限）
-            Assert.Contains("多行正文不要塞进单行 JSON", e.Text, StringComparison.Ordinal);            // #130 A 案：真机犯的是换行、不是引号 —— 话术必须同时覆盖
+            Assert.Contains("**一个 XML 元素**", e.Text, StringComparison.Ordinal);          // 形状 = 行式键值
+            Assert.Contains("一个 XML 元素", e.Text, StringComparison.Ordinal);                              // 形状：元素自定界
+            Assert.Contains("</call>", e.Text, StringComparison.Ordinal);                              // 元素收尾（块外文本进不来）
+            Assert.Contains("写到文件", e.Text, StringComparison.Ordinal);                   // 长正文的出路
+            Assert.Contains("<risk>", e.Text, StringComparison.Ordinal);                      // 声明 = 单独一行（可省）
+            Assert.Contains("一次回复最多 4 个", e.Text, StringComparison.Ordinal);          // v14 起上限 = 4
+        }
+
+        // 第三条行为的可复算证据：旧 JSON + 内嵌 risk ⇒ 归一后**执行**（归一优先）。
+        Assert.Contains(sink.Events, static e => e.Kind == SessionEventKind.ToolResult && e.Text.Contains("exec ls", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// **拒绝 ⇒ 立刻落进踩坑收件箱**（主人 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底。
+    /// 记在事件流里只是**这一场**的痕；收件箱才是**跨场**的（收尾收敛进 L1/L2 ⇒ 下一个 session 进 prompt）。
+    /// 出牙：没配收件箱 ⇒ 不写（不猜路径）；配了 ⇒ 每条拒绝一行，带时刻 + 拒因 + 原文。
+    /// </summary>
+    [Fact]
+    public async Task 工具面被拒_立刻落进踩坑收件箱()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "wb-toolface-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var inbox = Path.Combine(dir, "TOOLFACE-PITFALLS.md");
+        try
+        {
+            var sink = new MemorySink();
+
+            // ① 没配 ⇒ 不写（不猜路径），收件箱不存在。
+            var noInbox = new ToolRunner(sink, ledger: new ApprovalLedger());
+            await noInbox.HandleAsync("[TOOL] bash {\"cmd\":\"ls\"}", 1, "s", Ct);
+            Assert.False(File.Exists(inbox));
+
+            // ② 配了 ⇒ 拒绝那一刻就落一行（名字未登记 ⇒ 拒）。
+            var runner = new ToolRunner(sink, ledger: new ApprovalLedger(), pitfallsInbox: inbox);
+            await runner.HandleAsync("[TOOL] bash {\"cmd\":\"ls\"}", 2, "s", Ct);
+
+            Assert.True(File.Exists(inbox));
+            var lines = File.ReadAllLines(inbox).Where(static l => l.Length > 0).ToArray();
+            Assert.Single(lines);
+            Assert.Contains("[toolface-rejection]", lines[0], StringComparison.Ordinal);
+            Assert.Contains("原文：", lines[0], StringComparison.Ordinal);
+
+            // ③ 收尾读它 ⇒ “欠着的账”（未收敛 ⇒ Pending）。
+            var digest = AgentRuntime.Core.Worker.WorkerFindings.Read(inbox, workerRoot: null);
+            Assert.Equal(1, digest.Total);
+            Assert.Equal(1, digest.PendingCount);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
         }
     }
 
@@ -516,6 +513,70 @@ public sealed class ToolFaceTests
         }
     }
 
+    // ---------------- 角色分工：master 侧不出「Worker 的活」（2026-09-29 主人令 · 逐层剥离）----------------
+
+    [Fact]
+    public async Task master面含read_照跑_回归保护()
+    {
+        // 2026-10-10（主人令「把工具交回 master」）：read/list/write/edit/exec 全部回到 master 面 ⇒ 不再被拒。
+        // （旧测试名为「剥掉的工具_master侧被拒_且指名这是Worker的活」—— 那个契约已退场。）
+        var sink = new MemorySink();
+        var master = new ToolRunner(
+            sink,
+            ToolSet.For(ToolNames.Role.Master),
+            new ApprovalLedger(),
+            ToolLimits.Default,
+            security: null,
+            pending: null,
+            role: ToolNames.Role.Master);
+
+        var file = Path.GetTempFileName();
+        File.WriteAllText(file, "第一行\n");
+        var result = await master.HandleAsync($"[TOOL] read\npath: {file}\n", 0, "s", Ct);
+
+        Assert.False(result.Denied);
+        Assert.Contains(SessionEventKind.ToolResult, sink.Events.Select(e => e.Kind));
+    }
+
+    [Fact]
+    public async Task 剥掉的工具_worker侧仍可用_回归保护()
+    {
+        var sink = new MemorySink();
+        var worker = new ToolRunner(
+            sink,
+            ToolSet.For(ToolNames.Role.Worker),
+            new ApprovalLedger(),
+            ToolLimits.Default,
+            security: null,
+            pending: null,
+            role: ToolNames.Role.Worker);
+
+        var file = Path.GetTempFileName();
+        File.WriteAllText(file, "第一行\n");
+        var result = await worker.HandleAsync($"[TOOL] read\npath: {file}\n", 0, "s", Ct);
+
+        // 判据②：同一把工具在 Worker 侧照常可用（剥 master 不许连坐）。
+        Assert.False(result.Denied);
+        Assert.Contains(SessionEventKind.ToolResult, sink.Events.Select(e => e.Kind));
+    }
+
+    [Fact]
+    public void 装配清单一眼读出_master持全量面()
+    {
+        var installed = ToolSet.For(ToolNames.Role.Master)
+            .Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        var declared = ToolNames.MasterFace.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        // 判据④：装配 = 声明（单声明处 ⇒ 清单一眼可读，不是散在各处拼出来的）。
+        Assert.Equal(declared, installed);
+        // 2026-10-10（主人令「把工具交回 master」）：全量面 —— 读/写/跑都回到 master（worker 已拔）。
+        Assert.Contains(ToolNames.Read, installed);
+        Assert.Contains(ToolNames.Write, installed);
+        Assert.Contains(ToolNames.Exec, installed);
+        Assert.Contains(ToolNames.Index, installed);
+        Assert.Contains(ToolNames.Scope, installed);
+    }
+
     private static bool CurrentTailService_ParsesWithoutTools() =>
         AgentRuntime.Core.Tail.CurrentTailService.TryParseReport("[TAIL]\n任务A\n[TOOL] read {\"path\":\"a.txt\"}", out var lines)
         && lines.Count == 1;
@@ -525,4 +586,23 @@ public sealed class ToolFaceTests
 
     private static IReadOnlyList<string> DraftLines(string text) =>
         DraftService.TryParseReport(text, out var lines) ? lines : [];
+
+    // ---------------- v31：键清单按角色渲染，面里的工具必须都在键表里有声明 ----------------
+
+    [Fact]
+    public void 工具面_按角色渲染_且面里的工具都声明了键()
+    {
+        // 2026-09-29（主人令「改 master 协议区」）：正文此前手写 7 把，而 master 的真实面只剩 index/scope
+        // ⇒ 正文与实现口径分裂（模型照正文点名 read/exec 一律被拒、白烧轮次）。
+        // 判据：面由 ToolNames 唯一声明 → 键清单由 ToolFaceClause.ToolKeys 唯一声明 → 渲染出各面自己的那一份。
+        // 2026-10-10（主人令「把工具交回 master」）：master 面 = 全量 ⇒ 键清单 = 全量（同一处渲染）。
+        Assert.Equal(ToolFaceClause.KeysText(ToolNames.MasterFace), ToolFaceClause.MasterKeys);
+        Assert.Equal("read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds} index{symbol} scope{task}", ToolFaceClause.MasterKeys);
+        Assert.Equal(
+            "read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds}",
+            ToolFaceClause.KeysText(ToolNames.WorkerFace));
+
+        // 有牙：面里出现一把没声明键的工具 ⇒ 响亮报（不得静默漏教 —— 漏教的后果就是 worker 只会 read）。
+        Assert.Throws<InvalidOperationException>(() => ToolFaceClause.KeysText(["read", "not-a-tool"]));
+    }
 }

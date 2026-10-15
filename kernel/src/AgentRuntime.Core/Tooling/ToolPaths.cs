@@ -30,6 +30,37 @@ public static class ToolPaths
     /// <summary>realpath 的缓冲区（macOS <c>PATH_MAX</c>=1024，Linux=4096；不够时 realpath 会失败 ⇒ 退回已归一路径）。</summary>
     private const int RealPathBufferSize = 4096;
 
+    /// <summary>
+    /// **命名根**（D2 · 2026-10-10）：相对路径可带 <c>&lt;tag&gt;/…</c> 前缀，按该根解析；**不带前缀 ⇒ 行为不变**（仍按 cwd）。
+    /// <para>为什么需要它（真机）：运行时的工作目录（活版）与代码仓根**是两个根**，而相对路径只认一个 ——
+    /// master 写 <c>src/…</c> 落空、写 <c>handoff/…</c> 又必须按活版 ⇒ 每条任务先 <c>pwd</c> 探。
+    /// 给**两个可命名的根**（<c>repo/</c> = 代码仓根 · <c>live/</c> = 运行时工作目录），谁都不猜树（DESIGN-SPLIT-ON-STOP §十 D2-②）。</para>
+    /// <para>由宿主在装配时设一次（<c>RuntimeHost</c>）；空 ⇒ 只按 cwd（夹具与旧行为逐字不变）。</para>
+    /// </summary>
+    public static IReadOnlyList<(string Tag, string Root)> NamedRoots { get; set; } = [];
+
+    /// <summary>命名根的标签清单（Hint / 拒绝话术用；唯一渲染处）。</summary>
+    public static string NamedRootsText =>
+        NamedRoots.Count == 0
+            ? string.Empty
+            : string.Join(" · ", NamedRoots.Select(r => $"`{r.Tag}/…` ⇒ `{r.Root}`"));
+
+    /// <summary>带命名根前缀 ⇒ 换成绝对路径（大小写不敏感；<c>repo</c> 段必须是完整一段）。</summary>
+    private static bool TryNamedRoot(string path, out string rooted)
+    {
+        foreach (var (tag, root) in NamedRoots)
+        {
+            if (path.StartsWith(tag + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                rooted = Path.Combine(root, path[(tag.Length + 1)..]);
+                return true;
+            }
+        }
+
+        rooted = string.Empty;
+        return false;
+    }
+
     /// <summary>把路径变成**规范绝对路径（真身）**。空 / 判不出 ⇒ 抛 <see cref="ToolUsageException"/>。</summary>
     public static string Normalize(string? path)
     {
@@ -39,7 +70,9 @@ public static class ToolPaths
         }
 
         var expanded = ExpandHome(path.Trim());
-        var full = Path.GetFullPath(expanded);       // 相对 ⇒ cwd；吃掉 . / ..
+        var full = TryNamedRoot(expanded, out var rooted)
+            ? Path.GetFullPath(rooted)               // 命名根：按声明的根解析
+            : Path.GetFullPath(expanded);            // 相对 ⇒ cwd；吃掉 . / ..
         return TrimTrailingSeparator(ResolveLinks(full));
     }
 

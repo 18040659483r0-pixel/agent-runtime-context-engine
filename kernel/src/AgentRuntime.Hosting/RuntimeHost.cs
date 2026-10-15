@@ -9,10 +9,13 @@ using AgentRuntime.Core.Snapshot;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Tail;
 using AgentRuntime.Core.Tooling;
+using AgentRuntime.Core.Worker;
 using AgentRuntime.Models;
 using AgentRuntime.Modules;
 using AgentRuntime.Providers;
+using AgentRuntime.Hosting.Lifecycle;
 using AgentRuntime.Hosting.Panels;
+using AgentRuntime.Hosting.Worker;
 
 namespace AgentRuntime.Hosting;
 
@@ -59,8 +62,8 @@ public sealed class HostOverrides
     /// <summary><c>--draft-report on|off</c>。</summary>
     public string? DraftReport { get; init; }
 
-    /// <summary><c>--skill-repo &lt;path&gt;</c>：L3 地址表（目录或任一 <c>L3.jsonl</c>）。</summary>
-    public string? SkillRepo { get; init; }
+    /// <summary><c>--skill-repo &lt;path&gt;</c>：L3 地址表（目录或任一 <c>l3.xml</c>）。</summary>
+    public string? L3Repo { get; init; }
 
     /// <summary><c>--skill-use S-xxx-007</c>：按 id 装载一条（可逗号分隔多条）。</summary>
     public string? SkillUse { get; init; }
@@ -89,7 +92,7 @@ public sealed class HostUsageException : Exception
 /// 真正进 prompt 的字节只由 <see cref="RequestAssembler"/>（Core）产生。
 /// </para>
 /// </summary>
-public sealed class RuntimeHost : IDisposable
+public sealed class RuntimeHost : ITurnHost, IDisposable
 {
     private readonly HttpClient? _http;
 
@@ -117,10 +120,26 @@ public sealed class RuntimeHost : IDisposable
         Engine = engine;
         _toolLedger = toolLedger;
         BootPointer = bootPointer;
+
+        // **命名根**（D2 · 2026-10-10）：工具的相对路径可带 `repo/…` / `live/…` 前缀 —— 两个根都可用，
+        // 谁都不猜树（此前只有一个根，而协议 / 旧 `[BASE]` 报的是**代码仓根**而工具按 **cwd** 解析 ⇒ 两边对不上）。
+        AgentRuntime.Core.Tooling.ToolPaths.NamedRoots =
+        [
+            ("repo", AgentRuntime.Core.Worker.WindowResolver.ResolveBase()),
+            ("live", System.IO.Directory.GetCurrentDirectory()),
+        ];
     }
 
     /// <summary>最近一轮的**终局声明**（协议 v9 第 6 条；宿主据此停自动接续 / 提议收尾）。</summary>
     public TerminalReport LastTerminal { get; private set; } = TerminalReport.None;
+
+    /// <summary>
+    /// 最近一轮的**终局自验**（P2-1 §11.3「逐类可断言终局」）：`[DONE]` 之前该成立、且宿主能自己验的东西。
+    /// <para>判据的**唯一声明处**在 Core 的 <c>TaskTerminalAssertions</c>（宿主与命令行审计共用同一份，
+    /// 读数与行为不会各说一套）。</para>
+    /// <para><c>Rejected</c> 为真 ⇒ 这一轮的 `[DONE]` **不被认账**（不许静默放行）。</para>
+    /// </summary>
+    public TerminalGateReport LastGate { get; private set; } = TerminalGateReport.None;
 
     /// <summary>最近一次的上下文预算读数（窗口未配 ⇒ <see cref="BudgetStatus.Unknown"/>）。</summary>
     public BudgetStatus LastBudget { get; private set; } = BudgetStatus.Of(0, 0);
@@ -128,8 +147,17 @@ public sealed class RuntimeHost : IDisposable
     /// <summary>本会话是否已提过「收尾 + 重开」（同一档只提一次；重建会话后清零）。</summary>
     private bool _budgetProposed;
 
-    /// <summary>本任务是否已提示过「task 收尾件未交」（每个终局只提示一次）。</summary>
-    private bool _taskCloseoutHinted;
+    /// <summary>
+    /// **档位账本**（§13.4 第 2 条）：master 的**非缓存新增**累计，与 worker 侧同口径。
+    /// <para>它只记**事实读数**；判定是纯函数 <see cref="MasterBudgetGate.Assess"/>（应红/防假红都在单元测试里钉死）。</para>
+    /// </summary>
+    private readonly MasterBudgetGate _gear = new();
+
+    /// <summary>本会话是否已就「档位超预算」提示过（同一条不刷屏）。</summary>
+    private bool _gearHinted;
+
+    /// <summary>最近一次档位读数（右栏 / 收尾报告可读；未累积过 ⇒ 0）。</summary>
+    public MasterBudgetGate Gear => _gear;
 
     /// <summary>报告请求本任务只要一次（协议 v21 第 12 条 · 主人 2026-09-24 定「终局后宿主**请求一次**」）。</summary>
     private bool _reportRequested;
@@ -143,7 +171,7 @@ public sealed class RuntimeHost : IDisposable
     private bool _awaitingReport;
 
     /// <summary>
-    /// **启动时读到的会话指针**（`session.json`）：running ⇒ 本进程已按它接上那条流；closed ⇒ 待 <c>StartAtBoot</c> 自动 start。
+    /// **启动时读到的会话指针**（`session.xml`）：running ⇒ 本进程已按它接上那条流；closed ⇒ 待 <c>StartAtBoot</c> 自动 start。
     /// <para>null = 没有指针（按配置的 <c>stream.path</c> 跑）。</para>
     /// </summary>
     public SessionPointer? BootPointer { get; private set; }
@@ -164,7 +192,39 @@ public sealed class RuntimeHost : IDisposable
     public HandoverSnapshot? PendingHandover { get; private set; }
 
     /// <summary>记一次重开（只有 <see cref="SessionLifecycle.Reset"/> 会调）。</summary>
-    internal void NoteSessionReset() => ResetCount++;
+    internal void NoteSessionReset()
+    {
+        ResetCount++;
+        NoteCloseoutFaceConsumed();
+    }
+
+    /// <summary>
+    /// **收尾面窗口是否此刻生效**：本会话**已经进了收尾**（<see cref="EnterCloseoutFace"/> 由**收尾命令**强制打开）
+    /// **且还没被 reset / start 换过**。
+    /// <para><b>语义（主人 2026-09-30 12:47 定）</b>：<b>收尾命令里强制使用 master 全量工具授权</b>；
+    /// <b>非收尾阶段工具面一律从 master 手中收走</b>（只剩 <c>index</c>/<c>scope</c> 两把地图）。
+    /// 所以它**不是启动开关**、也不由操作者记得传 —— 由收尾命令本身强制打开（操作者忘了传开关不该让收尾做不到）。</para>
+    /// <para>为什么 reset / start 要关掉：<c>/start</c> 开的新会话必须回到默认模式（master 指挥、worker 干活），
+    /// 不能因为上一轮是收尾就一直全量；下一次收尾再强制打开。</para>
+    /// </summary>
+    public bool CloseoutFaceWindow => _closeoutFaceForced && !CloseoutFaceConsumed;
+
+    private bool _closeoutFaceForced;
+    private bool CloseoutFaceConsumed { get; set; }
+
+    /// <summary>
+    /// **进收尾：强制把 master 的面放成全量**（由收尾命令调；不是可选项）。
+    /// <para>幂等（重复调用只多一次重装）。**必须在读模块之前调** —— 收尾件与协议前缀都读 <see cref="Modules"/>。</para>
+    /// </summary>
+    public void EnterCloseoutFace()
+    {
+        _closeoutFaceForced = true;
+        CloseoutFaceConsumed = false;
+        RebuildModules(reuseStream: true);
+    }
+
+    /// <summary>本会话的收尾面已用完（reset / start 呼）。</summary>
+    internal void NoteCloseoutFaceConsumed() => CloseoutFaceConsumed = true;
 
     /// <summary>记「已收尾、待 start」（同 <see cref="NoteSessionReset"/> 的调用方；也可由**启动时的 closed 指针**触发）。</summary>
     internal void NoteSessionClosed(HandoverSnapshot? handover)
@@ -179,6 +239,11 @@ public sealed class RuntimeHost : IDisposable
         StartCount++;
         SessionClosed = false;
         PendingHandover = null;
+
+        // §6.3 判据 2：无 worker 的告知插在**流首**（会话起点）—— 不是每轮。
+        // 每轮插会改「宿主 vs 纯内核」的字节对称（TuiInvariantTests.T2）与流条数（T1/P5 族）。
+        NoteWorkerAbsenceOnce();
+        NotePathBaseOnce();
     }
 
     /// <summary>已解析（路径全部绝对化、命令行覆盖已生效）的配置。</summary>
@@ -250,11 +315,6 @@ public sealed class RuntimeHost : IDisposable
         config.Frozen.Root = RuntimePaths.ResolveFrozenRoot(configPath, config.Frozen.Root);
         config.Frozen.Watermark = RuntimePaths.ResolveWatermark(configPath, config.Frozen.Watermark);
 
-        if (overrides.Domains is not null)
-        {
-            config.Frozen.Domains = SplitList(overrides.Domains);
-            config.Validate();
-        }
 
         // 只追加事件流（V3）的离线命令：不需要密钥，也不发请求。
         config.Stream.Path = RuntimePaths.ResolveStream(configPath, overrides.StreamPath ?? config.Stream.Path);
@@ -320,8 +380,7 @@ public sealed class RuntimeHost : IDisposable
         config.Lifecycle.Pitfalls = RuntimePaths.ResolveLifecyclePitfalls(configPath, config.Lifecycle.Pitfalls);
 
         // L3 技能仓库（V6）：地址表路径同规解析；--skill-repo 是宿主侧覆盖。
-        config.Skill.Repo = RuntimePaths.ResolveSkillRepo(configPath, overrides.SkillRepo ?? config.Skill.Repo);
-        config.Skill.Resident = RuntimePaths.ResolveSkillResident(configPath, config.Skill.Resident);
+        config.L3.Repo = RuntimePaths.ResolveL3Repo(configPath, overrides.L3Repo ?? config.L3.Repo);
 
         return config;
     }
@@ -341,12 +400,22 @@ public sealed class RuntimeHost : IDisposable
         // 放在真入口专用的 Boot（不是 BootWith）⇒ 测试路径不受影响；不配工作区时是 no-op（不猜）。
         RuntimePaths.PinToolBase(config.Lifecycle.Workspace);
 
-        var http = new HttpClient();
+        // **硬墙 = 声明的上界**（主人 2026-10-15 令：「我没让你放弃这一轮…照常执行下去，只提示…任务要继续做完」）。
+        // 前一版按**账本中位 × k** 收窄（PaceWall）⇒ 真机会话中位 9.1s 导出 **60s** 墙，把正常但慢的一轮（62.5s）砍断。
+        // 现在**不再收窄**：只有声明的 `timeoutSeconds` 封顶；「一轮等得太久」改为**只看不砍**的 5 分钟提示
+        // （`Tui/SplitSession.TurnWaitNoticeMs`）。PaceWall 自此**不再驱动主 provider 的硬墙**（助手保留，去留待收尾评估）。
+        // （更早那处硬缺陷仍记着：这里曾建默认 HttpClient（100s），而客户端只在 http 是「无限」时才套配置 ⇒ 声明的墙从未生效，
+        //   而超时话术报的是声明值 ⇒ 归因必错。现在两处同值同源。）
+        var wallSeconds = config.TimeoutSeconds > 0 ? config.TimeoutSeconds : AgentRuntime.Core.Worker.PaceWall.MinWallSeconds;
+
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(wallSeconds) };
         var client = new OpenAICompatibleClient(http, new OpenAICompatibleOptions
         {
             BaseUrl = config.BaseUrl,
             ApiKey = apiKey,
-            TimeoutSeconds = config.TimeoutSeconds,
+            TimeoutSeconds = wallSeconds,
+            ReasoningEffort = config.ReasoningEffort,
+            Model = config.Model,
         });
 
         return BootWith(http, client, config, overrides, sessionId, toolLedger);
@@ -369,7 +438,8 @@ public sealed class RuntimeHost : IDisposable
 
         overrides ??= new HostOverrides();
 
-        var modules = BuildModules(config, overrides.EffectiveModules, overrides.Vacuum, toolLedger: toolLedger);
+        var modules = BuildModules(config, overrides.EffectiveModules, overrides.Vacuum, toolLedger: toolLedger,
+                                   workerRunner: TryBuildWorkerRunner(config));
         var engine = new AgentRuntimeEngine(client, new RuntimeOptions
         {
             Model = config.Model,
@@ -403,6 +473,70 @@ public sealed class RuntimeHost : IDisposable
             : string.Join(", ", modules.Select(m => m.Name));
     }
 
+    /// <summary>
+    /// 若配置的 <c>worker</c> 段启用，就建一个 runner（便宜 Provider + <c>MinimalWorker</c>）；否则 <c>null</c>。
+    /// <para><b>fail-closed</b>：启用了却取不到 Key ⇒ **抛错**，不静默降级成「没有 worker」
+    /// （降级会让「省了多少」永远算错，也会让人以为派发出去了）。</para>
+    /// <para>为什么每次装配都重建而不是存字段：runner 完全由配置推导（无状态）⇒ 重建它就是幂等的，
+    /// 省掉一个需要同步的生命周期字段（<c>/ablate</c> / <c>/reset</c> 都会走这条重建路径）。</para>
+    /// </summary>
+    private static IWorkerRunner? TryBuildWorkerRunner(RuntimeConfiguration config)
+    {
+        if (!config.Worker.Enabled)
+        {
+            return null;
+        }
+
+        config.Worker.Validate();
+
+        var provider = config.Worker.Provider;
+        var apiKey = ResolveWorkerApiKey(provider)
+                     ?? throw new InvalidDataException(
+                         $"worker 已启用，但取不到 Key：环境变量 {provider.ApiKeyEnv} 为空，" +
+                         $"文件 {provider.ApiKeyFile} 不存在或为空（Key 只从这两处取）。");
+
+        // 超时取**provider 块**（唯一家）——配置里配的就是它（#287：此前读的是另一个默认 90s 的字段）。
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(provider.TimeoutSeconds) };
+        var client = new OpenAICompatibleClient(http, new OpenAICompatibleOptions
+        {
+            BaseUrl = provider.BaseUrl,
+            ApiKey = apiKey,
+            TimeoutSeconds = provider.TimeoutSeconds,
+            ServiceTier = provider.ServiceTier,
+            Model = provider.Model,
+        });
+
+        return new MinimalWorker(client, config.Worker, config.Frozen.Root, config.Frozen.Project);
+    }
+
+    /// <summary>Worker 的 Key：先环境变量、再文件（与主 provider 同一口径；**绝不**从配置正文读）。</summary>
+    private static string? ResolveWorkerApiKey(WorkerProviderConfiguration provider)
+    {
+        if (!string.IsNullOrWhiteSpace(provider.ApiKeyEnv))
+        {
+            var fromEnv = Environment.GetEnvironmentVariable(provider.ApiKeyEnv);
+            if (!string.IsNullOrWhiteSpace(fromEnv))
+            {
+                return fromEnv.Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(provider.ApiKeyFile))
+        {
+            var path = RuntimeConfiguration.ExpandHome(provider.ApiKeyFile);
+            if (File.Exists(path))
+            {
+                var line = File.ReadLines(path).FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    return line.Trim();
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>按配置 + 覆盖装配模块集（协议区永远强制装配，摘不掉）。</summary>
     /// <param name="toolLimits">上下文保护上限（null = 出厂档；**不是安全边界** —— 判「能不能做」的是审批闸门）。</param>
     /// <param name="toolLedger">审批账本（null = 只存内存）。</param>
@@ -411,13 +545,18 @@ public sealed class RuntimeHost : IDisposable
         string? modulesOverride,
         bool vacuum,
         ToolLimits? toolLimits = null,
-        ApprovalLedger? toolLedger = null)
+        ApprovalLedger? toolLedger = null,
+        IWorkerRunner? workerRunner = null,
+        bool closeoutWindow = false,
+        SessionAppendStream? reuseStream = null)
     {
         var mode = vacuum ? VacuumMode.On : VacuumMode.Off;
 
         if (modulesOverride is null)
         {
-            return ModuleRegistry.Create(config, mode, toolLimits: toolLimits, toolLedger: toolLedger);
+            return ModuleRegistry.Create(config, mode, toolLimits: toolLimits, toolLedger: toolLedger,
+                                         workerRunner: workerRunner, closeoutWindow: closeoutWindow,
+                                         reuseStream: reuseStream);
         }
 
         // --modules "a,b" 覆盖配置；--bare / --modules "" = 裸聊（仅协议区）
@@ -437,12 +576,19 @@ public sealed class RuntimeHost : IDisposable
             Focus = config.Focus,
             CurrentTail = config.CurrentTail,
             DynamicDraft = config.DynamicDraft,
-            Skill = config.Skill,   // ← V6 新段：本次补上（此前漏拷 ⇒ --modules 覆盖时地址表会被静默丢掉）
+            L3 = config.L3,   // ← V6 新段：本次补上（此前漏拷 ⇒ --modules 覆盖时地址表会被静默丢掉）
             Lifecycle = config.Lifecycle,   // ← v10 新段：收尾件检查的工作区（宿主级，同样照抄，防 PITFALLS #14）
+            // ← 2026-09-28：worker 段同样照抄（PITFALLS #14 的同族）—— 漏拷会让 MaxWorkers /
+            //   BulkTokens / PitfallsInbox / MemoryRoot 静默回默认值，而清单看着一切正常。
+            Worker = config.Worker,
         };
         effective.Validate();
 
-        return ModuleRegistry.Create(effective, mode, toolLimits: toolLimits, toolLedger: toolLedger);
+        // **显式清单**（--modules / 会话内摘除）：原样尊重 —— 不自动补、也不自动剔。
+        // 为什么：摘除必须真的摘掉（自动补会把摘除静默撤销）；显式列出的模块不该被静默丢掉。
+        return ModuleRegistry.Create(effective, mode, toolLimits: toolLimits, toolLedger: toolLedger,
+                                     workerRunner: workerRunner, explicitList: true, closeoutWindow: closeoutWindow,
+                                     reuseStream: reuseStream);
     }
 
     /// <summary>
@@ -488,11 +634,19 @@ public sealed class RuntimeHost : IDisposable
 
         // 新装配 = 新会话面：终局与预算状态跟着清零（否则新会话第一轮就带着旧终局）。
         LastTerminal = TerminalReport.None;
-        _taskCloseoutHinted = false;
         _reportRequested = false;
         _awaitingReport = false;
         LastBudget = BudgetStatus.Of(0, 0);
         _budgetProposed = false;
+
+        // 档位账本（§13.4 第 2 条）同样**只属于本节会话**：换会话还留旧读数 = 两节的钱混一个账
+        // （与 TurnLedger.Clear 同一条纪律）。
+        _gear.Clear();
+        _gearHinted = false;
+
+        // §6：换装配 = 换一套「有没有 worker」的事实 ⇒ 可用性告知跟着重发一次（否则摘掉 worker 后没人被告知）。
+        _workerAvailabilityNoted = false;
+        _pathBaseNoted = false;
     }
 
     /// <summary>
@@ -500,8 +654,12 @@ public sealed class RuntimeHost : IDisposable
     /// <para>⚠️ 必须带上装配时的审批账本（<c>/ablate</c> / <c>/resume</c> / <c>/reset</c> 都走这里）——
     /// 否则重建后留档记录与收尾账对不上。</para>
     /// </summary>
-    public void RebuildModules(string? modulesOverride = null) =>
-        ReplaceModules(BuildModules(Config, modulesOverride, vacuum: false, toolLedger: _toolLedger));
+    public void RebuildModules(string? modulesOverride = null, bool reuseStream = false) =>
+        ReplaceModules(BuildModules(Config, modulesOverride, vacuum: false, toolLedger: _toolLedger,
+                                    workerRunner: TryBuildWorkerRunner(Config), closeoutWindow: CloseoutFaceWindow,
+                                    reuseStream: reuseStream
+                                        ? Modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream
+                                        : null));
 
     // ---------------- 一轮对话 ----------------
 
@@ -509,7 +667,13 @@ public sealed class RuntimeHost : IDisposable
     public RuntimeContext NextContext => new(Engine.SessionId, Engine.Turn);
 
     /// <summary>调用参数（唯一来源：配置里的 model / temperature）。</summary>
-    public RuntimeOptions Options => new() { Model = Config.Model, Temperature = Config.Temperature };
+    public RuntimeOptions Options => new()
+    {
+        Model = Config.Model,
+        Temperature = Config.Temperature,
+        // 档位**在组装期就带上**（不再留给 Provider 发送前就地注入 —— 那会让「预览字节 ≠ 实发字节」）。
+        ReasoningEffort = Config.ReasoningEffort,
+    };
 
     /// <summary>
     /// **只读预览**：按当前状态组装一次请求（不调模型、不推进轮次、不写盘、不调用 <c>ObserveAsync</c>）。
@@ -563,13 +727,69 @@ public sealed class RuntimeHost : IDisposable
     }
 
     /// <summary>跑一轮：调用模型 → 写恢复点 → 收告警 → （可选）出诊断行。</summary>
+    /// <summary>「无 worker」这条流首 Hint 只插一次（会话级；<see cref="ReplaceModules"/> 会复位）。</summary>
+    private bool _workerAvailabilityNoted;
+
+    /// <summary>路径基准那条 Hint 只发一次（修 E4/D2 · 2026-10-10）。</summary>
+    private bool _pathBaseNoted;
+
+    /// <summary>
+    /// **§6.3 判据 2：零浪费的告知**（2026-09-26）—— 无 worker 时在**流首**插一条 Hint，说清
+    /// 「第 13 条不适用，请自己干（不要发 [DISPATCH]）」。
+    /// <para>
+    /// 为什么不改协议：可用性随配置而变，而协议区**不随配置变**（<c>P1</c>「来源只能是代码」，主人 2026-09-26 00:2x 定）。
+    /// 走既有的 <see cref="SessionEventKind.Hint"/> 通道 ⇒ **appended event、零缓存代价**（<c>§十·13</c>）；
+    /// 这条 Hint **不进**模块贡献 ⇒ **不碰前缀字节**（§6.3 判据 1：三态下 R1-P 逐字节不变）。
+    /// </para>
+    /// </summary>
+    private void NoteWorkerAbsenceOnce()
+    {
+        if (_workerAvailabilityNoted || WorkerAvailability.IsAvailable(Modules))
+        {
+            return;
+        }
+
+        _workerAvailabilityNoted = true;
+        AppendHint(WorkerAvailability.AbsentHint, WorkerAvailability.Source);
+    }
+
+    /// <summary>
+    /// **路径基准的事实**（2026-10-10 · 修 E4/D2）：说清**工具的相对路径按哪个根解析**
+    /// （= 运行时的**当前工作目录**），以及**代码仓根**在哪 —— 省掉「每条任务先 `pwd` 探基准」那一步。
+    /// <para>真机现场：master 按协议第 11 条以为 cwd 是「its own source dir」，写 `src/…` 落空，
+    /// 靠 `pwd` 才发现真基准是活版目录、源码在**上两级**。两值不同时**必须都给出**（§十·5「一症多因」：只说一个根 = 换一条路又撞）。</para>
+    /// <para>纪律同 <see cref="NoteWorkerAbsenceOnce"/>：走 Hint 通道、**零缓存代价**、不碰前缀字节。</para>
+    /// </summary>
+    private void NotePathBaseOnce()
+    {
+        if (_pathBaseNoted)
+        {
+            return;
+        }
+
+        _pathBaseNoted = true;
+        var cwd = System.IO.Directory.GetCurrentDirectory();
+        var repo = AgentRuntime.Core.Worker.WindowResolver.ResolveBase();
+        var same = string.Equals(cwd, repo, StringComparison.Ordinal);
+        AppendHint(
+            $"[路径基准] 工具的相对路径按**运行时当前工作目录**解析：`{cwd}`"
+            + (same
+                ? "（= 代码仓根）。"
+                : $"；**代码仓根**（`src/` 所在）= `{repo}`。两边不同 ⇒ 相对路径按**前者**；够不到后者时用 **绝对路径**或 `..` 上溯（别猜树）。")
+            + (string.IsNullOrEmpty(AgentRuntime.Core.Tooling.ToolPaths.NamedRootsText)
+                ? string.Empty
+                : $" 也可用**命名根**：{AgentRuntime.Core.Tooling.ToolPaths.NamedRootsText}。"),
+            "path-base");
+    }
+
     public async Task<TurnOutcome> RunTurnAsync(
         string message,
         bool verbose = false,
         bool labelTurn = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ChatRequest? preassembled = null)
     {
-        var result = await Engine.ChatAsync(message, cancellationToken).ConfigureAwait(false);
+        var result = await Engine.ChatAsync(message, cancellationToken, preassembled).ConfigureAwait(false);
         return FinishTurn(result, verbose, labelTurn);
     }
 
@@ -580,11 +800,16 @@ public sealed class RuntimeHost : IDisposable
     /// </summary>
     public async Task<TurnOutcome> ContinueTurnAsync(
         bool verbose = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ChatRequest? preassembled = null)
     {
-        var result = await Engine.ContinueAsync(cancellationToken).ConfigureAwait(false);
+        var result = await Engine.ContinueAsync(cancellationToken, preassembled).ConfigureAwait(false);
         return FinishTurn(result, verbose, labelTurn: false);
     }
+
+    /// <summary>事件流的**当拍快照**（跨线程读一律走它：帧渲染与续跑并发，直读活表会撞「集合已修改」）。</summary>
+    private IReadOnlyList<SessionEvent> StreamSnapshot() =>
+        Modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream.Snapshot() ?? [];
 
     /// <summary>事件流已有条数（游标）；未挂流 = 0。</summary>
     public int StreamCount =>
@@ -595,25 +820,32 @@ public sealed class RuntimeHost : IDisposable
     /// <para>为什么用流而不是回复文本：协议只保证「模型会在 <c>[TOOL]</c> 之后等结果事件」，
     /// 而**结果是否真的落地**只有流知道（被拒也是结果，也要让模型知道）。用文本猜会漏掉「被拒」。</para>
     /// </summary>
-    public bool HasToolOutcomeSince(int cursor)
+    public bool HasToolOutcomeSince(int cursor) => TurnPulsePolicy.HasOutcome(StreamSnapshot(), cursor);
+
+    /// <summary>
+    /// **这一轮之后链该做什么**（唯一判据 <see cref="TurnPulsePolicy.Classify"/>）——
+    /// 把「派发在飞 / 有结果可消费 / 报告轮 / 该停」四态说清，两侧宿主共用同一份（差异只在 <c>canNudge</c>）。
+    /// </summary>
+    public TurnPulse Pulse(int cursor)
     {
-        // **当拍拷贝**：本方法在续跑循环（线程池）上跑，而帧渲染在主线程上同时跑 ⇒ 直读活表会撞「集合已修改」。
-        var events = Modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream.Snapshot();
-        if (events is null || cursor >= events.Count)
-        {
-            return false;
-        }
-
-        for (var i = Math.Max(0, cursor); i < events.Count; i++)
-        {
-            if (events[i].Kind is SessionEventKind.ToolResult or SessionEventKind.ToolDenied)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var events = StreamSnapshot();
+        return TurnPulsePolicy.Classify(
+            hasOutcome: TurnPulsePolicy.HasOutcome(events, cursor),
+            dispatchInFlight: TurnPulsePolicy.HasDispatchInFlight(events, cursor),
+            terminal: LastTerminal.IsTerminal,
+            gateRejected: LastGate.Rejected,
+            canNudge: false,
+            awaitingReport: _awaitingReport,
+            defaultContinue: true);   // 协议第 6 条：默认续；停只由远端显式选三种模式
     }
+
+    /// <summary>刚跑的那一轮是什么（停因文案按事实分类，不再一律说「还没有终局块」）。</summary>
+    public void NoteRoundFact(StopCauseFact fact)
+    {
+        _lastRoundFact = fact;
+    }
+
+    private StopCauseFact _lastRoundFact = StopCauseFact.None;
 
     /// <summary>
     /// 一轮的尾部处理（正常轮与续跑轮共用）：恢复点 → 告警 → **终局** → **预算提议** → 诊断行。
@@ -631,8 +863,12 @@ public sealed class RuntimeHost : IDisposable
         before.AddRange(DraftWarningLines(Modules));
         before.AddRange(SkillWarningLines(Modules));
         before.AddRange(TerminalLines(result));
-        before.AddRange(TaskCloseoutLines(result));
-        before.AddRange(BudgetLines(result));
+        // `[task 收尾]` 清单提示**已退役**（2026-10-15 00:20 令）—— 坑 / handoff 改成**当轮说**、报告里也有；见下方退役说明。
+        // 主人 2026-10-14 20:40 令：**灰色字是愿意接受的极限；灰色字下面出现的都收起来。**
+        //   · 「预算/档位」行（每轮都算、内容几乎不变）⇒ 不再进正文（事实仍在流里的 Hint 与账本）；
+        //   · 「没有 worker 可派」降级行 ⇒ 不再进正文，改在**页脚那行灰色字内插一小段**「单 master」。
+        _ = BudgetLines(result);
+        _ = WorkerDegradeLines(result);
 
         var after = verbose
             ? DiagnosticsLines(Config, Endpoint, result, Engine, labelTurn ? Engine.Turn : null)
@@ -647,6 +883,33 @@ public sealed class RuntimeHost : IDisposable
     }
 
     /// <summary>
+    /// **§6.3 判据 3：可见降级**（2026-09-26）—— 无 worker 时**仍发了 <c>[DISPATCH]</c>** ⇒
+    /// 如实报出、**把活交回 master**、任务继续；**不许静默丢弃**（与 P2-1「无声停」同族）。
+    /// <para>
+    /// 判据与「可用性」**同一处**（<see cref="WorkerAvailability.IsAvailable"/>）⇒ 三种「拔」的形态逐字同义。
+    /// 只报事实，**不代它决定**（重发与否是它的事；它已被明确告知重发只会再记一笔失败）。
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<string> WorkerDegradeLines(RuntimeResult result)
+    {
+        if (WorkerAvailability.IsAvailable(Modules) || string.IsNullOrWhiteSpace(result.Response))
+        {
+            return [];
+        }
+
+        var parsed = DispatchParser.Parse(result.Response);
+        var attempts = parsed.Dispatches.Count + parsed.Malformed.Count;
+        if (attempts == 0)
+        {
+            return [];
+        }
+
+        var text = WorkerAvailability.DegradeText(attempts);
+        AppendHint(text, WorkerAvailability.Source + "-degraded");
+        return [$"[降级] {text}"];
+    }
+
+    /// <summary>
     /// 终局行（协议 v9 第 6 条）：把「这条任务怎么了」变成**屏上一行**，并记进 <see cref="LastTerminal"/>。
     /// <para>记它是为了让 <see cref="TurnContinuation"/> 敢停（此前只有「没点工具」一个判据）。</para>
     /// <para>顺带管两笔「每个终局一次」的账（报告请求 / 收尾提示）——都在这里清。</para>
@@ -655,6 +918,30 @@ public sealed class RuntimeHost : IDisposable
     {
         LastTerminal = TerminalReport.Parse(result.Response);
 
+
+        // **P2-1「逐类可断言终局」**（施工规格 §11.3）：`[DONE]` 之前该成立的东西，宿主自己验 —— 验不过就**不认账**。
+        // 判据的唯一声明处在 Core（TaskTerminalAssertions）；这里只做两件事：跑门 + 把红项**说给模型听**。
+        // 三条通用口径落在这一段：① 顺序断言（证据必须晚于它依赖的改动，由 Core 比 index）；
+        // ② 豁免显式（Core 判 Exempt 并单独计数，不默认放行）；③ 违规不许静默（下面直接返回挑战）。
+        LastGate = TerminalGateReport.None;
+        if (LastTerminal.State == TerminalState.Done)
+        {
+            LastGate = TaskTerminalAssertions.GateOf(StreamSnapshot(), TerminalState.Done);
+            if (LastGate.Rejected)
+            {
+                var challenge =
+                    $"[终局] ⚠️ [DONE] **自验没过** ⇒ 这一轮不算终局：{LastGate.Describe()}。"
+                    + "按协议第 6 条，终局块必须**晚于**它声称依赖的证据：先把缺的那一次验证跑掉"
+                    + "（改代码 ⇒ 成功 build/test；改文档 ⇒ 生成器 / --check），跑完再发 [DONE]；"
+                    + "若已证此路不通，改用 [NO-SOLUTION]（写明原因）；要人决定 / 要信息，改用 [NEED-USER]。";
+                AppendHint(challenge, TaskTerminalAssertions.GateSource);
+
+                // 不认账：终局声明退回「无终局」⇒ 自动接续不停在这句假 DONE 上，卡也不显示「得解」。
+                LastTerminal = TerminalReport.None;
+                return [challenge];
+            }
+        }
+
         // **新账**（主人 2026-09-24 21:3x 真机：同一个进程里，第 2 个任务起就**再也拿不到报告与收尾提示**）——
         // 「每个终局只提示一次」的两个一次性标志过去只在**换会话面**（<see cref="ReplaceModules"/>）时清零
         // ⇒ 实测一个进程只发过一次（报告请求落在卡 #1/#7/#11，全靠重启进程才又发出一次；卡 #8/#12 得解却什么都没有）。
@@ -662,8 +949,7 @@ public sealed class RuntimeHost : IDisposable
         if (!LastTerminal.IsTerminal)
         {
             _reportRequested = false;
-            _taskCloseoutHinted = false;
-        }
+            }
         else if (LastTerminal.IsSettled && DecisionReportParser.Parse(result.Response).Accepted)
         {
             // 终局轮**自带**报告（模型提前交，与终局块写在同一轮）⇒ 不必再问一次：
@@ -714,43 +1000,12 @@ public sealed class RuntimeHost : IDisposable
         return lines;
     }
 
-    /// <summary>
-    /// **task 收尾提示**（协议 v11 第 7 条第一层）：任务一了结（得解 / 无解），就把「这一交该交什么」摆到面前 ——
-    /// 缺 handoff / 缺坑条目时**主动说**（并进流成 <see cref="SessionEventKind.Hint"/> 让模型也看见）。
-    /// <para>为什么必须由运行时说：模型**不知道自己有没有交过**（那是文件系统的事实）——与 20% 提议同一类（#83）。</para>
-    /// <para>每个终局只提示一次（不刷屏）；没配工作区就什么都不说（不假装查过）。</para>
-    /// </summary>
-    private IReadOnlyList<string> TaskCloseoutLines(RuntimeResult result)
-    {
-        if (!LastTerminal.IsSettled || _taskCloseoutHinted || string.IsNullOrWhiteSpace(Config.Lifecycle.Workspace))
-        {
-            return [];
-        }
-
-        var pending = new List<string>();
-        try
-        {
-            var checklist = CloseoutChecklist.Inspect(Config, DateTimeOffset.Now);
-            foreach (var item in checklist.Items.Where(i => i.Status == CloseoutItemStatus.Pending))
-            {
-                pending.Add($"{item.Title}（{item.Detail}）");
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            return [$"[task 收尾] ⚠️ 查不出收尾件（{ex.Message}）—— 不猜「交齐了」。"];
-        }
-
-        if (pending.Count == 0)
-        {
-            return [];
-        }
-
-        _taskCloseoutHinted = true;
-        var text = $"[task 收尾] 本任务{LastTerminal.Label}，但收尾件还没交：{string.Join("；", pending)} —— 按协议第 7 条交掉（handoff / 坑条目），或明确说「这次不需要」。";
-        AppendHint(text);
-        return [text];
-    }
+    // **已退役（主人 2026-10-15 00:20 令）**：从前这里在**终局之后**发一条 `[task 收尾]` 清单
+    // （缺哪些收尾件 + 一串「收尾·锤」产物读值），并进流成 Hint。主人：「不要每次在终局的时候发出来，
+    // ……会阻挠用户查阅信息」、「有决策报告的话，报告里会写这两个东西」。
+    //   · 坑 / handoff ⇒ **遇到就在当轮的结果里说**（协议 §7 话术已改）；
+    //   · 报告里本来就有 found / next（协议 §12）；
+    //   · 清单本身**没退役** —— `/closeout` 与收尾流水线照旧用 `CloseoutChecklist`（退役的只是这条提示）。
 
     /// <summary>
     /// **上下文预算 + 收尾提议**（协议 v9 第 7 条）。
@@ -764,6 +1019,28 @@ public sealed class RuntimeHost : IDisposable
         var (tokens, estimated) = ResultTokens(result);
         LastBudget = BudgetStatus.Of(tokens, Config.ContextWindow, estimated);
 
+        // **§13.4 第 2 条 · master 新增预算闸门**：每轮把这一轮的「非缓存新增」（未命中输入 + 输出）
+        // 计入档位账本；超 k×总量 ⇒ **响亮说清**（fail-closed：不许静默超）。
+        // 口径与 worker 侧同义（§13.1），且**只在有 worker 可派时**才要求「先派发」——
+        // 没 worker 还喊「去派」是假红（它没有可派的去处），那时只报读数。
+        if (result.Usage is { } u)
+        {
+            _gear.AddMaster(u.UncachedTokens, u.CompletionTokens);
+        }
+
+        // worker 侧读数**由派发方累计**（它才知道每次派发的 usage）⇒ 宿主每轮拄一次绝对值（不重不漏）。
+        // 不拄这一句的后果（真机 2026-09-29 13:2x 实测）：worker_new 恒 0 ⇒ 档位恒 100%、派发成功也一直唽。
+        if (WorkerAvailability.Find(Modules) is { } dispatch)
+        {
+            _gear.SetWorker(dispatch.WorkerNewTokens);
+        }
+
+        var gearLine = GearLines();
+        if (gearLine is not null)
+        {
+            return [LastBudget.Describe(), gearLine];
+        }
+
         if (!ContextBudget.ShouldPropose(LastTerminal, tokens, Config.ContextWindow) || _budgetProposed)
         {
             return [];
@@ -775,6 +1052,44 @@ public sealed class RuntimeHost : IDisposable
         AppendHint(proposal);
 
         return [LastBudget.Describe(), proposal];
+    }
+
+    /// <summary>
+    /// **档位行**（§13.4 第 2 条）：超预算时**说一次**；没超 / 样本太小 ⇒ 不打扰。
+    /// <para>「能不能修」是判据的一部分：worker **未启用**、或**此刻被判不可抗力不可用** ⇒ 只报读数并**明说没法修**，
+    /// 不把它说成一条可执行的命令（否则就是假红 —— 与 §13.5 反面判据 ③ fail-closed 同一条纪律）。</para>
+    /// <para>事实只有一处：<see cref="WorkerAvailability.IsActionable"/>（在册 + §6.4 健康态）—— 不在这里另判一套。</para>
+    /// </summary>
+    private string? GearLines()
+    {
+        if (_gearHinted || _gear.Check() != BudgetVerdict.Exceeded)
+        {
+            return null;
+        }
+
+        _gearHinted = true;
+
+        var actionable = WorkerAvailability.IsActionable(Modules);
+        var reading = MasterBudgetGate.Describe(_gear.MasterNew, _gear.WorkerNew, workerAvailable: actionable);
+
+        string tail;
+        if (actionable)
+        {
+            tail = " ⇒ **现在就派**：把原料活（读 / grep / 跑构建）交给 Worker，别自己读进来。";
+        }
+        else if (WorkerAvailability.IsAvailable(Modules))
+        {
+            // 在册但已被判不可抗力（§6.4）：此刻派 = 白派（还会再记一笔失败）⇒ 只说事实，不催派。
+            tail = " ⇒ worker 此刻**不可抗力不可用**（见流里 `worker: unavailable …` 那条）—— 等它恢复再派。";
+        }
+        else
+        {
+            tail = " ⇒ 本会话**没启用 Worker，没地方可派** —— 这只是读数，不是一条你现在能执行的命令（要改档位得先在配置里开 worker）。";
+        }
+
+        var text = reading + tail;
+        AppendHint(text);
+        return text;
     }
 
     /// <summary>上一轮 prompt 的 token 数：**provider 的 usage 优先**；没有就按拼出的字节估（并标注「估」）。</summary>
@@ -810,7 +1125,8 @@ public sealed class RuntimeHost : IDisposable
 
             _reportRequested = true;
             _awaitingReport = true;
-            AppendHint(CappedReportRequestText, DecisionReport.RequestSource);
+            _lastRoundFact = StopCauseFact.ReportRound;   // 停因按事实分类：这一轮是「我在要报告」
+            AppendHint(MasterTaskLifecycle.CappedReportRequestText, DecisionReport.RequestSource);
             return true;
         }
 
@@ -821,24 +1137,10 @@ public sealed class RuntimeHost : IDisposable
 
         _reportRequested = true;
         _awaitingReport = true;
-        AppendHint(ReportRequestText, DecisionReport.RequestSource);
+        _lastRoundFact = StopCauseFact.ReportRound;   // 同上：报告轮不是「还没终局」那种病
+        AppendHint(MasterTaskLifecycle.ReportRequestText, DecisionReport.RequestSource);
         return true;
     }
-
-    /// <summary>**被边界打断**时的报告请求原文（与 <see cref="ReportRequestText"/> 同一形状 + 三件必写）。</summary>
-    private const string CappedReportRequestText =
-        "本 task 被**边界**打断（到上限 / 到预算），还没有终局块 —— **仍然要**交一篇决策报告：一个 [REPORT] 块，依次写 "
-        + "need:（这一轮要解决什么，一行）；step <n>:（走到哪一步，≤6 行）；outcome:（现在什么是真的，一到两行）；"
-        + "found [blocked|failed|noticed]:（卡在哪 / 失败 / 顺手发现，≤3 行）；next [rec]:（接下来建议我选什么，≤3 行，推荐的那条标 rec）。"
-        + "**必须写清三件**：这个方法有没有效 · 要不要继续 · 大概还剩多少没做。"
-        + "写给人读：不铺事件、不铺原文、不写表格；整块 ≤30 行；能核验的行在行尾带 (E###)。";
-
-    /// <summary>报告请求的**原文**（给模型看的那一句 —— 唯一声明处，与协议第 12 条同一形状）。</summary>
-    private const string ReportRequestText =
-        "本 task 已了结 —— 按协议第 12 条交**决策报告**：一个 [REPORT] 块，依次写 "
-        + "need:（这一轮要解决什么，一行）；step <n>:（每一步结算了什么，≤6 行）；outcome:（现在什么是真的，一到两行）；"
-        + "found [blocked|failed|noticed]:（卡住 / 失败 / 顺手发现，≤3 行）；next [rec]:（接下来建议我选什么，≤3 行，推荐的那条标 rec）。"
-        + "写给人读：不铺事件、不铺原文、不写表格；整块 ≤30 行；能核验的行在行尾带 (E###)。";
 
     /// <summary>把一句话交给模型（事件流；没挂流模块 ⇒ 没有这条通道，静默跳过）。</summary>
     private void AppendHint(string text)
@@ -870,6 +1172,22 @@ public sealed class RuntimeHost : IDisposable
     }
 
     /// <summary>
+    /// **一轮因上游失败 / 超时被放弃**（主人 2026-10-15 令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
+    /// 提示即可，不需要退出」）—— 与 <see cref="NoteTurnInterrupted"/> **同一通道**（既有 <see cref="SessionEventKind.Hint"/>，
+    /// 零新 KIND / 零协议改动）、**同一理由**：屏上那行只有人看得见，模型看不到就会把下一句当全新任务去满仓库猜题意。
+    /// <para>与中断分开写而不是复用：中断是「人叫停」，这里是「上游没回 / 超时」—— 两种世界不能报成同一种病。</para>
+    /// </summary>
+    /// <param name="lastUserMessage">被放弃的那一轮对应的用户消息（可空：拿不到就只报「有一轮没完成」）。</param>
+    /// <param name="reason">上游原话（如「请求超时（300s）：https://…」）—— 归因要能回查，不烹成一句笼统的「出错了」。</param>
+    public void NoteTurnFailed(string? lastUserMessage, string reason)
+    {
+        var first = (lastUserMessage ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Split('\n')[0].Trim();
+        var what = first.Length == 0 ? "（没记下内容）" : $"「{first}」";
+        AppendHint($"上一轮**没有完成**（{reason}）—— 被放弃的是这一句：{what}（该轮**没有终局块**）。"
+                   + "下一句用户消息**可能是这一轮的接续**：先按接续理解，别当新任务重新找题意。");
+    }
+
+    /// <summary>
     /// **到上限 / 到预算时的收口提示**（主人 2026-09-24 21:4x 定）—— 与 <see cref="NoteTurnInterrupted"/> 同一通道。
     /// <para>过去这一步**静默停**（痕只给 <c>--verbose</c>、**不进流**）⇒ 卡停在「● 进行中」，人看不出为什么，
     /// 也永远不会有终局与决策报告 —— 一个已在原地烧轮的方法就那样无声地烧下去，没人被问到「还要不要继续」。</para>
@@ -878,6 +1196,46 @@ public sealed class RuntimeHost : IDisposable
     /// </summary>
     /// <param name="rounds">本链已经自动接了几轮。</param>
     /// <param name="byBudget">true = 撞的是执行预算；false = 撞的是轮数上限。</param>
+    /// <summary>
+    /// **E1 停因落流**（2026-09-27）：自动接续在没有终局块的情况下结束时，**必须**说清「为什么停」。
+    /// <para>现场三次静默停（13:18 / 13:25 / 13:42）全靠人工诊断 —— 卡停在「● 进行中」，人看不出原因，
+    /// 也永远等不到终局与决策报告（同族 PITFALLS #120：静默死路）。</para>
+    /// <para>落点是**流**（不是 <c>--verbose</c> 的痕）：判据要人能看见，且要能在事后回查。</para>
+    /// </summary>
+    public void NoteStopCause(int rounds, bool stoppedByLimit, bool stoppedByBudget)
+    {
+        // 停因**按事实分类**（2026-09-29 主人令）：过去一律说「还没有终局块」，
+        // 把「派发轮 / 报告轮 / 真没话说」三种世界报成同一种病。
+        var fact = _lastRoundFact;
+        _lastRoundFact = StopCauseFact.None;
+
+        const string CloseoutHint =
+            "三选一收口：`[DONE] 做完了什么` / `[NEED-USER] 你要什么` / `[NO-SOLUTION] 为什么此路不通`；"
+            + "若只是「还没说完」就再点一次工具接着做（不点工具 = 宿主只能判你停了）。";
+
+        var (why, tail) = fact switch
+        {
+            StopCauseFact.ReceiptPending =>
+                ("派发在飞、回执还没回来",
+                 "这不是「模型没话说」—— 活已经交给 Worker 了；回执一到会接着跑，这里停下是因为等超时了。"),
+            StopCauseFact.ReportRound =>
+                ("刚跑的是报告轮",
+                 "报告轮本来就不带终局块（协议第 12 条）：还要做事就再点一次工具，真做完了就按三选一发终局块。"),
+            _ when stoppedByBudget => ("执行预算用尽", CloseoutHint),
+            _ when stoppedByLimit => ("到安全轮数上限", CloseoutHint),
+            _ => ("模型这一轮不再点工具", CloseoutHint),
+        };
+
+        var noTerminal = fact is StopCauseFact.ReceiptPending or StopCauseFact.ReportRound
+            ? string.Empty
+            : " —— 而**还没有终局块**。";
+
+        AppendHint($"[停因] 本链自动接了 {rounds} 轮后停下，停因：{why}{noTerminal}{tail}", StopCauseSource);
+    }
+
+    /// <summary>`[停因]` 的来源标记（账本字段；聚合器/夹具靠它认「这是那条停因告知」）。</summary>
+    public const string StopCauseSource = "stop-cause";
+
     public void NoteContinuationCapped(int rounds, bool byBudget)
     {
         var what = byBudget ? "执行预算" : "安全上限";
@@ -917,7 +1275,7 @@ public sealed class RuntimeHost : IDisposable
             return 0;
         }
 
-        var cursor = new SessionStreamStore(streamPath).Load().Cursor;
+        var cursor = new SessionStreamStore(streamPath).LoadOrRecover(out _).Cursor;
         if (cursor > int.MaxValue)
         {
             throw new InvalidDataException($"流游标 {cursor} 超出水位线可记录范围（int）：请先归档事件流。");
@@ -1030,12 +1388,12 @@ public sealed class RuntimeHost : IDisposable
             {
                 // 只把已入账的焦点**渲染**出来（不再重算一次：开销属于要量的东西）。
                 var band = FocusService.Render(new FocusState { Tags = snapshot.Focus });
-                lines.Add($"[快照] 已写恢复点：游标 {snapshot.StreamCursor} · 前缀 {snapshot.FrozenSnapshotId} · 焦点 {(snapshot.Focus.Count == 0 ? "（空）" : string.Join(' ', snapshot.Focus))} → {config.Snapshot.Path}");
+                lines.Add($"[快照] 已写恢复点：游标 {snapshot.StreamCursor} · 前缀 {snapshot.FrozenSnapshotId} · 焦点 {(snapshot.Focus.Length == 0 ? "（空）" : string.Join(' ', snapshot.Focus))} → {config.Snapshot.Path}");
                 lines.Add(band.Length == 0 ? "[焦点] band：（空，零注入）" : $"[焦点] band：{band}");
-                lines.Add(snapshot.CurrentTail.Count == 0
+                lines.Add(snapshot.CurrentTail.Length == 0
                     ? "[尾部] 白板：（空，零注入）"
                     : $"[尾部] 白板：{string.Join(" / ", snapshot.CurrentTail)}");
-                lines.Add(snapshot.DynamicDraft.Count == 0
+                lines.Add(snapshot.DynamicDraft.Length == 0
                     ? "[草稿] 草稿：（空，零注入）"
                     : $"[草稿] 草稿：{string.Join(" / ", snapshot.DynamicDraft)}");
             }
@@ -1095,7 +1453,7 @@ public sealed class RuntimeHost : IDisposable
         {
             new FocusCache(config.Focus.Path).Save(new FocusCacheEntry
             {
-                Tags = state.Tags,
+                Tags = state.Tags.ToArray(),
                 StreamCursor = streamCursor,
                 SavedAt = DateTimeOffset.Now,
             });

@@ -68,7 +68,7 @@ public sealed class UsageLedgerTests
     [Fact]
     public void 账本路径_跟随流卷_没配流就没有()
     {
-        Assert.Equal("/tmp/a.jsonl.usage.jsonl", AgentRuntime.Hosting.RuntimePaths.UsageOf("/tmp/a.jsonl"));
+        Assert.Equal("/tmp/a.jsonl.usage.xml", AgentRuntime.Hosting.RuntimePaths.UsageOf("/tmp/a.jsonl"));
         Assert.Null(AgentRuntime.Hosting.RuntimePaths.UsageOf(null));
         Assert.Null(AgentRuntime.Hosting.RuntimePaths.UsageOf("   "));
     }

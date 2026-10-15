@@ -72,13 +72,36 @@ public static class ToolNames
     /// </summary>
     public const string Exec = "exec";
 
+    /// <summary>
+    /// <c>[TOOL] index {"symbol":"…"}</c>：查结构（只读 ⇒ 免批）。
+    /// <para>由**运行时**扫真身算出（零模型 token）；地图只定位，真身仍要 <c>read</c> 确认。</para>
+    /// </summary>
+    public const string Index = "index";
+
+    /// <summary><c>scope</c>：按一句话任务给**候选地址表**（只读；批次 3）。</summary>
+    public const string Scope = "scope";
+
     /// <summary>本版本实现的工具名（**最小集**）。</summary>
-    public static readonly string[] All = [Read, List, Write, Edit, Exec];
+    public static readonly string[] All = [Read, List, Write, Edit, Exec, Index, Scope];
 
     /// <summary>名字是否已登记（大小写不敏感；大小写在协议里都写小写）。</summary>
     public static bool IsKnown(string? name) =>
         !string.IsNullOrWhiteSpace(name)
         && Array.Exists(All, n => string.Equals(n, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// **允许零参调用的工具**（主人 2026-09-29 19:56 令，缺口 A②）。
+    /// <para>为什么只有 <see cref="Index"/>：它的参数本来就**可选** —— 不给 symbol 时返回「整张地图的摘要 + 最近变更」；
+    /// 其余工具的键都是**必填**（如 <c>read/write</c> 的 path）：那类调用缺参属于**不成形状**，解析层当场拒
+    /// （不留给工具层）——否则就把「少写参数」放成正常调用了。</para>
+    /// <para>反面必须守住：<c>[TOOL]</c> 后面**连名字都没有** ⇒ 仍是空块。</para>
+    /// </summary>
+    public static readonly string[] ZeroArgCallable = [Index];
+
+    /// <summary>这把工具允许零参调用吗（唯一判据；解析层与话术共用）。</summary>
+    public static bool IsZeroArgCallable(string? name) =>
+        !string.IsNullOrWhiteSpace(name)
+        && Array.Exists(ZeroArgCallable, n => string.Equals(n, name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// 风险分级：<c>read</c> / <c>list</c> ⇒ 只读；<c>write</c> / <c>edit</c> / <c>exec</c> ⇒ 需批；
@@ -89,7 +112,7 @@ public static class ToolNames
         var normalized = name?.Trim().ToLowerInvariant();
         return normalized switch
         {
-            Read or List => ToolRisk.ReadOnly,
+            Read or List or Index or Scope => ToolRisk.ReadOnly,
             Write or Edit or Exec => ToolRisk.Mutating,
             _ => ToolRisk.Outbound,
         };
@@ -114,6 +137,58 @@ public static class ToolNames
     /// <c>svn</c> 与语料重建脚本；先前「没有跑命令这一项」的口径已作废。</para>
     /// </summary>
     public static string ListText => string.Join(" / ", All);
+
+    // ---------------- 按角色的工具面（2026-09-29 主人令：一次剥一把，每步都测） ----------------
+
+    /// <summary>**角色**：同一套运行时要服务两种活 —— Master（在地图上决策）与 Worker（去现实里取证并干活）。</summary>
+    public enum Role
+    {
+        /// <summary>思考侧：只在该决策的地方动手。</summary>
+        Master,
+
+        /// <summary>执行侧：读原料 / 摸目录 / 跑命令 / 改文件都是它的活。</summary>
+        Worker,
+    }
+
+    /// <summary>
+    /// **Master 的工具面（单声明处）** —— 剥一把工具 = 在这份清单里删一个名字，别处一律自动跟随
+    /// （<see cref="ToolSet.For"/> 取面、<c>ToolRunner</c> 的拒绝话术、协议正文的工具面渲染全部读它）。
+    /// <para><b>2026-10-10（主人令）</b>：**把工具都交回 master 自己手里** —— master 拿**全量面**。
+    /// 依据：worker 模块被拔掉后（<c>worker off</c>），运行时让 master「原料活自己干」，
+    /// 而此前剥剩的 <c>index/scope</c> 两张地图**干不了活**（read/write/exec 一拒到底）⇒ 自相矛盾。
+    /// 原「逐层剥离（2026-09-29）」与 worker 一起暂时退场；worker 侧的那一套（含协议共用段）已**单独备份**，可回插。</para>
+    /// <para>判据：<see cref="All"/> 里有、而**本清单**里没有 ⇒ 该动作不归该角色（拒绝时必须说这句，不许泛泛说「不能用」）。</para>
+    /// </summary>
+    public static readonly string[] MasterFace = All;
+
+    /// <summary>**Worker 的工具面**（默认面；<c>worker.tools</c> 可在其上再收）。</summary>
+    public static readonly string[] WorkerFace = [Read, List, Write, Edit, Exec];
+
+    /// <summary>按角色取面（**唯一入口**）。</summary>
+    public static IReadOnlyList<string> FaceFor(Role role) =>
+        role == Role.Master ? MasterFace : WorkerFace;
+
+    /// <summary>这把工具在该角色的面上吗（判据 = **名字 + 角色**，不看调用点）。</summary>
+    public static bool IsAllowedFor(string? name, Role role)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var n = name.Trim();
+        return FaceFor(role).Any(x => string.Equals(x, n, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// **「这不是你该干的活」**（唯一声明处）：指名它归 Worker，并给出**可执行的那一句**（去派发）。
+    /// <para>为什么必须指名：现场（2026-09-29）master 侧占了 88% 的工具面动作，其中 67% 是「取事实」——
+    /// 泛泛地说「不能用」，它只会换个工具继续自干；说清「**这是 Worker 的活 + 把活写成派发**」才是能执行的话。</para>
+    /// </summary>
+    public static string MasterStrippedNote(string name) =>
+        $"\"{name}\" 是 **Worker 的活**（读原料 / 摸目录 / 跑命令 / 改文件都由 Worker 执行）⇒ Master 侧不出这一把。"
+        + "请**派发**：把要读的东西或要做的改动写成一条任务交给 Worker（协议第 13 条），"
+        + $"它做完交回回执 —— 本侧还剩：{string.Join(" / ", MasterFace)}。";
 
     /// <summary>
     /// **工具面的一行紧凑写法（名字 + 各工具的键）** —— 协议正文与拒绝话术**共用同一处渲染**。

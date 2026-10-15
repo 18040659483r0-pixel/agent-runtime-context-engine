@@ -300,7 +300,7 @@ public static class FocusService
     // ---------------- 缓存对账（Q3 混合模式 / I16） ----------------
 
     /// <summary>
-    /// `focus.json`（加速缓存）与「从流重算」对账：**流 = 真相源**。
+    /// `focus.xml`（加速缓存）与「从流重算」对账：**流 = 真相源**。
     /// <para>
     /// 一致 ⇒ 缓存命中（省一次重算）；不一致 ⇒ **以流为准**并把差异报出来，**绝不静默沿用缓存**
     /// （与 V4「指纹自证」同款纪律）。
@@ -326,7 +326,7 @@ public static class FocusService
         var diff = Diff(new FocusState { Tags = cached }, new FocusState { Tags = actual });
         var warnings = new[]
         {
-            $"focus.json 与从流重算不一致（缓存 {string.Join('、', diff)}）：以流为准（缓存只加速，流才是真相源）。",
+            $"focus.xml 与从流重算不一致（缓存 {string.Join('、', diff)}）：以流为准（缓存只加速，流才是真相源）。",
         };
 
         return new FocusReconciliation(fromStream, warnings, CacheUsed: false);

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
+using System.Runtime.Serialization;
+using AgentRuntime.Core.Persistence;
 using AgentRuntime.Core.Tooling;
 
 namespace AgentRuntime.Core.Security;
@@ -14,14 +14,15 @@ namespace AgentRuntime.Core.Security;
 /// <param name="ExpiresAt">到期时刻（**必须有**：预授权无期限 = 永久后门）。</param>
 /// <param name="Note">人写的理由（审计用）。</param>
 /// <param name="IssuedBy">签发者（只认人）。</param>
+[DataContract(Name = "Grant", Namespace = "")]
 public sealed record PreAuthorization(
-    string Id,
-    Capability Capability,
-    string Target,
-    DateTimeOffset IssuedAt,
-    DateTimeOffset ExpiresAt,
-    string Note,
-    string IssuedBy = "human@tty")
+    [property: DataMember(Order = 0)] string Id,
+    [property: DataMember(Order = 1)] Capability Capability,
+    [property: DataMember(Order = 2)] string Target,
+    [property: DataMember(Order = 3)] DateTimeOffset IssuedAt,
+    [property: DataMember(Order = 4)] DateTimeOffset ExpiresAt,
+    [property: DataMember(Order = 5)] string Note,
+    [property: DataMember(Order = 6)] string IssuedBy = "human@tty")
 {
     /// <summary>是不是已经过期。</summary>
     public bool IsExpired(DateTimeOffset now) => now >= ExpiresAt;
@@ -38,7 +39,7 @@ public sealed record PreAuthorization(
 /// 人**事先带外**签一份**有范围、有期限**的授权 —— 运行时按它放行，
 /// <b>放的仍然是「人点过头的那件事」</b>。
 /// </para>
-/// <para><b>落点</b>：默认 <c>~/.agentruntime/preauth/grants.json</c> —— 这个目录在
+/// <para><b>落点</b>：默认 <c>~/.agentruntime/preauth/grants.xml</c> —— 这个目录在
 /// <see cref="SecurityPolicy"/> 的**受保护根**里 ⇒ Agent 的工具面**读不到也改不了**它。</para>
 /// <para><b>它是存储区，不是缓存</b>（`METHODOLOGY` §十·23 的口径）：文件坏了**必须报错**，
 /// 绝不"当作没有授权"降级 —— 那会把一次显式的放行悄悄变成拒绝，或反过来。
@@ -50,16 +51,10 @@ public sealed class PreAuthorizationStore
     /// <summary>预授权**最长**有效期（人签的时候最多给这么久；要更久就再签一次）。</summary>
     public static readonly TimeSpan MaxLifetime = TimeSpan.FromHours(8);
 
-    private static readonly JsonSerializerOptions WriteOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
     private readonly string? _path;
     private readonly List<PreAuthorization> _entries = [];
 
-    /// <param name="path">落点（JSON）；null = 只存内存（测试用）。</param>
+    /// <param name="path">落点（XML）；null = 只存内存（测试用）。</param>
     public PreAuthorizationStore(string? path = null)
     {
         _path = string.IsNullOrWhiteSpace(path) ? null : System.IO.Path.GetFullPath(path);
@@ -69,7 +64,7 @@ public sealed class PreAuthorizationStore
         }
     }
 
-    /// <summary>出厂落点（`~/.agentruntime/preauth/grants.json`）。
+    /// <summary>出厂落点（`~/.agentruntime/preauth/grants.xml`）。
     /// <para>⚠️ **主目录判不出 ⇒ 报错，不回退到当前目录**：本机实测（2026-09-16）
     /// <c>SpecialFolder.UserProfile</c> 在 <c>HOME</c> 指向不存在的位置时返回空串，
     /// <c>Path.Combine("", …)</c> 就会**变成相对路径**——测试脚本因此把预授权写进了**仓库目录**。
@@ -84,7 +79,7 @@ public sealed class PreAuthorizationStore
                 "判不出用户主目录（~）⇒ 拒绝：预授权账本不能落到“碰巧是当前目录”的地方；请显式指定 --preauth-store。");
         }
 
-        return System.IO.Path.Combine(home, ".agentruntime", "preauth", "grants.json");
+        return System.IO.Path.Combine(home, ".agentruntime", "preauth", "grants.xml");
     }
 
     /// <summary>落点。</summary>
@@ -155,12 +150,12 @@ public sealed class PreAuthorizationStore
             return;   // 没有文件 = 没有预授权（这是**正常**状态，不是坏文件）
         }
 
-        PreAuthFile? file;
+        PreAuthFile file;
         try
         {
-            file = JsonSerializer.Deserialize<PreAuthFile>(File.ReadAllText(_path), ReadOptions);
+            file = DataContractXml.ReadFile<PreAuthFile>(_path);
         }
-        catch (JsonException ex)
+        catch (InvalidDataException ex)
         {
             throw new InvalidDataException($"预授权文件坏了（{_path}）：{ex.Message} —— 存储区不做降级，请人工处理。", ex);
         }
@@ -196,11 +191,8 @@ public sealed class PreAuthorizationStore
         }
 
         var canonical = Canonical(_entries);
-        var payload = new PreAuthFile(1, canonical.Entries, canonical.Checksum);
-        File.WriteAllText(_path, JsonSerializer.Serialize(payload, WriteOptions), new UTF8Encoding(false));
+        DataContractXml.WriteFile(_path, new PreAuthFile(1, canonical.Entries.ToArray(), canonical.Checksum));
     }
-
-    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
     /// <summary>逐字节确定的规范化（排序 + 定长时间格式）⇒ 校验和可复算。</summary>
     private static (List<PreAuthorization> Entries, string Checksum) Canonical(IEnumerable<PreAuthorization> entries)
@@ -230,5 +222,9 @@ public sealed class PreAuthorizationStore
         return (list, hash);
     }
 
-    private sealed record PreAuthFile(int Version, List<PreAuthorization> Entries, string Checksum);
+    [DataContract(Name = "PreAuthFile", Namespace = "")]
+    private sealed record PreAuthFile(
+        [property: DataMember(Order = 0)] int Version,
+        [property: DataMember(Order = 1)] PreAuthorization[] Entries,
+        [property: DataMember(Order = 2)] string Checksum);
 }

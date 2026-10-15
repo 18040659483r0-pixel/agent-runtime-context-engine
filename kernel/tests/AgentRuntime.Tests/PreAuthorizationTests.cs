@@ -18,7 +18,7 @@ public sealed class PreAuthorizationTests
     {
         var dir = Path.Combine(Path.GetTempPath(), "wb-preauth-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        return Path.Combine(dir, "grants.json");
+        return Path.Combine(dir, "grants.xml");
     }
 
     // ---------------- 存储 ----------------

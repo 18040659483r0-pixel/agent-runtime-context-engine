@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 
 namespace AgentRuntime.Tui;
 
@@ -37,7 +36,8 @@ public static class CrashDump
     /// <param name="exception">未捕获的那个异常。</param>
     /// <param name="configPath">本次运行的配置路径（可空）。</param>
     /// <param name="targetPath">落点覆盖（**只给测试用**；生产走 <see cref="Path"/>）。</param>
-    public static void Write(Exception exception, string? configPath = null, string? targetPath = null)
+    /// <param name="pointerPath">会话指针路径覆盖（**只给测试用**；生产走 ~/.agentruntime/session.xml）。</param>
+    public static void Write(Exception exception, string? configPath = null, string? targetPath = null, string? pointerPath = null)
     {
         try
         {
@@ -50,7 +50,7 @@ public static class CrashDump
                 .AppendLine("## 异常全文")
                 .AppendLine(exception.ToString());
 
-            AppendStreamTail(text);
+            AppendStreamTail(text, pointerPath);
 
             var path = targetPath ?? Path;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
@@ -70,14 +70,14 @@ public static class CrashDump
     }
 
     /// <summary>把会话指针指向的那卷流的**末几行**复制进来（读不到就明说读不到，不编）。</summary>
-    private static void AppendStreamTail(StringBuilder text)
+    private static void AppendStreamTail(StringBuilder text, string? pointerPath = null)
     {
         try
         {
-            var pointer = System.IO.Path.Combine(
+            var pointer = pointerPath ?? System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".agentruntime",
-                "session.json");
+                "session.xml");
 
             text.AppendLine().AppendLine("## 会话指针");
             if (!File.Exists(pointer))
@@ -86,8 +86,16 @@ public static class CrashDump
                 return;
             }
 
-            var streamPath = JsonDocument.Parse(File.ReadAllText(pointer))
-                .RootElement.TryGetProperty("streamPath", out var p) ? p.GetString() : null;
+            string? streamPath = null;
+            try
+            {
+                streamPath = new AgentRuntime.Core.Frozen.SessionPointerStore(pointer).TryLoad()?.StreamPath;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException)
+            {
+                // 崩溃转储不是判据：指针读不动就如实写出来，别让转储自己炸。
+            }
+
             text.AppendLine(streamPath ?? "(指针里没有 streamPath)");
 
             text.AppendLine().AppendLine($"## 流末 {TailLines} 行");
@@ -97,8 +105,7 @@ public static class CrashDump
                 return;
             }
 
-            var lines = File.ReadAllLines(streamPath);
-            foreach (var line in lines.Skip(Math.Max(0, lines.Length - TailLines)))
+            foreach (var line in AgentRuntime.Core.Stream.SessionStreamStore.ReadTexts(streamPath).TakeLast(TailLines))
             {
                 text.AppendLine(line);
             }

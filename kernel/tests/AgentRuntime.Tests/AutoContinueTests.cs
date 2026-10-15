@@ -113,15 +113,22 @@ public sealed class AutoContinueTests
         var cursor = b.Events.Count;
         Assert.False(HasToolOutcome(b.Events, 0));
 
-        // 工具结果事件（v13：本该问人的动作**留档后照跑** ⇒ 落的是 ToolResult；
-        // 只有协议 / 语法类违规才落 ToolDenied。两条都算「有结果」，宿主据此续跑。）
-        // ⚠️ 样本必须**无害**：v13 之后命令会**真的执行**，不能再拿 `svn commit` 当样本。
-        b.Reply = "[TOOL] exec {\"command\":\"svn status\"}";
+        // 主人 2026-09-29 20:0x 令：master 的工具面已剥到只剩只读（index/scope）⇒ 续跑判据要**两头都成立**：
+        // ① 只读工具跑完 ⇒ ToolResult；② 点一条**不允许**的动作（已不在 master 面上）⇒ ToolDenied。
+        // 两条都算「有结果」，宿主据此续跑 —— 判据只看**流**，不看是哪种结果。
+        b.Reply = "[TOOL] index";                   // 只读 ⇒ ToolResult
+        await b.Engine.ChatAsync("看一下地图", Ct);
+
+        Assert.True(HasToolOutcome(b.Events, cursor));
+        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.ToolResult);
+
+        // ② 不在 master 面上的动作 ⇒ ToolDenied（也是结果）
+        cursor = b.Events.Count;
+        b.Reply = ToolFaceProbe.MasterDeniedCall();
         await b.Engine.ChatAsync("看一下状态", Ct);
 
         Assert.True(HasToolOutcome(b.Events, cursor));
-        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.PermissionFiled);
-        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.ToolResult);
+        Assert.Contains(b.Events.Skip(cursor), e => e.Kind == SessionEventKind.ToolDenied);
     }
 
     // ---------------- ④ 续跑不改前缀字节（只在尾部追加） ----------------

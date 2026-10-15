@@ -31,7 +31,7 @@ public sealed class DecisionReportFlowTests
     /// <summary>起一个会话（第 1 轮回 <paramref name="first"/>，报告轮回 <paramref name="report"/>），跑完返回会话与调用次数。</summary>
     private static async Task<(SplitSession Session, int Calls)> TalkAsync(string first, string report, bool continuation = true)
     {
-        var harness = new TuiHarness("report-flow", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        var harness = new TuiHarness("report-flow", modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(++calls == 1 ? first : report)));
         var host = RuntimeHost.BootWith(http: null, client, harness.Config);
@@ -51,7 +51,7 @@ public sealed class DecisionReportFlowTests
     [Fact]
     public async Task 宿主请求进流_聚合器捕获报告且不计轮()
     {
-        using var harness = new TuiHarness("report-probe", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("report-probe", modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(++calls == 1
             ? "看完了。\n[DONE] 甲"
@@ -142,7 +142,7 @@ public sealed class DecisionReportFlowTests
     {
         // 现场（生命周期 #7）：回复里只有 [REPORT]、没有终局块，而**这一轮不是宿主在要报告** ⇒
         // 宿主不认终局 ⇒ 卡永远停在「进行中」，报告也没处挂（屏上像卡死；同族 PITFALLS #120）。
-        using var harness = new TuiHarness("report-unowned", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("report-unowned", modules: ["rules","append-stream","tool"]);
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(
             "先纠正一半前提。\n[REPORT]\nneed: 甲\nstep 1: 乙\noutcome: 丙")));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);
@@ -157,7 +157,8 @@ public sealed class DecisionReportFlowTests
 
         // ① 当场纠正，且**来源标记与「请求报告」区分开**（复用会被误读成新的报告请求 ⇒ 下一轮被错认成合法报告轮）
         Assert.Contains(events, static e => e.Kind == SessionEventKind.Hint && e.Source == DecisionReport.UnownedSource);
-        Assert.DoesNotContain(events, static e => e.Kind == SessionEventKind.Hint && e.Source == DecisionReport.RequestSource);
+        // 2026-10-06：默认续 ⇒ 之后宿主**会**在别的轮次请求报告（那是正常行为，与"这一轮误判成报告轮"无关）
+        //        ⇒ 这里只断言"这一轮没被错认成报告轮"（下面 ②），不再断言整条流里没有请求。
 
         // ② 没有终局块 ⇒ 任务**不许**被当成了结（假终局不出现）
         var current = LifecycleAggregator.Aggregate(module.Stream).Current!;
@@ -170,7 +171,7 @@ public sealed class DecisionReportFlowTests
     {
         // **正例（必须有）**：合法的报告轮**本来就没有终局块**（`DESIGN-LIFECYCLE-BRIEF.md` §十三-derived #2）⇒
         // 判据若漏了「这一轮是不是我在要」，正确行为会被判成错 —— 这一条就是那道闸门的牙。
-        using var harness = new TuiHarness("report-owned", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("report-owned", modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(++calls == 1
             ? "看完了。\n[DONE] 甲"

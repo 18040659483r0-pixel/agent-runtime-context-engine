@@ -16,7 +16,7 @@ namespace AgentRuntime.Tests;
 /// 守四件事：
 /// </para>
 /// <list type="number">
-/// <item><b>行号即地址</b>：<c>L3.jsonl</c> 第 N 行 = <c>seq</c> N；id 语法 <c>S-&lt;短名&gt;-&lt;NNN&gt;</c>。</item>
+/// <item><b>行号即地址</b>：<c>l3.xml</c> 第 N 行 = <c>seq</c> N；id 语法 <c>S-&lt;短名&gt;-&lt;NNN&gt;</c>。</item>
 /// <item><b>按 id 装载</b>：条正文**逐字节**经既有 append 通道进流（不摘要、不加壳）。</item>
 /// <item><b>只装被点名的</b>：<c>[L3]</c> 自报块点名才装；空号 ⇒ 不装 + 有告警（不静默）。</item>
 /// <item><b>坏数据必须报错</b>：地址表不可重建 ⇒ 行号/seq 不符、id 重复、非 JSON 一律抛错。</item>
@@ -36,20 +36,20 @@ public sealed class SkillLoadingTests
         return dir;
     }
 
-    /// <summary>造一行 <c>L3.jsonl</c>（字段序与真实产物一致）。</summary>
+    /// <summary>造一段 <c>L3.xml</c> 片段（序列化口径与真实产物同源）。</summary>
     private static string Line(string id, int seq, string text, string kind = "Procedure", string skill = "demo") =>
-        JsonSerializer.Serialize(new
+        AgentRuntime.Core.Persistence.DataContractXml.ToFragment(new StripRow
         {
-            id,
-            skill,
-            seq,
-            title = $"条 {id}",
-            kind,
-            domain = "software",
-            text,
+            Id = id,
+            Skill = skill,
+            Seq = seq,
+            Title = $"条 {id}",
+            Kind = kind,
+            Domain = "software",
+            Text = text,
         });
 
-    /// <summary>造一个仓库形态（<c>&lt;root&gt;/&lt;skill&gt;/L3.jsonl</c>）。</summary>
+    /// <summary>造一个仓库形态（<c>&lt;root&gt;/&lt;skill&gt;/L3.xml</c>）。</summary>
     private static string Repository(params (string Skill, string[] Lines)[] skills)
     {
         var root = TempDir();
@@ -57,7 +57,7 @@ public sealed class SkillLoadingTests
         {
             var dir = Path.Combine(root, skill);
             Directory.CreateDirectory(dir);
-            File.WriteAllText(Path.Combine(dir, "L3.jsonl"), string.Join('\n', lines) + "\n");
+            File.WriteAllText(Path.Combine(dir, "L3.xml"), string.Join('\n', lines) + "\n");
         }
 
         return root;
@@ -71,9 +71,15 @@ public sealed class SkillLoadingTests
         Assert.True(SkillId.IsWellFormed("S-bench-007"));
         Assert.True(SkillId.IsWellFormed("S-svnwf-000"));      // hybrid 的「整份」条
         Assert.True(SkillId.IsWellFormed("S-ctxidx-123"));
+        Assert.True(SkillId.IsWellFormed("L4-tfop-000"));      // L4 条（DESIGN-L4-LAYER §54）
+        Assert.True(SkillId.IsWellFormed("L4-turnco-002"));    // 真机语料里的那条（2026-09-29 起不来的原因）
 
-        // 反例：前缀不对 / 短名带横线 / 序号不是 3 位 / 空 / 大小写。
-        foreach (var bad in new[] { "E-bench-007", "S-ben-ch-007", "S-bench-07", "S-bench-0007", "", "S--007", "S-bench-007x" })
+        // 反例：前缀不在白名单（S-/L4- 之外）/ 短名带横线 / 序号不是 3 位 / 空 / 大小写。
+        foreach (var bad in new[]
+                 {
+                     "E-bench-007", "S-ben-ch-007", "S-bench-07", "S-bench-0007", "", "S--007", "S-bench-007x",
+                     "L5-bench-007", "L4ben-007", "L4-ben-ch-007", "L4-bench-07", "L4-bench-0007", "L4--007", "l4-bench-007",
+                 })
         {
             Assert.False(SkillId.IsWellFormed(bad), $"\"{bad}\" 不该被判为合法 id。");
         }
@@ -82,6 +88,9 @@ public sealed class SkillLoadingTests
         Assert.Equal("bench", shortName);
         Assert.Equal(7, seq);
         Assert.False(SkillId.TryParse("nope", out _, out _));
+        Assert.True(SkillId.TryParse("L4-turnco-002", out var l4Short, out var l4Seq));
+        Assert.Equal("turnco", l4Short);
+        Assert.Equal(2, l4Seq);
 
         Assert.Equal("S-bench-007", SkillId.Format("bench", 7));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkillId.Format("bench", 1000));
@@ -112,7 +121,7 @@ public sealed class SkillLoadingTests
     public void SkillIndex_派生单文件形态_也可按id取()
     {
         var dir = TempDir();
-        var file = Path.Combine(dir, "l3.jsonl");
+        var file = Path.Combine(dir, "l3.xml");
         File.WriteAllText(file, Line("S-ctxidx-001", 1, "派生索引里的正文") + "\n");
 
         var index = SkillIndex.Load(file);   // 文件 ⇒ 单文件形态（不必是目录）
@@ -142,22 +151,23 @@ public sealed class SkillLoadingTests
     }
 
     [Fact]
-    public void SkillIndex_非JSON或缺字段或坏id_必须报错()
+    public void SkillIndex_非XML或缺字段或坏id_必须报错()
     {
         var dir = TempDir();
 
-        var notJson = Path.Combine(dir, "bad1.jsonl");
-        File.WriteAllText(notJson, "这不是 JSON\n");
-        Assert.Throws<InvalidDataException>(() => SkillIndex.FromJsonl(notJson));
+        var notXml = Path.Combine(dir, "bad1.xml");
+        File.WriteAllText(notXml, "这不是 XML 片段\n");
+        Assert.Throws<InvalidDataException>(() => SkillIndex.FromFile(notXml));
 
-        var noText = Path.Combine(dir, "bad2.jsonl");
-        File.WriteAllText(noText, "{\"id\":\"S-demo-001\",\"seq\":1}\n");
-        var ex = Assert.Throws<InvalidDataException>(() => SkillIndex.FromJsonl(noText));
-        Assert.Contains("text", ex.Message, StringComparison.Ordinal);
+        // **2026-10-10（L3 收敛）**：`text` 不再必填（分类总目条就没有正文）⇒ 这里改测**真正必填**的 `id`。
+        var noId = Path.Combine(dir, "bad2.xml");
+        File.WriteAllText(noId, "<Strip><Skill>demo</Skill><Seq>1</Seq></Strip>\n");
+        var ex = Assert.Throws<InvalidDataException>(() => SkillIndex.FromFile(noId));
+        Assert.Contains("id", ex.Message, StringComparison.Ordinal);
 
-        var badId = Path.Combine(dir, "bad3.jsonl");
+        var badId = Path.Combine(dir, "bad3.xml");
         File.WriteAllText(badId, Line("nope-001", 1, "x"));
-        Assert.Throws<InvalidDataException>(() => SkillIndex.FromJsonl(badId));
+        Assert.Throws<InvalidDataException>(() => SkillIndex.FromFile(badId));
     }
 
     [Fact]
@@ -268,7 +278,8 @@ public sealed class SkillLoadingTests
     {
         // 闸门：窗口常数的**唯一声明处 = 协议区**（四处各写一份 = 口径分裂的标本）；
         // 窗宽必须 ≥ 64（[TAIL] ≤12 行 + [DRAFT] ≤16 行 + 正文）——缩它就等于让某个块静默消失。
-        Assert.Equal(78, ProtocolText.ReportScanLines);
+        // v33：`[INTENT]` 是多行块（目的句 + intent: + scope<<…>> 每行一个地址）⇒ 派发段上限 2 → 24 行，窗口 80 → 102。
+        Assert.Equal(102, ProtocolText.ReportScanLines);
         // P2（2026-09-24）：窗口 = **各段上限之和 + 余量**（不再是拍的 64）——
         // 报告块 30 行上线后，64 会被 TAIL(12)+DRAFT(16) 压爆，而压爆的形状是**静默不装载**。
         // 下面这条断言才是真正的不变量；上一行只把当前值钉住（改了段上限就该改它）。
@@ -332,7 +343,7 @@ public sealed class SkillLoadingTests
             BaseUrl = "https://example.invalid/v1",
             Model = "m",
             Stream = new StreamConfiguration { Path = Path.Combine(TempDir(), "stream.jsonl") },
-            Skill = new SkillConfiguration { Repo = root },
+            L3 = new L3Configuration { Repo = root },
         };
         config.Validate();
 

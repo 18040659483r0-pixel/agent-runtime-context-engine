@@ -31,8 +31,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="config.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Update="config.mock.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="config.mock.xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

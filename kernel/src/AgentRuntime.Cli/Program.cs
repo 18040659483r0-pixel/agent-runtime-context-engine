@@ -1,4 +1,5 @@
 using AgentRuntime.Core;
+using AgentRuntime.Core.Knowledge;
 using AgentRuntime.Core.Configuration;
 using AgentRuntime.Core.Tooling;
 using AgentRuntime.Core.Focus;
@@ -10,8 +11,10 @@ using AgentRuntime.Presentation;
 using AgentRuntime.Core.Skill;
 using AgentRuntime.Core.Snapshot;
 using AgentRuntime.Core.Stream;
+using AgentRuntime.Core.Worker;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
+using AgentRuntime.Hosting.Worker;
 using AgentRuntime.Modules;
 using AgentRuntime.Providers;
 
@@ -22,7 +25,7 @@ namespace AgentRuntime.Cli;
 /// <code>
 /// Program → AgentRuntimeEngine → [可插拔模块…] → IModelClient → OpenAICompatibleClient → HttpClient
 /// </code>
-/// 模块由 config.json 的 <c>modules</c> 决定；<c>--bare</c> 一个都不挂（裸聊）。
+/// 模块由 config.xml 的 <c>modules</c> 决定；<c>--bare</c> 一个都不挂（裸聊）。
 /// </summary>
 internal static class Program
 {
@@ -35,12 +38,36 @@ internal static class Program
         string? configPath = null;
         var verbose = false;
         var chat = false;
-        var autoContinue = 0;   // --auto-continue N（默认 0 = 关）：工具结果落地后自动续跑的上限
+        // 2026-10-07（主人令）：CLI 与 TUI **同口径 —— 默认开**（协议第 6 条：默认续，停由远端显式选三模式）。
+        //   `--auto-continue 0` / `--no-auto-continue` 仍然关得掉；未指定 = Default.MaxRounds。
+        var autoContinue = AgentRuntime.Hosting.ContinuationSettings.Default.MaxRounds;   // 0 = 关
         string? modulesOverride = null;
-        string? domainsOverride = null;
-        var listDomains = false;
-        var listMisc = false;
         var closeout = false;
+        string? docIndexPath = null;
+        var docIndexCheck = false;
+        string? frozenWorkspace = null;
+        var frozenCheck = false;
+        string? frozenOut = null;
+        string? frozenBump = null;
+        var frozenTier = FrozenCorpusCli.DefaultTier;
+        var frozenSpec = false;
+        string? knowledgeOut = null;
+        var knowledgeMode = "";
+        string? knowledgeRollback = null;
+        var knowledgeAcceptExternal = false;
+        string? knowledgePitfallsSrc = null;
+        string? knowledgeHandoffSrc = null;
+        string? knowledgePitfallsProj = null;
+        string? l3Out = null;
+        string? l3Kind = null;
+        string? l3Source = null;
+        string? l3Proj = null;
+        var l3Mode = "derive";
+        string? l3Ledger = null;
+        string? l3Ref = null;
+        string? pitfallsKind = null;
+        string? pitfallsSrc = null;
+        var pitfallsCheck = false;
         string? colorMode = null;
         string? colorDepth = null;
         string? streamOverride = null;
@@ -70,6 +97,13 @@ internal static class Program
         string? forkPath = null;
         var vacuum = false;
         var protocolShow = false;
+        var indexBuild = false;
+        var indexCheck = false;
+        string? scopeTask = null;
+        string? readSymbol = null;
+        string? terminalAuditDir = null;
+        var terminalAuditXml = false;
+        string? workerRun = null;
         var preauthList = false;
         var preauthIssue = false;
         string? preauthCapability = null;
@@ -88,6 +122,19 @@ internal static class Program
         string? skillUse = null;
         var message = new List<string>();
 
+        // **pacer 子命令**（主人 2026-10-09 定）：账本 show / reset / calib / probe —— 先于选项解析截下。
+        if (args.Length > 0 && string.Equals(args[0], "pacer", StringComparison.OrdinalIgnoreCase))
+        {
+            return await PacerCli.RunAsync(args[1..]);
+        }
+
+        // **worker 子命令**（主人 2026-10-10 令）：把 worker 模块**从运行时拔掉 / 装回**的正规入口 ——
+        // status / off / on（定向改配置里的 worker.enabled，其余字节不动）。同样先于选项解析截下。
+        if (args.Length > 0 && string.Equals(args[0], "worker", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkerCli.RunAsync(args[1..]);
+        }
+
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -97,16 +144,7 @@ internal static class Program
                     break;
                 case "--modules" when i + 1 < args.Length:
                     modulesOverride = args[++i];
-                    break;
-                case "--domains" when i + 1 < args.Length:
-                    domainsOverride = args[++i];
-                    break;
-                case "--list-domains":
-                    listDomains = true;
-                    break;
-                case "--list-misc":
-                    listMisc = true;
-                    break;
+                    break;                    break;
                 case "--preauth-list":
                     preauthList = true;
                     break;
@@ -255,8 +293,141 @@ internal static class Program
                 case "--protocol-show":
                     protocolShow = true;
                     break;
+                case "--index":
+                    // 结构投影（只读、不需要密钥、不改协议正文 ⇒ 前缀不归零）：
+                    // 复算一遍与盘上比对，不一致就报「投影陈旧」并重建 —— 绝不静默使用。
+                    indexCheck = true;
+                    break;
+                case "--index-build":
+                    indexBuild = true;
+                    break;
+                case "--scope" when i + 1 < args.Length:
+                    // 地址表现场读数（只读、不改协议正文 ⇒ 前缀不归零）。
+                    scopeTask = args[++i];
+                    break;
+                case "--read-symbol" when i + 1 < args.Length:
+                    // 「按符号读」现场读数：形如 "<file>|<symbol>"（只读）。
+                    readSymbol = args[++i];
+                    break;
+                case "--terminal-audit" when i + 1 < args.Length:
+                    // **终局审计**（P2-1 §11.4 的尺子）：按逐类终局断言折算一条 / 一批真实流的读数。
+                    // 判据与宿主**同一份**（Core 的 TaskTerminalAssertions）⇒ 行为与读数不会各说一套。
+                    // 只读、不需要密钥、**不改协议正文**（前缀不归零）。
+                    terminalAuditDir = args[++i];
+                    break;
+                case "--terminal-audit-xml":
+                    terminalAuditXml = true;
+                    break;
+                case "--doc-index" when i + 1 < args.Length:
+                    // B4：文档索引区重建（BULLETIN 顶部 + 收尾水位顶部），0 依赖 C#，逐字节等价于旧 Python。
+                    docIndexPath = args[++i];
+                    docIndexCheck = false;
+                    break;
+                case "--doc-index-check" when i + 1 < args.Length:
+                    docIndexPath = args[++i];
+                    docIndexCheck = true;
+                    break;
+                case "--frozen-corpus" when i + 1 < args.Length:
+                    frozenWorkspace = args[++i];
+                    frozenCheck = false;
+                    break;
+                case "--frozen-corpus-check" when i + 1 < args.Length:
+                    frozenWorkspace = args[++i];
+                    frozenCheck = true;
+                    break;
+                case "--frozen-out" when i + 1 < args.Length:
+                    frozenOut = args[++i];
+                    break;
+                case "--frozen-tier" when i + 1 < args.Length:
+                    frozenTier = args[++i];
+                    break;
+                case "--frozen-spec":
+                    frozenWorkspace ??= "whitebox/workspace";   // 允许 `--frozen-spec` 单用（默认工作区）
+                    frozenSpec = true;
+                    break;
+                case "--bump" when i + 1 < args.Length:
+                    frozenWorkspace ??= "whitebox/workspace";   // 允许 `--bump all` 单用（默认工作区）
+                    frozenBump = args[++i];
+                    break;
+                case "--knowledge-repo" when i + 1 < args.Length:
+                    // B4-b：知识库维护（C# 版 · 逐字节等价于 knowledge-repo.py）。默认动作 = --derive-only 之外的由模式行指定。
+                    knowledgeOut = args[++i];
+                    break;
+                case "--knowledge-derive-only":
+                    knowledgeMode = "derive";
+                    break;
+                case "--knowledge-check":
+                    knowledgeMode = "check";
+                    break;
+                case "--knowledge-closeout":
+                    knowledgeMode = "closeout";
+                    break;
+                case "--knowledge-promote":
+                    knowledgeMode = "promote";
+                    break;
+                case "--knowledge-rollback" when i + 1 < args.Length:
+                    knowledgeMode = "rollback";
+                    knowledgeRollback = args[++i];
+                    break;
+                case "--knowledge-accept-external":
+                    knowledgeAcceptExternal = true;
+                    break;
+                case "--knowledge-pitfalls-src" when i + 1 < args.Length:
+                    knowledgePitfallsSrc = args[++i];
+                    break;
+                case "--knowledge-handoff-src" when i + 1 < args.Length:
+                    knowledgeHandoffSrc = args[++i];
+                    break;
+                case "--knowledge-pitfalls-proj" when i + 1 < args.Length:
+                    knowledgePitfallsProj = args[++i];
+                    break;
+                case "--l3-unify" when i + 1 < args.Length:
+                    // B4-b 依赖件：坑集/交接 → 逐条索引（**行式 XML 片段流**，落点 `.xml`；C# 版 · 行为等价于已退役的 l3-unify.py）。
+                    l3Out = args[++i];
+                    break;
+                case "--l3-kind" when i + 1 < args.Length:
+                    l3Kind = args[++i];
+                    break;
+                case "--l3-source" when i + 1 < args.Length:
+                    l3Source = args[++i];
+                    break;
+                case "--l3-proj" when i + 1 < args.Length:
+                    l3Proj = args[++i];
+                    break;
+                case "--l3-mode" when i + 1 < args.Length:
+                    l3Mode = args[++i];
+                    break;
+                case "--l3-ledger" when i + 1 < args.Length:
+                    l3Ledger = args[++i];
+                    break;
+                case "--l3-ref" when i + 1 < args.Length:
+                    l3Ref = args[++i];
+                    break;
+                case "--pitfalls-index" when i + 1 < args.Length:
+                    pitfallsKind = "index";
+                    pitfallsSrc = args[++i];
+                    pitfallsCheck = false;
+                    break;
+                case "--pitfalls-index-check" when i + 1 < args.Length:
+                    pitfallsKind = "index";
+                    pitfallsSrc = args[++i];
+                    pitfallsCheck = true;
+                    break;
+                case "--pitfalls-public" when i + 1 < args.Length:
+                    pitfallsKind = "public";
+                    pitfallsSrc = args[++i];
+                    pitfallsCheck = false;
+                    break;
+                case "--pitfalls-public-check" when i + 1 < args.Length:
+                    pitfallsKind = "public";
+                    pitfallsSrc = args[++i];
+                    pitfallsCheck = true;
+                    break;
+                case "--worker-run" when i + 1 < args.Length:
+                    workerRun = args[++i];
+                    break;
                 case "--skill-repo" when i + 1 < args.Length:
-                    // L3 地址表（目录或任一 L3.jsonl）；与 config.skill.repo 同义，命令行优先。
+                    // L3 地址表（目录或任一 l3.xml）；与 config.skill.repo 同义，命令行优先。
                     skillRepoOverride = args[++i];
                     break;
                 case "--skill-use" when i + 1 < args.Length:
@@ -294,15 +465,90 @@ internal static class Program
         try
         {
             // 只读清单类命令：不需要密钥，也不需要完整配置。
+            if (terminalAuditDir is not null)
+            {
+                return TerminalAuditCli.Run(terminalAuditDir, terminalAuditXml);
+            }
+
+            if (docIndexPath is not null)
+            {
+                return IndexZoneCli.Run(docIndexPath, docIndexCheck);
+            }
+
+            // **冻结语料（C# 版 · B4-a 切片 1）**：收尾流水线里那条 python 的 C# 替身（判据 = 逐字节等价）。
+            if (frozenWorkspace is not null)
+            {
+                var project = System.IO.Path.GetFullPath(System.IO.Path.Combine(frozenWorkspace, "..", ".."));
+                return FrozenCorpusCli.Run(
+                    System.IO.Path.GetFullPath(frozenWorkspace),
+                    System.IO.Path.GetFullPath(System.IO.Path.Combine(project, "..", "..")),
+                    frozenOut is null
+                        ? System.IO.Path.Combine(project, "frozen-private")
+                        : System.IO.Path.GetFullPath(frozenOut),
+                    frozenCheck,
+                    spec: frozenSpec,
+                    versionsFile: System.IO.Path.Combine(project, "tools", "frozen-build", "versions.xml"),
+                    bump: frozenBump,
+                    tier: frozenTier);
+            }
+
+            // **知识库维护（C# 版 · B4-b）**：收尾流水线里那条 python 的 C# 替身（判据 = 逐字节等价）。
+            if (knowledgeOut is not null)
+            {
+                return KnowledgeRepoCli.Run(
+                    knowledgeOut,
+                    knowledgeMode.Length > 0 ? knowledgeMode : "fail",
+                    knowledgeRollback,
+                    knowledgeAcceptExternal,
+                    knowledgePitfallsSrc ?? "",
+                    knowledgeHandoffSrc ?? "",
+                    knowledgePitfallsProj ?? "rt");
+            }
+
+            // **坑集/交接逐条定位（C# 版 · B4-b 依赖件 · l3-unify）**。
+            if (l3Out is not null)
+            {
+                if (l3Kind is null || l3Source is null)
+                {
+                    Console.Error.WriteLine("--l3-unify 需要 --l3-kind（pitfalls|handoff）与 --l3-source。");
+                    return ExitUsage;
+                }
+
+                return L3UnifyCli.Run(l3Source, l3Kind, l3Proj, l3Out, l3Mode, l3Ledger, l3Ref);
+            }
+
+            // **坑集派生（C# 版 · B4）**：索引 / 公开变体（收尾流水线的两条 block 闸门）。
+            if (pitfallsKind is not null && pitfallsSrc is not null)
+            {
+                return PitfallsCli.Run(pitfallsKind, pitfallsSrc, pitfallsCheck);
+            }
+
             if (protocolShow)
             {
                 return ShowProtocol();
             }
 
-            if (listDomains)
+            if (indexCheck || indexBuild)
             {
-                return ListDomains(configPath, domainsOverride);
+                return ShowIndex(indexBuild);
             }
+
+            if (scopeTask is not null)
+            {
+                return ShowScope(scopeTask);
+            }
+
+            if (readSymbol is not null)
+            {
+                return await ShowReadSymbolAsync(readSymbol);
+            }
+
+            // 最小 Worker：**端到端入口**（派发一次，只打印凝结结果）。不需要主 provider 的 Key。
+            if (workerRun is not null)
+            {
+                return await RunWorkerAsync(configPath, workerRun);
+            }
+
 
             // 预授权（带外签发 / 列表 / 撤销）：不需要密钥，也不需要配置 —— 但**需要真终端**（见 PreAuthCli）。
             if (gateServe)
@@ -322,10 +568,6 @@ internal static class Program
                     preauthStorePath, gateSocket);
             }
 
-            if (listMisc)
-            {
-                return ListMisc(configPath);
-            }
 
             // 呈现层（与 TUI **共用同一份**）：把 stdout 包一层 —— 逐行「语义 → 样式 → 终端字节」，
             // 标记被吃掉、TTY 下上色；非 TTY / NO_COLOR / --color never ⇒ 逐字节纯文本。
@@ -346,8 +588,7 @@ internal static class Program
             {
                 Modules = modulesOverride,
                 Vacuum = vacuum,
-                Domains = domainsOverride,
-                StreamPath = streamOverride,
+                    StreamPath = streamOverride,
                 ApiKeyFile = apiKeyFileOverride,
                 NoSnapshot = noSnapshot,
                 FocusClear = focusClear,
@@ -355,7 +596,7 @@ internal static class Program
                 FocusPolicy = focusPolicy,
                 TailReport = tailReport,
                 DraftReport = draftReport,
-                SkillRepo = skillRepoOverride,
+                L3Repo = skillRepoOverride,
             };
 
             var config = RuntimeHost.ResolveConfiguration(configPath, overrides);
@@ -492,6 +733,211 @@ internal static class Program
     /// <para>为什么要有：协议是「缓存身份的源头」——它的大小与字节必须随时可核。
     /// </para>
     /// </summary>
+    /// <summary>
+    /// <c>--worker-run "&lt;task&gt;"</c>：派发**一次**最小 Worker 并打印它的凝结结果。
+    /// <para>这是端到端入口：走的是与实现同一条路（建 client → 组最小 prompt → 派发 → 解析 → 落盘）。
+    /// 它**不**碰 Master 的引擎、不写 Master 的流（B2），也不把 Master 的常驻知识带过去（W3）。</para>
+    /// </summary>
+    private static async Task<int> RunWorkerAsync(string configPath, string task)
+    {
+        var config = RuntimeConfiguration.Load(configPath);
+        if (!config.Worker.Enabled)
+        {
+            Console.Error.WriteLine("[worker] 未启用（config 里 worker.enabled 不是 true）—— 不派发。");
+            return 2;
+        }
+
+        try
+        {
+            config.Worker.Validate();                                   // fail-closed（W4 同精神）
+        }
+        catch (InvalidDataException ex)
+        {
+            Console.Error.WriteLine($"[worker] 配置不合格：{ex.Message}");
+            return 2;
+        }
+
+        var key = ResolveWorkerKey(config.Worker.Provider);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            Console.Error.WriteLine(
+                $"[worker] 取不到 Key：环境变量 {config.Worker.Provider.ApiKeyEnv} 为空，" +
+                $"且文件 {config.Worker.Provider.ApiKeyFile} 不存在或为空。" +
+                "（Key 只从这两处取；不写进配置、不进命令行。）");
+            return 2;
+        }
+
+        // 超时取 **provider 块**（唯一家；#287）——与 RuntimeHost 同一口径。
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(config.Worker.Provider.TimeoutSeconds) };
+        var client = new OpenAICompatibleClient(http, new OpenAICompatibleOptions
+        {
+            BaseUrl = config.Worker.Provider.BaseUrl,
+            ApiKey = key,
+            TimeoutSeconds = config.Worker.Provider.TimeoutSeconds,
+            ServiceTier = config.Worker.Provider.ServiceTier,
+        });
+
+        var worker = new MinimalWorker(client, config.Worker);
+        Console.WriteLine($"[worker] model={config.Worker.Provider.Model}");
+        Console.WriteLine($"[worker] home ={worker.Root}");
+
+        // A1：CLI 也带上机器字段基座；D4（2026-09-28）：**与模块路径同源** —— 派发物由
+        // CrossProviderTask 装配（否则 CLI 这条路会漏段名：现场实测 dispatch.jsonl 里只有一行 task=）。
+        var cliBase = WindowResolver.ResolveBase();
+        var cliWindow = cliBase.Length > 0 ? new[] { cliBase } : [];
+        var cliTask = new CrossProviderTask
+        {
+            Task = task,
+            Window = cliWindow,
+            Base = cliBase,
+            Contract = new DispatchContract(),
+        };
+        var result = await worker.DispatchAsync(new WorkerRequest
+        {
+            Task = cliTask.ComposePrompt(),
+            Base = cliBase,
+            Window = cliWindow,
+        });
+
+        Console.WriteLine(result.Ok ? "[worker] ✅ 完成" : "[worker] ❌ 未完成");
+        if (result.Conclusion.Length > 0)
+        {
+            Console.WriteLine($"  conclusion: {result.Conclusion}");
+        }
+
+        if (result.Evidence.Count > 0)
+        {
+            Console.WriteLine($"  evidence  : {string.Join(", ", result.Evidence)}");
+        }
+
+        if (result.Changes.Count > 0)
+        {
+            Console.WriteLine($"  changes   : {string.Join(", ", result.Changes)}");
+        }
+
+        if (result.Open.Count > 0)
+        {
+            Console.WriteLine($"  open      : {string.Join(", ", result.Open)}");
+        }
+
+        Console.WriteLine($"  usage     : prompt={result.Usage.PromptTokens} cached={result.Usage.CachedTokens} " +
+                          $"completion={result.Usage.CompletionTokens} · {result.Usage.ElapsedMs} ms");
+        if (result.StreamPath is not null)
+        {
+            Console.WriteLine($"  stream    : {result.StreamPath}");
+        }
+
+        if (result.Failure is not null)
+        {
+            Console.WriteLine($"  failure   : {result.Failure}");
+        }
+
+        return result.Ok ? ExitOk : 1;
+    }
+
+    /// <summary>Worker 的 Key：先环境变量、再文件（与主 provider 同一口径；**绝不**从配置正文读）。</summary>
+    private static string? ResolveWorkerKey(WorkerProviderConfiguration p)
+    {
+        if (!string.IsNullOrWhiteSpace(p.ApiKeyEnv))
+        {
+            var fromEnv = Environment.GetEnvironmentVariable(p.ApiKeyEnv);
+            if (!string.IsNullOrWhiteSpace(fromEnv))
+            {
+                return fromEnv.Trim();
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(p.ApiKeyFile))
+        {
+            var path = RuntimeConfiguration.ExpandHome(p.ApiKeyFile);
+            if (File.Exists(path))
+            {
+                var line = File.ReadLines(path).FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    return line.Trim();
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <c>--index</c> / <c>--index-build</c>：**结构投影的读数**（批次 1 事项 ③）。
+    /// <para>判据是『重算 == 盘上』（逐字节）；不一致 ⇒ 报**投影陈旧**并当场按真身重建。
+    /// 只读、不需密钥、**不动协议正文** ⇒ 常驻前缀不归零。</para>
+    /// </summary>
+    private static int ShowIndex(bool rebuild)
+    {
+        var root = AgentRuntime.Core.Worker.WindowResolver.FindRepoRoot();
+        if (root is null)
+        {
+            Console.Error.WriteLine("[索引] 失败：找不到仓库根（没有 src/ 的那一层）。索引不可用 ⇒ 照常用 read / list 即可。");
+            return 1;
+        }
+
+        var check = rebuild
+            ? AgentRuntime.Core.Index.SourceIndexStore.RebuildNow(root)
+            : AgentRuntime.Core.Index.SourceIndexStore.Check(root, rebuildWhenStale: true);
+
+        Console.WriteLine($"[索引] 落点  : {check.Path}");
+        Console.WriteLine($"[索引] 新鲜度: {check.Freshness}（{check.Files} 文件 / {check.Types} 类型 / {check.Edges} 边）");
+        Console.WriteLine($"[索引] 判据  : {check.Detail}");
+        Console.WriteLine($"[索引] 重建  : {(check.Rebuilt ? "是" : "否")}");
+        return ExitOk;
+    }
+
+    /// <summary>--scope "<task>"：地址表现场读数（只读）。</summary>
+    private static int ShowScope(string task)
+    {
+        var root = AgentRuntime.Core.Worker.WindowResolver.FindRepoRoot();
+        if (root is null)
+        {
+            Console.Error.WriteLine("[地址表] 失败：找不到仓库根；不可用时照常用 read / list。");
+            return 1;
+        }
+
+        var scope = AgentRuntime.Core.Index.TaskScopeStore.LoadFresh(root, task, out var check);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(scope.Render());
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..12].ToLowerInvariant();
+        Console.WriteLine("[地址表] 落点  : " + check.Path);
+        Console.WriteLine("[地址表] 新鲜度: " + check.Freshness + "（候选 " + check.Candidates + " 条）· 判据 " + check.Detail);
+        Console.WriteLine("[地址表] 字节  : " + bytes.Length + " · sha256 " + sha);
+        Console.WriteLine(scope.Summary());
+        return ExitOk;
+    }
+
+    /// <summary>--read-symbol "<file>|<symbol>"：按符号读的字节对比（只读）。</summary>
+    private static async Task<int> ShowReadSymbolAsync(string spec)
+    {
+        var cut = spec.LastIndexOf('|');
+        if (cut <= 0)
+        {
+            Console.Error.WriteLine("--read-symbol 需要 file|symbol 形式（例如 src/.../Program.cs|ShowProtocol）。");
+            return 1;
+        }
+
+        var file = spec[..cut];
+        var symbol = spec[(cut + 1)..];
+        var whole = new FileInfo(file);
+        if (!whole.Exists)
+        {
+            Console.Error.WriteLine("找不到文件：" + file);
+            return 1;
+        }
+
+        const char q = '"';
+        var args = ToolArgs.Parse("{" + q + "path" + q + ":" + q + file + q + "," + q + "symbol" + q + ":" + q + symbol + q + "}");
+        var outcome = await new AgentRuntime.Core.Tooling.ReadTool().ExecuteAsync(
+            new AgentRuntime.Core.Tooling.ToolContext(AgentRuntime.Core.Tooling.ToolLimits.Default, 0, null), args, CancellationToken.None);
+
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(outcome.Text);
+        Console.WriteLine("[按符号读] 整文件 " + whole.Length + " 字节 · 返回 " + bytes + " 字节");
+        Console.WriteLine(outcome.Text.Length > 400 ? outcome.Text[..400] : outcome.Text);
+        return outcome.Ok ? ExitOk : 1;
+    }
+
     private static int ShowProtocol()
     {
         Console.WriteLine("[协议] 协议区（R1-P）：架构固有 · 收尾不可改 · 用户不可摘（代码常量唯一声明处）");
@@ -513,78 +959,7 @@ internal static class Program
     }
 
     /// <summary>列出预设专业领域（GUI 数据源的雏形）；不需要密钥。</summary>
-    private static int ListDomains(string? configPath, string? domainsOverride)
-    {
-        IReadOnlyList<string> selected;
-        if (!string.IsNullOrWhiteSpace(domainsOverride))
-        {
-            selected = RuntimeHost.SplitList(domainsOverride);
-        }
-        else
-        {
-            selected = [];
-            try
-            {
-                selected = RuntimeConfiguration.Load(configPath ?? RuntimeHost.LocateDefaultConfig()).Frozen.Domains;
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException)
-            {
-                // 没有配置文件也能列清单；选择默认 = 全部。
-            }
-        }
-
-        var selection = new FrozenSelection(selected, null);
-        selection.Validate();
-
-        Console.WriteLine("专业领域（--domains a,b 或 config.frozen.domains 选择；留空 = 全部加载）");
-        foreach (var domain in KnowledgeDomains.All)
-        {
-            var mark = selection.IncludesDomain(domain.Id) ? "●" : "○";
-            // 屏面短名一并列出：顶层 TUI 的「专家」行显示的是它（id 不动，只换显示名）。
-            Console.WriteLine($"  {mark} {domain.Id,-12} {domain.DisplayName,-10} 屏面：{domain.ShortName}");
-        }
-
-        Console.WriteLine();
-        Console.WriteLine(selection.LoadAllDomains
-            ? "当前：全部加载（默认）"
-            : $"当前：{string.Join("、", selection.Domains)}");
-        return ExitOk;
-    }
-
     /// <summary>列出杂项（misc）域的待整理条目（读配置里的冻结语料；不需要密钥）。</summary>
-    private static int ListMisc(string? configPath)
-    {
-        IFrozenContentSource source = FrozenContentSource.Empty;
-        try
-        {
-            var path = configPath ?? RuntimeHost.LocateDefaultConfig();
-            var config = RuntimeConfiguration.Load(path);
-            config.Frozen.Root = RuntimePaths.ResolveFrozenRoot(path, config.Frozen.Root);
-            source = FrozenContentSource.FromDirectory(config.Frozen.Root);
-        }
-        catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException)
-        {
-            // 没有配置/语料也能列（列出即为空）。
-        }
-
-        Console.WriteLine("杂项（misc）：AI 难归类的知识兜底域，用户可后续手工整理。");
-
-        var items = CloseoutService.PendingMisc(source);
-        if (items.Count == 0)
-        {
-            Console.WriteLine("  （无待整理条目，或未配置冻结语料）");
-        }
-        else
-        {
-            foreach (var item in items)
-            {
-                Console.WriteLine($"  - {item}");
-            }
-        }
-
-        return ExitOk;
-    }
-
     /// <summary>收尾：校验当前前缀 → 列出待整理杂项 → 推进水位线（不需要密钥）。</summary>
     private static int RunCloseout(RuntimeConfiguration config)
     {
@@ -607,16 +982,6 @@ internal static class Program
             }
         }
 
-        var source = FrozenContentSource.FromDirectory(config.Frozen.Root);
-        var misc = CloseoutService.PendingMisc(source);
-        Console.WriteLine(misc.Count == 0
-            ? "[收尾] 杂项（misc）待整理：无"
-            : $"[收尾] 杂项（misc）待整理 {misc.Count} 条：");
-        foreach (var item in misc)
-        {
-            Console.WriteLine($"  · {item}");
-        }
-
         // V4/I11：收尾记录**真实流游标**（以前硬编码 0 —— 水位线看不出收敛到哪一轮）。
         var streamCursor = RuntimeHost.StreamCursorOf(config.Stream.Path);
 
@@ -627,7 +992,7 @@ internal static class Program
         Console.WriteLine($"[收尾] 落点：{config.Frozen.Watermark}");
 
         // F（2026-09-22）：**用量账本** —— 以前这里给不出（账本只在内存，收尾只能写「用量 —」）。
-        // 账本随流卷走（<stream>.usage.jsonl）；读不出就明说「无账本」，**不编数**。
+        // 账本随流卷走（<stream>.usage.xml）；读不出就明说「无账本」，**不编数**。
         var usageLine = TurnLedger.Describe(RuntimePaths.UsageOf(config.Stream.Path) ?? string.Empty);
         Console.WriteLine(usageLine is null
             ? "[收尾·用量] 本卷无账本（未配 stream.path，或还没跑过轮次）"
@@ -741,7 +1106,7 @@ internal static class Program
     /// `--skill-use S-xxx-007[,…]`：**按 id 装载 L3 条**（不调模型、不需密钥）。
     /// <para>
     /// 与 `--append` 的区别：`--append` 装的是「一整份文档」，本命令装的是「地址表里的某几条」——
-    /// 正文逐字节取自 <c>L3.jsonl</c>，走**同一条 append 通道**进流（<c>docs/DESIGN-SKILL-LAYERS.md</c> §五 ③）。
+    /// 正文逐字节取自 <c>l3.xml</c>，走**同一条 append 通道**进流（<c>docs/DESIGN-SKILL-LAYERS.md</c> §五 ③）。
     /// </para>
     /// </summary>
     internal static int UseSkillStrips(RuntimeConfiguration config, string idsCsv)
@@ -752,13 +1117,13 @@ internal static class Program
             return ExitUsage;
         }
 
-        if (string.IsNullOrWhiteSpace(config.Skill.Repo))
+        if (string.IsNullOrWhiteSpace(config.L3.Repo))
         {
-            Console.Error.WriteLine("[技能] 未指定 L3 地址表：用 config.skill.repo 或 --skill-repo <目录|L3.jsonl>。");
+            Console.Error.WriteLine("[技能] 未指定 L3 地址表：用 config.skill.repo 或 --skill-repo <目录|l3.xml>。");
             return ExitUsage;
         }
 
-        var index = SkillIndex.Load(config.Skill.Repo!);
+        var index = SkillIndex.Load(config.L3.Repo!);
         var store = new SessionStreamStore(config.Stream.Path);
         var loader = new SkillLoader(index, store.Load(), store);
 
@@ -840,10 +1205,10 @@ internal static class Program
 
         Console.WriteLine($"[快照] 流游标        : {snapshot.StreamCursor}");
         Console.WriteLine($"[快照] 流文件        : {(string.IsNullOrWhiteSpace(snapshot.StreamPath) ? "（未记录）" : snapshot.StreamPath)}");
-        Console.WriteLine($"[快照] 焦点          : {(snapshot.Focus.Count == 0 ? "（空）" : string.Join(' ', snapshot.Focus))}");
-        Console.WriteLine($"[快照] 当前尾部      : {(snapshot.CurrentTail.Count == 0 ? "（空）" : string.Join(" / ", snapshot.CurrentTail))}");
-        Console.WriteLine($"[快照] 动态草稿      : {(snapshot.DynamicDraft.Count == 0 ? "（空）" : string.Join(" / ", snapshot.DynamicDraft))}");
-        Console.WriteLine($"[快照] 预留位        : pending={snapshot.Pending.Count} workerState={(string.IsNullOrEmpty(snapshot.WorkerState) ? "（空）" : snapshot.WorkerState)}");
+        Console.WriteLine($"[快照] 焦点          : {(snapshot.Focus.Length == 0 ? "（空）" : string.Join(' ', snapshot.Focus))}");
+        Console.WriteLine($"[快照] 当前尾部      : {(snapshot.CurrentTail.Length == 0 ? "（空）" : string.Join(" / ", snapshot.CurrentTail))}");
+        Console.WriteLine($"[快照] 动态草稿      : {(snapshot.DynamicDraft.Length == 0 ? "（空）" : string.Join(" / ", snapshot.DynamicDraft))}");
+        Console.WriteLine($"[快照] 预留位        : pending={snapshot.Pending.Length} workerState={(string.IsNullOrEmpty(snapshot.WorkerState) ? "（空）" : snapshot.WorkerState)}");
         Console.WriteLine($"[快照] 模型          : {(string.IsNullOrEmpty(snapshot.Model) ? "（未记录）" : snapshot.Model)}");
         Console.WriteLine($"[快照] 账本时刻      : {snapshot.SavedAt:yyyy-MM-dd HH:mm:ss zzz}");
         return ExitOk;
@@ -864,7 +1229,7 @@ internal static class Program
         return ExitOk;
     }
 
- private static async Task<int> RunOnceAsync(RuntimeHost host, bool verbose, List<string> message, int autoContinue)
+ internal static async Task<int> RunOnceAsync(RuntimeHost host, bool verbose, List<string> message, int autoContinue)
     {
         var text = message.Count > 0 ? string.Join(' ', message) : ReadMessageFromStdin();
         if (string.IsNullOrWhiteSpace(text))
@@ -891,31 +1256,58 @@ internal static class Program
     /// </summary>
     private static async Task<int> AutoContinueAsync(RuntimeHost host, bool verbose, int budget, int cursor)
     {
-        var ran = 0;
-        while (ran < budget && host.HasToolOutcomeSince(cursor))
-        {
-            cursor = host.StreamCount;
-            Console.Error.WriteLine($"[auto-continue] 第 {ran + 1}/{budget} 次续跑（上一轮落进流的工具结果）");
-            var outcome = await host.ContinueTurnAsync(verbose);
-            WriteTurnOutcome(outcome);
-            ran++;
-        }
+        // 2026-10-07（主人令）：**续跑只有一个实现** —— 这里改成与 TUI 同一条 `TurnContinuation`，
+        // 不再手写第二份循环（同族教训：两处各写一套 ⇒ 必然分叉）。
+        var settings = budget == 0
+            ? AgentRuntime.Hosting.ContinuationSettings.Off
+            : AgentRuntime.Hosting.ContinuationSettings.Default with { MaxRounds = budget };
 
-        // v21（2026-09-24）：终局后**补一轮报告请求**（协议第 12 条）。
-        // 与 TUI 调的是**同一个 host 判据**（<see cref="RuntimeHost.RequestDecisionReport"/>）—— 策略只有一份；
-        // 未开自动接续（budget = 0）就不补，与 TUI 的「关掉续跑 = 不要报告」同口径。
+        var ran = await AgentRuntime.Hosting.TurnContinuation.RunAsync(
+            host,
+            cursor,
+            settings,
+            new AgentRuntime.Core.ContinuationBudget(),
+            step: token => host.ContinueTurnAsync(verbose, token),
+            trace: line =>
+            {
+                if (verbose)
+                {
+                    Console.Error.WriteLine("[auto-continue] " + line);
+                }
+            }).ConfigureAwait(false);
+
         if (budget > 0 && host.RequestDecisionReport())
         {
             Console.Error.WriteLine("[auto-continue] 报告轮：本 task 已了结 ⇒ 请它交决策报告（协议第 12 条）");
-            var outcome = await host.ContinueTurnAsync(verbose);
+            var outcome = await host.ContinueTurnAsync(verbose).ConfigureAwait(false);
             WriteTurnOutcome(outcome);
-            ran++;
         }
 
         return ran;
     }
 
- private static async Task<int> RunChatAsync(RuntimeHost host, bool verbose, int autoContinue)
+    /// <summary>
+    /// 一轮的写出次序（与内核无关，但必须稳定）：
+    /// 恢复点 / 告警 → **响应体原样出 stdout** → 诊断。
+    /// <para>一对一模式：响应体走 stdout，诊断走 stderr（保持可管道）。</para>
+    /// </summary>
+    private static void WriteTurnOutcome(TurnOutcome outcome)
+    {
+        foreach (var line in outcome.StderrBeforeResponse)
+        {
+            Console.Error.WriteLine(line);
+        }
+
+        Console.Out.WriteLine(outcome.Result.Response);
+
+        foreach (var line in outcome.StderrAfterResponse)
+        {
+            Console.Error.WriteLine(line);
+        }
+    }
+
+    /// <summary>多轮模式：每行一句（Ctrl-D / exit 结束）；每轮后按**同一条** <c>TurnContinuation</c> 续跑。</summary>
+    private static async Task<int> RunChatAsync(RuntimeHost host, bool verbose, int autoContinue)
     {
         if (verbose)
         {
@@ -951,11 +1343,9 @@ internal static class Program
                 var cursor = host.StreamCount;
                 var outcome = await host.RunTurnAsync(line, verbose);
 
-                // V4：每轮成功后写恢复点（意外中断没有预告 ⇒ 默认开）。
                 WriteTurnOutcome(outcome);
                 Console.Out.Flush();
 
-                // 宿主续跑：上一轮落了工具结果就直接再问一轮（--auto-continue N；默认关）。
                 await AutoContinueAsync(host, verbose, autoContinue, cursor);
             }
             catch (ModelClientException ex)
@@ -964,27 +1354,7 @@ internal static class Program
             }
         }
 
-        return ExitOk;
-    }
-
-    /// <summary>
-    /// 一轮的写出次序（与内核无关，但必须稳定）：
-    /// 恢复点 / 告警 → **响应体原样出 stdout** → 诊断。
-    /// <para>一对一模式：响应体走 stdout，诊断走 stderr（保持可管道）。</para>
-    /// </summary>
-    private static void WriteTurnOutcome(TurnOutcome outcome)
-    {
-        foreach (var line in outcome.StderrBeforeResponse)
-        {
-            Console.Error.WriteLine(line);
-        }
-
-        Console.Out.WriteLine(outcome.Result.Response);
-
-        foreach (var line in outcome.StderrAfterResponse)
-        {
-            Console.Error.WriteLine(line);
-        }
+        return 0;
     }
 
     private static string ReadMessageFromStdin()
@@ -1056,19 +1426,19 @@ internal static class Program
         Console.WriteLine("用法：AgentRuntime.Cli [选项] [\"你的问题\"]");
         Console.WriteLine();
         Console.WriteLine("选项：");
-        Console.WriteLine("  --config <path>    配置文件（默认在当前目录 / 程序目录找 config.json）");
+        Console.WriteLine("  --config <path>    配置文件（默认在当前目录 / 程序目录找 config.xml）");
         Console.WriteLine("  --api-key-file <p> 密钥文件**路径**（只传路径；内容不进 argv / 日志；环境变量优先）");
         Console.WriteLine("  --bare             裸聊：仅协议区（R1-P）+ 本轮用户消息（不挂任何**业务**模块）");
         Console.WriteLine("  --vacuum           真空模式：只有本轮用户消息，一条 system 都没有（**消融对照专用**，不保证自报与接续）");
         Console.WriteLine("  --modules <a,b>    覆盖配置里的模块列表（空串 = 裸聊；协议区永远强制装配，摘不掉）");
         Console.WriteLine("  --protocol-show    只读显示协议区（R1-P）文本 + 预算占用（不需要密钥，不读配置）");
         Console.WriteLine("  --domains <a,b>    拉起前选择专业领域（覆盖 config.frozen.domains；空串 = 全部加载）");
-        Console.WriteLine("  --list-domains     只列出预设专业领域（不需要密钥）");
-        Console.WriteLine("  --list-misc        只列出杂项（misc）待整理条目（不需要密钥）");
         Console.WriteLine("  --chat             多轮模式：每行一句，Ctrl-D 或 exit 结束");
         Console.WriteLine("  --auto-continue <n>  工具结果落地后**不再问人**直接续跑（默认 0 = 关；上限 = n 次）");
         Console.WriteLine("                     —— 自持必需：[WB] 自己跑完一轮工具后要能接着说话；每次续跑在 stderr 留一行痕");
         Console.WriteLine("  --closeout         收尾：校验前缀 → 上报 misc 待整理 → 推进水位线（不需要密钥）");
+        Console.WriteLine("  --terminal-audit <dir>   终局审计（P2-1）：按逐类终局断言折算一批流的读数（只读，不需密钥）");
+        Console.WriteLine("  --migrate <dir>          JSON → XML 迁移（乙方案：归档 + 双验 + 可回滚）；配 --migrate-mode <plan|apply|check|rollback>（默认 plan）与 --archive <dir>");
         Console.WriteLine("  --color auto|always|never   落屏上色策略（默认 auto：TTY 且非 NO_COLOR/TERM=dumb 才上色）");
         Console.WriteLine("  --color-depth auto|16|256|truecolor  色深（默认 auto；与 OpenClaw 侧同色）");
         Console.WriteLine("  --stream <path>    覆盖 config.stream.path（事件流文件，JSONL，只追加）");
@@ -1076,7 +1446,7 @@ internal static class Program
         Console.WriteLine("  --kind <k>         配合 --append 指定事件类型（默认按路径猜）");
         Console.WriteLine($"                     可用：{SessionEventKinds.LabelList}");
         Console.WriteLine("  --source <id>      配合 --append 记录来源指针（账本字段，不进 prompt）");
-        Console.WriteLine("  --skill-repo <p>   L3 地址表（技能仓库目录，或任一 L3.jsonl；也可以用 config.skill.repo）");
+        Console.WriteLine("  --skill-repo <p>   L3 地址表（技能仓库目录，或任一 l3.xml；也可以用 config.skill.repo）");
         Console.WriteLine("  --skill-use <ids>  按 id 装载 L3 条（逗号分隔，如 S-bench-007,S-svnwf-000；不需要密钥）");
         Console.WriteLine("  --stream-show      渲染事件流尾部（不需要密钥）");
         Console.WriteLine("  --stream-tail <n>  配合 --stream-show 指定行数（默认 20）");
@@ -1102,11 +1472,11 @@ internal static class Program
         Console.WriteLine("  --verbose, -v      打印 token / 缓存 / 耗时 / 模块诊断（stderr）");
         Console.WriteLine("  --help, -h         显示本帮助");
         Console.WriteLine();
-        Console.WriteLine($"可用模块：{string.Join("、", RuntimeConfiguration.KnownModules)}");        Console.WriteLine("密钥来源：config.json 的 apiKeyEnv 指向的环境变量，或 apiKeyFile 指向的本地文件。");
-        Console.WriteLine("快照：config.snapshot.path（默认 ~/.agentruntime/snapshot.json）；配了 stream.path 就每轮自动写。");
-        Console.WriteLine("焦点：config.focus（默认 ~/.agentruntime/focus.json 缓存）；band 排在全部动态区之后、用户消息之前。");
-        Console.WriteLine("尾部：config.currentTail.storePath（默认 ~/.agentruntime/tail/<sessionId>.json；**唯一真相源**，坏文件报错）。");
-        Console.WriteLine("草稿：config.dynamicDraft.storePath（默认 ~/.agentruntime/draft/<sessionId>.json；**唯一真相源**，坏文件报错；无局部编辑入口）。");
+        Console.WriteLine($"可用模块：{string.Join("、", RuntimeConfiguration.KnownModules)}");        Console.WriteLine("密钥来源：config.xml 的 apiKeyEnv 指向的环境变量，或 apiKeyFile 指向的本地文件。");
+        Console.WriteLine("快照：config.snapshot.path（默认 ~/.agentruntime/snapshot.xml）；配了 stream.path 就每轮自动写。");
+        Console.WriteLine("焦点：config.focus（默认 ~/.agentruntime/focus.xml 缓存）；band 排在全部动态区之后、用户消息之前。");
+        Console.WriteLine("尾部：config.currentTail.storePath（默认 ~/.agentruntime/tail/<sessionId>.xml；**唯一真相源**，坏文件报错）。");
+        Console.WriteLine("草稿：config.dynamicDraft.storePath（默认 ~/.agentruntime/draft/<sessionId>.xml；**唯一真相源**，坏文件报错；无局部编辑入口）。");
         Console.WriteLine("第三道闸门：动态区规范序 R2 -> R4 -> R5 -> R3（R3 居末 ⇒ R3 之后不得有任何段；违序直接报错，不静默纠正）。");
     }
 }

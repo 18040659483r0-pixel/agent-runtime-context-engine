@@ -25,7 +25,7 @@ public sealed class FocusResumeTests : IDisposable
     private static readonly DateTimeOffset SavedAt = new(2026, 9, 15, 18, 0, 0, TimeSpan.FromHours(8));
 
     private static FrozenSnapshot Prefix() =>
-        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, "1", "铁则正文")]);
+        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "1", "铁则正文")]);
 
     /// <summary>写一条「两轮 + 自报」的流文件。</summary>
     private string WriteStream()
@@ -72,15 +72,7 @@ public sealed class FocusResumeTests : IDisposable
         // 旧快照（V4：没有 focus 字段 / 或者恒空）⇒ 走空默认，照样能读（不炸旧数据）。
         var legacyPath = _workspace.File("legacy-snapshot.json");
         File.WriteAllText(legacyPath, """
-        {
-          "schemaVersion": 1,
-          "sessionId": "old-session",
-          "frozenSnapshotId": "deadbeefdeadbeef",
-          "streamCursor": 6,
-          "streamPath": "/tmp/stream.jsonl",
-          "model": "mock-model",
-          "savedAt": "2026-09-15T18:00:00+08:00"
-        }
+        <Snapshot><SchemaVersion>1</SchemaVersion><SessionId>old-session</SessionId><FrozenSnapshotId>deadbeefdeadbeef</FrozenSnapshotId><StreamCursor>6</StreamCursor><StreamPath>/tmp/stream.jsonl</StreamPath><Model>mock-model</Model></Snapshot>
         """);
 
         var legacy = new SnapshotStore(legacyPath).Load();
@@ -189,7 +181,7 @@ public sealed class FocusResumeTests : IDisposable
         var cache = new FocusCache(cachePath);
         Assert.Null(cache.Load());
 
-        cache.Save(new FocusCacheEntry { Tags = state.Tags, StreamCursor = 6, SavedAt = SavedAt });
+        cache.Save(new FocusCacheEntry { Tags = state.Tags.ToArray(), StreamCursor = 6, SavedAt = SavedAt });
         var entry = cache.Load();
         Assert.NotNull(entry);
         Assert.Equal(state.Tags, entry!.Tags);

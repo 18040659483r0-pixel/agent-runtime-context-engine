@@ -1,5 +1,5 @@
 using System.Text;
-using System.Text.Json;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Core.Skill;
 
@@ -16,6 +16,9 @@ namespace AgentRuntime.Core.Skill;
 /// <para>
 /// <b>坏数据必须报错</b>（<see cref="InvalidDataException"/>，与 <see cref="SkillIndex"/> 同口径）：
 /// 常驻层是「知识进不进得去」的入口，静默降级会变成「模型以为自己有知识、其实没有」。
+/// </para>
+/// <para>
+/// A4 尾：读 <c>l1.xml</c> / <c>l2.xml</c>（行式 XML 片段流；由 JSON 行改 XML —— core 不许 JSON）。
 /// </para>
 /// </summary>
 public sealed class SkillResident
@@ -58,8 +61,8 @@ public sealed class SkillResident
     public int Bytes => Encoding.UTF8.GetByteCount(Text);
 
     /// <summary>
-    /// 从**目录**加载常驻层。目录里要有两份汇总：<c>l1.jsonl</c>（或 <c>_l1.jsonl</c>）
-    /// 与 <c>l2.jsonl</c>（或 <c>_l2.jsonl</c>）—— 两种命名都认（仓库根用下划线、派生目录不用）。
+    /// 从**目录**加载常驻层。目录里要有两份汇总：<c>l1.xml</c>（或 <c>_l1.xml</c>）
+    /// 与 <c>l2.xml</c>（或 <c>_l2.xml</c>）—— 两种命名都认（仓库根用下划线、派生目录不用）。
     /// </summary>
     /// <param name="directory">含 l1/l2 汇总的目录（如 <c>knowledge/.derived</c>）。</param>
     /// <param name="domains">按域过滤 L2（空/null = 全部域；L1 始终全量 —— 它是「有哪些技能」的目录）。</param>
@@ -71,8 +74,8 @@ public sealed class SkillResident
             throw new DirectoryNotFoundException($"找不到常驻层目录：{directory}");
         }
 
-        var l1Path = Find(directory, "l1.jsonl", "_l1.jsonl");
-        var l2Path = Find(directory, "l2.jsonl", "_l2.jsonl");
+        var l1Path = Find(directory, "l1.xml", "_l1.xml");
+        var l2Path = Find(directory, "l2.xml", "_l2.xml");
 
         var l1 = ReadL1(l1Path);
         var l2 = ReadL2(l2Path, domains);
@@ -93,24 +96,18 @@ public sealed class SkillResident
 
         throw new FileNotFoundException(
             $"常驻层缺文件：{directory} 下找不到 {string.Join(" 或 ", candidates)}。"
-            + "（派生层可重建：重跑 tools/skill-repo/knowledge-repo.py emit。）");
+            + "（派生层可重建：重跑知识库派生（C# `AgentRuntime.Cli --knowledge-repo <out> --derive-only`）。）");
     }
 
     private static List<L1Line> ReadL1(string path)
     {
         var rows = new List<L1Line>();
-        var line = 0;
-        foreach (var raw in File.ReadLines(path, Encoding.UTF8))
+        var index = 0;
+        foreach (var row in DataContractXml.ReadFragments<L1Row>(path))
         {
-            line++;
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
-            using var doc = Parse(raw, path, line);
-            var skill = Str(doc, "skill", path, line);
-            var text = Str(doc, "l1", path, line);
+            index++;
+            var skill = Require(row.Skill, "skill", path, index);
+            var text = Require(row.Text, "l1", path, index);
             rows.Add(new L1Line(skill, text));
         }
 
@@ -122,42 +119,24 @@ public sealed class SkillResident
     private static List<L2Line> ReadL2(string path, IReadOnlyCollection<string>? domains)
     {
         var rows = new List<L2Line>();
-        var line = 0;
-        foreach (var raw in File.ReadLines(path, Encoding.UTF8))
+        var index = 0;
+        foreach (var row in DataContractXml.ReadFragments<L2Row>(path))
         {
-            line++;
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                continue;
-            }
-
-            using var doc = Parse(raw, path, line);
-            var skill = Str(doc, "skill", path, line);
-            var domain = Str(doc, "domain", path, line);
-            var question = Str(doc, "q", path, line);
+            index++;
+            var skill = Require(row.Skill, "skill", path, index);
+            var domain = Require(row.Domain, "domain", path, index);
+            var question = Require(row.Question, "q", path, index);
 
             if (domains is { Count: > 0 } && !domains.Contains(domain, StringComparer.Ordinal))
             {
                 continue;
             }
 
-            var ids = new List<string>();
-            if (doc.RootElement.TryGetProperty("ids", out var idsElement) && idsElement.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var id in idsElement.EnumerateArray())
-                {
-                    var value = id.GetString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        ids.Add(value);
-                    }
-                }
-            }
-
+            var ids = (row.Ids ?? []).Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
             if (ids.Count == 0)
             {
                 throw new InvalidDataException(
-                    $"{path}:{line}：L2 行没有 ids —— 常驻里出现「点了也没东西可装」的问题就是坏数据。");
+                    $"{path} 第 {index} 段：L2 行没有 ids —— 常驻里出现「点了也没东西可装」的问题就是坏数据。");
             }
 
             rows.Add(new L2Line(skill, domain, question, ids));
@@ -166,30 +145,10 @@ public sealed class SkillResident
         return rows;
     }
 
-    private static JsonDocument Parse(string raw, string path, int line)
-    {
-        try
-        {
-            return JsonDocument.Parse(raw);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidDataException($"{path}:{line}：不是合法 JSON（{ex.Message}）。");
-        }
-    }
-
-    private static string Str(JsonDocument doc, string name, string path, int line)
-    {
-        if (!doc.RootElement.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.String)
-        {
-            throw new InvalidDataException($"{path}:{line}：缺字符串字段 \"{name}\"。");
-        }
-
-        var value = element.GetString();
-        return string.IsNullOrWhiteSpace(value)
-            ? throw new InvalidDataException($"{path}:{line}：字段 \"{name}\" 为空。")
+    private static string Require(string? value, string name, string path, int index) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidDataException($"{path} 第 {index} 段：字段 \"{name}\" 缺失或为空。")
             : value;
-    }
 
     /// <summary>
     /// 单条 L2 行渲染成 prompt 的**唯一口径** —— <see cref="Render"/> 与「按域计字节」共用这一处，

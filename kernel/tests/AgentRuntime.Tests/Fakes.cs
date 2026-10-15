@@ -31,6 +31,29 @@ internal sealed class FakeModelClient : IModelClient
             Usage = new TokenUsage { PromptTokens = 3, CompletionTokens = 4, TotalTokens = 7 },
         }));
 
+    /// <summary>**按序回放**多条回复：第 n 次调用给第 n 条；用完之后一直重放**最后一条**
+    /// （自动接续链会问很多轮 —— 靠它把「多轮」这件事变确定）。</summary>
+    public static FakeModelClient ReturningSequence(params string[] replies)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(replies.Length);
+        var index = 0;
+        return new FakeModelClient((_, _) => Task.FromResult(new ChatResponse
+        {
+            Id = "fake-seq",
+            Model = "fake-model",
+            Choices =
+            [
+                new ChatChoice
+                {
+                    Index = 0,
+                    Message = ChatMessage.Assistant(replies[Math.Min(index++, replies.Length - 1)]),
+                    FinishReason = "stop",
+                },
+            ],
+            Usage = new TokenUsage { PromptTokens = 3, CompletionTokens = 4, TotalTokens = 7 },
+        }));
+    }
+
     public Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {
         CallCount++;

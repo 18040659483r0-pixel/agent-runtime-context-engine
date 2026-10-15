@@ -97,7 +97,7 @@ public sealed class LifecycleCloseoutTests
     [Fact]
     public async Task 收尾报告带上生命周期摘要()
     {
-        using var harness = new TuiHarness("lifecycle-closeout", modules: "[\"rules\",\"append-stream\"]");
+        using var harness = new TuiHarness("lifecycle-closeout", modules: ["rules","append-stream"]);
 
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(++calls == 1

@@ -128,7 +128,7 @@ public static class LifecycleAggregator
     public static LifecycleReport AggregateFile(string path, IReadOnlyList<LifecycleTurnUsage>? turnUsages = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return Aggregate(new SessionStreamStore(path).Load(), turnUsages);
+        return Aggregate(new SessionStreamStore(path).LoadOrRecover(out _), turnUsages);
     }
 
     /// <summary>把宿主的每轮账（<see cref="LifecycleTurnUsage"/>）从「轮次记录」搬过来（位置对应 <c>AgentOutput</c> 次序）。</summary>

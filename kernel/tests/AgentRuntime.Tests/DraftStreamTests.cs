@@ -111,7 +111,7 @@ public sealed class DraftStreamTests : IDisposable
         await module.ContributeAsync(new RuntimeContext("s", 0), withDraft, token);
         Assert.Single(withDraft);
         Assert.Equal("system", withDraft[0].Role);
-        Assert.Equal("[DRAFT]\n构想: X", withDraft[0].Content);
+        Assert.Equal("[DRAFT] " + DraftService.OwnHeaderNote + "\n构想: X", withDraft[0].Content);
 
         module.Clear();
         var cleared = new List<ChatMessage>();
@@ -155,7 +155,7 @@ public sealed class DraftStreamTests : IDisposable
         await new FocusModule(stream, new FocusOptions()).ContributeAsync(new RuntimeContext("s", 1), withBoard, token);
 
         Assert.Equal(previous.Count + 1, withBoard.Count);
-        Assert.Equal("[DRAFT]\n构想: 整块覆盖", withBoard[^2].Content);
+        Assert.Equal("[DRAFT] " + DraftService.OwnHeaderNote + "\n构想: 整块覆盖", withBoard[^2].Content);
         Assert.Equal("system", withBoard[^2].Role);
         Assert.Equal(previous[^1].Content, withBoard[^1].Content);                              // band 仍在最后
         Assert.Equal(previous.Take(previous.Count - 1).Select(m => m.Content),

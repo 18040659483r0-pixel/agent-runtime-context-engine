@@ -1,3 +1,4 @@
+using System.Text;
 using AgentRuntime.Core;
 using AgentRuntime.Core.Frozen;
 using AgentRuntime.Core.Lifecycle;
@@ -59,8 +60,45 @@ public sealed class SplitSession
     /// **共用同一个实例**；各读一次 Console 就会有一处漏掉粘贴（与坑 #118「同一句输入两条入口」同族）。
     /// </summary>
     private readonly PasteCollector _keys = new(
-        read: () => Console.ReadKey(intercept: true),
-        more: () => !Console.IsInputRedirected && Console.KeyAvailable);
+        read: ReadConsoleKey,
+        more: ConsoleKeyAvailable);
+
+    /// <summary>
+    /// **读一个键**（输入侧失败的**唯一归一化点**）：tty 没了（终端关窗 / 启动器先退）时
+    /// <c>Console.ReadKey</c> 抛 <c>IOException: Input/output error</c> ⇒ 归一成
+    /// <see cref="InputDisconnectedException"/>。
+    /// <para>为什么不能让它原样上抛：那会被当成「未捕获异常」⇒ 转储 + SIGABRT（2026-10-14 真机）。
+    /// 归一成**一个类型**后，交互循环只认这一种，**也不会误吞某一轮里的其它 IOException**。</para>
+    /// </summary>
+    private static ConsoleKeyInfo ReadConsoleKey()
+    {
+        try
+        {
+            return Console.ReadKey(intercept: true);
+        }
+        catch (System.IO.IOException ex)
+        {
+            throw new InputDisconnectedException(ex);
+        }
+    }
+
+    /// <summary>此刻缓冲区里有没有键（同一归一化口径；tty 没了同样走 <see cref="InputDisconnectedException"/>）。</summary>
+    private static bool ConsoleKeyAvailable()
+    {
+        if (Console.IsInputRedirected)
+        {
+            return false;
+        }
+
+        try
+        {
+            return Console.KeyAvailable;
+        }
+        catch (System.IO.IOException ex)
+        {
+            throw new InputDisconnectedException(ex);
+        }
+    }
 
     /// <summary>一次粘贴的字符上限：超过就**不收**并明说（免得把一整本日志塞进 prompt）—— 数据一个字节不丢，它还在人手上。</summary>
     private const int MaxPasteChars = 64 * 1024;
@@ -99,11 +137,11 @@ public sealed class SplitSession
     /// <summary>
     /// **就地展开的区**（v12）：正文摊在**目录里它自己那一行下面**（不另占一块，也不覆盖详细块）。
     /// <para>默认 = 白板 R4 / 草稿 R5 / 焦点 R3（主人 2026-09-20 15:3x 定的常态）；
-    /// 按 <c>Enter</c> 就地插入 / 收起，设置**记在 <c>~/.agentruntime/tui.json</c></b>（下次拉起照旧）。</para>
+    /// 按 <c>Enter</c> 就地插入 / 收起，设置**记在 <c>~/.agentruntime/tui.xml</c></b>（下次拉起照旧）。</para>
     /// </summary>
     /// <summary>
     /// **就地展开的区集**（v13：**默认全部展开**）。
-    /// <para>历史：v12 默认只展开 R4/R5/R3，且把人的选择落盘（<c>tui.json</c>）—— 结果是
+    /// <para>历史：v12 默认只展开 R4/R5/R3，且把人的选择落盘（<c>tui.xml</c>）—— 结果是
     /// 「默认没展开、还得 Enter 一个个点」，而且落盘的旧子集会把默认值盖回去（主人 2026-09-21 23:5x 报）。
     /// 现在**不读旧设置**、一律全展开；Escape / Enter 仍可在本次会话内收起（**不再落盘**）。</para>
     /// </summary>
@@ -187,8 +225,15 @@ public sealed class SplitSession
     /// <summary>当前显示的区栈（真发出去那一份，或最新预览）。</summary>
     public PromptComposition? Shown => _shown;
 
+    /// <summary>**T1 破线次数**（结构读数）：每轮落地时比「预览组装指纹」与「实发请求指纹」，不等就 +1。
+    /// <para>人读面那行告警的**文案**会变、这个数不会 —— 闸门盯**这个数**（读数盯结构源，别盯人读文案）。</para></summary>
+    public int T1BreakCount { get; private set; }
+
     /// <summary>是否该退出（<c>/quit</c> / <c>exit</c> / <c>Ctrl+Q</c>）。</summary>
     public bool QuitRequested { get; private set; }
+
+    /// <summary>终端挂断过（SIGHUP 被接住）—— 让交互循环按「终端没了」体面收场，而不被信号静默杀掉。</summary>
+    private volatile bool _hangup;
 
     /// <summary>重绘回调（交互模式由 <see cref="RunInteractiveAsync"/> 注入；无头模式为 null）。</summary>
     public Action? Redraw { get; set; }
@@ -274,7 +319,7 @@ public sealed class SplitSession
 
     /// <summary>收起展开正文 / 清掉面板输出（Esc 的动作）。</summary>
     /// <remarks>
-    /// v12：**只清面板输出与清场，不动「就地展开」那几项** —— 后者是**持久化的设置**（<c>tui.json</c>），
+    /// v12：**只清面板输出与清场，不动「就地展开」那几项** —— 后者是**持久化的设置**（<c>tui.xml</c>），
     /// 按 Esc 就把它改掉等于把人的偏好顺手抹了。要收起某一项，目录里选中它再按 Enter。
     /// </remarks>
     public void CollapseAll()
@@ -289,6 +334,65 @@ public sealed class SplitSession
 
     /// <summary>滚动当前焦点栏（↑↓ / PgUp / PgDn 的动作）。</summary>
     public void ScrollBy(int delta) => Scroll(delta);
+
+    /// <summary>
+    /// **worker 池的事实**（不含任何调度判断 —— 选「等 / 复用 / 问人」是 Master 的活）。
+    /// <para>无 worker（或没挂派发模块）⇒ 空列表 ⇒ 顶部带里那一行**根本不存在**（W10/W12）。</para>
+    /// </summary>
+    private IReadOnlyList<string> WorkerFacts()
+    {
+        var pool = _host.Modules
+            .OfType<AgentRuntime.Modules.Worker.WorkerDispatchModule>()
+            .FirstOrDefault()?.Pool;
+        if (pool is null)
+        {
+            return [];
+        }
+
+        return pool.Snapshot().Select(e =>
+        {
+            var fx = UsageFact(e.Usage);   // 2026-10-09：此刻上下文 + 命中率（上限不显示 —— 换模型就不同）
+            // 逐轮结果 append（2026-10-09 主人令）：每轮的产出各占一行（工蜂卡照 master 的「结果逐轮 append」）。
+            var trace = e.Trace.Count == 0
+                ? string.Empty
+                : "\n" + string.Join('\n', e.Trace.Select((t, i) => $"轮 {i + 1}：{t}"));
+            // 结果 append（2026-10-09）：worker 交回的结论跟在它**自己**那行之后（换行 ⇒ 卡里独立一行）。
+            var res = string.IsNullOrWhiteSpace(e.LastResult) ? string.Empty : $"\n结果：{TrimTask(e.LastResult)}";
+            var dec = string.IsNullOrWhiteSpace(e.LastDecision) ? string.Empty : $"\n{e.LastDecision}";
+            return e.State switch
+            {
+                AgentRuntime.Core.Worker.WorkerState.Working =>
+                    $"#{e.Id} {e.Mode} {e.ElapsedMs / 1000.0:0.0}s · 第 {pool.Lifecycles} 生命周期{fx}{trace}{res}",
+                AgentRuntime.Core.Worker.WorkerState.Idle =>
+                    $"#{e.Id} idle（上次 {e.ElapsedMs / 1000.0:0.0}s{fx}）{trace}{res}{dec}",
+                _ => $"#{e.Id} closed",
+            };
+        }).ToArray();
+    }
+
+    /// <summary>**用量事实**（2026-10-09 主人令）：当前 task 新增 tok · 缓存命中率 · 上下文 tok · 第 N 轮。
+    /// <para>没有用量（未结算 / 无回执）⇒ 空串（**不占字节** —— 与「无 worker 那一行根本不存在」同规）。</para></summary>
+    internal static string UsageFact(AgentRuntime.Core.Worker.WorkerUsage? u)
+    {
+        if (u is null)
+        {
+            return string.Empty;
+        }
+
+        // **此刻上下文**（2026-10-09 主人令）：取**最新一轮**的 prompt（缓存部分**不重复累计**）—— 不是逐轮之和。
+        // 上限（窗口）**不显示**（2026-10-09 主人令：该家 1M、但换模型就不同 ⇒ 不写死）。
+        var ctx = u.ContextTokens > 0 ? u.ContextTokens : u.PromptTokens;
+        var cached = u.ContextTokens > 0 ? u.ContextCached : u.CachedTokens;
+        var hit = ctx == 0 ? 0 : (double)Math.Max(0, cached) / ctx * 100.0;
+        var fresh = Math.Max(0, u.PromptTokens - u.CachedTokens) + Math.Max(0, u.CompletionTokens);
+        return $" · 新增 {fresh:N0} tok · 上下文 {ctx:N0} {hit:0}%";
+    }
+
+    private static string TrimTask(string? s)
+    {
+        var t = s ?? "—";
+        return t.Length <= 28 ? t : t[..28] + "…";
+    }
 
     /// <summary>换个尺寸渲染一帧（尺寸是**渲染参数**，不是会话状态 —— 同一状态在 96×30 / 80×24 都该画得出）。</summary>
     public SplitFrame Frame(int width, int height)
@@ -312,11 +416,11 @@ public sealed class SplitSession
                     task.AppendedChars)
                 : null,
             Subtitle = Subtitle(width),
-            Conversation = WithPanel(ThinkingConversation()),
+            Conversation = WithPanel(ThinkingConversation(), width),
             TaskLabel = TaskLabel(),
             Regions = SplitRenderer.BuildRows(layers, _deltas, RegionNotes()),
             SelfReport = SelfReport(),
-            ExpertDomains = StackPanel.ExpertDomains(layers, ResidentOf()),   // 顶层框「专家」行：R1 实际装载的专家分类
+            Workers = WorkerFacts(),                                          // 顶部带「worker」行：池里谁在跑（空 ⇒ 那一行不存在）
             InlineExpanded = InlineOrder(),   // v12：就地展开（默认 R4/R5/R3；Enter 切开关，设置落盘）
             Totals = totals,
             RequestNote = RequestNote(),
@@ -351,19 +455,71 @@ public sealed class SplitSession
     /// </summary>
     private IReadOnlyList<ConversationEntry> ThinkingConversation()
     {
-        if (!_thinking)
+        var lines = new List<ConversationEntry>(_conversation);
+
+        if (_thinking)
         {
-            return _conversation;
+            // 需求 E：显示的是**task 生命周期**的读数（不是这一次请求的秒数）——后者只说明「这一拍多久」。
+            // 颜色：kind 用 "thinking" ⇒ 由 SplitView 按 **与「得解」同一个角色**（薄荷绿）上色。
+            lines.Add(new ConversationEntry("thinking", $"⏳ 远端模型正在思考… {TaskLabel()}"));
         }
 
-        // 需求 E：显示的是**task 生命周期**的读数（不是这一次请求的秒数）——后者只说明「这一拍多久」。
-        // 颜色：kind 用 "thinking" ⇒ 由 SplitView 按 **与「得解」同一个角色**（薄荷绿）上色
-        // （主人 2026-09-22 17:2x 定：这一行要一眼认出）。刻意不复用 "info" —— 那个是中性信息行。
-        return [.. _conversation, new ConversationEntry("thinking", $"⏳ 远端模型正在思考… {TaskLabel()}")];
+        // 2026-10-09 主人令：**工蜂在干活**也要有同形的一行（挂在工蜂卡下面）——
+        // 一眼知道「工蜂在工作」＋第几轮 / 多久。空 ⇒ 一行不加（与「无 worker 那一行不存在」同规）。
+        foreach (var working in WorkerWorkingLines())
+        {
+            lines.Add(new ConversationEntry("thinking", working));
+        }
+
+        return lines;
+    }
+
+    /// <summary>**正在干活的工蜂**的状态行（与 master 那条同形 · 同色）：`⏳ 工蜂 #W1 正在干活… async 8.2s · 第 3 轮「task」`。
+    /// <para>没有在干活的工蜂 ⇒ 空表（不占一行）。</para></summary>
+    private IReadOnlyList<string> WorkerWorkingLines()
+    {
+        var pool = _host.Modules
+            .OfType<AgentRuntime.Modules.Worker.WorkerDispatchModule>()
+            .FirstOrDefault()?.Pool;
+        if (pool is null)
+        {
+            return [];
+        }
+
+        return pool.Snapshot()
+            .Where(e => e.State == AgentRuntime.Core.Worker.WorkerState.Working)
+            .Select(e => $"⏳ 工蜂 #{e.Id} 正在干活… {e.Mode} · 第 {pool.Lifecycles} 生命周期 · {Clock(e.StartedAtMs)}")
+            .ToArray();
+    }
+
+    /// <summary>**实时读秒**（2026-10-09 主人令）：从本次生命周期的开始时刻算到**此刻**（每帧重算 ⇒ 每秒都动，
+    /// 与 master 那条「正在思考」一致）；格式 mm:ss（超一小时 h:mm:ss）。</summary>
+    private static string Clock(long startedAtMs)
+    {
+        if (startedAtMs <= 0)
+        {
+            return "00:00";
+        }
+
+        var total = Math.Max(0, Environment.TickCount64 - startedAtMs);
+        var span = TimeSpan.FromMilliseconds(total);
+        return total >= 3_600_000 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"mm\:ss");
     }
 
     /// <summary>需求 B 的轮询间隔：计时器每 ~200ms 刷一拍（够跟手，也不烧 CPU）。</summary>
     private const int ThinkingRedrawMs = 200;
+
+    /// <summary>
+    /// **提示点**：一轮（turn = 一次模型请求）在上游等过这么久就**提示一声** —— **只看不砍**。
+    /// <para>主人 2026-10-15 令：「照常执行下去，只提示，我自己知道就行了，任务要继续做完，说不定 6 分钟的时候做完了」。
+    /// 唯一家 = <see cref="PaceWall.NoticeSeconds"/>（与 `pacer master` 的读数**同源**，不各处手写 300）。</para>
+    /// <para>级别说清：它量的**只是这一轮的这个请求**（turn 级）；task（一次请求 + 全部续跑轮）与 session（整条流）**都不受影响**。</para>
+    /// </summary>
+    internal const long TurnWaitNoticeMs = AgentRuntime.Core.Worker.PaceWall.NoticeSeconds * 1000L;
+
+    /// <summary>到没到提示点（纯函数 ⇒ 夹具能钉住边界，不用真等 5 分钟）。</summary>
+    internal static bool WaitNoticeDue(long thinkingStartedMs, long nowMs) =>
+        thinkingStartedMs > 0 && nowMs - thinkingStartedMs >= TurnWaitNoticeMs;
 
     // ---------------- task 钟（需求 E）----------------
 
@@ -378,7 +534,12 @@ public sealed class SplitSession
         var total = _taskAccumulatedMs + (_taskRunning ? Environment.TickCount64 - _taskStartedMs : 0);
         var span = TimeSpan.FromMilliseconds(total);
         var clock = total >= 3_600_000 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"mm\:ss");
-        return $"task {clock} · {_taskTurns} 轮{(_taskRunning ? string.Empty : "（已停）")}";
+        // **与工蟜同一条计时规则**（2026-10-09 主人令）：「第 N 轮」= **本 session 的第 N 次生命周期**（不是引擎内部轮次）；
+        // 读秒 = **本次生命周期**的总消耗（每帧重算 ⇒ 每秒都动，mm:ss）。两边读法一致 —— 一眼就能对照。
+        var stop = _taskRunning ? string.Empty : "（已停）";
+        return CurrentLifecycle() is { } life
+            ? $"第{life.Id}生命周期·{clock}{stop}"
+            : $"{clock}{stop}";
     }
 
     /// <summary>
@@ -521,7 +682,7 @@ public sealed class SplitSession
 
         while (true)
         {
-            if (Console.KeyAvailable)
+            if (ConsoleKeyAvailable())
             {
                 return _keys.Read();
             }
@@ -546,6 +707,7 @@ public sealed class SplitSession
     {
         _thinking = true;
         _thinkingStartedMs = Environment.TickCount64;
+        var notified = false;
         try
         {
             Redraw?.Invoke();                       // 先亮一次：不该等下一拍才见字
@@ -563,9 +725,20 @@ public sealed class SplitSession
                     break;                          // 令牌已取消 ⇒ 别再自旋，交给下面 await 抛
                 }
 
+                // **到点只提示，不停不等断**（主人 2026-10-15 令）：出一行告诉人「这一轮已经多久了」，
+                // 然后**照样等**——不取消、不放弃、不回退（说不定下一分钟就回来了）。只提示一次，不刷屏。
+                if (!notified && WaitNoticeDue(_thinkingStartedMs, Environment.TickCount64))
+                {
+                    notified = true;
+                    _conversation.Add(new ConversationEntry(
+                        "info",
+                        $"⏳ 本轮（turn）已在上游等待 {AgentRuntime.Core.Worker.PaceWall.NoticeSeconds / 60} 分钟 —— "
+                        + "继续等，不中断（任务照常做完）。"));
+                }
+
                 // **工作期间仍然收键**（主人 2026-09-20 15:3x 要的「临时停止 / 插话」）：
                 //   Ctrl-C = 停止当前轮（已有的 Ctrl-C 一下语义）· Enter = **插话**（先停当前轮，再把这句发出去）。
-                if (!Console.IsInputRedirected && Console.KeyAvailable)
+                if (ConsoleKeyAvailable())
                 {
                     var read = _keys.Read();
                     if (read.IsPaste)
@@ -620,7 +793,44 @@ public sealed class SplitSession
         // Ctrl-C：一下 = 中断当前轮（`_turnCts`），两下（2 秒内）= 退出并恢复终端。
         CtrlCQuit.Install(
             interrupt: () => _turnCts?.Cancel(),
-            restoreTerminal: () => screen.Dispose());   // 显示光标 + 离开备用屏（幂等）
+            restoreTerminal: () => screen.Dispose(),   // 显示光标 + 离开备用屏（幂等）
+            // 这条出口也要留记录（从前什么都不留 ⇒ 「它自己退出了」归不到因）。
+            exitReason: () => InputExit.ExitByUser(_host.SessionClosed, _host.Config.Stream.Path));
+
+        // 输入侧断开（tty EIO）时的退出话术 —— 攒到**备用屏退出之后**再打（在屏内打会被抹掉）。
+        string? inputLost = null;
+
+        // **终端挂断 / 被要求退出（SIGHUP · SIGTERM）默认都是静默被杀**：无转储、无崩溃报告 ⇒ 事后不可归因
+        //（2026-10-14 实测：EXIT=-1，什么都不留）。接住它们不是为了活着，而是为了**体面收场**：
+        // 让「读键拿 EIO / 写不进去」这条既有路自己走完（有嗓子 + 落一条退出记录 + 会话照旧保留）。
+        _hangup = false;
+
+        // **接住信号 ≠ 会收场**（实测）：主循环可能正阻塞在读键上 ⇒ 只置标志，它会照旧转。
+        // 所以这里**直接**走那条体面路：写盘上的退出记录 + 尽力上屏 + 恢复终端 + 正常码退出。
+        void OnTerminalEnding(System.Runtime.InteropServices.PosixSignalContext ctx)
+        {
+            ctx.Cancel = true;   // 不让默认处理器杀进程（杀了就没人说这一句）
+            _hangup = true;
+
+            var reason = InputExit.Hangup(_host.SessionClosed, _host.Config.Stream.Path);
+            InputExit.Record(reason);
+            try
+            {
+                Console.Error.WriteLine(reason);
+            }
+            catch (System.IO.IOException)
+            {
+                // 终端可能已经没了 ⇒ 说不出去就算了（不能再抛：那又变成用崩溃收场）。
+            }
+
+            screen.Dispose();       // 尽力恢复终端（终端没了也安全：Dispose 绝不抛）
+            Environment.Exit(0);    // 体面退出（不是崩溃）
+        }
+
+        using var hangup = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+            System.Runtime.InteropServices.PosixSignal.SIGHUP, OnTerminalEnding);
+        using var terminate = System.Runtime.InteropServices.PosixSignalRegistration.Create(
+            System.Runtime.InteropServices.PosixSignal.SIGTERM, OnTerminalEnding);
 
         try
         {
@@ -637,6 +847,16 @@ public sealed class SplitSession
             {
                 var (width, height) = TerminalSize();
                 DrawFrame(screen, width, height);
+
+                if (_hangup || screen.IsTerminalLost)
+                {
+                    // 终端**没了**（挂断信号 / 写不进去了）—— 与读键失败是**同一类事实**：
+                    // 不当场空转下去（实测：pty 挂断后这套读写会热自旋），体面收场。
+                    inputLost = _hangup
+                        ? InputExit.Hangup(_host.SessionClosed, _host.Config.Stream.Path)
+                        : InputExit.TerminalLost(_host.SessionClosed, _host.Config.Stream.Path);
+                    break;
+                }
 
                 var read = await ReadKeyWithSettleAsync(cancellationToken).ConfigureAwait(false);
                 if (read is not { } ev)
@@ -663,14 +883,43 @@ public sealed class SplitSession
                     _settleDrawn = false;
                 }
             }
-
-            return 0;
+            // ⚠️ 这里**不要 return**：退出话术 / 退出记录在 try/finally **之后**统一写
+            //（先前这里直接 return 0 ⇒ 那段变成了死码：正常退出与 break 两条路都跑不到，实测踩到）。
+        }
+        catch (InputDisconnectedException ex)
+        {
+            // **终端没了也要有嗓子**（2026-10-14 真机）：启动它的包装先退 ⇒ 读键拿到 tty EIO
+            //（`Input/output error`）。从前的形状是「未捕获异常 ⇒ 转储 + SIGABRT」，
+            // 而这条路的正常事实只是「stdin 断了、会话照旧保留」。
+            // 归一只在 `ReadConsoleKey`/`ConsoleKeyAvailable` 两处做 ⇒ 这里接到的**一定**是输入侧的问题
+            //（某一轮里的其它 IOException 照旧往上抛，不被误吞）。
+            // ⚠️ **不在屏内打**：此刻还在备用屏（`screen` 没 Dispose）⇒ 打了会被离开备用屏时抹掉。
+            inputLost = InputExit.Reason(ex, _host.SessionClosed, _host.Config.Stream.Path);
         }
         finally
         {
             Redraw = null;
             screen.Dispose();
         }
+
+        // **每条退出路径都留一份盘上记录**（终端可能已经看不见了 —— 那时屏上说什么都等于没说；
+        // 而正常 quit 也记一笔，才能把「它自己退出了」归到具体哪条路）。
+        InputExit.Record(inputLost ?? InputExit.Quit(_host.SessionClosed, _host.Config.Stream.Path));
+
+        if (inputLost is not null)
+        {
+            try
+            {
+                // 终端已恢复（或本来就还好）⇒ 这句看得见；仍是**尽力而为**：stderr 也挂在那个死终端上时，
+                // 说不出去就算了 —— 不能再抛（那又变成用崩溃收场）。
+                Console.Error.WriteLine(inputLost);
+            }
+            catch (System.IO.IOException)
+            {
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>无头：把 stdin 当脚本跑完，最后写**一帧**到文件（纯文本、可 diff、可 CI 断言）。</summary>
@@ -989,7 +1238,7 @@ public sealed class SplitSession
             // ② 真发一轮（与 plain 模式同一个入口，账本照记）。
             // 需求 B：这一段才是真正的「等远端」—— 全程显示思考态 + 计时（轮询重绘，不开线程）。
             var outcome = await WhileThinkingAsync(
-                _router.RunTurnAsync(message, _verbose, cancellationToken), cancellationToken).ConfigureAwait(false);
+                _router.RunTurnAsync(message, _verbose, cancellationToken, preview.Request), cancellationToken).ConfigureAwait(false);
 
             LandTurn(outcome, preview, cursor);
 
@@ -1032,6 +1281,19 @@ public sealed class SplitSession
             // 模型看不到就会以为「上一轮无事发生」，于是把接续句当成全新问题去满仓库猜题意。
             _host.NoteTurnInterrupted(message);
         }
+        catch (ModelClientException ex)
+        {
+            // **单轮请求失败 ≠ 进程要死，也 ≠ 这活白做**（主人 2026-10-15 令：「也没退出的道理…照常执行下去，只提示」）。
+            // 与 Ctrl-C 中断**同一姿势**：会话继续、同时**进流留痕**。
+            // 与 plain 模式对齐：那边早就每轮接住 ModelClientException 后 continue（Program.RunPlainAsync），
+            // 只有 split 这条路从前没人接 ⇒ 冒到 Main ⇒ 整只 TUI 退出（退出码 3，真机 2026-10-15 12:01 / 12:18 两次）。
+            // ⚠️ 「等得久」**不走这里**（那只是提示，见 WaitNoticeDue）—— 能到这里的是真失败（回包非 2xx / 网络错 / 声明的上界）。
+            RefreshCard();
+            _conversation.Add(new ConversationEntry(
+                "info",
+                $"⏱ 本轮请求失败 —— **会话继续、任务不中断**（可直接重发）：{ex.Message}"));
+            _host.NoteTurnFailed(message, ex.Message);
+        }
         finally
         {
             // 交回话筒 ⇒ 停表（模型报终局 / 模型不点工具自己停 / 到上限 / **被中断**，四种都停）。
@@ -1049,7 +1311,7 @@ public sealed class SplitSession
     {
         _continuationPreview = await _host.PreviewContinuationCompositionAsync(cancellationToken).ConfigureAwait(false);
         _continuationCursor = _host.StreamCount;
-        return await _router.ContinueTurnAsync(_verbose, cancellationToken).ConfigureAwait(false);
+        return await _router.ContinueTurnAsync(_verbose, cancellationToken, _continuationPreview.Request).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1075,7 +1337,7 @@ public sealed class SplitSession
     /// 右栏取消后直接拼在会话流**末尾**（全宽、可滚）——前面加一行块头（命令 + 行数），人不至于不知道这是什么。
     /// <para>数据仍在 <c>_detail</c>（所以 `Esc` 清面板 / 下一轮开头自动清 的旧语义**不变**）；它只是换了个渲染位。</para>
     /// </summary>
-    private IReadOnlyList<ConversationEntry> WithPanel(IReadOnlyList<ConversationEntry> conversation)
+    private IReadOnlyList<ConversationEntry> WithPanel(IReadOnlyList<ConversationEntry> conversation, int width)
     {
         if (_detail.Count == 0)
         {
@@ -1083,18 +1345,31 @@ public sealed class SplitSession
         }
 
         var title = _detailTitle ?? "面板输出";
+
+        // 面板输出**逐行**成条目（跨条目）⇒ 表要在**整块**上重排（`/result` 里的表同样不许错乱）。
+        // 面板条目在渲染期带 4 格缩进，故可用宽 = 栏宽 − 4。
+        var lines = TableReflow.Fit(_detail, Math.Max(8, width - 4));
+
         return
         [
             .. conversation,
             new ConversationEntry("panel", $"面板 · {title}（{_detail.Count} 行）"),
-            .. _detail.Select(static line => new ConversationEntry("panel", line)),
+            .. lines.Select(static line => new ConversationEntry("panel", line)),
         ];
     }
 
     private void LandTurn(TurnOutcome outcome, PromptComposition preview, int since)
     {
+        // **同句不重复铺**（主人 2026-10-14 令：屏面文字极贵，无关紧要的少显示）：
+        // `[task 收尾] …` / 档位 / 存储告警这些**每轮算同一句**的行，从前一轮一行、几轮就糊满半个屏
+        // （其中还带一串地址）。现在：**首现照旧显示**（信号不能丢），**与「上一条 info 行」相同就跳过**。
         foreach (var text in VisibleInfoLines(outcome.StderrBeforeResponse, outcome.Result.Response))
         {
+            if (IsRepeatedInfo(text))
+            {
+                continue;
+            }
+
             _conversation.Add(new ConversationEntry("info", text));
         }
 
@@ -1164,13 +1439,116 @@ public sealed class SplitSession
         if (!string.Equals(preview.Sha256, real.Sha256, StringComparison.Ordinal))
         {
             // T1 破线：预览 ≠ 实发。必须当场喊出来，不能默默显示其中一份。
-            _conversation.Add(new ConversationEntry(
-                "info",
-                $"⚠️ T1 破线：预览组装与实发请求不一致（{preview.Sha256[..12]} ≠ {real.Sha256[..12]}）"));
+            // 2026-10-14（主人问「是真破线还是显示问题」⇒ 答案必须**可查**，不能靠信任）：
+            //   · 屏上这行写明**这是运行时自检、不是模型输出**（否则它被模型引述时会像「刷告警」）；
+            //   · 同批**落盘**一条到 `<流同目录>/t1-breaks.log`（含消息数对比）⇒ 真假一读便知。
+            T1BreakCount++;
+            var note = $"⚠️ [运行时自检·T1] 预览 {preview.Sha256[..12]} ≠ 实发 {real.Sha256[..12]}"
+                     + $"（消息 {preview.Request.Messages.Count} vs {outcome.Result.Request.Messages.Count}）"
+                     + " —— 这是 TUI 的不变量告警，不是模型输出";
+            _conversation.Add(new ConversationEntry("info", note));
+            LogT1Break(note);
         }
 
         _lastReal = real;
         Apply(real);
+    }
+
+    /// <summary>
+    /// **这一句 info 行是不是「刚说过的那句」**（同句折叠的唯一判据）。
+    /// <para>只看**上一条 info 行**：逐轮重复的运行时提醒（收尾欠账 / 档位 / 存储告警）会一模一样地再来一次 ⇒ 跳过；
+    /// 而中间夹了别的话（说明它换了内容）⇒ 照旧显示。<b>绝不静默丢情报</b>（首现一定在屏上）。</para>
+    /// </summary>
+    private bool IsRepeatedInfo(string text)
+    {
+        for (var i = _conversation.Count - 1; i >= 0; i--)
+        {
+            if (_conversation[i].Kind != "info")
+            {
+                continue;                       // 只跟「上一条 info」比：中间夹了别的话 ⇒ 不算重复
+            }
+
+            return string.Equals(_conversation[i].Text, text, StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// **T1 破线的落盘**（诊断口）：写一条到**流的同目录**（`t1-breaks.log`）——
+    /// 这样「到底有没有真破线」不靠信任，`read` 一下文件就有答案（主人 2026-10-14 问的就是这个）。
+    /// <para>落盘失败不打断会话（宁可少一条日志，不许把屏打挂）。</summary>
+    private void LogT1Break(string note)
+    {
+        try
+        {
+            var stream = _host.Config.Stream.Path;
+            if (string.IsNullOrWhiteSpace(stream))
+            {
+                return;
+            }
+
+            var path = Path.Combine(Path.GetDirectoryName(stream) ?? ".", "t1-breaks.log");
+            File.AppendAllText(
+                path,
+                $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss} 第 {T1BreakCount} 次 {note}{Environment.NewLine}",
+                new UTF8Encoding(false));
+        }
+        catch
+        {
+            // 诊断落盘：失败即忽略（不改会话行为）。
+        }
+    }
+
+    /// <summary>**工蜂自己的卡**（2026-10-09 主人令）：每只工蜂 = 短状态行 + **它自己的生命周期卡**（同一份呈现器）。
+    /// <para>数据源同 master 那条：worker 的流 → `LifecycleAggregator.AggregateFile` → `LifecyclePresenter.Card`。
+    /// **风险留痕 / 轨迹折叠不显示**（主人令）。读不到 / 坏文件 ⇒ 只出短行（不把 TUI 拖垮）。</para></summary>
+    private IReadOnlyList<string> WorkerCards()
+    {
+        var facts = WorkerFacts();
+        var cards = WorkerCardLines();
+        return [.. facts.Select((f, i) => cards.Count > i && cards[i].Length > 0 ? f + "\n" + cards[i] : f)];
+    }
+
+    /// <summary>读 **worker 自己的流**（按 provider 分家）→ 聚合 → 卡（逐只工蜂一份；与 facts 同序）。</summary>
+    private IReadOnlyList<string> WorkerCardLines()
+    {
+        var pool = _host.Modules
+            .OfType<AgentRuntime.Modules.Worker.WorkerDispatchModule>()
+            .FirstOrDefault()?.Pool;
+        if (pool is null)
+        {
+            return [];
+        }
+
+        var streamPath = AgentRuntime.Hosting.Worker.MinimalWorker.StreamPathOf(_host.Config.Worker);
+        return [.. pool.Snapshot().Select(_ => WorkerCard(streamPath))];
+    }
+
+    /// <summary>单份工蜂卡（与 master 同一份呈现器；风险 / 轨迹两节不发）。</summary>
+    private static string WorkerCard(string streamPath)
+    {
+        try
+        {
+            if (!System.IO.File.Exists(streamPath))
+            {
+                return string.Empty;
+            }
+
+            var lifecycle = AgentRuntime.Core.Lifecycle.LifecycleAggregator.AggregateFile(streamPath).Current;
+            if (lifecycle is null)
+            {
+                return string.Empty;
+            }
+
+            return string.Join('\n', AgentRuntime.Hosting.Panels.LifecyclePresenter.Card(
+                lifecycle, expanded: false, includeRequest: true, accumulate: true, includeReport: true,
+                workers: null, includeRisk: false, includeTrace: false));
+        }
+        catch (Exception)
+        {
+            return string.Empty;   // 卡渲染不能把 TUI 拖垮
+        }
     }
 
     /// <summary>
@@ -1190,7 +1568,7 @@ public sealed class SplitSession
             return false;
         }
 
-        _conversation[index] = LifecycleCardView.Entry(lifecycle, withHint, _accumulateResults);
+        _conversation[index] = LifecycleCardView.Entry(lifecycle, withHint, _accumulateResults, WorkerCards());
         return lifecycle.IsSettled;
     }
 
@@ -1484,11 +1862,6 @@ public sealed class SplitSession
 
     private static readonly IReadOnlyList<StackLayer> PlaceholderLayers = [];
 
-    /// <summary>知识区来源上挂着的**技能常驻层**（没配 skill.resident ⇒ null：「专家」行就只报冻结 Expert 段）。</summary>
-    private AgentRuntime.Core.Skill.SkillResident? ResidentOf() =>
-        _host.Modules.OfType<KnowledgeModule>().FirstOrDefault()?.ContentSource is SkillResidentContentSource source
-            ? source.Resident
-            : null;
 
     /// <summary>换一份显示状态：算好 Δ（当前 − 上一次），再把基准前移。</summary>
     private void Apply(PromptComposition composition)

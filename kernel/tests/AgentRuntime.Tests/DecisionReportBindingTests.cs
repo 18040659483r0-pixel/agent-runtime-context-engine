@@ -120,7 +120,7 @@ public sealed class DecisionReportBindingTests
     [Fact]
     public async Task 终局轮自带报告_宿主不再多问一轮()
     {
-        using var harness = new TuiHarness("report-early", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("report-early", modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(++calls == 1
             ? $"[DONE] 甲\n{Report}"
@@ -139,7 +139,7 @@ public sealed class DecisionReportBindingTests
     [Fact]
     public async Task 同一个进程里的第二个任务_仍然能要到报告()
     {
-        using var harness = new TuiHarness("report-twice", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("report-twice", modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply(++calls switch
         {

@@ -44,7 +44,7 @@ public sealed class GateClient
                 return GateResponse.Fail("判定端没有回应（连接被关闭）。");
             }
 
-            return GateProtocol.Decode<GateResponse>(line) ?? GateResponse.Fail("判定端回应的不是一行合法 JSON。");
+            return GateProtocol.Decode<GateResponse>(line) ?? GateResponse.Fail("判定端回应的不是一行合法 XML 片段。");
         }
         catch (Exception ex) when (ex is SocketException or IOException or UnauthorizedAccessException or ArgumentException)
         {

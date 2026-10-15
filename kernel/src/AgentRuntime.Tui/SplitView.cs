@@ -97,12 +97,11 @@ public sealed class SplitFrame
     public IReadOnlyList<SplitSelfReport> SelfReport { get; init; } = [];
 
     /// <summary>
-    /// **R1 里实际装载的专家知识分类**（顶层框「专家」行；空 = 这一轮一个 expert 段都没有）。
-    /// <para>口径 = <see cref="StackPanel.ExpertDomains"/>：只报**真的装进 R1 的**域 ——
-    /// 不从配置反推（配了但没内容 = 没装载，屏上不许说装上了）。</para>
-    /// <para>次序由宿主给（**占用降序**；主人 2026-09-22 令），渲染不再排序 —— 屏面就是宿主那一份。</para>
+    /// **worker 池的事实**（主人 2026-09-25 令）：谁在跑、跑了多久、**sync 还是 async**、谁闲着。
+    /// <para>**空 ⇒ 顶部带里根本没有「worker」那一行**（不占一个字节）——
+    /// 这就是「无 worker 时界面与从前逐字节一致」（设计稿 W10/W12）。</para>
     /// </summary>
-    public IReadOnlyList<ExpertDomain> ExpertDomains { get; init; } = [];
+    public IReadOnlyList<string> Workers { get; init; } = [];
 
     public required SplitTotals Totals { get; init; }
 
@@ -244,19 +243,19 @@ public readonly record struct SplitLayout(int Width, int Height, int InputRows =
 
     /// <summary>
     /// **顶部信息框的内容行数（不含它的上下框线）** —— v15 **单栏**（主人 2026-09-22 02:2x）：
-    /// 右栏整块取消，区栈 / 自报 / 详细全部搬进顶部那个框。三档：≥28 行 = 6（会话 · 区栈 · **专家** · 白板 · 草稿 · 焦点）·
+    /// 右栏整块取消，区栈 / 自报 / 详细全部搬进顶部那个框。三档：≥28 行 = 5（会话 · 区栈 · 白板 · 草稿 · 焦点）·
     /// 22–27 行 = 3（会话 · 区栈压成合计 · 自报压成一行计数）· 更低 = 2（会话 · 区栈合计）。
     /// </summary>
-    public int TopBandContentRows => Height >= 28 ? 6 : Height >= 22 ? 3 : 2;
+    public int TopBandContentRows => Height >= 28 ? 5 : Height >= 22 ? 3 : 2;
 
     /// <summary>顶部信息框占的总行数（含上下框线）。</summary>
     public int TopBandRows => TopBandContentRows + 2;
 
     /// <summary>正文区行数（**全宽**）：总高 − 顶框（含上下框线）− 分隔线 − 下框 − 状态条 − 输入区。</summary>
-    public int BodyRows => Height - 4 - TopBandContentRows - StripRowsFor(Height) - Math.Clamp(InputRows, 1, MaxInputRows);
+    public int BodyRows => Height - 2 - TopBandContentRows - StripRowsFor(Height) - Math.Clamp(InputRows, 1, MaxInputRows);
 
     /// <summary>左列内宽（v15：**正文占满整宽**，右栏已取消 ⇒ 它就是全宽）。</summary>
-    public int LeftWidth => Width - 2;
+    public int LeftWidth => Width;
 
     /// <summary>右列内宽（v15：**恒为 0** —— 右栏整块取消，保留此属性只为旧渲染函数仍能编译）。</summary>
     public int RightWidth => 0;
@@ -429,7 +428,7 @@ public static class SplitRenderer
         var rows = Math.Clamp(LayoutFor(frame).InputRows, 1, SplitLayout.MaxInputRows);
         var lines = Render(frame);
 
-        for (var i = Math.Max(0, lines.Count - 1 - rows); i < lines.Count - 1; i++)
+        for (var i = Math.Max(0, lines.Count - rows); i < lines.Count; i++)
         {
             var at = lines[i].IndexOf(CaretGlyph, StringComparison.Ordinal);
             if (at >= 0)
@@ -461,18 +460,14 @@ public static class SplitRenderer
         var left = ConversationRich(frame, layout);
 
         // 左列：**自顶向下填充**；内容超过可视高度时自动贴底（最新仍在最下）、↑ 可回看。
-        var area = Math.Max(0, layout.BodyRows - 1);
+        var area = Math.Max(0, layout.BodyRows);
         var overflow = Math.Max(0, left.Count - area);
         var start = Math.Clamp(overflow - frame.ConversationScroll, 0, overflow);
         var leftRows = new RichText[Math.Max(layout.BodyRows, 0)];
-        if (layout.BodyRows > 0)
-        {
-            leftRows[0] = RichText.From(HeaderCell(LeftHeader, false, layout.LeftWidth));
-        }
 
         for (var i = 0; i < Math.Min(area, left.Count - start); i++)
         {
-            leftRows[1 + i] = left[start + i];
+            leftRows[i] = left[start + i];
         }
 
         // v15 **单栏**（主人 2026-09-22 02:2x）：右栏整块取消 —— 区栈 / 自报 / 详细全部搬进**顶部那个框**；
@@ -482,18 +477,17 @@ public static class SplitRenderer
 
         for (var i = 0; i < Math.Max(0, layout.BodyRows); i++)
         {
-            // ⚠️ 正文行必须**自带左右边框**（与顶框 / 状态条同一口径）——否则整行宽度 = 内宽 ≠ 帧宽。
-            lines.Add(RichText.From("│").Concat(Pad(leftRows[i] ?? RichText.Empty, layout.LeftWidth)).Append("│"));
+            // **无边框版式**（主人 2026-10-14）：正文整宽、不画左右竖线；行宽靠 Pad 到 frame.Width 保住
+            // 「每行显示宽恰好 = Width」这条帧不变量；块间分割一律靠上面/下面的 `ⓘ` 提示行。
+            lines.Add(Pad(leftRows[i] ?? RichText.Empty, frame.Width));
         }
 
-        lines.Add(RichText.From("├" + new string('─', frame.Width - 2) + "┤"));
         if (SplitLayout.StripRowsFor(frame.Height) > 0)
         {
             lines.Add(StripRow(frame, layout));
         }
 
         lines.AddRange(InputRows(frame, layout).Select(RichText.From));
-        lines.Add(RichText.From("└" + new string('─', frame.Width - 2) + "┘"));
         return lines;
     }
 
@@ -527,7 +521,7 @@ public static class SplitRenderer
     /// </summary>
     private static string StripLine(SplitFrame frame, SplitLayout layout)
     {
-        var contentWidth = Math.Max(1, layout.Width - 4);
+        var contentWidth = Math.Max(1, layout.Width);
         // **必须去标记**：会话正文里带角色标记（[[strong]]…[[/]]），直接放进来会当字面量漏在屏上
         // （PresentationTests 的「纯文本帧 == 富文本帧正文」闸门抓过一次）。
         var note = Markup.Strip(frame.LastNote).Replace('\n', ' ').Trim();
@@ -535,12 +529,8 @@ public static class SplitRenderer
 
         // v15（主人 2026-09-22 02:2x）：右侧那组 `tokens ↑x ↓y` **取消** —— 与顶部框「会话」行是同一回事。
         // 这一条从此只承载**提示**（信息型：放不下就截 + `…`，全文在 `/result`）。
-        return "│ " + Pad(RichText.From(TerminalText.TruncateTo(text, contentWidth)), contentWidth).Text + " │";
+        return Pad(RichText.From(TerminalText.TruncateTo(text, contentWidth)), contentWidth).Text;
     }
-
-    /// <summary>中缝行（左列照旧带角色，右列被一条横线切开）。</summary>
-    private static RichText Seam(RichText left, SplitLayout layout) =>
-        RichText.From("│").Concat(Pad(left, layout.LeftWidth)).Append("├" + new string('─', layout.RightWidth) + "┤");
 
     /// <summary>帧 → 文件文本（LF、无 BOM；同一帧在任何机器上逐字节相同）。</summary>
     public static string RenderText(SplitFrame frame) =>
@@ -583,13 +573,26 @@ public static class SplitRenderer
                 lines.Add(RichText.Empty);
             }
 
+            var inner = Math.Max(8, layout.LeftWidth - indent);
+
+            // **表格按当前宽度重绘**（主人 2026-10-14 令）：报告正文（卡上的「成品正文」）里的表若直接落到
+            // 下面那句 `Wrap`，会被**硬折** ⇒ 列错乱。这里先按 inner 重排一次（非表行**逐字节原样**，
+            // 放得下的表也一个字节不改）⇒ 重排后的行都 ≤ inner，Wrap 不再动它们。
+            // 早退判据必须**两种表都认**：Markdown 管表用 ASCII `|`，而**宿主 `TextTable.Render` 画的框线表
+            // 用的是 `│`（U+2502）** —— 只查 `|` 会让「报告里只有一张宿主表」的卡**整张跳过重排**
+            // （2026-10-14 真机现场：主人报「类别/发现/锚 那张表还是没重绘」，就是这一行）。
+            var mayHaveTable = entry.Text.Contains('|') || entry.Text.Contains('│');
+            var text = entry.Kind == "you" || !mayHaveTable
+                ? entry.Text
+                : string.Join('\n', TableReflow.Fit(entry.Text.Split('\n'), inner));
+
             var body = entry.Kind switch
             {
-                "turn" => RichText.From("↳ ").Concat(Rich(entry.Text)),
+                "turn" => RichText.From("↳ ").Concat(Rich(text)),
                 "you" => RichText.From(entry.Text),
-                _ => Rich(entry.Text),
+                _ => Rich(text),
             };
-            var wrapped = body.Wrap(Math.Max(8, layout.LeftWidth - indent));
+            var wrapped = body.Wrap(inner);
             // **整行一个角色的两类行**：用户问的那句（引语色）与「正在思考」行（**与「得解」同色** —— 主人 2026-09-22 17:2x 定：一眼认出）。
             var uniform = isYou ? StyleRole.You : entry.Kind == "thinking" ? StyleRole.Done : (StyleRole?)null;
             for (var i = 0; i < wrapped.Count; i++)
@@ -975,21 +978,26 @@ public static class SplitRenderer
     /// </summary>
     private static IReadOnlyList<RichText> TopBand(SplitFrame frame, SplitLayout layout)
     {
-        var inner = frame.Width - 2;
+        var inner = frame.Width;
         var tier = layout.TopBandContentRows;
         var content = new List<string>
         {
             BandLine(inner, SessionSegments(frame)),
-            BandLine(inner, StackSegments(frame, compact: tier < 6)),
+            BandLine(inner, StackSegments(frame, compact: tier < 5)),
         };
 
-        if (tier >= 6)
+        if (tier >= 5)
         {
-            // 主人 2026-09-22 令：**区栈与白板之间**加一行「专家」——R1 实际装载的专家知识分类。
-            content.Add(BandLine(inner, ExpertSegments(frame)));
-            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R4, "白板", withText: true)));
-            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R5, "草稿", withText: true)));
-            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R3, "焦点", withText: true)));
+            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R4, "白板", withText: true, inner)));
+            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R5, "草稿", withText: true, inner)));
+            content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R3, "焦点", withText: true, inner)));
+
+            // 主人 2026-10-09 令：**工蜂搬到「焦点」下方**，**一个工蜂一行**（多个就追加一行）；
+            // 首行点出 worker 协议区版本与模块数（与 master 那行同形）。
+            for (var i = 0; i < frame.Workers.Count; i++)
+            {
+                content.Add(BandLine(inner, WorkerLine(frame.Workers[i], i == 0)));
+            }
         }
         else if (tier >= 3)
         {
@@ -998,9 +1006,9 @@ public static class SplitRenderer
 
         return
         [
-            RichText.From("┌" + Fill($"─ {frame.Title} ", inner) + "┐"),
-            .. content.Select(t => RichText.From("│").Concat(Pad(Markup.Parse(BandText(t, inner)), inner)).Append("│")),
-            RichText.From("├" + new string('─', inner) + "┤"),
+            HintLine(frame.Title, inner),
+            .. content.Select(t => Pad(Markup.Parse(BandText(t, inner)), inner)),
+            HintLine(LeftHeader, inner),
         ];
     }
 
@@ -1060,31 +1068,28 @@ public static class SplitRenderer
     }
 
     /// <summary>
-    /// **「专家」行**：R1 里**实际装载**的专家知识分类（主人 2026-09-22 令）。
-    /// <para>各分类以**整行同一分隔符 ` | `** 隔开（与其它行同规：放不下就**从尾部整段丢**，绝不截字）。
-    /// 一个都没装 ⇒ 如实写「（未装载）」，**不写预设清单**（屏上不许说装上了没装的东西）。</para>
+    /// **「worker」行**（主人 2026-09-25 令）：本 session 的 worker 池里谁在跑、跑了多久、sync 还是 async。
+    /// <para>各 worker 以**整行同一分隔符 ` | `** 隔开（与其它行同规：放不下就从尾部整段丢，绝不截字）。</para>
+    /// <para>时长是**每个 worker 自己的**（与卡的计时分开 —— W6）：卡回答「人等了多久」，它回答「这次派发值不值」。</para>
     /// </summary>
-    private static IReadOnlyList<string> ExpertSegments(SplitFrame frame)
+    /// <summary>**「工蜂」行**（主人 2026-10-09 令）：**一个工蜂一行**（多个就追加）；首行带 worker 协议区版本 / 模块数。
+    /// <para>各段以整行同一分隔符 ` | ` 隔开（与其它行同规：放不下从尾部整段丢，绝不截字）。</para></summary>
+    private static IReadOnlyList<string> WorkerLine(string fact, bool header)
     {
-        var segs = new List<string> { "[[strong]]专家[[/]]" };
-        if (frame.ExpertDomains.Count == 0)
+        var segs = new List<string> { "[[strong]]工蜂[[/]]" };
+        if (header)
         {
-            segs.Add("（未装载）");
-            return segs;
+            segs.Add($"protocol v{AgentRuntime.Core.Worker.WorkerProtocolText.Version}");
+            segs.Add($"{AgentRuntime.Modules.ModuleRegistry.WorkerModules.Length} 模块");
         }
 
-        // 每类带**自己的占用**（≈token，与区栈同口径）；次序由宿主给（占用降序）。
-        // 标签用**屏面短名**（主人 2026-09-22 定：id 不动、只换显示名 ⇒ 看屏就懂「流程 / 凭据」是什么）。
-        foreach (var domain in frame.ExpertDomains)
-        {
-            segs.Add($"{domain.Label} ≈{TerminalText.Number(domain.ApproxTokens)}");
-        }
-
+        segs.Add(fact);
         return segs;
     }
 
+
     /// <summary>自报块的正文行（白板 solve / step 首两行；信息型 ⇒ 超宽允许截，全文走 `/tail`·`/draft`·`/focus`）。</summary>
-    private static IReadOnlyList<string> ReportSegments(SplitFrame frame, StackRegion region, string name, bool withText)
+    private static IReadOnlyList<string> ReportSegments(SplitFrame frame, StackRegion region, string name, bool withText, int width = 0)
     {
         var item = frame.SelfReport.FirstOrDefault(s => s.Region == region);
         var segs = new List<string> { $"[[strong]]{name}[[/]]" };
@@ -1096,22 +1101,29 @@ public static class SplitRenderer
 
         if (!withText)
         {
-            segs.Add(item.CountText);
+            // **矮窗口也要看得出「它变了」**（主人 2026-10-15 00:28：「task 运行中如果改了白板或草稿，都应该
+            // 刷新到 TUI，否则会引起我的误判」）：从前这里只印**计数**（「白板 7 行」）⇒ 内容改了但行数没变
+            // ⇒ 屏上看着没刷（误判源）。现改为印**首行摘要**（= `Short`：白板优先给 `solve:` 行，草稿给首行），
+            // 真拿不到摘要才退回计数（不凭空造）。
+            segs.Add(item.Short.Length > 0 ? item.Short : item.CountText);
             return segs;
         }
 
-        var lines = TerminalText.NormalizeNewlines(item.Text).Split('\n')
-            .Select(static l => l.TrimStart('-', ' ').Trim())
-            .Where(static l => l.Length > 0)
-            .Take(2);
-        foreach (var line in lines)
+        // **先给计数，再给正文**（2026-10-15 真机）：顶栏的宽度是**硬预算**，且放不下时**从尾部整段丢**
+        //（纪律：宁可少说、不截字）⇒ 白板那种长串（solve + step）会**整段被丢** ⇒ 那一行只剩标签，
+        // 看着像「空的」（主人当场报「白板是空的」，实为 R4 有 89 token 内容）。
+        // 把**计数放第一位** ⇒ 再窄也至少读到「N 行」（与状态表「窄了就换计数」同一条纪律）。
+        // **顶栏这一行必须永远有「可读内容」，且把宽度用满**（主人 2026-10-15 01:50：
+        //   「顶部显示纪律可以和表格重绘使用同一套规格，目前看上去宽度没有完全使用完」）：
+        //   ⇒ 与表格重绘同一套「**先量后放**」——计数（短，恒放得下）先放；首行内容按**剩余预算**截断带 …，
+        //   把这一行用满。信息型位面允许截断；决定型内容不在这里（全文在 /tail /draft）。
+        segs.Add(item.CountText);
+        var shortForm = item.Short.Length > 0 ? item.Short : item.Text;
+        if (shortForm.Length > 0)
         {
-            segs.Add(line);
-        }
-
-        if (segs.Count == 1)
-        {
-            segs.Add(item.CountText);
+            var used = TerminalText.WidthOf(name) + TerminalText.WidthOf(item.CountText) + 6;   // 标签 + 计数 + 分隔
+            var budget = Math.Max(8, width - used);
+            segs.Add(TerminalText.TruncateTo(shortForm, budget));
         }
 
         return segs;
@@ -1145,25 +1157,6 @@ public static class SplitRenderer
     /// <summary>只超一点点（只剩一段仍超宽）⇒ 截 + `…`（信息型内容；决定型内容不走这里）。</summary>
     private static string BandText(string text, int inner) =>
         TerminalText.WidthOf(Markup.Strip(text)) <= inner ? text : TerminalText.TruncateTo(text, inner);
-
-    private static string TopBorder(SplitFrame frame, SplitLayout layout)
-    {
-        // 顶边框也要有左右分缝（┬ 落在列分界上）：一眼看得出上面是两栏。
-        var left = $"─ {frame.Title} ";
-        var leftPart = TerminalText.WidthOf(left) <= layout.LeftWidth
-            ? Fill(left, layout.LeftWidth)
-            : TerminalText.TruncateTo(left, layout.LeftWidth);
-
-        var right = $" {frame.Subtitle} ─";
-        var rightPart = TerminalText.WidthOf(right) <= layout.RightWidth
-            ? right + new string('─', layout.RightWidth - TerminalText.WidthOf(right))
-            : TerminalText.TruncateTo(right, layout.RightWidth);
-
-        return "┌" + leftPart + "┬" + rightPart + "┐";
-    }
-
-    private static RichText BodyRow(RichText left, RichText right, SplitLayout layout) =>
-        RichText.From("│").Concat(Pad(left, layout.LeftWidth)).Append("│").Concat(Pad(right, layout.RightWidth)).Append("│");
 
     /// <summary>行高**收窄**的防抖窗口（**唯一声明处**；主人 2026-09-20 定 400ms）。
     /// <para>v13 修 BUG 后它**只管收窄**：长高是立刻的（内容一变就长），收窄要等停稳。</para>
@@ -1216,12 +1209,15 @@ public static class SplitRenderer
     }
 
     /// <summary>输入区正文可用列宽（去掉边框与提示符）—— **行高与渲染共用同一口径**，不允许两处各算一套。</summary>
-    private static int TextWidthFor(int width) => Math.Max(1, Math.Max(1, width - 4) - PromptWidth);
+    private static int TextWidthFor(int width) => Math.Max(1, width - PromptWidth - 2);
 
     /// <summary>输入提示符（唯一声明处：换行后的续行按它对齐）。</summary>
     private const string Prompt = "agent-runtime > ";
 
     /// <summary>自绘光标标记（**唯一声明处**：画它的人与找它的人必须是同一个字符串）。</summary>
+    /// <summary>分割行前缀（与底部状态条的提示行**同形**：深蓝 <c>ⓘ </c>）。</summary>
+    private const string HintMark = "ⓘ ";
+
     private const string CaretGlyph = "_";
 
     private static int PromptWidth => TerminalText.WidthOf(Prompt);
@@ -1235,7 +1231,7 @@ public static class SplitRenderer
     {
         var caret = Math.Clamp(frame.Caret, 0, frame.Input.Length);
         var marker = frame.Focus == PaneFocus.Input ? string.Empty : "（右栏焦点）";
-        var contentWidth = Math.Max(1, layout.Width - 4);
+        var contentWidth = Math.Max(1, layout.Width);
         var textWidth = TextWidthFor(layout.Width);
 
         // 光标列（按显示宽度算；含 "_" 占 1 列）→ 决定光标落在第几段。
@@ -1306,23 +1302,22 @@ public static class SplitRenderer
 
         // 超过上限 ⇒ 显示**最后**几行（光标在末尾，必须看得见）。
         var shown = rows.Count > layout.InputRows ? rows.Skip(rows.Count - layout.InputRows) : rows;
-        return shown.Select(r => "│ " + Pad(RichText.From(r), contentWidth).Text + " │").ToArray();
+        return shown.Select(r => Pad(RichText.From(r), contentWidth).Text).ToArray();
     }
 
-    private static string HeaderCell(string header, bool focused, int width) =>
-        TerminalText.TruncateTo(focused ? $" {header}  [焦点]" : $" {header}", width);
-
-    private static string Column(string text, int width, bool left = false) =>
-        (left ? TerminalText.PadTo(text, width) : TerminalText.PadLeftTo(text, width)) + " ";
+    /// <summary>
+    /// **文字型分割线**（主人 2026-10-14 令）：整行一条深蓝 <c>ⓘ …</c>，**不画任何框线** ——
+    /// 块与块之间靠它在**固定位置**分开（与底部状态条同一种「自然分割」）。整行补空到 <paramref name="width"/>，
+    /// 保住「每行显示宽 = Width」的帧不变量。
+    /// </summary>
+    private static RichText HintLine(string text, int width)
+    {
+        var plain = TerminalText.TruncateTo(HintMark + text, width);
+        return Markup.Parse($"[[hint]]{plain}[[/]]").PadTo(width);
+    }
 
     private static RichText Pad(RichText text, int width) =>
         text.TruncateTo(width).PadTo(width);
-
-    private static string Fill(string text, int width)
-    {
-        var progress = TerminalText.WidthOf(text);
-        return progress >= width ? TerminalText.TruncateTo(text, width) : text + new string('─', width - progress);
-    }
 
     private static (int Start, int Count) Window(int lineCount, int rows, int scroll)
     {

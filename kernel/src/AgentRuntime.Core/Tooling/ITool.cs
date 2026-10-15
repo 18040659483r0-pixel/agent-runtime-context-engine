@@ -140,13 +140,18 @@ public abstract class ToolBase : ITool
     /// 其中 13 次是「整份文件倒」（单次满 8 KB）。上限降到 2,000 字符后，**指针必须能让模型一步拿到下一段**，
     /// 否则省下的字节会变成多出来的轮数（一轮 ≈ 一次整份上下文重发）。</para>
     /// </summary>
-    protected static (string Text, bool Truncated) Clamp(string text, int maxChars)
+    protected static (string Text, bool Truncated) Clamp(string text, int maxChars, ToolLimits? limits = null)
     {
         if (text.Length <= maxChars)
         {
             return (text, false);
         }
 
-        return (text[..maxChars] + $"\n…（按字符上限截断：只给前 {maxChars} 字符，本条共 {text.Length} 字符 ⇒ 全文在 /trace；要接着看就缩小窗口 / 给 offset）", true);
+        // C1（2026-09-26）：指针必须是**能走通的** —— 原来写「全文在 /trace」是假指针
+        // （/trace 是 TUI 看生命周期轨迹的命令，不是这条结果的原文落点）。
+        var pointer = limits is null
+            ? $"\n…（按字符上限截断：只给前 {maxChars} 字符，本条共 {text.Length} 字符；要接着看就缩小窗口 / 给 offset）"
+            : TruncationPointer.Of(text, limits, maxChars);
+        return (text[..maxChars] + pointer, true);
     }
 }

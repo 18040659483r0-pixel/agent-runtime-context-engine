@@ -1,7 +1,5 @@
-using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Runtime.Serialization;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Core.Tooling;
 
@@ -16,22 +14,24 @@ namespace AgentRuntime.Core.Tooling;
 /// <param name="Actor">谁批的（只认 human 的 Approved）。</param>
 /// <param name="Reason">人话原因（拒绝的理由必须留痕）。</param>
 /// <param name="SessionId">会话标识（可空）。</param>
+[DataContract(Name = "Approval", Namespace = "")]
 public sealed record ApprovalEntry(
-    long Seq,
-    int Turn,
-    string Tool,
-    ToolRisk Risk,
-    string Action,
-    string ArgumentsDigest,
-    ApprovalDecision Decision,
-    string Actor,
-    string Reason,
-    string? SessionId = null)
+    [property: DataMember(Order = 0)] long Seq,
+    [property: DataMember(Order = 1)] int Turn,
+    [property: DataMember(Order = 2)] string Tool,
+    [property: DataMember(Order = 3)] ToolRisk Risk,
+    [property: DataMember(Order = 4)] string Action,
+    [property: DataMember(Order = 5)] string ArgumentsDigest,
+    [property: DataMember(Order = 6)] ApprovalDecision Decision,
+    [property: DataMember(Order = 7)] string Actor,
+    [property: DataMember(Order = 8)] string Reason,
+    [property: DataMember(Order = 9)] string? SessionId = null)
 {
     /// <summary>
     /// **留档时的完整审批面**（v13；决定型内容：真身路径 / diff —— §十·34）。
     /// <para>它只进**账本**（<b>不进 prompt</b>）：事件里那条留档**必须短**，完整内容放这里供人事后核对。</para>
     /// </summary>
+    [DataMember(Order = 10)]
     public string? Face { get; init; }
 
     /// <summary>一行账本文本（人眼可读、可 diff）。</summary>
@@ -55,13 +55,6 @@ public sealed record ApprovalEntry(
 /// </summary>
 public sealed class ApprovalLedger
 {
-    private static readonly JsonSerializerOptions WriteOptions = new()
-    {
-        WriteIndented = false,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        Converters = { new JsonStringEnumConverter() },
-    };
-
     private readonly List<ApprovalEntry> _entries = [];
 
     /// <param name="path">落点（JSONL，只追加）；null = 只存内存（测试 / 无落点）。</param>
@@ -141,21 +134,6 @@ public sealed class ApprovalLedger
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(new
-        {
-            seq = entry.Seq,
-            turn = entry.Turn,
-            tool = entry.Tool,
-            risk = entry.Risk,
-            action = entry.Action,
-            digest = entry.ArgumentsDigest,
-            decision = entry.Decision,
-            actor = entry.Actor,
-            reason = entry.Reason,
-            session = entry.SessionId,
-            face = entry.Face,
-        }, WriteOptions);
-
-        File.AppendAllText(Path, json + "\n", new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        DataContractXml.AppendFragment(Path, entry);
     }
 }

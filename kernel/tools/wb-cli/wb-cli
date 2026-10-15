@@ -1,0 +1,27 @@
+#!/bin/sh
+# wb-cli PATH 入口（`/opt/homebrew/bin/wb-cli` → 本文件）—— 原 11 个 `.sh` 的统一替身。
+#
+# 为什么是垫片而非原生 apphost：本机 SDK 装在 `~/.dotnet`（`DOTNET_ROOT` 未设）⇒ 原生
+# apphost（`bin/**/wb-cli`）找不到运行时；一律走 muxer（`dotnet <dll>`），全仓一贯如此。
+#
+# 自定位 + cwd 无关：工程没编过就先编一次（`-c Release`），再原样转发参数。
+set -eu
+
+self=$0
+while [ -L "$self" ]; do
+  d=$(cd "$(dirname "$self")" && pwd)
+  self=$(readlink "$self")
+  case $self in
+    /*) ;;
+    *) self="$d/$self" ;;
+  esac
+done
+here=$(cd "$(dirname "$self")" && pwd)      # = tools/wb-cli
+
+dll="$here/bin/Release/net10.0/wb-cli.dll"
+if [ ! -f "$dll" ]; then
+  printf '[wb-cli] 首次使用，先编译…\n' >&2
+  dotnet build -c Release -v q --nologo "$here/WbCli.csproj" >&2
+fi
+
+exec dotnet "$dll" "$@"

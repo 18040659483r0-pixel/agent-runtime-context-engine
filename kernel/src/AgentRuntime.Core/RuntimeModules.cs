@@ -18,11 +18,12 @@ public sealed class RuntimeContext
     /// 判断该把哪条写进流）。续跑轮没有用户输入，若还按老口径读，就会把**工具结果当成用户输入**又写一条事件
     /// —— 静默污染流。所以标记必须显式，且默认 <c>false</c>（老路径一个字节不变）。</para>
     /// </param>
-    public RuntimeContext(string? sessionId, int turn, bool isContinuation)
+    public RuntimeContext(string? sessionId, int turn, bool isContinuation, bool isRuntimeNotice = false)
     {
         SessionId = sessionId;
         Turn = turn;
         IsContinuation = isContinuation;
+        IsRuntimeNotice = isRuntimeNotice;
     }
 
     /// <summary>会话标识；裸聊模式为 null。</summary>
@@ -33,6 +34,12 @@ public sealed class RuntimeContext
 
     /// <summary>本轮是不是**续跑轮**（无新用户输入，只为消费上一轮的工具结果）。默认 false。</summary>
     public bool IsContinuation { get; }
+
+    /// <summary>本轮正文是不是**运行时自己说的**（催稿 / 语法提示），不是用户输入。默认 false。
+    /// <para>为什么要有它（2026-10-09 主人令）：同一条「最后一条消息 = 本轮输入」不变，但记进流时
+    /// **不该当 `UserInput`**（否则聚合器把催稿/提示数成新 task —— 真机：17 次派发被数成 42）。
+    /// 形状上分得开「谁说的」，读者不必再猜。</para></summary>
+    public bool IsRuntimeNotice { get; }
 }
 
 /// <summary>

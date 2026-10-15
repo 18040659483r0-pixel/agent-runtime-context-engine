@@ -39,7 +39,7 @@ public static class CorpusLibrary
 
             foreach (var slice in spec.Slices)
             {
-                var text = ReadSource(configuration.Sources, slice.Source, slice.Chars, configDir, out var fallback);
+                var text = ReadSource(configuration.SourceMap, slice.Source, slice.Chars, configDir, out var fallback);
                 usedFallback |= fallback;
                 used.Add($"{slice.Source}:{slice.Chars}");
 

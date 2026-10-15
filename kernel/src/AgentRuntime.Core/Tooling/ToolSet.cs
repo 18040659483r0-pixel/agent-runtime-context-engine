@@ -18,5 +18,45 @@ public static class ToolSet
         new WriteTool(),
         new EditTool(),
         new ExecTool(),
+        new IndexTool(),
+        new ScopeTool(),
     ];
+
+    /// <summary>
+    /// **按角色取面**（**唯一入口**）：面本身声明在 <see cref="ToolNames.MasterFace"/> /
+    /// <see cref="ToolNames.WorkerFace"/>，本方法只把名字翻成工具实例 ——
+    /// 「剥一把」= 在那份清单里删一个名字，装配 / 拒绝话术 / 协议正文一律自动跟随（不许两处各写一套）。
+    /// </summary>
+    public static IReadOnlyList<ITool> For(ToolNames.Role role) => Subset(ToolNames.FaceFor(role));
+
+    /// <summary>
+    /// 按名字取**子集** —— 受限工具面（最小 Worker 只拿它被允许的那几个）。
+    /// <para>
+    /// <b>不认识的名字 ⇒ 抛错</b>（fail-closed）：配置写错时“静默少给工具”的后果是
+    /// **它干不了活却看起来在干**（最难查的一种）；报错的后果则是**人立刻知道**。
+    /// 空名单 = 取默认全集（“不限制”用空表达，不用“偷偷给全部”表达）。
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<ITool> Subset(IEnumerable<string> names)
+    {
+        var want = names
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n.Trim())
+            .ToArray();
+
+        var all = Default().ToDictionary(t => t.Name, StringComparer.OrdinalIgnoreCase);
+        if (want.Length == 0)
+        {
+            return all.Values.ToArray();
+        }
+
+        var unknown = want.Where(n => !all.ContainsKey(n)).ToArray();
+        if (unknown.Length > 0)
+        {
+            throw new InvalidDataException(
+                $"未知工具名：{string.Join("、", unknown)}（可用：{string.Join("、", all.Keys)}）");
+        }
+
+        return want.Select(n => all[n]).ToArray();
+    }
 }

@@ -15,4 +15,14 @@
   <Folder Name="/benchmark/">
     <Project Path="benchmark/AgentRuntime.Benchmark/AgentRuntime.Benchmark.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/closeout/Closeout.csproj" />
+    <Project Path="tools/demo-doc/DemoDoc.csproj" />
+    <Project Path="tools/mock-provider/Mock.csproj" />
+    <Project Path="tools/r2-attribution/R2Attribution.csproj" />
+    <Project Path="tools/worker-mode-acceptance/Acceptance.csproj" />
+    <Project Path="tools/ms-suite/MsSuite.csproj" />
+    <Project Path="tools/wb-cli/WbCli.csproj" />
+    <Project Path="tools/experiments/knowledge-loop/VerifyLoop.csproj" />
+  </Folder>
 </Solution>

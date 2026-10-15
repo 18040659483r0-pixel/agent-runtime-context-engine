@@ -17,10 +17,10 @@ public static class SnapshotPanel
 
         return
         [
-            $"[快照] 前缀指纹：{snapshot.FrozenSnapshotId}（{snapshot.Manifest?.Entries.Count ?? 0} 段）",
-            $"[快照] 焦点：{(snapshot.Focus.Count == 0 ? "（空）" : string.Join(' ', snapshot.Focus))}",
-            $"[快照] 当前尾部：{(snapshot.CurrentTail.Count == 0 ? "（空）" : string.Join(" / ", snapshot.CurrentTail))}",
-            $"[快照] 动态草稿：{(snapshot.DynamicDraft.Count == 0 ? "（空）" : string.Join(" / ", snapshot.DynamicDraft))}",
+            $"[快照] 前缀指纹：{snapshot.FrozenSnapshotId}（{snapshot.Manifest?.Entries.Length ?? 0} 段）",
+            $"[快照] 焦点：{(snapshot.Focus.Length == 0 ? "（空）" : string.Join(' ', snapshot.Focus))}",
+            $"[快照] 当前尾部：{(snapshot.CurrentTail.Length == 0 ? "（空）" : string.Join(" / ", snapshot.CurrentTail))}",
+            $"[快照] 动态草稿：{(snapshot.DynamicDraft.Length == 0 ? "（空）" : string.Join(" / ", snapshot.DynamicDraft))}",
             string.IsNullOrWhiteSpace(config.Stream.Path)
                 ? "[快照] 流游标：0（未配置 stream.path，本次只记录前缀）"
                 : $"[快照] 流游标：{snapshot.StreamCursor}（← {config.Stream.Path}）",

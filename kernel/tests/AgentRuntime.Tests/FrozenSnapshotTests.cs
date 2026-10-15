@@ -10,15 +10,11 @@ namespace AgentRuntime.Tests;
 /// </summary>
 public sealed class FrozenSnapshotTests
 {
-    private static FrozenSection Rules(string? domain, string text, string version = "1") =>
-        domain is null
-            ? FrozenSection.Create(FrozenZone.Rules, FrozenLayer.Global, version, text)
-            : FrozenSection.Expert(FrozenZone.Rules, domain, version, text);
+    private static FrozenSection Rules(string text, string version = "1") =>
+        FrozenSection.Create(FrozenZone.Rules, FrozenLayer.Global, version, text);
 
-    private static FrozenSection Knowledge(string? domain, string text, string version = "1") =>
-        domain is null
-            ? FrozenSection.Create(FrozenZone.Knowledge, FrozenLayer.Global, version, text)
-            : FrozenSection.Expert(FrozenZone.Knowledge, domain, version, text);
+    private static FrozenSection Knowledge(string text, string version = "1") =>
+        FrozenSection.Create(FrozenZone.Knowledge, FrozenLayer.Global, version, text);
 
     private static FrozenSection MemoryIndex(string text, string version = "1") =>
         FrozenSection.Create(FrozenZone.MemoryIndex, FrozenLayer.Global, version, text);
@@ -27,8 +23,8 @@ public sealed class FrozenSnapshotTests
     public void 同段集合_无论输入顺序_规范顺序一致()
     {
         var memory = MemoryIndex("记忆索引");
-        var rulesGlobal = Rules(null, "通用铁则");
-        var knowledgeGlobal = Knowledge(null, "通用知识");
+        var rulesGlobal = Rules("通用铁则");
+        var knowledgeGlobal = Knowledge("通用知识");
 
         var a = FrozenSnapshot.Create([memory, rulesGlobal, knowledgeGlobal]);
         var b = FrozenSnapshot.Create([knowledgeGlobal, memory, rulesGlobal]);
@@ -47,8 +43,8 @@ public sealed class FrozenSnapshotTests
         var snapshot = FrozenSnapshot.Create(
         [
             MemoryIndex("M"),
-            Knowledge(null, "K"),
-            Rules(null, "R"),
+            Knowledge("K"),
+            Rules("R"),
         ]);
 
         Assert.Equal(
@@ -65,26 +61,11 @@ public sealed class FrozenSnapshotTests
         Assert.True(FrozenZoneTopology.Rank(FrozenZone.Rules) < FrozenZoneTopology.Rank(FrozenZone.Knowledge));
     }
 
-    [Fact]
-    public void 同区内_层顺序为Global_Expert_Project_且Expert域按id排序()
-    {
-        var snapshot = FrozenSnapshot.Create(
-        [
-            Knowledge("software", "K-soft"),
-            Knowledge("finance", "K-fin"),
-            FrozenSection.Create(FrozenZone.Knowledge, FrozenLayer.Project, "1", "K-proj"),
-            Knowledge(null, "K-global"),
-        ]);
-
-        Assert.Equal(
-            new[] { "knowledge.global", "knowledge.expert.finance", "knowledge.expert.software", "knowledge.project" },
-            snapshot.Sections.Select(s => s.SectionId).ToArray());
-    }
 
     [Fact]
     public void 内容不变_两次组装逐字节相同()
     {
-        var sections = new[] { Knowledge(null, "通用知识"), Rules(null, "通用铁则"), MemoryIndex("索引") };
+        var sections = new[] { Knowledge("通用知识"), Rules("通用铁则"), MemoryIndex("索引") };
 
         var first = FrozenSnapshot.Create(sections);
         var second = FrozenSnapshot.Create(sections);
@@ -97,8 +78,8 @@ public sealed class FrozenSnapshotTests
     [Fact]
     public void 任一字节变化_指纹必变()
     {
-        var a = FrozenSnapshot.Create([Knowledge(null, "内容 A")]);
-        var b = FrozenSnapshot.Create([Knowledge(null, "内容 B")]);
+        var a = FrozenSnapshot.Create([Knowledge("内容 A")]);
+        var b = FrozenSnapshot.Create([Knowledge("内容 B")]);
 
         Assert.NotEqual(a.Id, b.Id);
         Assert.NotEqual(a.PromptText, b.PromptText);
@@ -107,8 +88,8 @@ public sealed class FrozenSnapshotTests
     [Fact]
     public void CRLF与LF_归一化后字节相同()
     {
-        var windows = FrozenSnapshot.Create([Knowledge(null, "第一行\r\n第二行\r第三行")]);
-        var unix = FrozenSnapshot.Create([Knowledge(null, "第一行\n第二行\n第三行")]);
+        var windows = FrozenSnapshot.Create([Knowledge("第一行\r\n第二行\r第三行")]);
+        var unix = FrozenSnapshot.Create([Knowledge("第一行\n第二行\n第三行")]);
 
         Assert.Equal(unix.PromptText, windows.PromptText);
         Assert.Equal(unix.Id, windows.Id);
@@ -120,8 +101,8 @@ public sealed class FrozenSnapshotTests
     {
         var snapshot = FrozenSnapshot.Create(
         [
-            Knowledge(null, "知识正文", version: "v31"),
-            Rules(null, "铁则正文", version: "v8"),
+            Knowledge("知识正文", version: "v31"),
+            Rules("铁则正文", version: "v8"),
         ]);
 
         Assert.Equal("铁则正文\n\n知识正文", snapshot.PromptText);
@@ -141,36 +122,14 @@ public sealed class FrozenSnapshotTests
         Assert.Equal(FrozenSnapshot.Create([]).Id, empty.Id);
     }
 
-    [Fact]
-    public void Expert段缺领域_抛错()
-    {
-        var bad = new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Expert, null, "1", "x");
 
-        Assert.Throws<InvalidDataException>(() => FrozenSnapshot.Create([bad]));
-    }
 
-    [Fact]
-    public void Global段带领域_抛错()
-    {
-        var bad = new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "software", "1", "x");
-
-        Assert.Throws<InvalidDataException>(() => FrozenSnapshot.Create([bad]));
-    }
-
-    [Fact]
-    public void 未知领域_抛错()
-    {
-        var bad = new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Expert, "wizardry", "1", "x");
-
-        var ex = Assert.Throws<InvalidDataException>(() => FrozenSnapshot.Create([bad]));
-        Assert.Contains("wizardry", ex.Message);
-    }
 
     [Fact]
     public void 同段重复_抛错()
     {
-        var a = Rules(null, "A");
-        var b = Rules(null, "B");
+        var a = Rules("A");
+        var b = Rules("B");
 
         var ex = Assert.Throws<InvalidDataException>(() => FrozenSnapshot.Create([a, b]));
         Assert.Contains("rules.global", ex.Message);
@@ -179,19 +138,9 @@ public sealed class FrozenSnapshotTests
     [Fact]
     public void 版本号为空_抛错()
     {
-        var bad = new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, "  ", "x");
+        var bad = new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "  ", "x");
 
         Assert.Throws<InvalidDataException>(() => FrozenSnapshot.Create([bad]));
     }
 
-    [Fact]
-    public void 杂项域_属于合法领域()
-    {
-        var section = Knowledge(KnowledgeDomains.MiscId, "AI 难归类的知识");
-
-        var snapshot = FrozenSnapshot.Create([section]);
-
-        Assert.True(KnowledgeDomains.IsKnown(KnowledgeDomains.MiscId));
-        Assert.Equal("knowledge.expert.misc", snapshot.Sections[0].SectionId);
-    }
 }

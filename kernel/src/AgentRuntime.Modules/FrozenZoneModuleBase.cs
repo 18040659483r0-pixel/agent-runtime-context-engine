@@ -32,7 +32,6 @@ public abstract class FrozenZoneModuleBase : RuntimeModuleBase, IFrozenZoneModul
     {
         Source = source ?? throw new ArgumentNullException(nameof(source));
         Selection = selection ?? FrozenSelection.All;
-        Selection.Validate();
     }
 
     /// <summary>内容来源（唯一接缝）。</summary>
@@ -56,15 +55,11 @@ public abstract class FrozenZoneModuleBase : RuntimeModuleBase, IFrozenZoneModul
     /// <summary>本区所属的层（由区推出，供诊断与装配使用）。</summary>
     public FrozenZoneTier Tier => FrozenZoneTopology.TierOf(Zone);
 
-    /// <summary>本区的槽位（默认 = 标准三层：Global → Expert[选中域按 id 排序] → Project）。</summary>
+    /// <summary>本区的槽位（Global → Project）。</summary>
     protected virtual IEnumerable<FrozenSlot> Slots()
     {
         yield return new FrozenSlot(Zone, FrozenLayer.Global);
 
-        foreach (var domain in Selection.EffectiveDomains().OrderBy(d => d, StringComparer.Ordinal))
-        {
-            yield return new FrozenSlot(Zone, FrozenLayer.Expert, domain);
-        }
 
         if (Selection.Project is { } project)
         {
@@ -91,7 +86,7 @@ public abstract class FrozenZoneModuleBase : RuntimeModuleBase, IFrozenZoneModul
 
     private FrozenSection? ToSection(FrozenSlot slot) =>
         Source.TryGet(slot) is { } content
-            ? new FrozenSection(slot.Zone, slot.Layer, slot.DomainId, content.Version, content.Text)
+            ? new FrozenSection(slot.Zone, slot.Layer, content.Version, content.Text)
             : null;
 }
 
@@ -107,7 +102,7 @@ public abstract class ContentZoneModuleBase : FrozenZoneModuleBase
     }
 }
 
-/// <summary>顶层铁则区（Global → Expert[域] → Project；冲突优先级 Global &gt; Expert &gt; Project）。</summary>
+/// <summary>顶层铁则区（Global → Project；冲突优先级 Global &gt; Project）。</summary>
 public sealed class RulesModule : FrozenZoneModuleBase
 {
     public const string ModuleName = "rules";
@@ -122,7 +117,7 @@ public sealed class RulesModule : FrozenZoneModuleBase
     public override FrozenZone Zone => FrozenZone.Rules;
 }
 
-/// <summary>知识区（并列内容层；Global → Expert[域] → Project）。</summary>
+/// <summary>知识区（并列内容层；Global → Project）。</summary>
 public sealed class KnowledgeModule : ContentZoneModuleBase
 {
     public const string ModuleName = "knowledge";

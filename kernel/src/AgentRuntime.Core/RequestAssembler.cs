@@ -42,15 +42,16 @@ public static class RequestAssembler
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentNullException.ThrowIfNull(context);
 
-        // 非续跑轮：用户输入必填（既有契约，一个字节不变）；续跑轮：不追加用户消息。
-        if (!context.IsContinuation)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(message);
-        }
-        else if (!string.IsNullOrWhiteSpace(message))
+        if (context.IsContinuation && !string.IsNullOrWhiteSpace(message))
         {
             throw new ArgumentException(
                 "续跑轮不接受用户输入（本轮要消费的是上一轮的工具结果）；要说话就开一轮新的。", nameof(message));
+        }
+
+        // 非续跑轮（含运行时提示轮）：正文必填 —— 提示轮的那句就是提示本身。
+        if (!context.IsContinuation)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(message);
         }
 
         var messages = new List<ChatMessage>();
@@ -79,6 +80,7 @@ public static class RequestAssembler
             Messages = messages,
             Temperature = options.Temperature,
             MaxTokens = options.MaxTokens,
+            ReasoningEffort = options.ReasoningEffort,
         };
     }
 }

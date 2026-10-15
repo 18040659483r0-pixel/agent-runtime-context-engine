@@ -17,6 +17,9 @@ namespace AgentRuntime.Core.Frozen;
 /// <para>
 /// 挂载点：知识区的 <see cref="FrozenLayer.Global"/> 槽（<c>knowledge/global.md</c>）。
 /// 该文件不存在时**仍然生效**（常驻层自成一段）——否则「没写 frozen 文件 ⇒ 技能知识全丢」。
+/// <para><b>⚠️ 2026-10-10 起：本装饰器**不再被挂载**（主人令 · 去重 A）。</b>冻结语料的
+/// <c>knowledge/global.md</c> 块二本来就是同一份 L1+L2 ⇒ 追加 = **装两遍**（实测白付 15,431 字符 ≈ 3,858 tok/轮）。
+/// 类留作装饰器范例 / 备用接缝（测试仍直接构造它）。</para>
 /// </para>
 /// </summary>
 public sealed class SkillResidentContentSource : IFrozenContentSource

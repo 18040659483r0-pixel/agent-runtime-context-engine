@@ -22,6 +22,9 @@ public sealed record ContinuationSettings
     /// <summary>经过时间预算（≤0 = 不限）。</summary>
     public TimeSpan Budget { get; init; }
 
+    /// <summary>同步派发在飞时最多等回执多久（≤0 = 不等，只重判一次）。</summary>
+    public TimeSpan ReceiptWait { get; init; } = TimeSpan.FromMinutes(5);
+
     /// <summary>关：一轮之后就把话筒交回给人（老路径）。</summary>
     public static ContinuationSettings Off { get; } = new() { Enabled = false };
 
@@ -64,7 +67,7 @@ public static class TurnContinuation
     public const int CapCloseoutRounds = 3;
 
     /// <summary>跑完一条接续链，返回实际续跑轮数。</summary>
-    /// <param name="host">宿主（提供流游标与「有没有新工具结果」）。</param>
+    /// <param name="host">接续宿主（**任何实现 <see cref="ITurnHost"/> 的驱动方**都能跑这条链：宿主 / worker 派发器）。</param>
     /// <param name="cursorBeforeTurn">**本轮开始前**的流游标。</param>
     /// <param name="settings">边界。</param>
     /// <param name="budget">预算钟（与审批闸门共用同一个 ⇒ 审批等待自动不计）。</param>
@@ -72,7 +75,7 @@ public static class TurnContinuation
     /// <param name="onOutcome">每轮落地之后由表面处理（写屏 / 记对话）。</param>
     /// <param name="trace">留痕（可空）。</param>
     public static async Task<int> RunAsync(
-        RuntimeHost host,
+        ITurnHost host,
         int cursorBeforeTurn,
         ContinuationSettings settings,
         ContinuationBudget budget,
@@ -99,9 +102,32 @@ public static class TurnContinuation
         {
             var cursor = cursorBeforeTurn;
 
-            while (host.HasToolOutcomeSince(cursor))
+            while (true)
             {
-                // 终局即停（协议 v9 第 6 条）：模型已经声明「得解 / 无解 / 需要人」⇒ 后面的轮次没有意义
+                // **停不停只问这一处**（`TurnPulsePolicy`，与 worker 同一份判据；差异只由事实表达）。
+                var pulse = host.Pulse(cursor);
+
+                // ① 才停：合格结算，或窗口里真的没有可做的事。
+                if (pulse == TurnPulse.Stop)
+                {
+                    break;
+                }
+
+                // ② 派发在飞 ⇒ **不算停**：活已经交出去了、回执还没回（同步派发的回执晚一拍落地）。
+                //    有界等回执；等到了就重判（通常变 Continue，模型就能看到回执接着办）。
+                if (pulse == TurnPulse.Await)
+                {
+                    if (await WaitForReceiptAsync(host, cursor, settings.ReceiptWait, cancellationToken).ConfigureAwait(false))
+                    {
+                        continue;
+                    }
+
+                    host.NoteRoundFact(StopCauseFact.ReceiptPending);
+                    trace?.Invoke("[继续] 派发在飞、回执没回来（等到上限）⇒ 停，如实记停因");
+                    break;
+                }
+
+                // ③ 终局即停（协议 v9 第 6 条）：模型已经声明「得解 / 无解 / 需要人」⇒ 后面的轮次没有意义
                 // （而且 [DONE] 之后还点工具就是自相矛盾）。停在**它说的那一态**上，别把它推成「没话说」。
                 if (host.LastTerminal.IsTerminal)
                 {
@@ -180,6 +206,31 @@ public static class TurnContinuation
                 }
             }
 
+            // —— 终局门补轮（P2-1 §11.3「逐类可断言终局」）——
+            // **不补这一轮，闸门就是哑门**：模型那句假 `[DONE]` 被退回「无终局」后，这一轮只多了一条 `Hint`
+            // （不是工具结果）⇒ `HasToolOutcomeSince` 判假 ⇒ 循环自然结束 ⇒ 卡停在「● 进行中」，人看不出为什么
+            // （PITFALLS #120 同族：不许把「停下来问人 / 自验没过」做成静默死路）。
+            // 补轮**有上限**（CapCloseoutRounds）：它只够跑掉缺的那次验证 + 重新声明，不是新的烧轮入口。
+            if (!cancellationToken.IsCancellationRequested && host.LastGate.Rejected)
+            {
+                for (var i = 0; i < CapCloseoutRounds && host.LastGate.Rejected; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    trace?.Invoke($"[继续] 终局自验没过 ⇒ 补轮 {i + 1}/{CapCloseoutRounds}");
+                    var retry = await step(cancellationToken).ConfigureAwait(false);
+                    if (onOutcome is not null)
+                    {
+                        await onOutcome(retry).ConfigureAwait(false);
+                    }
+
+                    ran++;
+                }
+            }
+
             // —— 报告轮（协议 v21 第 12 条 · 主人 2026-09-24 定）：终局之后，宿主**请求一次**决策报告 ——
             // 只此一轮：报告轮不点工具（没东西可续）、也不再带终局块（它是收尾后的独立回复）⇒ 不会再循环。
             if (!cancellationToken.IsCancellationRequested && host.RequestDecisionReport())
@@ -193,6 +244,15 @@ public static class TurnContinuation
 
                 ran++;
             }
+            // —— E1（2026-09-27）：没有终局块就结束 ⇒ **必须**说清停因 ——
+            // 静默停是死路（现场三次 13:18 / 13:25 / 13:42 全靠人工诊断；PITFALLS #120 同族）：
+            // 卡停在「● 进行中」、人看不出原因、也永远等不到终局与决策报告。落点是**流**，不是 --verbose 的痕。
+            // 只在**真的接过轮**（ran > 0）时才算「停因」：单轮不点工具、也没有终局，那是「等下一句」的正常态，
+            // 不是静默停 —— 把它也报出来只会让每次普通问答都多一条噪声 Hint。
+            if (!cancellationToken.IsCancellationRequested && ran > 0 && !host.LastTerminal.IsTerminal)
+            {
+                host.NoteStopCause(ran, stoppedByLimit, stoppedByBudget);
+            }
         }
         finally
         {
@@ -201,4 +261,41 @@ public static class TurnContinuation
 
         return ran;
     }
+
+    /// <summary>
+    /// 派发在飞时**有界**等回执：活交出去了 ≠ 链该停（同步派发的回执会晚一拍落地）。
+    /// <para>回执一到就返回 true（外层重判 ⇒ 通常变 <see cref="TurnPulse.Continue"/>，模型就能看到回执接着办）；
+    /// 等满 <paramref name="wait"/> 仍没回 ⇒ false，由调用方**如实**记停因（<see cref="StopCauseFact.ReceiptPending"/>），
+    /// 别伪装成「模型没话说」。</para>
+    /// </summary>
+    public static async Task<bool> WaitForReceiptAsync(
+        ITurnHost host,
+        int cursor,
+        TimeSpan wait,
+        CancellationToken cancellationToken = default)
+    {
+        if (wait <= TimeSpan.Zero)
+        {
+            return host.Pulse(cursor) != TurnPulse.Await;
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed < wait)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+
+            await Task.Delay(ReceiptPollInterval, cancellationToken).ConfigureAwait(false);
+            if (host.Pulse(cursor) != TurnPulse.Await)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static readonly TimeSpan ReceiptPollInterval = TimeSpan.FromMilliseconds(100);
 }

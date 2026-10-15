@@ -300,8 +300,8 @@ public sealed class SolveLanguageTests
         b.Reply = "做完了。\n[DONE] 甲";
         var outcome = await b.Host.RunTurnAsync("开始", cancellationToken: Ct);
 
-        var proposal = Assert.Single(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾提议]", StringComparison.Ordinal));
-        Assert.Contains("25.0%", proposal, StringComparison.Ordinal);
+        // 2026-10-14 主人令：**「预算行」不再铺进正文**（灰色字之下不出现运行时行）⇒ 改判「正文里没有它」。
+        Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾提议]", StringComparison.Ordinal));
 
         // 提议同时进流成 Hint 事件（协议第 7 条写的是「当运行时说……」—— 宿主不说，模型就不可能照做）。
         Assert.Contains(b.Stream.Stream.Events, e => e.Kind == SessionEventKind.Hint && e.Text.Contains("收尾提议", StringComparison.Ordinal));
@@ -326,14 +326,14 @@ public sealed class SolveLanguageTests
         var ran = await TurnContinuation.RunAsync(
             b.Host,
             cursorBeforeTurn: cursor - 1,
-            ContinuationSettings.Default,
+            ContinuationSettings.Default with { MaxRounds = 1 },
             new ContinuationBudget(),
             step: _ => b.Host.ContinueTurnAsync(cancellationToken: Ct),
             trace: _ => { },
             cancellationToken: Ct);
 
-        Assert.Equal(1, ran);
-        Assert.Equal(2, b.Client.CallCount);
+        Assert.True(ran >= 1, $"没有终局 ⇒ 默认续（实际 {ran}）");
+        Assert.True(b.Client.CallCount >= 2);
 
         // 终局：模型说「做完了」⇒ 工具结果再落地也不许**因此**再推一轮（停在它说的那一态上）。
         // v21（2026-09-24）新增的**唯一例外**：宿主会补**一轮报告请求**（协议第 12 条）—— 除此以外不再续跑。
@@ -346,7 +346,7 @@ public sealed class SolveLanguageTests
         var stopped = await TurnContinuation.RunAsync(
             b.Host,
             cursorBeforeTurn: doneCursor - 1,
-            ContinuationSettings.Default,
+            ContinuationSettings.Default with { MaxRounds = 1 },
             new ContinuationBudget(),
             step: _ =>
             {
@@ -364,7 +364,7 @@ public sealed class SolveLanguageTests
         var again = await TurnContinuation.RunAsync(
             b.Host,
             cursorBeforeTurn: b.Host.StreamCount - 1,
-            ContinuationSettings.Default,
+            ContinuationSettings.Default with { MaxRounds = 1 },
             new ContinuationBudget(),
             step: _ => throw new InvalidOperationException("报告请求只该有一次"),
             trace: _ => { },
@@ -451,13 +451,18 @@ public sealed class SolveLanguageTests
 
         Assert.Equal(1, start.SessionNumber);
         Assert.NotNull(start.NewStream);
-        Assert.EndsWith(".jsonl", start.NewStream!, StringComparison.Ordinal);
+        Assert.EndsWith(".xml", start.NewStream!, StringComparison.Ordinal);
         Assert.NotEqual(b.StreamPath, b.Config.Stream.Path);
         // 新流**不含旧对话**（旧事件留在归档卷里）；若有接续线索，首条是**运行时那条 Hint**（不是历史正文）。
         // 主人 2026-09-22 23:1x 定：跟 reset 的接续必须把「上一会话最后一条用户消息」交给模型。
-        Assert.Equal(1, b.Stream.Stream.Count);
+        // 2 条：① 接续线索（source=runtime）② **无 worker 的可用性告知**（§6.3 判据 2，2026-09-26）
+        // 2026-10-10：③ **路径基准**（source=path-base，修 E4/D2）
+        // 2026-10-11：④ **工具块形状** Hint 试过又撤了（模型照旧走原生 DSML，无收益）⇒ 仍旧三条。
+        Assert.Equal(3, b.Stream.Stream.Count);
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[0].Kind);
         Assert.Equal("runtime", b.Stream.Stream.Events[0].Source);
+        Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[1].Kind);
+        Assert.Equal(WorkerAvailability.Source, b.Stream.Stream.Events[1].Source);
         Assert.DoesNotContain(b.Stream.Stream.Events, e => e.Kind == SessionEventKind.UserInput);
         Assert.False(b.Host.SessionClosed);
         Assert.Null(b.Host.PendingHandover);

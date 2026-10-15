@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Focus xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <Tags xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:string>E002</d2p1:string>
+  </Tags>
+  <StreamCursor>6</StreamCursor>
+  <SavedAt xmlns:d2p1="http://schemas.datacontract.org/2004/07/System">
+    <d2p1:DateTime>2026-10-14T12:44:32.036091Z</d2p1:DateTime>
+    <d2p1:OffsetMinutes>480</d2p1:OffsetMinutes>
+  </SavedAt>
+</Focus>

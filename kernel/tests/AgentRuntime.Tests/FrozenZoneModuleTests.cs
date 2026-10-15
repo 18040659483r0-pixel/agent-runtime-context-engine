@@ -17,17 +17,17 @@ public sealed class FrozenZoneModuleTests
     {
         private readonly Dictionary<string, FrozenContent> _map = new(StringComparer.Ordinal);
 
-        public FakeSource With(FrozenZone zone, FrozenLayer layer, string? domain, string text, string? project = null, string version = "1")
+        public FakeSource With(FrozenZone zone, FrozenLayer layer, string text, string? project = null, string version = "1")
         {
-            _map[Key(zone, layer, domain, project)] = new FrozenContent(version, text);
+            _map[Key(zone, layer, project)] = new FrozenContent(version, text);
             return this;
         }
 
         public FrozenContent? TryGet(FrozenSlot slot) =>
-            _map.TryGetValue(Key(slot.Zone, slot.Layer, slot.DomainId, slot.ProjectId), out var content) ? content : null;
+            _map.TryGetValue(Key(slot.Zone, slot.Layer, slot.ProjectId), out var content) ? content : null;
 
-        private static string Key(FrozenZone zone, FrozenLayer layer, string? domain, string? project) =>
-            $"{zone}|{layer}|{domain}|{project}";
+        private static string Key(FrozenZone zone, FrozenLayer layer, string? project) =>
+            $"{zone}|{layer}|{project}";
     }
 
     private static async Task<List<string>> ContributeAsync(IRuntimeModule module)
@@ -38,44 +38,18 @@ public sealed class FrozenZoneModuleTests
     }
 
     private static FakeSource ThreeLayerSource() => new FakeSource()
-        .With(FrozenZone.Rules, FrozenLayer.Global, null, "RG")
-        .With(FrozenZone.Rules, FrozenLayer.Expert, "software", "RS")
-        .With(FrozenZone.Rules, FrozenLayer.Expert, "finance", "RF")
-        .With(FrozenZone.Rules, FrozenLayer.Project, null, "RP", project: "AgentRuntime")
-        .With(FrozenZone.Knowledge, FrozenLayer.Global, null, "KG")
-        .With(FrozenZone.Knowledge, FrozenLayer.Expert, "software", "KS")
-        .With(FrozenZone.MemoryIndex, FrozenLayer.Global, null, "M");
+        .With(FrozenZone.Rules, FrozenLayer.Global, "RG")
+        .With(FrozenZone.Rules, FrozenLayer.Project, "RP", project: "AgentRuntime")
+        .With(FrozenZone.Knowledge, FrozenLayer.Global, "KG")
+        .With(FrozenZone.MemoryIndex, FrozenLayer.Global, "M");
 
-    [Fact]
-    public async Task 规则区_三层齐全_按Global_Expert域排序_Project贡献()
-    {
-        var selection = new FrozenSelection(["software", "finance"], "AgentRuntime");
-        var module = new RulesModule(ThreeLayerSource(), selection);
 
-        Assert.Equal(new[] { "RG", "RF", "RS", "RP" }, await ContributeAsync(module));
-    }
 
-    [Fact]
-    public async Task 空领域选择_等于全部领域()
-    {
-        var module = new RulesModule(ThreeLayerSource(), FrozenSelection.All);
-
-        // 全部领域 ⇒ software 与 finance 都在（按 id 排序：finance < software）
-        Assert.Equal(new[] { "RG", "RF", "RS" }, await ContributeAsync(module));
-    }
-
-    [Fact]
-    public async Task 只选一个域_其它域不进prompt()
-    {
-        var module = new RulesModule(ThreeLayerSource(), new FrozenSelection(["software"], "AgentRuntime"));
-
-        Assert.Equal(new[] { "RG", "RS", "RP" }, await ContributeAsync(module));
-    }
 
     [Fact]
     public async Task 记忆索引_只有Global单层_忽略Project()
     {
-        var module = new MemoryIndexModule(ThreeLayerSource(), new FrozenSelection([], "AgentRuntime"));
+        var module = new MemoryIndexModule(ThreeLayerSource(), new FrozenSelection("AgentRuntime"));
 
         Assert.Equal(new[] { "M" }, await ContributeAsync(module));
     }
@@ -116,11 +90,11 @@ public sealed class FrozenZoneModuleTests
         var withOne = await rulesOnly.ChatAsync("问题", TestContext.Current.CancellationToken);
 
         // 铁则在最前，知识在其后（规范序），用户消息恒在最后
-        Assert.Equal(new[] { "RG", "RF", "RS", "KG", "KS", "问题" },
+        Assert.Equal(new[] { "RG", "KG", "问题" },
             withBoth.Request.Messages.Select(m => m.Content));
 
         // 去掉知识模块后，规则模块的贡献逐字不变
-        Assert.Equal(new[] { "RG", "RF", "RS", "问题" },
+        Assert.Equal(new[] { "RG", "问题" },
             withOne.Request.Messages.Select(m => m.Content));
     }
 
@@ -138,21 +112,16 @@ public sealed class FrozenZoneModuleTests
 
         var result = await engine.ChatAsync("问题", TestContext.Current.CancellationToken);
 
-        Assert.Equal(new[] { "RG", "RF", "RS", "KG", "KS", "M", "问题" },
+        Assert.Equal(new[] { "RG", "KG", "M", "问题" },
             result.Request.Messages.Select(m => m.Content));
     }
 
-    [Fact]
-    public void 未知领域_抛错()
-    {
-        Assert.Throws<InvalidDataException>(() => new FrozenSelection(["wizardry"]).Validate());
-    }
 
     [Fact]
     public void 快照指纹_随内容变化()
     {
-        var a = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, null, "A"), FrozenSelection.All);
-        var b = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, null, "B"), FrozenSelection.All);
+        var a = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, "A"), FrozenSelection.All);
+        var b = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, "B"), FrozenSelection.All);
 
         Assert.NotEqual(a.Snapshot().Id, b.Snapshot().Id);
     }
@@ -193,17 +162,4 @@ public sealed class FrozenZoneModuleTests
         Assert.Contains("rules", config.Modules);
     }
 
-    [Fact]
-    public void 配置_未知领域在校验期被拦住()
-    {
-        var config = new AgentRuntime.Core.Configuration.RuntimeConfiguration
-        {
-            BaseUrl = "https://x/v1",
-            Model = "m",
-            Frozen = new AgentRuntime.Core.Configuration.FrozenConfiguration { Domains = ["wizardry"] },
-        };
-
-        var ex = Assert.Throws<InvalidDataException>(config.Validate);
-        Assert.Contains("wizardry", ex.Message);
-    }
 }

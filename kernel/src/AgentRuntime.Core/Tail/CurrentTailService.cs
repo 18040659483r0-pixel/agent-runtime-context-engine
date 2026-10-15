@@ -96,6 +96,12 @@ public static class CurrentTailService
         var body = new List<string>();
         var header = all[start].Trim();
         var rest = header[Prefix.Length..].Trim();
+        // 回灌时块头同侧挂了**归属注记**（T2）——模型把它抄回来不算正文（否则它会被当成一条状态行）。
+        if (rest == OwnHeaderNote)
+        {
+            rest = string.Empty;
+        }
+
         if (rest.Length > 0)
         {
             body.Add(rest);
@@ -185,7 +191,10 @@ public static class CurrentTailService
 
     // ---------------- 渲染（逐字节确定） ----------------
 
-    /// <summary>渲染 R4 段：<c>[TAIL]</c> 头行 + 逐行正文。**空 ⇒ 空串 ⇒ 零注入**。</summary>
+    /// <summary>块头同侧的**归属注记**全文（渲染与解析同源，唯一声明处 = 协议区）。</summary>
+    public const string OwnHeaderNote = "(" + ProtocolText.OwnStateLead + ")";
+
+    /// <summary>渲染 R4 段：<c>[TAIL]</c> 头行（带归属注记，T2）+ 逐行正文。**空 ⇒ 空串 ⇒ 零注入**。</summary>
     public static string Render(CurrentTailState state)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -201,7 +210,7 @@ public static class CurrentTailService
             return string.Empty;
         }
 
-        return Prefix + "\n" + string.Join('\n', normalized);
+        return Prefix + " " + OwnHeaderNote + "\n" + string.Join('\n', normalized);
     }
 
     // ---------------- 上限（超限 ⇒ 报告并沿用上一版；**不截断**） ----------------

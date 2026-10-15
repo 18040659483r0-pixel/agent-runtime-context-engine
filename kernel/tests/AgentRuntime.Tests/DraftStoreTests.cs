@@ -79,7 +79,7 @@ public sealed class DraftStoreTests : IDisposable
 
         var state = loaded.ToState();
         Assert.Equal(new[] { "构想: 整块覆盖", "待确认: 上限 16 行" }, state.Lines);
-        Assert.Equal("[DRAFT]\n构想: 整块覆盖\n待确认: 上限 16 行", state.Text);
+        Assert.Equal("[DRAFT] " + DraftService.OwnHeaderNote + "\n构想: 整块覆盖\n待确认: 上限 16 行", state.Text);
 
         // 落盘口径与账本同规：UTF-8 **无 BOM**、LF 结尾。
         var bytes = File.ReadAllBytes(store.PathFor("default"));
@@ -106,7 +106,38 @@ public sealed class DraftStoreTests : IDisposable
         }
 
         var store = new DraftStore(Directory);
-        Assert.EndsWith("default.json", store.PathFor(null), StringComparison.Ordinal);
-        Assert.EndsWith("s1.json", store.PathFor("s1"), StringComparison.Ordinal);
+        Assert.EndsWith("default.xml", store.PathFor(null), StringComparison.Ordinal);
+        Assert.EndsWith("s1.xml", store.PathFor("s1"), StringComparison.Ordinal);
+    }
+
+    /// <summary>**白板/草稿跨会话承接**（主人 2026-10-14 20:40 令）：本会话还没有 ⇒ 从同目录**最近**一份 copy 过来；
+    /// 本会话已有 ⇒ 不动；**旧件永远不动**（旧会话那份留着，可回溯）。</summary>
+    [Fact]
+    public void 工作台面跨会话承接_本会话空则从最近一份拷来_旧件不动()
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "board-carry-" + Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            var tail = new AgentRuntime.Core.Tail.CurrentTailStore(dir);
+            var draftDir = System.IO.Path.Combine(dir, "draft");      // 尾与草稿在**各自目录**（生产也是如此）
+            System.IO.Directory.CreateDirectory(draftDir);
+            var draft = new AgentRuntime.Core.Draft.DraftStore(draftDir);
+
+            // 上一会话那一份（用 store 自己的路径算，绝不自己拼）
+            var oldPath = tail.PathFor("old");
+            System.IO.File.WriteAllText(oldPath, "<board/>");
+
+            Assert.Null(tail.CarryFromNewest("old"));                  // 本会话已有 ⇒ 不承接
+            Assert.Equal("old", tail.CarryFromNewest("new-sess"));     // 新会话 ⇒ 承接
+            Assert.True(System.IO.File.Exists(tail.PathFor("new-sess")), $"应已承接：{tail.PathFor("new-sess")} · 目录={tail.Directory}");
+            Assert.True(System.IO.File.Exists(oldPath));               // 旧件不动
+            System.IO.File.WriteAllText(draft.PathFor("old"), "<draft/>");
+            Assert.Equal("old", draft.CarryFromNewest("new-sess"));    // 草稿同一条纪律
+        }
+        finally
+        {
+            System.IO.Directory.Delete(dir, true);
+        }
     }
 }

@@ -28,10 +28,12 @@ internal static class CtrlCQuit
     /// <summary>装一次（幂等：重复调用只替换回调）。</summary>
     /// <param name="interrupt">「一下」要做什么（中断当前轮；null = 什么也不做，只计数）。</param>
     /// <param name="restoreTerminal">退出前恢复终端（显示光标 / 离开备用屏）；null = 不动终端。</param>
-    public static void Install(Action? interrupt, Action? restoreTerminal)
+    /// <param name="exitReason">退出前要落的**退出话术**（为什么退 / 会话在不在 / 怎么接）；null = 不落。</param>
+    public static void Install(Action? interrupt, Action? restoreTerminal, Func<string>? exitReason = null)
     {
         Interrupt = interrupt;
         Restore = restoreTerminal;
+        ExitReason = exitReason;
 
         if (Installed)
         {
@@ -74,7 +76,9 @@ internal static class CtrlCQuit
         Interrupt?.Invoke();
     }
 
-    /// <summary>立刻退出（恢复终端 → 写一行告别 → 退出）。</summary>
+    /// <summary>立刻退出（恢复终端 → 写一行告别 → 退）。</summary>
+    /// <para><b>这条出口从前什么都不留</b>（2026-10-14 真机：只往屏上打一行告别，终端一关就没了 ——
+    /// 于是「它自己退出了」既没有转储也没有理由）。现在与其余退出路**同一口径**：先把理由落盘。</para>
     private static void QuitNow()
     {
         try
@@ -84,6 +88,21 @@ internal static class CtrlCQuit
         catch
         {
             // 恢复失败也要退（宁可终端脏一点，也不能卡住）。
+        }
+
+        // **先落盘**（终端可能已经看不见了）；两个面都尽力而为、都不允许再抛。
+        if (ExitReason is { } reason)
+        {
+            try
+            {
+                var text = reason();
+                InputExit.Record(text);
+                Console.Error.WriteLine(text);
+            }
+            catch
+            {
+                // 记录面坏了也照样退。
+            }
         }
 
         try
@@ -107,6 +126,9 @@ internal static class CtrlCQuit
     private static Action? Interrupt { get; set; }
 
     private static Action? Restore { get; set; }
+
+    /// <summary>退出前要落的退出话术（由宿主注入；null = 不落）。</summary>
+    private static Func<string>? ExitReason { get; set; }
 
     /// <summary>同一个 tick 内是否连按过两下（测试用；不参与运行期逻辑）。</summary>
     internal static int PressCountForTest(long now)

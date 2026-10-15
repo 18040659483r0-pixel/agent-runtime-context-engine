@@ -42,7 +42,7 @@ public static class ResumeSupport
         }
 
         var streamPath = Path.GetFullPath(config.Stream.Path);
-        var source = new SessionStreamStore(streamPath).Load();
+        var source = new SessionStreamStore(streamPath).LoadOrRecover(out _);
         var fileCursor = source.Cursor;
         var outcome = SnapshotService.Decide(fileCursor, snapshot.StreamCursor);
 
@@ -88,7 +88,7 @@ public static class ResumeSupport
         var streamPath = config.Stream.Path;
         var fileCursor = string.IsNullOrWhiteSpace(streamPath)
             ? 0
-            : new SessionStreamStore(streamPath).Load().Cursor;
+            : new SessionStreamStore(streamPath).LoadOrRecover(out _).Cursor;
 
         var verification = SnapshotService.Verify(snapshot, prefix, fileCursor);
         stderr.WriteLine($"[恢复] {verification.Describe()}");
@@ -129,7 +129,7 @@ public static class ResumeSupport
                 throw new InvalidDataException(string.Join(" ", focusWarnings));
             }
 
-            if (snapshot.Focus.Count > 0)
+            if (snapshot.Focus.Length > 0)
             {
                 stderr.WriteLine($"[恢复] 焦点照读：{string.Join(' ', snapshot.Focus)}（不重算、不问模型）");
             }
@@ -151,7 +151,7 @@ public static class ResumeSupport
 
                 if (!liveTail.Current.IsEmpty)
                 {
-                    stderr.WriteLine($"[恢复] 白板照读：{liveTail.Current.LineCount} 行（来源 {liveTail.Current.Source}，存储 {liveTail.SessionId}.json）");
+                    stderr.WriteLine($"[恢复] 白板照读：{liveTail.Current.LineCount} 行（来源 {liveTail.Current.Source}，存储 {liveTail.SessionId}.xml）");
                 }
             }
 
@@ -172,7 +172,7 @@ public static class ResumeSupport
 
                 if (!liveDraft.Current.IsEmpty)
                 {
-                    stderr.WriteLine($"[恢复] 草稿照读：{liveDraft.Current.LineCount} 行（来源 {liveDraft.Current.Source}，存储 {liveDraft.SessionId}.json）");
+                    stderr.WriteLine($"[恢复] 草稿照读：{liveDraft.Current.LineCount} 行（来源 {liveDraft.Current.Source}，存储 {liveDraft.SessionId}.xml）");
                 }
             }
         }
@@ -182,7 +182,7 @@ public static class ResumeSupport
     public static SessionAppendStream LoadStream(RuntimeConfiguration config) =>
         string.IsNullOrWhiteSpace(config.Stream.Path) || !File.Exists(config.Stream.Path)
             ? new SessionAppendStream()
-            : new SessionStreamStore(config.Stream.Path).Load();
+            : new SessionStreamStore(config.Stream.Path).LoadOrRecover(out _);
 
     /// <summary>
     /// **孤儿尾部处理入口（/fork）**：把当前流在快照游标处**分叉**到一个新文件，原流只读保留。
@@ -207,7 +207,7 @@ public static class ResumeSupport
         }
 
         var streamPath = Path.GetFullPath(config.Stream.Path);
-        var source = new SessionStreamStore(streamPath).Load();
+        var source = new SessionStreamStore(streamPath).LoadOrRecover(out _);
         var fileCursor = source.Cursor;
 
         // 分叉游标非法 / 目标已存在 ⇒ 抛错（PanelRouter 会把拒绝变成人看得到的错误行）。

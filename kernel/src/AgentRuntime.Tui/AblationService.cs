@@ -41,8 +41,20 @@ public sealed class AblationService
     /// **P3 闸门（TUI 面）**：协议区必报错；未知模块必报错（列出可用清单，不静默当没这个模块）。
     /// <para>刻意抛异常（而不是返回一句错误文案）：把「拒绝」变成调用方绕不过去的类型事实。</para>
     /// </summary>
+    /// <summary>
+    /// **别名归一（唯一处）**：<c>worker</c> 是给人用的短名，登记名是 <c>worker-dispatch</c>。
+    /// <para>§6.3 判据 6（多入口同一判定）：<c>/ablate worker</c> 与「配置里没挂它」必须走**同一份事实**，
+    /// 所以两条入口都先归一到登记名，再判「有没有它」—— 不各写一套。</para>
+    /// </summary>
+    public static string Normalize(string name) =>
+        string.Equals(name, "worker", StringComparison.OrdinalIgnoreCase)
+            ? WorkerAvailability.ModuleName
+            : name;
+
     public static void EnsureAblatable(string name)
     {
+        name = Normalize(name);
+
         if (string.IsNullOrWhiteSpace(name))
         {
             throw new InvalidDataException($"/ablate 需要模块名。可摘：{string.Join("、", AblatableModules)}；protocol 不可摘。");
@@ -71,6 +83,7 @@ public sealed class AblationService
     public IReadOnlyList<string> Apply(RuntimeHost host, string name, bool? on)
     {
         ArgumentNullException.ThrowIfNull(host);
+        name = Normalize(name);   // §6.3 判据 6：`/ablate worker` 与配置级走同一判定（别名归一）
         EnsureAblatable(name);
 
         if (host.Config.Modules.Count == 0)
@@ -95,7 +108,8 @@ public sealed class AblationService
             .Where(m => !_disabled.Contains(m))
             .ToList();
 
-        var modules = RuntimeHost.BuildModules(host.Config, string.Join(",", effective), vacuum: false);
+        var modules = RuntimeHost.BuildModules(host.Config, string.Join(",", effective), vacuum: false,
+                                               closeoutWindow: host.CloseoutFaceWindow);
 
         // P3 闸门复验：不是「我觉得协议还在」，而是内核的守卫说它还在。
         ModuleRegistry.EnsureProtocolPresent(modules);

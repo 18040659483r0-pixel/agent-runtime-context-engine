@@ -1,3 +1,6 @@
+using System.Runtime.Serialization;
+using AgentRuntime.Core.Persistence;
+
 namespace AgentRuntime.Core.Session;
 
 /// <summary>
@@ -5,10 +8,12 @@ namespace AgentRuntime.Core.Session;
 /// <para>目前只有一项：**就地展开的区**（右栏目录里哪几行把正文摊在自己那一行下面）。</para>
 /// </summary>
 /// <param name="InlineExpanded">就地展开的区名（如 <c>R4</c> / <c>R5</c> / <c>R3</c>；次序由读取方规范化）。</param>
-public sealed record TuiState(IReadOnlyList<string> InlineExpanded);
+[DataContract(Name = "TuiState", Namespace = "")]
+public sealed record TuiState(
+    [property: DataMember(Order = 0)] string[] InlineExpanded);
 
 /// <summary>
-/// **TUI 设置的存储区**（默认 <c>~/.agentruntime/tui.json</c>）。
+/// **TUI 设置的存储区**（默认 <c>~/.agentruntime/tui.xml</c>）。
 /// <para>
 /// <b>坏文件怎么处置？—— 降级当默认，不报错</b>（PITFALLS #24 的判据：这份状态**能重建**：
 /// 默认 = 白板 / 草稿 / 焦点三组就地展开）。真正的真相源不在这里 ⇒ 读坏了不该拦人进 TUI。
@@ -17,10 +22,10 @@ public sealed record TuiState(IReadOnlyList<string> InlineExpanded);
 /// </summary>
 public sealed class TuiStateStore
 {
-    /// <summary>默认文件名（<c>~/.agentruntime/tui.json</c>；目录与 tail / draft / snapshot 同一处）。</summary>
-    public const string DefaultFileName = "tui.json";
+    /// <summary>默认文件名（<c>~/.agentruntime/tui.xml</c>；目录与 tail / draft / snapshot 同一处）。</summary>
+    public const string DefaultFileName = "tui.xml";
 
-    /// <summary>默认位置：<c>~/.agentruntime/tui.json</c>（组合根不传路径时用它）。</summary>
+    /// <summary>默认位置：<c>~/.agentruntime/tui.xml</c>（组合根不传路径时用它）。</summary>
     public static string DefaultPath() => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".agentruntime",
@@ -48,10 +53,10 @@ public sealed class TuiStateStore
                 return null;
             }
 
-            var state = System.Text.Json.JsonSerializer.Deserialize<TuiState>(File.ReadAllText(Path));
-            return state is null ? null : state with { InlineExpanded = state.InlineExpanded ?? [] };
+            var state = DataContractXml.ReadFile<TuiState>(Path);
+            return state with { InlineExpanded = state.InlineExpanded ?? [] };
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             return null;
         }
@@ -61,21 +66,6 @@ public sealed class TuiStateStore
     public void Save(TuiState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-
-        var directory = System.IO.Path.GetDirectoryName(Path);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var temp = Path + ".tmp";
-        File.WriteAllText(temp, System.Text.Json.JsonSerializer.Serialize(state));
-
-        if (File.Exists(Path))
-        {
-            File.Delete(Path);
-        }
-
-        File.Move(temp, Path);
+        DataContractXml.WriteFileAtomic(Path, state);
     }
 }

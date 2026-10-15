@@ -15,8 +15,11 @@ namespace AgentRuntime.Core.Lifecycle;
 /// （`§十·17`：规则只许一份）。
 /// </para>
 /// </summary>
-public sealed record DecisionReport
+public sealed record DecisionReport : TaskDecisionReport
 {
+    /// <summary>**形态 = 人读**（master 那篇散文；机器读形态是 worker 的 <c>MachineDecisionReport</c>）。</summary>
+    public override ReportForm Form => ReportForm.Human;
+
     /// <summary>
     /// **宿主「请交决策报告」那一句的来源标记**（进 <c>Hint</c> 事件的账本字段 <c>Source</c>）——
     /// 聚合器靠它认出「哪条 Hint 是报告请求」，从而把**紧随其后的那一条回复**当报告。
@@ -61,13 +64,6 @@ public sealed record DecisionReport
 
     /// <summary>五、**接下来**（1~3 条编号建议，可点选 —— 与 L3 决策卡同一条链路）。</summary>
     public IReadOnlyList<DecisionReportNext> Next { get; init; } = [];
-
-    /// <summary>
-    /// 报告指纹（宿主按正文算；收尾审计问「哪一版被采信」）。
-    /// <para>口径与全仓其余指纹一致：<c>SHA256(UTF-8) → 十六进制 → 前 16 位小写</c>
-    /// （<c>FrozenSnapshot</c> 同款，**不另造哈希**）。</para>
-    /// </summary>
-    public required string Fingerprint { get; init; }
 }
 
 /// <summary>报告的一条**解步**。</summary>

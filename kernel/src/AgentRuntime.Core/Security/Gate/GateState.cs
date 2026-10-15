@@ -30,7 +30,7 @@ public static class GateState
     public const string SocketFileName = "gate.sock";
 
     /// <summary>预授权账本文件名。</summary>
-    public const string LedgerFileName = "grants.json";
+    public const string LedgerFileName = "grants.xml";
 
     /// <summary>根目录。</summary>
     public static string RootDirectory(string? root = null) => root ?? DefaultRoot;

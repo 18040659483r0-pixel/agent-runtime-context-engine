@@ -36,13 +36,14 @@ internal static class LifecycleCardView
     /// <param name="accumulate">
     /// **累积显示**（默认开；<c>/append off</c> 关）—— 意图 / 打算 / 结果逐条追加（主人 2026-09-24 19:30 定）。
     /// </param>
-    public static ConversationEntry Entry(TaskLifecycle lifecycle, bool withHint = true, bool accumulate = true)
+    public static ConversationEntry Entry(TaskLifecycle lifecycle, bool withHint = true, bool accumulate = true,
+        IReadOnlyList<string>? workers = null)
     {
         ArgumentNullException.ThrowIfNull(lifecycle);
 
         // includeRequest: false —— 请求已经由上面那条 `you` 行说过一遍（卡上不再重复）。
         var lines = new List<string>(LifecyclePresenter.Card(
-            lifecycle, expanded: false, includeRequest: false, accumulate: accumulate));
+            lifecycle, expanded: false, includeRequest: false, accumulate: accumulate, workers: workers));
         if (withHint)
         {
             lines.Add(Hint);

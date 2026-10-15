@@ -1,6 +1,5 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Runtime.Serialization;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Core.Frozen;
 
@@ -15,35 +14,25 @@ namespace AgentRuntime.Core.Frozen;
 /// <see cref="ClosedOutAt"/>（收尾时刻）。
 /// </para>
 /// </summary>
-public sealed record CloseoutWatermark(FrozenManifest Manifest, int StreamCursor, DateTimeOffset ClosedOutAt)
+[DataContract(Name = "Closeout", Namespace = "")]
+public sealed record CloseoutWatermark(
+    [property: DataMember(Order = 0)] FrozenManifest Manifest,
+    [property: DataMember(Order = 1)] int StreamCursor,
+    [property: DataMember(Order = 2)] DateTimeOffset ClosedOutAt)
 {
-    /// <summary>收尾时所依据的冻结快照指纹。</summary>
-    [JsonIgnore]
+    /// <summary>收尾时所依据的冻结快照指纹（计算属性，不进落盘）。</summary>
+    [IgnoreDataMember]
     public string FrozenSnapshotId => Manifest.SnapshotId;
 
-    public string ToJson() => JsonSerializer.Serialize(this, FrozenJson.Options);
+    /// <summary>稳定序列化（XML 片段）。</summary>
+    public string ToXml() => DataContractXml.ToFragment(this);
 
-    public static CloseoutWatermark FromJson(string json)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+    /// <summary>从 XML 片段读回。</summary>
+    public static CloseoutWatermark FromXml(string xml) => DataContractXml.FromFragment<CloseoutWatermark>(xml);
 
-        var watermark = JsonSerializer.Deserialize<CloseoutWatermark>(json, FrozenJson.Options);
-        return watermark ?? throw new InvalidDataException("水位线内容为空。");
-    }
+    /// <summary>从文件读回（不存在 / 坏文件 ⇒ 抛；水位线是账本，不降级）。</summary>
+    public static CloseoutWatermark Load(string path) => DataContractXml.ReadFile<CloseoutWatermark>(path);
 
     /// <summary>写入文件（UTF-8 无 BOM，LF 结尾）。</summary>
-    public void Save(string path)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        var full = Path.GetFullPath(path);
-        var directory = Path.GetDirectoryName(full);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = ToJson().Replace("\r\n", "\n", StringComparison.Ordinal);
-        File.WriteAllText(full, json + "\n", new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-    }
+    public void Save(string path) => DataContractXml.WriteFile(path, this);
 }

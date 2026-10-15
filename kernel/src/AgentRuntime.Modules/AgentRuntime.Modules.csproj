@@ -16,4 +16,8 @@
     <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentRuntime.Tests" />
+  </ItemGroup>
+
 </Project>

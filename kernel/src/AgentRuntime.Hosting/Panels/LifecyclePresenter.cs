@@ -166,7 +166,10 @@ public static class LifecyclePresenter
         bool expanded = false,
         bool includeRequest = true,
         bool accumulate = true,
-        bool includeReport = true)
+        bool includeReport = true,
+        IReadOnlyList<string>? workers = null,
+        bool includeRisk = true,
+        bool includeTrace = true)
     {
         ArgumentNullException.ThrowIfNull(lifecycle);
 
@@ -190,6 +193,23 @@ public static class LifecyclePresenter
         // —— ② 意图 / 打算（**模型自己的口径**；没写就不画，不编 —— §十·64）——
         // v8（主人 2026-09-24 19:30 定）：这两行**不再滚动刷新** —— 每次 `[TAIL]` 的 solve / step 推进各加一行。
         lines.AddRange(IntentLines(lifecycle, accumulate));
+
+        // —— ③ 派发（主人 2026-09-25 令）：卡上要能看出**是 worker 在跑具体的任务** ——
+        //    每行一个 worker，sync/async 写在行里，时长是它自己的（与卡的计时分开 —— W6/C3）。
+        //    **空则这一段根本不存在**（不占一个字节）。
+        if (workers is { Count: > 0 })
+        {
+            // 2026-10-09（主人令）：整块**缩进**（段落缩进）—— 一眼认出这是「工蜂」的卡；
+            // 每个 worker 一行（多 worker 异步交叉 ⇒ 多条），结果由 WorkerFacts 换行带出 ⇒ 独立一行。
+            lines.Add("  [[strong]]工蜂：[[/]]");
+            foreach (var w in workers)
+            {
+                foreach (var ln in w.Split('\n'))
+                {
+                    lines.Add($"    {ln}");
+                }
+            }
+        }
 
         // —— ③ 过程发现（**默认展开**：主人 2026-09-22 23:0x 定「过程中发现了什么问题」要看得见；
         //    带首因，不是只给一个计数；全文仍在流里）——
@@ -247,36 +267,17 @@ public static class LifecyclePresenter
             lines.Add("[[warn]]⚠ 它报了 [NEED-USER] 但**没写要什么** ⇒ 没有可答的问题（`/trace` 看完整轨迹）[[/]]");
         }
 
-        // —— ⑤ 还可能有问题（声明原文 + 未决项 + 留档）——
-        var riskParts = new List<string>();
-        if (lifecycle.RiskClaims > 0)
-        {
-            riskParts.Add(lifecycle.RiskNoneCount == lifecycle.RiskClaims
-                ? $"risk 声明 {lifecycle.RiskClaims} 次（全是 none，模型自判）"
-                : $"risk 声明 {lifecycle.RiskClaims} 次（none {lifecycle.RiskNoneCount}）");
-        }
+        // —— ⑤ 还可能有问题 ——
+        // 2026-10-14 20:30 主人令：**「risk 声明 N 次」不上卡**（用户不需要知道这个；事实仍在流 / `/trace` 里）。
+        // 2026-10-15 主人令：「决策卡的结果后面还有一行『风险』…不需要再显示了，很影响注意力」⇒ **整行撤掉**
+        // （「草稿未决 N 条 / 留档 N 次」随之不再常驻；事实照旧在事件流里，`/trace` 可查）。
 
-        if (lifecycle.OpenDraftItems > 0)
-        {
-            riskParts.Add($"草稿未决 {lifecycle.OpenDraftItems} 条");
-        }
+        // 主人 2026-10-14 20:30 令：**模型自己声明过的 risk 备注不上卡** —— 它们逐条带命令与**绝对地址**，
+        // 一屏就被占掉大半（主人原话：「模型引用过的各种地址……占据了很大的显示空间……收进原文里」）。
+        // 事实不丢：仍在事件流里（`/trace` 可逐条看）。
 
-        if (lifecycle.Filed > 0)
-        {
-            riskParts.Add($"留档 {lifecycle.Filed} 次（本该问人）");
-        }
 
-        if (riskParts.Count > 0)
-        {
-            lines.Add($"风险：{string.Join(" · ", riskParts)}");
-        }
-
-        foreach (var note in lifecycle.RiskNotes)
-        {
-            lines.AddRange(Bullet($"[[warn]]它自己声明过：[[/]]{note}"));
-        }
-
-        if (lifecycle.TerminalConflicts > 0)
+        if (includeRisk && lifecycle.TerminalConflicts > 0)
         {
             lines.Add($"[[warn]]⚠ 终局块冲突 {lifecycle.TerminalConflicts} 次（协议要求互斥 ⇒ 报告，不猜）[[/]]");
         }
@@ -286,21 +287,25 @@ public static class LifecyclePresenter
         // 为什么改：它原先**永不折叠** ⇒ 屏上永远挂着红字，观感像「被拦住不放」——而 v13 起它只是**不合协议**，不是闸门。
         var denied = lifecycle.Trace.Where(static e => e.NeverFold).ToArray();
 
-        if (expanded)
+        if (includeTrace && expanded)
         {
             lines.Add($"[[dim]]完整轨迹（{lifecycle.Trace.Count} 条）[[/]]");
             foreach (var entry in lifecycle.Trace)
             {
-                // 展开 = 看**全量**：条目一条不少，且首行**不截断**（截断只属于折叠态的摘要）。
-                var body = expanded
-                    ? FirstLine(entry.Text)
-                    : TerminalText.TruncateTo(FirstLine(entry.Text), TraceLineWidth);
+                // 展开 = 看**全量**：条目一条不少，且**正文照印**。
+                // 主人 2026-09-29 19:56 令（缺口 A③）：此前展开态也只印首行 ⇒ 多行工具结果的**正文在屏上根本看不到**，
+                // 与「原文永远在流里 ⇒ /trace 看原文」的承诺不符。折叠态仍可只给摘要——那是屏面的事，不是事实的事。
+                var bodyLines = (entry.Text ?? string.Empty).Replace("\r", string.Empty).Split('\n');
                 lines.Add(entry.NeverFold
-                    ? $"  {entry.Tag} [[warn]]{entry.Kind} {body}[[/]]"
-                    : $"  [[dim]]{entry.Tag} {entry.Kind} {body}[[/]]");
+                    ? $"  {entry.Tag} [[warn]]{entry.Kind} {bodyLines[0]}[[/]]"
+                    : $"  [[dim]]{entry.Tag} {entry.Kind} {bodyLines[0]}[[/]]");
+                for (var i = 1; i < bodyLines.Length; i++)
+                {
+                    lines.Add(entry.NeverFold ? $"      {bodyLines[i]}" : $"      [[dim]]{bodyLines[i]}[[/]]");
+                }
             }
         }
-        else
+        else if (includeTrace)
         {
             var folded = lifecycle.Trace.Count - denied.Length;
             if (folded > 0)
@@ -314,7 +319,8 @@ public static class LifecyclePresenter
             }
         }
 
-        lines.Add($"[[dim]]{Footer(lifecycle)}[[/]]");
+        // 没有 worker 事实 ⇒ 在灰色页脚里插「单 master」（主人 2026-10-14 20:40 令）。
+        lines.Add($"[[dim]]{Footer(lifecycle, singleMaster: workers is null or { Count: 0 })}[[/]]");
 
         // —— 卡下的**决策报告**（成品层 · 协议 v21 第 12 条 · 主人 2026-09-24 定）——
         // 只在「宿主要过报告」或「已经交了」时画：旧流 / 关掉自动接续的会话不画 ——
@@ -345,15 +351,19 @@ public static class LifecyclePresenter
         return Brief(parsed.Accepted ? parsed.Report : null, frame).Lines;
     }
 
-    /// <summary>页脚那一行（轮 / 工具 / 拒绝 / 留档 / 风险声明 / 用量；**用量未知就写破折号，不写 0**）。</summary>
-    public static string Footer(TaskLifecycle lifecycle)
+    /// <summary>页脚那一行（轮 / 工具 / 拒绝 / 留档 / 用量；**用量未知就写破折号，不写 0**）。
+    /// <para>2026-10-14 主人令：**「· 风险声明 N」已从本行移除** —— 这一行他常看，那一项阻碍顺畅阅读。</para></summary>
+    public static string Footer(TaskLifecycle lifecycle, bool singleMaster = false)
     {
         ArgumentNullException.ThrowIfNull(lifecycle);
 
         var usage = lifecycle.Usage is null ? "用量 —" : lifecycle.Usage.Footer();
         var filed = lifecycle.Filed > 0 ? $" · 留档 {lifecycle.Filed}" : string.Empty;   // v13：无留档就不占位
+        // 主人 2026-10-14 20:40 令：**没有 worker 就别单开一行**（那行很影响阅读）——
+        // 在本行（灰色字）里插一小段即可：「现在是谁在干活」一眼就够。
+        var solo = singleMaster ? " · 单 master" : string.Empty;
         return $"{lifecycle.Turns} 轮 · 工具 {lifecycle.ToolCalls} · 拒绝 {lifecycle.Denied}{filed}"
-               + $" · 风险声明 {lifecycle.RiskClaims} · {usage}";
+               + $"{solo} · {usage}";
     }
 
     // ---------------- 累积显示：意图 / 打算 / 结果（v8 · 主人 2026-09-24 19:30 定） ----------------

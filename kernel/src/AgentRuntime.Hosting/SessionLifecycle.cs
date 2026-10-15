@@ -8,7 +8,9 @@ using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Security;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Tail;
+using AgentRuntime.Core.Worker;
 using AgentRuntime.Hosting.Panels;
+using AgentRuntime.Hosting.Worker;
 using AgentRuntime.Modules;
 
 namespace AgentRuntime.Hosting;
@@ -61,11 +63,18 @@ public sealed record CloseoutReport(
 
         if (Pipeline.Count > 0)
         {
+            // **铁则 R2 的结构后果**（2026-10-11 查证）：运行时**唯一**能起进程的地方就是工具面（`ExecTool`）
+            // —— `RuntimeRulesTests.R2` 会抓任何其它 `Process.Start`。所以收尾流水线**只能由远端 AI 点一次 `exec` 跑**，
+            // 运行时不能代跑；能改的是**让它一轮跑完**：旧样是 5 个独立块 ⇒ 5 轮（收尾慢的主因）。
             lines.Add($"[收尾·流水线] 按序执行（远端 AI 自己跑，不需要人）：");
             for (var i = 0; i < Pipeline.Count; i++)
             {
                 lines.Add($"[收尾·流水线]   {i + 1}) {Pipeline[i]}");
             }
+
+            // **一条命令跑完**（甲·2026-10-11）：`&&` 短路 ⇒ 前一条失败就停 —— 正是协议第 8 条要的「失败就停在那一步」语义。
+            lines.Add("[收尾·流水线] **点一次 [TOOL] exec 跑完这一条即可**（不要一条一轮）：");
+            lines.Add($"[收尾·流水线]   {string.Join(" && ", Pipeline)}");
 
             lines.Add("[收尾·流水线] 规则（协议第 8 条）：逐个跑、逐个报结果；**失败就停在那一步并说清**；晋级只加版本，随时可 --rollback。");
         }
@@ -84,7 +93,9 @@ public sealed record ResetReport(
     int DraftLines,
     int ClearedFocusTags,
     string? ArchivedResumePoint,
-    CloseoutReport Closeout)
+    CloseoutReport Closeout,
+    IReadOnlyList<string>? WorkerArchives = null,
+    IReadOnlyList<string>? WorkerFailures = null)
 {
     /// <summary>屏上/日志行。</summary>
     public IReadOnlyList<string> Lines()
@@ -102,6 +113,15 @@ public sealed record ResetReport(
             ArchivedResumePoint is null
                 ? "[重开] 旧恢复点：同路径，会被新会话的恢复点覆盖（旧流已归档，不影响回到它）"
                 : $"[重开] 旧恢复点已另存：{ArchivedResumePoint}",
+            // **worker 集合**（主人 2026-09-29 18:50）：reset 对**每一个** worker 生效，不是只动当前那个。
+            //   逐家报事实；失败**不静默跳过** —— 哪一家、什么错，都要在屏上看得见。
+            (WorkerArchives is null || WorkerArchives.Count == 0) && (WorkerFailures is null || WorkerFailures.Count == 0)
+                ? "[重开] worker 侧：没有可归档的 worker 家（没配 / 本来就没有流）"
+                : $"[重开] worker 侧：归档 {WorkerArchives?.Count ?? 0} 条持续流" +
+                  (WorkerArchives is { Count: > 0 } ? string.Join(" · ", WorkerArchives.Select(p => Path.GetFileName(Path.GetDirectoryName(p)) + "/stream")) : string.Empty) +
+                  ((WorkerFailures?.Count ?? 0) > 0
+                      ? $"；**{WorkerFailures!.Count} 家失败**（没归档成，别当它干净）：{string.Join(" · ", WorkerFailures)}"
+                      : "；全部成功"),
             "[重开] 语义：**设计内的交接**，不是失败也不是被遗忘（协议第 7 条）。",
             "[重开] **下一步：/start** —— 开新会话；白板与草稿从上面这份末态开始（收尾件清单见上）。",
         };
@@ -116,7 +136,8 @@ public sealed record StartReport(
     string? NewStream,
     HandoverSnapshot? Handover,
     int TailLines,
-    int DraftLines)
+    int DraftLines,
+    IReadOnlyList<string>? WorkerLines = null)
 {
     /// <summary>屏上/日志行。</summary>
     public IReadOnlyList<string> Lines()
@@ -142,6 +163,16 @@ public sealed record StartReport(
                 lines.Add($"[开始] 上一卷做到哪：{solve.Describe()}（**接着做，不用重述上下文**）");
             }
             lines.Add($"[开始] 已装载：白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行 —— **接着往下做就行**（不用重述上下文）。");
+        }
+
+        // **worker 集合逐个宣告**（主人 2026-09-29 18:50）：有几家就报几家 —— 不是只报「当前那一个」。
+        if (WorkerLines is { Count: > 0 })
+        {
+            lines.Add($"[开始] worker 侧（{WorkerLines.Count} 家，同一个集合，逐个读）：{string.Join(" · ", WorkerLines)}");
+        }
+        else
+        {
+            lines.Add("[开始] worker 侧：没有 worker 家（没配 / 还没派发过）");
         }
 
         lines.Add("[开始] 想回到更早的会话：--stream <那次的流文件>（旧流全部原地保留）。");
@@ -173,7 +204,7 @@ public sealed record StartReport(
 /// </summary>
 public static class SessionLifecycle
 {
-    /// <summary>重开的流文件名戳记（<c>stream-20260920-1245.jsonl</c>）。</summary>
+    /// <summary>重开的流文件名戳记（<c>stream-20260920-1245.xml</c>）。</summary>
     private static readonly Regex StampSuffix = new(@"-\d{8}-\d{6}$", RegexOptions.Compiled);
 
     /// <summary>
@@ -193,14 +224,25 @@ public static class SessionLifecycle
     {
         ArgumentNullException.ThrowIfNull(host);
 
+        // G1（2026-10-11）：**在换面之前**取产物锤 —— 下面的 <see cref="RuntimeHost.EnterCloseoutFace"/> 会**重装模块**
+        //（含 ToolRunner）⇒ 之后账就空了（不是 bug 而是设计：换面 = 重建）。实测：第一版取在它后面 ⇒ 末态里 Artifacts 恒空。
+        var artifacts = host.Modules.OfType<ToolModule>().FirstOrDefault()?.Runner.Artifacts.ToArray() ?? [];
+
+        // **收尾命令强制把 master 的面放成全量**（主人 2026-09-30 12:47：收尾命令里强制使用 master 全量工具授权，
+        // 非收尾阶段工具面一律从 master 手中收走）。放在**读模块之前**：下面 FrozenPrefix / 收尾件 / 交接件都读 host.Modules。
+        // 重装**复用当前挂着的流**（reuseStream）—— 否则从盘上重放会把还没落盘的事件读丢。
+        host.EnterCloseoutFace();
+
         var config = host.Config;
         var prefix = FrozenPrefix.Assemble(host.Modules);
         var status = CloseoutService.Inspect(config.Frozen.Watermark, prefix);
 
+        // 2026-10-15：领域（Expert）退役 ⇒ misc 域那一路不再有来源（保留空表，结构不动）。
+        IReadOnlyList<string> misc = [];
+
         var source = string.IsNullOrWhiteSpace(config.Frozen.Root)
             ? FrozenContentSource.Empty
             : FrozenContentSource.FromDirectory(config.Frozen.Root);
-        var misc = CloseoutService.PendingMisc(source);
 
         // 游标取**内存流**（长驻宿主里它是真相；磁盘在读的那一刻可能还差最后一条）。
         var cursor = host.StreamCount > 0
@@ -222,7 +264,10 @@ public static class SessionLifecycle
             now,
             streamPath ?? config.Stream.Path,
             LastRequest(host).Message,
-            LastRequest(host).Interrupted);
+            LastRequest(host).Interrupted,
+            // G1（2026-10-11）：把本会话**取证到的产物锤**定格进末态 —— 新会话写交接/收尾时直接引用，不必重读。
+            // ⚠️ 用的是**换面前**取的那份（见方法开头），不是 host.Modules 此刻的实例。
+            artifacts);
 
         if (config.Lifecycle.HandoverExplicit)
         {
@@ -316,10 +361,23 @@ public static class SessionLifecycle
         var archived = !string.IsNullOrWhiteSpace(oldStream) && File.Exists(oldStream) ? oldStream : null;
         config.Stream.Path = null;
 
+        // ③·五 **worker 的持续流一并归档**（主人 2026-09-29：master reset ⇒ worker 也 reset，生命周期同源）。
+        //       判据 = 盘上事实（流真的移走）；没配 worker / 没有流 ⇒ 什么都不做（行为逐字不变）。
+        //   **集合**（主人 2026-09-29 18:50）：有多个 worker 时逐个归档，不是只动「当前那一个」。
+        //   顺序 = 家名升序（确定性、可复算）；**一个失败不静默跳过** ⇒ 收集进 WorkerFailures，由报告响亮说出。
+        IReadOnlyList<string> workerArchives = [];
+        IReadOnlyList<string> workerFailures = [];
+        if (config.Worker.Enabled)
+        {
+            (workerArchives, workerFailures) = WorkerWatermark.ArchiveAll(MinimalWorker.RootOf(config.Worker), now);
+        }
+
         // ④ 清焦点：旧标签在新流里必然悬空（R3 的真源是流）。**显式做、显式报**，不静默留个悬空账。
         var resetFocus = ClearFocus(config, focusTags);
 
         // ⑤ 重建模块集：新流（空）+ 同一套稳定前缀 + 同一套白板/草稿存储键；审批闸门/账本照旧带上。
+        // **收尾面窗口在重置时失效**（本会话结束了）⇒ 这一次重装就按默认面装（下一次**收尾命令**再强制打开）。
+        host.NoteCloseoutFaceConsumed();
         host.RebuildModules();
 
         // ⑥ 旧恢复点另存（它是「回到那一次会话」的钥匙；下一轮会被新会话的恢复点覆盖同一路径）。
@@ -346,7 +404,9 @@ public static class SessionLifecycle
             draft?.Current.LineCount ?? 0,
             resetFocus,
             archivedResumePoint,
-            closeout);
+            closeout,
+            workerArchives,
+            workerFailures);
     }
 
     /// <summary>
@@ -413,8 +473,11 @@ public static class SessionLifecycle
         // ③ **白板与草稿从末态开始**（原样搬过来，不是「碰巧还在」）。
         var tail = host.Modules.OfType<CurrentTailModule>().FirstOrDefault();
         var draft = host.Modules.OfType<DynamicDraftModule>().FirstOrDefault();
-        var tailState = handover is null ? null : tail?.Override(handover.Tail);
-        var draftState = handover is null ? null : draft?.Override(handover.Draft);
+        // **空承接不许把台面清空**（2026-10-15 真机）：`/start` 把末态里的**空**台面 Override 进去 ⇒
+        // 白板/草稿当场变空。主人的口径：**只要更新过一次就永远不可能是空的** ⇒
+        // **空 ⇒ 不覆盖**（保留现有那份 —— 就是 `CarryFromNewest` 抄来的最近一份）。
+        var tailState = handover is null || handover.Tail.Length == 0 ? null : tail?.Override(handover.Tail);
+        var draftState = handover is null || handover.Draft.Length == 0 ? null : draft?.Override(handover.Draft);
 
         // ③·五 **接续线索**（主人 2026-09-22 23:1x 报）：把「上一会话最后一条用户消息 + 它是否答完」作为
         // **新流的第一条 Hint** 交给模型 —— 否则中断/重开之后那句“接续”会被当成全新问题（模型只能满仓库猜题意）。
@@ -431,7 +494,19 @@ public static class SessionLifecycle
                 .Save(new SessionPointer(config.Stream.Path, Closed: false, now, host.StartCount, handover?.At.ToString("O")));
         }
 
-        return new StartReport(host.StartCount, next, handover, tailState?.LineCount ?? 0, draftState?.LineCount ?? 0);
+        // ③·六 **worker 集合逐个宣告**（主人 2026-09-29 18:50）：start 遍历**同一个集合**（FamiliesOf），
+        //      不是只报「当前那一个」。归档是 reset 的职责 ⇒ 这里只**读并宣告**每一家的状态（不重复搬文件）。
+        var workerLines = config.Worker.Enabled
+            ? WorkerWatermark.DescribeFamilies(MinimalWorker.RootOf(config.Worker))
+            : [];
+
+        return new StartReport(
+            host.StartCount,
+            next,
+            handover,
+            tailState?.LineCount ?? 0,
+            draftState?.LineCount ?? 0,
+            workerLines);
     }
 
     /// <summary>
@@ -521,17 +596,17 @@ public static class SessionLifecycle
         }
         else if (!handover.Tail.SequenceEqual(tail, StringComparer.Ordinal))
         {
-            lines.Add($"[检查] ⏳ 末态（{handover.Tail.Count} 行）与当前白板（{tail.Count} 行）不同 —— 收尾后若改过白板，这是**正常**的（末态是那一刻的定格）");
+            lines.Add($"[检查] ⏳ 末态（{handover.Tail.Length} 行）与当前白板（{tail.Count} 行）不同 —— 收尾后若改过白板，这是**正常**的（末态是那一刻的定格）");
         }
         else
         {
-            lines.Add($"[检查] ✅ 末态 ↔ 白板一致（{handover.Tail.Count} 行）");
+            lines.Add($"[检查] ✅ 末态 ↔ 白板一致（{handover.Tail.Length} 行）");
         }
 
         return lines;
     }
 
-    /// <summary>新事件流路径（<c>&lt;stem&gt;-&lt;stamp&gt;.jsonl</c>；反复重开不长名字，撞名自动加序号）。</summary>
+    /// <summary>新事件流路径（<c>&lt;stem&gt;-&lt;stamp&gt;.xml</c>；反复重开不长名字，撞名自动加序号）。</summary>
     private static string? NextStreamPath(string? baseline, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(baseline))
@@ -548,11 +623,11 @@ public static class SessionLifecycle
         var stem = StampSuffix.Replace(Path.GetFileNameWithoutExtension(baseline), string.Empty);
         var stamp = now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
 
-        var candidate = Path.Combine(directory ?? string.Empty, $"{stem}-{stamp}.jsonl");
+        var candidate = Path.Combine(directory ?? string.Empty, $"{stem}-{stamp}.xml");
         var attempt = 1;
         while (File.Exists(candidate))
         {
-            candidate = Path.Combine(directory ?? string.Empty, $"{stem}-{stamp}-{++attempt}.jsonl");
+            candidate = Path.Combine(directory ?? string.Empty, $"{stem}-{stamp}-{++attempt}.xml");
         }
 
         return candidate;
@@ -603,7 +678,7 @@ public static class SessionLifecycle
         return tags;
     }
 
-    /// <summary>旧恢复点另存（<c>snapshot.&lt;stamp&gt;.json</c>）；没有就不动。</summary>
+    /// <summary>旧恢复点另存（<c>snapshot-&lt;stamp&gt;.xml</c>）；没有就不动。</summary>
     private static string? ArchiveResumePoint(RuntimeConfiguration config, DateTimeOffset now)
     {
         var path = config.Snapshot.Path;
@@ -617,9 +692,80 @@ public static class SessionLifecycle
         var stamp = now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var archived = Path.Combine(
             Path.GetDirectoryName(path) ?? string.Empty,
-            $"{stem}-{stamp}.json");
+            $"{stem}-{stamp}.xml");
 
         File.Copy(path, archived, overwrite: true);
         return archived;
+    }
+    /// <summary>
+    /// **内置收尾**（主人 2026-10-11 定）：运行时**一次给全形状 → 一次模型调用 → 自己覆盖那些 MD**。
+    /// 与旧口径**并列**（旧口径 = 协议第 7/8 条，远端 AI 一轮一轮跑流水线；由 <c>lifecycle.nativeCloseout</c> 选）。
+    /// <para><b>处理内容是文件 IO，不是起进程</b>（R2 只管起进程）⇒ 收尾的「内容」这一段运行时可以自己做，
+    /// 而且**不过工具面**（<c>[TOOL]</c> 数 = 0）。失败**如实报**，不假装收尾成功。</para>
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> NativeCloseoutAsync(
+        RuntimeHost host,
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+
+        var config = host.Config;
+        var workspace = config.Lifecycle.Workspace;
+        if (string.IsNullOrWhiteSpace(workspace) || !Directory.Exists(workspace))
+        {
+            return ["[收尾·内置] 未配 lifecycle.workspace ⇒ **不猜**（内置收尾要它决定语料落点）。"];
+        }
+
+        var allowedRoots = new List<string> { workspace };
+        if (!string.IsNullOrWhiteSpace(config.Lifecycle.Pitfalls))
+        {
+            allowedRoots.Add(Path.GetDirectoryName(Path.GetFullPath(config.Lifecycle.Pitfalls)) ?? workspace);
+        }
+
+        // **原料**（只读）：水位线之后新出现的 —— memory（**并承载铁则改动意图**）· 踩坑集 · handoff（三者同类）。
+        var sources = new List<ICloseoutSource> { new MemorySource(workspace), new HandoffSource(workspace) };
+        if (!string.IsNullOrWhiteSpace(config.Lifecycle.Pitfalls))
+        {
+            sources.Add(new PitfallsSource(config.Lifecycle.Pitfalls));
+        }
+
+        // **落点**（运行时写）：知识库 `KNOWLEDGE.md` + **铁则区**（源文件 `AGENTS.md`，按「铁则 N」编号直达）。
+        ICloseoutSink[] sinks = [new KnowledgeSink(workspace), new RulesSink(workspace)];
+
+        var context = new CloseoutContext(
+            workspace,
+            config.Lifecycle.Pitfalls,
+            now,
+            Path.Combine(workspace, "memory", "收尾水位.md"),
+            "## 水位");
+
+        // **后处理步**：B4 搬进 C# 的收尾流水线，运行时收尾时**自己在进程内跑**（不再要远端 AI 点 exec 起 python）。
+        var steps = new List<ICloseoutStep> { new KnowledgeRepoStep(workspace) };
+        if (!string.IsNullOrWhiteSpace(config.Lifecycle.Pitfalls))
+        {
+            steps.Add(new PitfallsIndexStep(config.Lifecycle.Pitfalls));
+            steps.Add(new PublicPitfallsStep(config.Lifecycle.Pitfalls));
+        }
+
+        try
+        {
+            var run = await CloseoutJob.RunAsync(host.Model, sources, sinks, context, allowedRoots, cancellationToken, steps)
+                .ConfigureAwait(false);
+            return run.Lines;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ModelClientException)
+        {
+            // **归因必须带事实**（2026-10-11）：模型调用失败时把**上游正文**一并带出（截断）——
+            // 否则只剩一句「HTTP 400」，**归因必错**（同族坑 #292：报错话术必须引用生效值/真实原因）。
+            var detail = ex is ModelClientException mce && !string.IsNullOrWhiteSpace(mce.ResponseBody)
+                ? $"{ex.Message}｜上游正文：{mce.ResponseBody.Trim()}"
+                : ex.Message;
+            return
+            [
+                $"[收尾·内置] ✗ 没做完（{detail}）—— **如实报，不假装收尾成功**。"
+                + "（旧口径仍在：远端 AI 可按协议第 7/8 条做。）",
+            ];
+        }
     }
 }

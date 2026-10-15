@@ -4,6 +4,7 @@ using AgentRuntime.Core.Lifecycle;
 using AgentRuntime.Core.Security;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Hosting;
+using AgentRuntime.Models;
 using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Modules;
 using AgentRuntime.Presentation;
@@ -42,7 +43,7 @@ public sealed class PanelRouter
     /// **命令清单（唯一声明处）** —— 只有**首个词命中这份名单**的行才算命令；其余一律当**普通文本**发给模型。
     /// <para>
     /// 为什么不再用「行首是 <c>/</c>」（主人 2026-09-22 22:2x 真机报）：他把一个绝对路径
-    /// （<c>/tmp/Documents/…</c>）粘进输入区，整条被当成命令吃掉、没能发出去 ——
+    /// （<c><path> ——
     /// **路径与命令长得一样**，所以判定要看**名字**，不能看第一个字符。
     /// </para>
     /// <para>要强制把一条以 <c>/</c> 开头的文本当文本发：写成 <c>//…</c>（见 <see cref="Unescape"/>）。</para>
@@ -52,7 +53,7 @@ public sealed class PanelRouter
         "/help", "/?", "/stack", "/hits", "/closeout", "/reset", "/start", "/sessions", "/session",
         "/grants", "/grants-clear", "/strict", "/palette", "/trace", "/result", "/tail", "/tail-clear",
         "/draft", "/draft-clear", "/focus", "/snapshot", "/resume", "/fork", "/ablate", "/modules",
-        "/decide", "/append", "/quit",
+        "/decide", "/append", "/quit", "/worker",
     };
 
     /// <summary>
@@ -91,9 +92,9 @@ public sealed class PanelRouter
     /// **跑一轮对话**（普通文本行的唯一入口）：与 CLI 同一条内核路径 + 记一笔命中账。
     /// <para>账本由本类持有：面板不记账，只有真实发生的轮次进账（P2 的可信度就建立在这一点上）。</para>
     /// </summary>
-    public async Task<TurnOutcome> RunTurnAsync(string message, bool verbose = false, CancellationToken cancellationToken = default)
+    public async Task<TurnOutcome> RunTurnAsync(string message, bool verbose = false, CancellationToken cancellationToken = default, ChatRequest? preassembled = null)
     {
-        var outcome = await _host.RunTurnAsync(message, verbose, labelTurn: true, cancellationToken).ConfigureAwait(false);
+        var outcome = await _host.RunTurnAsync(message, verbose, labelTurn: true, cancellationToken, preassembled).ConfigureAwait(false);
         _ledger.Add(outcome.Result, _host.Turn);
         return outcome;
     }
@@ -102,9 +103,9 @@ public sealed class PanelRouter
     /// **续跑一轮**（无新用户输入）—— 与 <see cref="RunTurnAsync"/> 同一条内核路径，
     /// 只是不追加用户消息（用户没说话就不该有用户事件）。
     /// </summary>
-    public async Task<TurnOutcome> ContinueTurnAsync(bool verbose = false, CancellationToken cancellationToken = default)
+    public async Task<TurnOutcome> ContinueTurnAsync(bool verbose = false, CancellationToken cancellationToken = default, ChatRequest? preassembled = null)
     {
-        var outcome = await _host.ContinueTurnAsync(verbose, cancellationToken).ConfigureAwait(false);
+        var outcome = await _host.ContinueTurnAsync(verbose, cancellationToken, preassembled).ConfigureAwait(false);
         _ledger.Add(outcome.Result, _host.Turn);
         return outcome;
     }
@@ -137,7 +138,7 @@ public sealed class PanelRouter
                     return Ok([.. _ledger.Render(ParseCount(args)), _host.LastBudget.Describe()]);
 
                 case "/closeout":
-                    return Ok(CloseoutLines());
+                    return Ok(await CloseoutLinesAsync(cancellationToken).ConfigureAwait(false));
 
                 case "/reset":
                 {
@@ -190,6 +191,9 @@ public sealed class PanelRouter
 
                 case "/result":
                     return Ok(ResultLines());
+
+                case "/worker":
+                    return Ok(WorkerLines());
 
                 case "/tail":
                     return args.Length == 0
@@ -269,6 +273,7 @@ public sealed class PanelRouter
         "[帮助] /palette                   呈现层预览：每个角色的样子 + 一张表格构件示例",
         "[帮助] /trace                     当前生命周期：完整执行轨迹（默认折叠的那一部分，一条不少）",
         "[帮助] /result                    当前生命周期：末轮正文原文（模型到底输出了什么）",
+        "[帮助] /worker                    worker 池：谁在跑 / 跑了多久 / sync 或 async / 谁闲着（只报事实）",
         "[帮助] /decide [n]                决策卡：不带参数 = 看选项（列到右栅详细块）；带参数 = 选第 n 条（发出去 = 那条选项原文）",
         "[帮助] /append [on|off]           累积显示：on ＝ 意图 / 打算 / 结果逐条追加（默认）；off ＝ 只显示最新一条",
         "[帮助] /tail                     白板（R4）全文 + 来源 + 上限余量 + 存储路径",
@@ -278,7 +283,7 @@ public sealed class PanelRouter
         "[帮助] /draft <文本>             人工覆盖草稿（**与 CLI 的 --draft 同一函数**）",
         "[帮助] /draft-clear              清空草稿（清草稿不是删历史）",
         "[帮助] /focus                    语义焦点（R3）+ 权重表 + band + 缓存命中",
-        "[帮助] /closeout                 收尾：校验前缀 → 上报未收敛项（misc）→ 推进水位线（不调模型、不改语料）",
+        "[帮助] /closeout                 收尾：校验前缀 → 上报未收敛项（misc）→ 推进水位线（不调模型、不改语料）；**并把 master 工具面强制放成全量**（收尾自己做完）",
         "[帮助] /closeout [--auto]        收尾一气呵成：收尾窗口（静默放行）+ 收尾件 + 流水线命令 + 定格末态；末尾给唯一的二选一",
         "[帮助] /reset [--start]          结束本会话（收尾 + 归档 + 定格末态）；带 --start ＝**一气呵成**（reset 后立刻 start）",
         "[帮助] /start                     开新会话：新空事件流，**白板与草稿从上一份末态开始**（会话还在跑时会被拒：先 /reset）",
@@ -388,7 +393,8 @@ public sealed class PanelRouter
             return ["[卷] 本会话没落盘（未配 stream.path）⇒ 没有卷清单。"];
         }
 
-        var files = Directory.EnumerateFiles(directory, "*.jsonl")
+        var files = Directory.EnumerateFiles(directory, "*.xml")
+            .Where(f => !f.EndsWith(".usage.xml", StringComparison.Ordinal))
             .Select(p => new FileInfo(p))
             .OrderByDescending(f => f.LastWriteTime)
             .ToArray();
@@ -412,9 +418,17 @@ public sealed class PanelRouter
     }
 
     /// <summary><c>/closeout</c>：收尾（含收尾窗口 + 流水线 + 收尾件），末尾给出**唯一的二选一**。</summary>
-    private IReadOnlyList<string> CloseoutLines()
+    private async Task<IReadOnlyList<string>> CloseoutLinesAsync(CancellationToken cancellationToken)
     {
         var lines = new List<string>(SessionLifecycle.Closeout(_host, DateTimeOffset.Now, lifecycles: LifecycleUsages()).Lines(_host.Config.Frozen.Watermark));
+
+        // **内置收尾**（2026-10-11 主人定）：收尾的**内容**这一段由运行时自己做 ——
+        // 一次给全形状 → 一次模型调用 → 运行时自己覆盖那些 MD（**不过工具面**）。
+        if (_host.Config.Lifecycle.NativeCloseout)
+        {
+            lines.AddRange(await SessionLifecycle.NativeCloseoutAsync(_host, DateTimeOffset.Now, cancellationToken).ConfigureAwait(false));
+        }
+
         lines.Add("[收尾] 唯一停顿点（二选一）：**/reset --start**＝结束本会话并立刻开新会话（一气呵成）｜ **/reset** ＝只结束、不自动开。");
         return lines;
     }
@@ -571,6 +585,43 @@ public sealed class PanelRouter
     }
 
     /// <summary>`/result`：当前生命周期的**末轮正文原文**（逐字，不做二次加工）。</summary>
+    /// <summary>
+    /// <c>/worker</c> —— worker 池的**事实**（谁在跑、跑了多久、sync/async、谁闲着）。
+    /// <para>**只报事实**：选「等 / 复用 / 问人」是远端 AI 的判断，不在这里替它决定（设计稿 §9.8）。</para>
+    /// <para>要看某个 worker 的**成品凝结结果**：它在流里（成品才算正文）⇒ <c>/trace</c>。</para>
+    /// </summary>
+    private IReadOnlyList<string> WorkerLines()
+    {
+        var dispatch = _host.Modules
+            .OfType<AgentRuntime.Modules.Worker.WorkerDispatchModule>()
+            .FirstOrDefault();
+        if (dispatch is null)
+        {
+            return ["[worker] 本会话没有挂 worker-dispatch 模块 —— 不会派发任何东西。"];
+        }
+
+        var lines = new List<string>
+        {
+            $"[worker] 池上限 {dispatch.Pool.MaxWorkers}（主人定：只允许 2 条异步）",
+        };
+
+        var snapshot = dispatch.Pool.Snapshot();
+        if (snapshot.Count == 0)
+        {
+            lines.Add("  （池是空的：本会话还没派发过）");
+            return lines;
+        }
+
+        foreach (var e in snapshot)
+        {
+            lines.Add($"  {e.Id}  {e.State}  mode={e.Mode}  {e.ElapsedMs / 1000.0:0.0}s" +
+                      (e.CurrentTask is null ? string.Empty : $"  「{e.CurrentTask}」"));
+        }
+
+        lines.Add("  看成品的凝结结果：它在流里 ⇒ /trace");
+        return lines;
+    }
+
     private IReadOnlyList<string> ResultLines()
     {
         var lifecycle = CurrentLifecycle();

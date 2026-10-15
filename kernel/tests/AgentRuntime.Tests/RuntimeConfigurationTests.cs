@@ -4,24 +4,24 @@ namespace AgentRuntime.Tests;
 
 public sealed class RuntimeConfigurationTests
 {
-    private static string WriteTempConfig(string json)
+    private static string WriteTempConfig(string xml)
     {
         var dir = Path.Combine(Path.GetTempPath(), "agentruntime-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        var path = Path.Combine(dir, "config.json");
-        File.WriteAllText(path, json);
+        var path = Path.Combine(dir, "config.xml");
+        File.WriteAllText(path, xml);
         return path;
     }
 
     private const string ValidJson = """
-    {
-      "provider": "openai-compatible",
-      "baseUrl": "https://api.example.com/v1/openai",
-      "model": "m-1",
-      "apiKeyEnv": "AGENTRUNTIME_TEST_KEY",
-      "timeoutSeconds": 30,
-      "temperature": 0.2
-    }
+    <RuntimeConfiguration>
+      <ApiKeyEnv>AGENTRUNTIME_TEST_KEY</ApiKeyEnv>
+      <BaseUrl>https://api.example.com/v1/openai</BaseUrl>
+      <Model>m-1</Model>
+      <Provider>openai-compatible</Provider>
+      <Temperature>0.2</Temperature>
+      <TimeoutSeconds>30</TimeoutSeconds>
+    </RuntimeConfiguration>
     """;
 
     [Fact]
@@ -44,15 +44,15 @@ public sealed class RuntimeConfigurationTests
     }
 
     [Fact]
-    public void 非法JSON_抛InvalidData()
+    public void 非法XML_抛InvalidData()
     {
-        Assert.Throws<InvalidDataException>(() => RuntimeConfiguration.Load(WriteTempConfig("{ not json")));
+        Assert.Throws<InvalidDataException>(() => RuntimeConfiguration.Load(WriteTempConfig("<<<not xml>>>")));
     }
 
     [Fact]
     public void 缺model_校验失败()
     {
-        var path = WriteTempConfig("""{ "baseUrl": "https://x/v1", "model": "" }""");
+        var path = WriteTempConfig("""<RuntimeConfiguration><BaseUrl>https://x/v1</BaseUrl><Model></Model></RuntimeConfiguration>""");
 
         Assert.Throws<InvalidDataException>(() => RuntimeConfiguration.Load(path));
     }
@@ -60,7 +60,7 @@ public sealed class RuntimeConfigurationTests
     [Fact]
     public void 不支持的provider_校验失败()
     {
-        var path = WriteTempConfig("""{ "provider": "anthropic", "baseUrl": "https://x/v1", "model": "m" }""");
+        var path = WriteTempConfig("""<RuntimeConfiguration><BaseUrl>https://x/v1</BaseUrl><Model>m</Model><Provider>anthropic</Provider></RuntimeConfiguration>""");
 
         var ex = Assert.Throws<InvalidDataException>(() => RuntimeConfiguration.Load(path));
         Assert.Contains("openai-compatible", ex.Message);
@@ -74,7 +74,11 @@ public sealed class RuntimeConfigurationTests
         try
         {
             var path = WriteTempConfig($$"""
-            { "baseUrl": "https://x/v1", "model": "m", "apiKeyEnv": "{{envName}}" }
+            <RuntimeConfiguration>
+              <ApiKeyEnv>{{envName}}</ApiKeyEnv>
+              <BaseUrl>https://x/v1</BaseUrl>
+              <Model>m</Model>
+            </RuntimeConfiguration>
             """);
 
             var config = RuntimeConfiguration.Load(path);
@@ -96,7 +100,12 @@ public sealed class RuntimeConfigurationTests
         {
             var envName = "AGENTRUNTIME_TEST_KEY_" + Guid.NewGuid().ToString("N");
             var path = WriteTempConfig($$"""
-            { "baseUrl": "https://x/v1", "model": "m", "apiKeyEnv": "{{envName}}", "apiKeyFile": "{{keyFile}}" }
+            <RuntimeConfiguration>
+              <ApiKeyEnv>{{envName}}</ApiKeyEnv>
+              <ApiKeyFile>{{keyFile}}</ApiKeyFile>
+              <BaseUrl>https://x/v1</BaseUrl>
+              <Model>m</Model>
+            </RuntimeConfiguration>
             """);
 
             var config = RuntimeConfiguration.Load(path);
@@ -114,7 +123,11 @@ public sealed class RuntimeConfigurationTests
     {
         var envName = "AGENTRUNTIME_TEST_KEY_" + Guid.NewGuid().ToString("N");
         var path = WriteTempConfig($$"""
-        { "baseUrl": "https://x/v1", "model": "m", "apiKeyEnv": "{{envName}}" }
+        <RuntimeConfiguration>
+          <ApiKeyEnv>{{envName}}</ApiKeyEnv>
+          <BaseUrl>https://x/v1</BaseUrl>
+          <Model>m</Model>
+        </RuntimeConfiguration>
         """);
 
         var config = RuntimeConfiguration.Load(path);

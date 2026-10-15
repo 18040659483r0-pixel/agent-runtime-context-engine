@@ -29,7 +29,7 @@ public static class LifecyclePanel
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(streamPath);
         var store = new SessionStreamStore(streamPath);
-        return RenderReport(LifecycleAggregator.Aggregate(store.Load(), turnUsages), store.Path, expanded);
+        return RenderReport(LifecycleAggregator.Aggregate(store.LoadOrRecover(out _), turnUsages), store.Path, expanded);
     }
 
     /// <summary>

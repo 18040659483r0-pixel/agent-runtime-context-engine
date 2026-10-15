@@ -20,11 +20,11 @@
 
 ```bash
 # 重建（从本机真实资料；产出即本目录）
-python3 benchmark/tools/build-public-corpus.py
+dotnet run --project benchmark/AgentRuntime.Benchmark -- public-corpus
 
 # 只自检现有产物（不重建）
-python3 benchmark/tools/build-public-corpus.py --check
+dotnet run --project benchmark/AgentRuntime.Benchmark -- public-corpus --check
 ```
 
-改档位规模 → 编辑 `build-public-corpus.py` 的 `SOURCES`（源 → 预算）与
-`benchmark.config.json` 的 `corpus.tiers`，二者保持一致。
+改档位规模 → 编辑 `benchmark/AgentRuntime.Benchmark/PublicCorpusCli.cs` 的 `Sources`（源 → 预算）与
+`benchmark.config.xml` 的 `corpus.tiers`，二者保持一致。

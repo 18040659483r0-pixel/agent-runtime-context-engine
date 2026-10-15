@@ -4,5 +4,5 @@
 那回滚窗口呢？
 再确认一次部署代号
 /snapshot
-/fork .demo/snapshot.json .demo/forked-stream.jsonl
+/fork .demo/snapshot.xml .demo/forked-stream.xml
 /quit

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Benchmark xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Comment>尺子自身的配置（与 Runtime 的 config 分开管）：被测物的端点/密钥走 runtimeConfig 指向的那个文件。相对路径一律相对本文件所在目录解析。</Comment>
+  <RuntimeConfig>../../src/AgentRuntime.Cli/config.xml</RuntimeConfig>
+  <PricingComment>单价（USD / 1M tokens），取自 OpenClaw 的 deepseek provider 配置；改动价格要写明日期。</PricingComment>
+  <Pricing>
+    <InputPer1M>0.14</InputPer1M>
+    <CacheReadPer1M>0.028</CacheReadPer1M>
+    <OutputPer1M>0.28</OutputPer1M>
+    <Source>openclaw.json models.providers.deepseek.models[deepseek-v4-flash].cost</Source>
+  </Pricing>
+  <RunsDir>../runs</RunsDir>
+  <CorpusComment>冻结上下文语料：按「铁则 → 知识 → 记忆」堆叠，只用仓库内 corpus/ 的去隐私 10K 切片（可公开）。⚠️ 禁止改成私有全量语料或本机路径 —— lock 节是硬闸门。</CorpusComment>
+  <Corpus>
+    <Sources>
+      <Source Id="rules">corpus/rules.md</Source>
+      <Source Id="knowledge">corpus/knowledge.md</Source>
+      <Source Id="memory">corpus/memory.md</Source>
+    </Sources>
+    <Tiers>
+      <Tier Id="L0" Label="最小字节版（不冻结上下文）">
+        <Slices />
+      </Tier>
+      <Tier Id="L1" Label="1k 级（冻结：铁则）">
+        <Slices>
+          <Slice Source="rules" Chars="1750" />
+        </Slices>
+      </Tier>
+      <Tier Id="L2" Label="10k 级（冻结：铁则 + 知识 + 记忆）">
+        <Slices>
+          <Slice Source="rules" Chars="4330" />
+          <Slice Source="knowledge" Chars="8607" />
+          <Slice Source="memory" Chars="5053" />
+        </Slices>
+      </Tier>
+    </Tiers>
+    <Lock>
+      <AllowedSources>
+        <Allow>corpus/rules.md</Allow>
+        <Allow>corpus/knowledge.md</Allow>
+        <Allow>corpus/memory.md</Allow>
+      </AllowedSources>
+      <MaxFrozenTokens>10000</MaxFrozenTokens>
+      <CharsPerToken>1.88</CharsPerToken>
+      <FingerprintFile>corpus.lock.xml</FingerprintFile>
+    </Lock>
+  </Corpus>
+</Benchmark>

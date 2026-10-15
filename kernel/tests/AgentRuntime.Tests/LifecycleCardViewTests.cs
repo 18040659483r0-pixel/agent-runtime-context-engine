@@ -93,7 +93,7 @@ public sealed class LifecycleCardViewTests
     [Fact]
     public async Task 闸门_三轮自续跑在对话里只占一张卡()
     {
-        using var harness = new TuiHarness("lifecycle-card-gate", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("lifecycle-card-gate", modules: ["rules","append-stream","tool"]);
         var note = harness.Workspace.File("note.txt");
         File.WriteAllText(note, "第一行\n第二行\n第三行\n");
 
@@ -136,7 +136,7 @@ public sealed class LifecycleCardViewTests
     [Fact]
     public async Task 卡真的落在对话渲染里_且带角色()
     {
-        using var harness = new TuiHarness("lifecycle-card-render", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("lifecycle-card-render", modules: ["rules","append-stream","tool"]);
 
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply("好。\n[DONE] 答完了")));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);
@@ -154,7 +154,7 @@ public sealed class LifecycleCardViewTests
     [Fact]
     public async Task 决策卡_斜杠decide选一条等于人自己打那句话()
     {
-        using var harness = new TuiHarness("lifecycle-decide", modules: "[\"rules\",\"append-stream\"]");
+        using var harness = new TuiHarness("lifecycle-decide", modules: ["rules","append-stream"]);
 
         var calls = 0;
         var client = new FakeModelClient((_, _) => Task.FromResult(++calls == 1
@@ -187,7 +187,7 @@ public sealed class LifecycleCardViewTests
     [Fact]
     public async Task 面板_斜杠trace与斜杠result给出轨迹与原文()
     {
-        using var harness = new TuiHarness("lifecycle-card-panels", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("lifecycle-card-panels", modules: ["rules","append-stream","tool"]);
 
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply("正文第一行。\n[DONE] 答完了")));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);

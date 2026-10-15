@@ -8,12 +8,24 @@ namespace AgentRuntime.Benchmark;
 
 /// <summary>
 /// 尺子的入口。
-/// <para>用法：<c>./run-bench.sh [--suite all|T01,T03] [--plan] [--label 名称]</c></para>
+/// <para>用法：<c>wb-cli bench [--suite all|T01,T03] [--plan] [--label 名称]</c></para>
 /// </summary>
 internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        // A3：语料锁生成/校验（原 benchmark/tools/lock-corpus.py）。
+        if (args.Length > 0 && args[0] == "lock-corpus")
+        {
+            return LockCorpusCli.Run(args[1..]);
+        }
+
+        // A3：可公开语料的构建/自检（原 benchmark/tools/build-public-corpus.py）。
+        if (args.Length > 0 && args[0] == "public-corpus")
+        {
+            return PublicCorpusCli.Run(args[1..]);
+        }
+
         string? configPath = null;
         string? suiteArg = null;
         string? label = null;
@@ -70,7 +82,7 @@ internal static class Program
             return 3;
         }
 
-        // 约定：benchmark.config.json 里的相对路径，一律相对「该文件所在目录」解析。
+        // 约定：benchmark.config.xml 里的相对路径，一律相对「该文件所在目录」解析。
         var runtimeConfigPath = ResolveAgainst(benchConfigDir, bench.RuntimeConfig);
         var runtime = RuntimeConfiguration.Load(runtimeConfigPath);
 
@@ -177,7 +189,7 @@ internal static class Program
         Console.WriteLine($"全未缓存成本  : ${result.Records.Sum(r => r.BaselineCostUsd):F6}");
         Console.WriteLine($"Runtime 开销  : 最大 {result.Records.Max(r => r.RuntimeOverheadMs):F1}ms / 平均 {result.Records.Average(r => r.RuntimeOverheadMs):F1}ms");
         Console.WriteLine($"总用时        : {totalWatch.Elapsed.TotalSeconds:F1}s");
-        Console.WriteLine($"原始记录      : {result.JsonlPath}");
+        Console.WriteLine($"原始记录      : {result.RecordsPath}");
         Console.WriteLine($"报告          : {result.SummaryPath}");
         Console.WriteLine("=====================================");
 
@@ -238,8 +250,8 @@ internal static class Program
     {
         var candidates = new[]
         {
-            Path.Combine(Environment.CurrentDirectory, "benchmark.config.json"),
-            Path.Combine(AppContext.BaseDirectory, "benchmark.config.json"),
+            Path.Combine(Environment.CurrentDirectory, "benchmark.config.xml"),
+            Path.Combine(AppContext.BaseDirectory, "benchmark.config.xml"),
         };
 
         foreach (var candidate in candidates)
@@ -250,15 +262,15 @@ internal static class Program
             }
         }
 
-        throw new FileNotFoundException("找不到 benchmark.config.json；可用 --config 指定。");
+        throw new FileNotFoundException("找不到 benchmark.config.xml；可用 --config 指定。");
     }
 
     private static void PrintUsage()
     {
         Console.WriteLine("Agent Runtime Benchmark —— 尺子（独立于被测物）");
         Console.WriteLine();
-        Console.WriteLine("用法：run-bench.sh [选项]");
-        Console.WriteLine("  --config <path>      尺子配置（默认找 benchmark.config.json）");
+        Console.WriteLine("用法：wb-cli bench [选项]");
+        Console.WriteLine("  --config <path>      尺子配置（默认找 benchmark.config.xml）");
         Console.WriteLine("  --suite <T01,T03>    只跑指定场景（默认 all）");
         Console.WriteLine("  --plan               只打印计划与预计调用次数，不发起调用");
         Console.WriteLine("  --calibrate          校准：每档 1 次调用，回报实测 prompt tokens");

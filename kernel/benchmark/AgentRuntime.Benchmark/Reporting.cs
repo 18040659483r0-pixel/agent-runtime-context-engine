@@ -1,6 +1,7 @@
 using System.Globalization;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Text.Json;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Benchmark;
 
@@ -41,30 +42,63 @@ public sealed class RecordSink
     {
         Directory.CreateDirectory(runDir);
 
-        var jsonlPath = Path.Combine(runDir, "records.jsonl");
-        using (var writer = new StreamWriter(jsonlPath, append: false, Encoding.UTF8))
+        // 原始记录 = **行式 XML**（一份 = 一行 ⇒「第 N 行 = 第 N 条」可复算）；UTF-8 **无 BOM**。
+        var recordsPath = Path.Combine(runDir, "records.xml");
+        using (var writer = new StreamWriter(recordsPath, append: false, new UTF8Encoding(false)))
         {
             foreach (var record in _records)
             {
-                writer.WriteLine(JsonSerializer.Serialize(record, JsonOpts));
+                writer.WriteLine(DataContractXml.ToLineFragment(BenchRow.From(record)));
             }
         }
 
         var summaryPath = Path.Combine(runDir, "summary.md");
         File.WriteAllText(summaryPath, SummaryWriter.Render(_records), Encoding.UTF8);
 
-        return new BenchRunResult(jsonlPath, summaryPath, _records);
+        return new BenchRunResult(recordsPath, summaryPath, _records);
     }
 
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web)
+}
+
+public readonly record struct BenchRunResult(string RecordsPath, string SummaryPath, IReadOnlyList<BenchmarkRecord> Records);
+
+/// <summary><c>records.xml</c> 的一行（**一份 = 一行**；结论必须能从这里逐行复算）。</summary>
+[DataContract(Name = "Record", Namespace = "")]
+public sealed class BenchRow
+{
+    [DataMember(Order = 0)] public string Scenario { get; set; } = string.Empty;
+    [DataMember(Order = 1)] public string Variant { get; set; } = string.Empty;
+    [DataMember(Order = 2)] public int Turn { get; set; }
+    [DataMember(Order = 3)] public string Model { get; set; } = string.Empty;
+    [DataMember(Order = 4)] public string ResponseId { get; set; } = string.Empty;
+    [DataMember(Order = 5)] public int PromptTokens { get; set; }
+    [DataMember(Order = 6)] public int CompletionTokens { get; set; }
+    [DataMember(Order = 7)] public int TotalTokens { get; set; }
+    [DataMember(Order = 8)] public int CachedTokens { get; set; }
+    [DataMember(Order = 9)] public int UncachedTokens { get; set; }
+    [DataMember(Order = 10)] public double TotalMs { get; set; }
+    [DataMember(Order = 11)] public double ProviderMs { get; set; }
+    [DataMember(Order = 12)] public double RuntimeOverheadMs { get; set; }
+    [DataMember(Order = 13)] public int MessageCount { get; set; }
+    [DataMember(Order = 14)] public double CostUsd { get; set; }
+    [DataMember(Order = 15)] public double BaselineCostUsd { get; set; }
+    [DataMember(Order = 16)] public double SavedPct { get; set; }
+    [DataMember(Order = 17)] public bool? TaskPassed { get; set; }
+    [DataMember(Order = 18)] public string Answer { get; set; } = string.Empty;
+    [DataMember(Order = 19)] public string? Note { get; set; }
+
+    public static BenchRow From(BenchmarkRecord r) => new()
     {
-        WriteIndented = false,
+        Scenario = r.Scenario, Variant = r.Variant, Turn = r.Turn, Model = r.Model, ResponseId = r.ResponseId,
+        PromptTokens = r.PromptTokens, CompletionTokens = r.CompletionTokens, TotalTokens = r.TotalTokens,
+        CachedTokens = r.CachedTokens, UncachedTokens = r.UncachedTokens, TotalMs = r.TotalMs,
+        ProviderMs = r.ProviderMs, RuntimeOverheadMs = r.RuntimeOverheadMs, MessageCount = r.MessageCount,
+        CostUsd = r.CostUsd, BaselineCostUsd = r.BaselineCostUsd, SavedPct = r.SavedPct,
+        TaskPassed = r.TaskPassed, Answer = r.Answer, Note = r.Note,
     };
 }
 
-public readonly record struct BenchRunResult(string JsonlPath, string SummaryPath, IReadOnlyList<BenchmarkRecord> Records);
-
-/// <summary>把原始记录渲染成 Markdown 报告（人读视图，可复算视图是 records.jsonl）。</summary>
+/// <summary>把原始记录渲染成 Markdown 报告（人读视图，可复算视图是 records.xml）。</summary>
 public static class SummaryWriter
 {
     public static string Render(IReadOnlyList<BenchmarkRecord> records)
@@ -72,7 +106,7 @@ public static class SummaryWriter
         var sb = new StringBuilder();
         sb.AppendLine("# Benchmark 报告（自动生成）");
         sb.AppendLine();
-        sb.AppendLine($"> 原始记录：`records.jsonl`（结论必须能从它复算）。生成时间：{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
+        sb.AppendLine($"> 原始记录：`records.xml`（结论必须能从它复算）。生成时间：{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
         sb.AppendLine();
 
         if (records.Count == 0)

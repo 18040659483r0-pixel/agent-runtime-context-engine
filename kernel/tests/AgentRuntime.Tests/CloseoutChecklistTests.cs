@@ -71,10 +71,15 @@ public sealed class CloseoutChecklistTests
             }
 
             var sha = Sha256(File.ReadAllBytes(md));
-            Write("knowledge/.ledger.json", JsonSerializer.Serialize(new
+            Write("knowledge/.ledger.xml", AgentRuntime.Core.Persistence.DataContractXml.ToDocument(new AgentRuntime.Core.Knowledge.LedgerDoc
             {
-                schema = "knowledge-repo/ledger/1",
-                current = new { version = versions, file = $"versions/knowledge-v{versions:0000}.md", sha256 = sha },
+                Schema = "knowledge-repo/ledger/1",
+                Current = new AgentRuntime.Core.Knowledge.LedgerVersion
+                {
+                    Version = versions,
+                    File = $"versions/knowledge-v{versions:0000}.md",
+                    Sha256 = sha,
+                },
             }));
 
             if (!inSync)
@@ -107,11 +112,11 @@ public sealed class CloseoutChecklistTests
     // ---------------- ① 没配 ⇒ 明说未配 ----------------
 
     [Fact]
-    public void 没配工作区_五项都标未配_并给出一条说明()
+    public void 没配工作区_七项都标未配_并给出一条说明()
     {
         var result = CloseoutChecklist.Inspect(Config(workspace: null), Now);
 
-        Assert.Equal(5, result.Items.Count);
+        Assert.Equal(7, result.Items.Count);   // 2026-10-06 加「worker 产出汇流」；2026-10-15 加「工具面拒绝汇流」
         Assert.All(result.Items, i => Assert.Equal(CloseoutItemStatus.Unconfigured, i.Status));
         Assert.Equal(0, result.PendingCount);
         Assert.Contains(result.Notes, n => n.Contains("不假装查过", StringComparison.Ordinal));
@@ -159,10 +164,10 @@ public sealed class CloseoutChecklistTests
     {
         using var work = new Work().WithMemory("2026-09-17", "2026-09-17", "2026-09-20");
         // 09-19 那天真跑过会话（流文件为证）但没写日记 ⇒ 应当报缺；09-18 没会话 ⇒ 不该被要求
-        work.WithFile(".stage1/stream-20260919-120000.jsonl", "{}\n");
+        work.WithFile(".stage1/stream-20260919-120000.xml", "{}");
 
         var result = CloseoutChecklist.Inspect(
-            Config(work.Root, stream: work.Path(".stage1/stream-20260920-130000.jsonl")), Now);
+            Config(work.Root, stream: work.Path(".stage1/stream-20260920-130000.xml")), Now);
 
         var item = Assert.Single(result.Items, i => i.Id == "memory");
         Assert.Equal(CloseoutItemStatus.Pending, item.Status);
@@ -289,7 +294,7 @@ public sealed class CloseoutChecklistTests
         Assert.Equal(CloseoutItemStatus.Ok, item.Status);
         Assert.Contains("相等", item.Detail, StringComparison.Ordinal);
         Assert.Contains("3 个", item.Detail, StringComparison.Ordinal);
-        Assert.Contains("knowledge-repo.py", item.Detail, StringComparison.Ordinal);   // 判定/晋级归工具（单一来源）
+        Assert.Contains("knowledge-repo", item.Detail, StringComparison.Ordinal);   // 判定/晋级归工具（单一来源）
 
         // md 改了但没晋级（或已改未收）⇒ 指纹不等 ⇒ 待处理。
         work.WithKnowledge(inSync: false);

@@ -287,15 +287,17 @@ public sealed class DraftGateTests : IDisposable
         Directory.CreateDirectory(dir);
         try
         {
-            var path = Path.Combine(dir, "config.json");
+            var path = Path.Combine(dir, "config.xml");
 
             // 只留 storePath ⇒ 正常加载。
             File.WriteAllText(path, """
-            {
-              "baseUrl": "https://example.invalid/v1",
-              "model": "m",
-              "dynamicDraft": { "storePath": "~/.agentruntime/draft" }
-            }
+            <RuntimeConfiguration>
+              <BaseUrl>https://example.invalid/v1</BaseUrl>
+              <DynamicDraft>
+                <StorePath>~/.agentruntime/draft</StorePath>
+              </DynamicDraft>
+              <Model>m</Model>
+            </RuntimeConfiguration>
             """);
             Assert.Equal("~/.agentruntime/draft", RuntimeConfiguration.Load(path).DynamicDraft.StorePath);
 
@@ -303,11 +305,14 @@ public sealed class DraftGateTests : IDisposable
             foreach (var badKey in new[] { "maxLines", "maxChars", "reportHint" })
             {
                 File.WriteAllText(path, $$"""
-                {
-                  "baseUrl": "https://example.invalid/v1",
-                  "model": "m",
-                  "dynamicDraft": { "storePath": "x", "{{badKey}}": 1 }
-                }
+                <RuntimeConfiguration>
+                  <BaseUrl>https://example.invalid/v1</BaseUrl>
+                  <DynamicDraft>
+                    <StorePath>x</StorePath>
+                    <{{badKey}}>1</{{badKey}}>
+                  </DynamicDraft>
+                  <Model>m</Model>
+                </RuntimeConfiguration>
                 """);
 
                 var ex = Assert.Throws<InvalidDataException>(() => RuntimeConfiguration.Load(path));

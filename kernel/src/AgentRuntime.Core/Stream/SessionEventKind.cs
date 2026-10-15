@@ -72,6 +72,14 @@ public enum SessionEventKind
     /// </summary>
     PermissionFiled,
 
+    /// <summary>
+    /// **派发给 Worker 的事实**（主人 2026-09-25）：哪个 worker / 什么模式（sync|async）/ 任务一行 / 窗口。
+    /// <para>与 <see cref="WorkerResult"/> **成对**：本条记「活交出去了」，那条记「结果回来了」。
+    /// 同步派发时，两条之间的那段就是 Master 的等待期；异步时中间夹着 Master 自己的其它事件
+    /// （⇒ 人从流上一眼能分辨同步与异步，得设计稿 W7）。</para>
+    /// </summary>
+    WorkerDispatch,
+
     /// <summary>Worker 分析结果。</summary>
     WorkerResult,
 
@@ -94,11 +102,35 @@ public enum SessionEventKind
     /// </para>
     /// </summary>
     FocusReport,
+
+    /// <summary>
+    /// **派发被拒**（运行时在派发**执行前**就报了：形状不合 / window 落在 worker 基准树之外…）。
+    /// <para>为什么它是一个**独立种类**而不是 Hint（2026-09-30 真机死循环现场）：「被拒」是这一轮
+    /// **可消费的结果**（要交给模型去修），而 Hint 不算结果 ⇒ 自动接续判「停」 ⇒ 拒绝信息永远到不了
+    /// master 手里 ⇒ 它一遍遍重犯同一个错。派发链上的失败必须在判据里有一条对应的种类
+    /// （与「加了通道 = 加了一条静默死路」同族，见 <see cref="SessionEventKinds.IsTurnOutcome"/>）。</para>
+    /// </summary>
+    WorkerDispatchRefused,
 }
 
 /// <summary>渲染用：标签文本（大写、稳定）。</summary>
 public static class SessionEventKinds
 {
+    /// <summary>
+    /// **算不算「一次可消费的回合结果」** —— 事件种类的**唯一声明处**（2026-09-29 主人令「停手交接」）。
+    /// <para>
+    /// 为什么要有它：续跑判据过去在两侧各写一份 <c>ToolResult or ToolDenied</c> 的字面量 ⇒
+    /// 那条通道**产生的结果不在判据里**（派发 / 回执是另外两种事件）⇒ 加了通道等于加了一条静默死路
+    /// （同族 PITFALLS #218 / #233）。分类随枚举走，判据只问这里，不再抄字面量。
+    /// </para>
+    /// </summary>
+    public static bool IsTurnOutcome(SessionEventKind kind) =>
+        kind is SessionEventKind.ToolResult or SessionEventKind.ToolDenied or SessionEventKind.WorkerResult
+             or SessionEventKind.WorkerDispatchRefused;   // 派发被拒也是**结果**（2026-09-30：不认它 ⇒ 链停 ⇒ 拒绝到不了 master ⇒ 死循环）
+
+    /// <summary>「活交出去了」（<see cref="SessionEventKind.WorkerDispatch"/>）—— 与 <see cref="SessionEventKind.WorkerResult"/> 成对。</summary>
+    public static bool IsWorkerDispatch(SessionEventKind kind) => kind is SessionEventKind.WorkerDispatch;
+
     /// <summary>解析标签（大小写不敏感）；未知返回 null。</summary>
     public static SessionEventKind? Parse(string? label) =>
         Enum.TryParse<SessionEventKind>(label?.Trim(), ignoreCase: true, out var kind) ? kind : null;

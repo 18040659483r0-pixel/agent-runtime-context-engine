@@ -4,10 +4,10 @@ namespace AgentRuntime.Core.Frozen;
 public sealed record FrozenContent(string Version, string Text);
 
 /// <summary>
-/// 冻结区的一个「槽位」：区 + 层 + （Expert 层）领域 /（Project 层）项目。
+/// 冻结区的一个「槽位」：区 + 层（+ Project 层的项目）。
 /// <para>层与字段的对应关系由 <see cref="FrozenSection"/> 统一校验，来源只需按槽位取内容。</para>
 /// </summary>
-public sealed record FrozenSlot(FrozenZone Zone, FrozenLayer Layer, string? DomainId = null, string? ProjectId = null);
+public sealed record FrozenSlot(FrozenZone Zone, FrozenLayer Layer, string? ProjectId = null);
 
 /// <summary>
 /// 冻结区的**内容来源**—— 唯一接缝。

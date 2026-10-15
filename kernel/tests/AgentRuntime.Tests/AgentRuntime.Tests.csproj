@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\..\benchmark\AgentRuntime.Benchmark\AgentRuntime.Benchmark.csproj" />
     <ProjectReference Include="..\..\src\AgentRuntime.Models\AgentRuntime.Models.csproj" />
     <ProjectReference Include="..\..\src\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
     <ProjectReference Include="..\..\src\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />

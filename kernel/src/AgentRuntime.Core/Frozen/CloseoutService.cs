@@ -10,8 +10,14 @@ public sealed record CloseoutStatus(bool HasPending, IReadOnlyList<string> Reaso
 /// （当前指纹 ≠ 水位线里的指纹）—— 后者会顺带给出**具体变了哪几段**（账本 diff）。
 /// </para>
 /// <para>
-/// <b>尚未接入</b>：会话游标（依赖 V3 Append Stream）与「动态区候选自动收敛进知识库新版本」——
-/// 因此 <see cref="CloseoutWatermark.StreamCursor"/> 当前恒为 0，收尾也**不改写语料**（只记账 + 推进水位）。
+/// <b>已接入</b>：会话游标 —— 收尾记录**真实流游标**（V4/I11：以前硬编码 0，水位线看不出收敛到哪一轮）。
+/// 调用方均取 <c>RuntimeHost.StreamCursorOf</c>：<c>SessionLifecycle.Closeout</c>（优先用内存流的
+/// <c>host.StreamCount</c>）与 <c>Cli/Program.cs --closeout</c>。
+/// </para>
+/// <para>
+/// <b>仍未接入</b>：「动态区候选自动收敛进知识库新版本」—— 内核**只记账 + 推进水位**，不改写语料；
+/// “抽象”由模型按协议第 7 条跑 CLI 完成。验收器：<c>tools/experiments/knowledge-loop/</c>（C# `VerifyLoop.dll`；原 `verify-loop.py` 2026-10-12 退役）
+/// （9 段追踪 + 未收敛清单），决定性闸门：<c>tests/.../KnowledgeLoopTests.cs</c>。
 /// </para>
 /// </summary>
 public static class CloseoutService
@@ -58,7 +64,7 @@ public static class CloseoutService
             return null;
         }
 
-        return CloseoutWatermark.FromJson(File.ReadAllText(watermarkPath));
+        return CloseoutWatermark.Load(watermarkPath);
     }
 
     /// <summary>检查是否仍有未收尾内容（不写任何东西）。</summary>
@@ -103,25 +109,4 @@ public static class CloseoutService
         return watermark;
     }
 
-    /// <summary>列出杂项（misc）域的待整理条目 —— 收尾时一并上报给用户。</summary>
-    public static IReadOnlyList<string> PendingMisc(IFrozenContentSource source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-
-        var items = new List<string>();
-
-        foreach (var zone in new[] { FrozenZone.Rules, FrozenZone.Knowledge })
-        {
-            var slot = new FrozenSlot(zone, FrozenLayer.Expert, KnowledgeDomains.MiscId);
-            if (source.TryGet(slot) is { } content)
-            {
-                foreach (var line in content.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    items.Add($"[{slot.Zone}.expert.{KnowledgeDomains.MiscId}] {line}");
-                }
-            }
-        }
-
-        return items;
-    }
 }

@@ -88,9 +88,9 @@ public sealed class FocusStreamTests : IDisposable
         var path = _workspace.File("legacy.jsonl");
 
         // V3 时代的行：没有 tag 字段（也故意不带 source）。
-        File.WriteAllText(path,
-            "{\"seq\":1,\"kind\":\"Memory\",\"text\":\"旧数据一\"}\n" +
-            "{\"seq\":2,\"kind\":\"Rule\",\"text\":\"旧数据二\"}\n");
+        StreamFixtures.Write(path,
+            StreamFixtures.Fragment(1, "Memory", "旧数据一"),
+            StreamFixtures.Fragment(2, "Rule", "旧数据二"));
 
         var stream = new SessionStreamStore(path).Load();
 
@@ -105,7 +105,7 @@ public sealed class FocusStreamTests : IDisposable
         var appended = module.AppendDocument(SessionEventKind.Knowledge, "新数据");
 
         Assert.Equal("E003", appended.Tag);
-        Assert.StartsWith("{\"seq\":1,\"kind\":\"Memory\"", File.ReadAllText(path), StringComparison.Ordinal);
+        Assert.StartsWith("<Event><Seq>1</Seq>", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     // ---------------- I11 ----------------
@@ -130,7 +130,7 @@ public sealed class FocusStreamTests : IDisposable
         Assert.Equal(SessionEventKind.FocusReport, stream.Events[2].Kind);
         Assert.Equal("E001 E004", stream.Events[2].Text);
 
-        var linesAfterFirst = File.ReadAllLines(path);
+        var bytesAfterFirst = File.ReadAllBytes(path);
 
         // 第二轮：模型没配合（没有自报行）⇒ 不报错、不产生 FocusReport 事件。
         var secondModule = new AppendStreamModule(new SessionStreamStore(path).Load(), new SessionStreamStore(path), 0, captureFocusReports: true);
@@ -141,10 +141,15 @@ public sealed class FocusStreamTests : IDisposable
 
         await secondEngine.ChatAsync("第二个问题", TestContext.Current.CancellationToken);
 
-        var linesAfterSecond = File.ReadAllLines(path);
-        Assert.Equal(5, linesAfterSecond.Length);                                        // user + agent，没有第三条
-        Assert.Equal(linesAfterFirst, linesAfterSecond.Take(linesAfterFirst.Length));     // 前几行逐字不变（只追加）
-        Assert.DoesNotContain("FocusReport", linesAfterSecond[^1], StringComparison.Ordinal);
+        var bytesAfterSecond = File.ReadAllBytes(path);
+
+        // 只追加：前一段**逐字节不动**（比行数更硬的判据；XML 片段可含换行 ⇒ 行数不再是记录数）。
+        Assert.True(bytesAfterSecond.Length > bytesAfterFirst.Length);
+        Assert.Equal(bytesAfterFirst, bytesAfterSecond.Take(bytesAfterFirst.Length).ToArray());
+
+        var appended = new SessionStreamStore(path).Load();
+        Assert.Equal(5, appended.Count);                                            // user + agent，没有第三条
+        Assert.NotEqual(SessionEventKind.FocusReport, appended.Events[^1].Kind);
     }
 
     // ---------------- 额外：Tag 格式声明处唯一 ----------------

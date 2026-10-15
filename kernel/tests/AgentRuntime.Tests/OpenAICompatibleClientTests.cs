@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using AgentRuntime.Core;
 using AgentRuntime.Models;
+using AgentRuntime.Hosting;
 using AgentRuntime.Providers;
 
 namespace AgentRuntime.Tests;
@@ -119,6 +120,49 @@ public sealed class OpenAICompatibleClientTests
             BaseUrl = "https://api.example.com/v1/openai",
             ApiKey = " ",
         }));
+    }
+
+    /// <summary>
+    /// **T1 的真判据（2026-10-14 真机事故的回归闸门）**：Provider 会在发送前**就地注入** `reasoning_effort`
+    /// ⇒ 「预览哈希（注入前）≠ 实发字节（注入后）」⇒ **每轮都喊 T1 破线**。
+    /// 现在档位由**组装器**带上 ⇒ Provider 那次注入必须 **no-op**（注入前后逐字节相同）。
+    /// <para>⚠️ 夹具必须是**真 Provider**：`FakeModelClient` 不做注入 ⇒ 永远看不见这个 bug
+    /// （上一版闸门就是这么漏过去的）。</para>
+    /// </summary>
+    [Fact]
+    public async Task 真Provider的档位注入_不得改变请求字节()
+    {
+        var client = new OpenAICompatibleClient(
+            new HttpClient(StubHttpMessageHandler.Json(
+                "{\"id\":\"x\",\"model\":\"m\",\"choices\":[{\"index\":0,"
+                + "\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}")),
+            new OpenAICompatibleOptions
+            {
+                BaseUrl = "https://api.example.com/v1/openai",
+                ApiKey = FakeKey,
+                ReasoningEffort = "low",
+            });
+
+        // ⚠️ **必须走真组装器**（2026-10-14 教训：上一版这条测试自己手搓请求 ⇒ 组装器**没带上档位**时它照样绿 ⇒
+        //    空转的闸门）。这里断言「组装器是档位的唯一来源」，再用真 Provider 发一次看字节有没有变。
+        var options = new RuntimeOptions { Model = "m", ReasoningEffort = "low" };
+        var request = await RequestAssembler.AssembleAsync(
+            options, [], new RuntimeContext(null, 1), "hi", TestContext.Current.CancellationToken);
+
+        Assert.Equal("low", request.ReasoningEffort);       // ← 少了这一句，Provider 就会在发送前改字节（T1 破线）
+        var before = PromptBytes.Sha256Of(request);
+
+        await client.CompleteAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(before, PromptBytes.Sha256Of(request));
+
+        // **出牙（反面）**：不带档位的旧形状 ⇒ Provider 注入 ⇒ 字节变了 —— 这正是真机那条告警的机理。
+        var legacy = new ChatRequest { Model = "m", Messages = [ChatMessage.User("hi")] };
+        var legacyBefore = PromptBytes.Sha256Of(legacy);
+
+        await client.CompleteAsync(legacy, TestContext.Current.CancellationToken);
+
+        Assert.NotEqual(legacyBefore, PromptBytes.Sha256Of(legacy));
     }
 
     private static OpenAICompatibleClient NewClient(HttpMessageHandler handler)

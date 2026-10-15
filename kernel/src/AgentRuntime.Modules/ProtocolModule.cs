@@ -40,7 +40,7 @@ public sealed class ProtocolModule : RuntimeModuleBase, IFrozenZoneModule
     /// <para><see cref="ProtocolText.Version"/> 进账本；prompt 只见 <see cref="ProtocolText.Text"/>。</para>
     /// </summary>
     public IReadOnlyList<FrozenSection> Sections() =>
-        [new FrozenSection(FrozenZone.Protocol, FrozenLayer.Global, null, ProtocolText.Version, ProtocolText.Text)];
+        [new FrozenSection(FrozenZone.Protocol, FrozenLayer.Global, ProtocolText.Version, ProtocolText.Text)];
 
     public override ValueTask ContributeAsync(RuntimeContext context, IList<ChatMessage> messages, CancellationToken cancellationToken)
     {

@@ -1,5 +1,4 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Xml.Serialization;
 using AgentRuntime.Core;
 using AgentRuntime.Core.Configuration;
 using AgentRuntime.Providers;
@@ -9,16 +8,12 @@ namespace AgentRuntime.Benchmark;
 /// <summary>价格表（USD / 1M tokens）。固定项之一：改动必须写明来源与日期。</summary>
 public sealed class Pricing
 {
-    [JsonPropertyName("input")]
     public double InputPer1M { get; set; }
 
-    [JsonPropertyName("cacheRead")]
     public double CacheReadPer1M { get; set; }
 
-    [JsonPropertyName("output")]
     public double OutputPer1M { get; set; }
 
-    [JsonPropertyName("source")]
     public string Source { get; set; } = string.Empty;
 
     /// <summary>实际情况：未缓存输入 + 缓存输入 + 输出。</summary>
@@ -30,31 +25,32 @@ public sealed class Pricing
         (promptTokens * InputPer1M + output * OutputPer1M) / 1_000_000d;
 }
 
+[XmlRoot("Benchmark")]
 public sealed class BenchmarkConfiguration
 {
-    [JsonPropertyName("runtimeConfig")]
-    public string RuntimeConfig { get; set; } = "../../src/AgentRuntime.Cli/config.json";
+    [XmlElement(Order = 0)] public string Comment { get; set; } =
+        "尺子自身的配置（与 Runtime 的 config 分开管）：被测物的端点/密钥走 runtimeConfig 指向的那个文件。相对路径一律相对本文件所在目录解析。";
 
-    [JsonPropertyName("pricing")]
-    public Pricing Pricing { get; set; } = new();
+    [XmlElement(Order = 1)] public string RuntimeConfig { get; set; } = "../../src/AgentRuntime.Cli/config.xml";
 
-    [JsonPropertyName("runsDir")]
-    public string RunsDir { get; set; } = "runs";
+    [XmlElement(Order = 2)] public string PricingComment { get; set; } =
+        "单价（USD / 1M tokens），取自 OpenClaw 的 deepseek provider 配置；改动价格要写明日期。";
 
-    [JsonPropertyName("corpus")]
-    public CorpusConfiguration Corpus { get; set; } = new();
+    [XmlElement(Order = 3)] public Pricing Pricing { get; set; } = new();
+
+    [XmlElement(Order = 4)] public string RunsDir { get; set; } = "runs";
+
+    [XmlElement(Order = 5)] public string CorpusComment { get; set; } =
+        "冻结上下文语料：按「铁则 → 知识 → 记忆」堆叠，只用仓库内 corpus/ 的去隐私 10K 切片（可公开）。⚠️ 禁止改成私有全量语料或本机路径 —— lock 节是硬闸门。";
+
+    [XmlElement(Order = 6)] public CorpusConfiguration Corpus { get; set; } = new();
 
     public static BenchmarkConfiguration Load(string path)
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-        };
-
-        var config = JsonSerializer.Deserialize<BenchmarkConfiguration>(File.ReadAllText(path), options)
+        var serializer = new XmlSerializer(typeof(BenchmarkConfiguration));
+        using var stream = File.OpenRead(path);
+        return serializer.Deserialize(stream) as BenchmarkConfiguration
             ?? throw new InvalidDataException($"尺子配置为空：{path}");
-        return config;
     }
 }
 
@@ -62,37 +58,49 @@ public sealed class BenchmarkConfiguration
 public sealed class CorpusConfiguration
 {
     /// <summary>来源 id → 文件路径（支持 ~）；文件缺失时退化为合成语料。</summary>
-    [JsonPropertyName("sources")]
-    public Dictionary<string, string> Sources { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    [XmlArray("Sources", Order = 0)]
+    [XmlArrayItem("Source")]
+    public List<CorpusSource> Sources { get; set; } = [];
 
-    [JsonPropertyName("tiers")]
+    [XmlArray("Tiers", Order = 1)]
+    [XmlArrayItem("Tier")]
     public List<CorpusTierSpec> Tiers { get; set; } = [];
 
     /// <summary>**实验语料锁**（主人 2026-09-14 定死）：测试工程只允许用仓库内的 10K 切片。</summary>
-    [JsonPropertyName("lock")]
+    [XmlElement(Order = 2)]
     public CorpusLockSpec Lock { get; set; } = new();
+
+    /// <summary>只读的 id → 路径 视图（消费者按字典用；A4：dict → list 供 XmlSerializer）。</summary>
+    [XmlIgnore]
+    public Dictionary<string, string> SourceMap =>
+        Sources.ToDictionary(s => s.Id, s => s.Path, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>语料来源一条（<c>&lt;Source Id="rules"&gt;corpus/rules.md&lt;/Source&gt;</c>）。</summary>
+public sealed class CorpusSource
+{
+    [XmlAttribute] public string Id { get; set; } = "";
+
+    [XmlText] public string Path { get; set; } = "";
 }
 
 public sealed class CorpusTierSpec
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = "";
+    [XmlAttribute] public string Id { get; set; } = "";
 
-    [JsonPropertyName("label")]
-    public string Label { get; set; } = "";
+    [XmlAttribute] public string Label { get; set; } = "";
 
     /// <summary>空列表 = L0（不冻结任何上下文）。</summary>
-    [JsonPropertyName("slices")]
+    [XmlArray("Slices", Order = 0)]
+    [XmlArrayItem("Slice")]
     public List<CorpusSlice> Slices { get; set; } = [];
 }
 
 public sealed class CorpusSlice
 {
-    [JsonPropertyName("source")]
-    public string Source { get; set; } = "";
+    [XmlAttribute] public string Source { get; set; } = "";
 
-    [JsonPropertyName("chars")]
-    public int Chars { get; set; }
+    [XmlAttribute] public int Chars { get; set; }
 }
 
 /// <summary>一次调用的一条原始记录 —— 结论必须能从这里复算。</summary>

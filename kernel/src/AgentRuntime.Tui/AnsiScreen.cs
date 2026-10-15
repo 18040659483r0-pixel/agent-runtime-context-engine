@@ -38,26 +38,56 @@ public sealed class AnsiScreen : IDisposable
     private readonly TextWriter _output;
     private bool _entered;
 
+    /// <summary>
+    /// **终端没了**（写/读拿到 tty EIO —— 窗口关了 / 控制台被收回）⇒ 落屏从此**退化为空操作**。
+    /// <para>为什么要有它：终端没了之后，连**收尾**（离开备用屏 / 显光标）都会再抛一次 IOException ——
+    /// 而那一次在 <c>finally</c> 里、没人接 ⇒ 明明已经处理好了退出，仍以崩溃收场
+    /// （2026-10-14 沙箱实测：EXIT=-6）。落屏是**尽力而为**，不是不变量。</para>
+    /// </summary>
+    private bool _lost;
+
     public AnsiScreen(TextWriter? output = null) => _output = output ?? Console.Out;
 
     /// <summary>已进屏（<see cref="Dispose"/> 会按这个标志决定要不要恢复）。</summary>
     public bool IsEntered => _entered;
 
+    /// <summary>终端是不是已经没了（写过都失败过）—— 宿主据此知道「屏已经不可用」。</summary>
+    public bool IsTerminalLost => _lost;
+
+    /// <summary>写一段（吞「终端没了」这一类 IOException 并**记住** ⇒ 以后一律空操作）。</summary>
+    private bool TryWrite(string text)
+    {
+        if (_lost)
+        {
+            return false;
+        }
+
+        try
+        {
+            _output.Write(text);
+            _output.Flush();
+            return true;
+        }
+        catch (System.IO.IOException)
+        {
+            _lost = true;
+            return false;
+        }
+    }
+
     /// <summary>进备用屏 + 隐藏光标（帧里自己画光标标记）。</summary>
     public void Enter()
     {
-        if (_entered)
+        if (_entered || _lost)
         {
             return;
         }
 
-        _output.Write(EnterAlternateScreen);
-        _output.Write(DisableAutoWrap);
-        _output.Write(HideCursor);
-        _output.Write(BracketedPaste.Enable);      // 粘贴包标记：让多行粘贴成**一次输入**（见 BracketedPaste）
-        _output.Write(Home);
-        _output.Write(EraseBelow);
-        _output.Flush();
+        if (!TryWrite(EnterAlternateScreen + DisableAutoWrap + HideCursor + BracketedPaste.Enable + Home + EraseBelow))
+        {
+            return;                                  // 写不进去（终端没了）⇒ 不算进屏（Dispose 因此静默）
+        }
+
         _entered = true;
     }
 
@@ -83,8 +113,7 @@ public sealed class AnsiScreen : IDisposable
         }
 
         builder.Append(EraseBelow);
-        _output.Write(builder.ToString());
-        _output.Flush();
+        TryWrite(builder.ToString());
     }
 
     /// <summary>
@@ -112,8 +141,7 @@ public sealed class AnsiScreen : IDisposable
         }
 
         builder.Append(EraseBelow);
-        _output.Write(builder.ToString());
-        _output.Flush();
+        TryWrite(builder.ToString());
     }
 
     /// <summary>
@@ -124,23 +152,22 @@ public sealed class AnsiScreen : IDisposable
     public void MoveCursor(int row, int col)
     {
         Enter();
-        _output.Write($"\u001b[{Math.Max(1, row)};{Math.Max(1, col)}H");
-        _output.Flush();
+        TryWrite($"\u001b[{Math.Max(1, row)};{Math.Max(1, col)}H");
     }
 
-    /// <summary>退出备用屏（幂等）：恢复光标 + 回到原屏。</summary>
+    /// <summary>退出备用屏（幂等）：恢复光标 + 回到原屏。**终端没了就静默收场**（不吐字节、绝不抛）。</summary>
     public void Dispose()
     {
-        if (!_entered)
+        if (!_entered || _lost)
         {
-            return;
+            _entered = false;
+            return;                                  // 屏已经不可用 ⇒ 没有可恢复的东西，也别再吐字节（抛了就变成用崩溃收场）
         }
 
-        _output.Write(BracketedPaste.Disable);     // 先关粘贴标记，再离开备用屏（别把标记留给下一个人）
-        _output.Write(ShowCursor);
-        _output.Write(EnableAutoWrap);
-        _output.Write(LeaveAlternateScreen);
-        _output.Flush();
-        _entered = false;
+        // 先关粘贴标记，再离开备用屏（别把标记留给下一个人）。
+        if (TryWrite(BracketedPaste.Disable + ShowCursor + EnableAutoWrap + LeaveAlternateScreen))
+        {
+            _entered = false;
+        }
     }
 }

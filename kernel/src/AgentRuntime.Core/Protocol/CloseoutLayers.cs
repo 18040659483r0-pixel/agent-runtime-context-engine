@@ -55,7 +55,7 @@ public static class KnowledgeSources
         new("handoff", "跨端交接件", "handoff/（**每个 task 一件**）", "结论/教训抽象进 L1/L2；原件留档"),
         new("docs", "设计 / 实验文档", "docs/DESIGN-* · REPORT-* · EXPERIMENT-*", "结论进 L2；**核对「文档 ↔ 产物」一致**（漂移要修，见 PITFALLS #81）"),
         new("glossary", "词表与命名决议", "GLOSSARY.md", "命名与口径本身就是知识（如 Solve Step 的写法纪律）"),
-        new("skills", "手写技能 / 能力", "skill-repo（L3.jsonl）", "踩坑 + 记忆 → 提炼可复用方法论 → 回写 / 新建 skill"),
+        new("skills", "手写技能 / 能力", ".derived/l4.xml（原 SKILL 逐字）", "踩坑 + 记忆 → 提炼可复用方法论 → 回写 / 新建 skill"),
         new("draft", "草稿里「已定」的项", "[DRAFT] R5", "定稿项 → 知识或待办；未定的**留给下一个会话**（最容易漏的一类）"),
         new("external", "外部吸收队列", "外部 skill / 论文 / 社区结论", "经「吸收收敛」汇入 L1/L2/L3（协议第 2 条）"),
     ];

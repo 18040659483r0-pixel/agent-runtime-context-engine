@@ -1,6 +1,7 @@
 using AgentRuntime.Core;
 using AgentRuntime.Core.Focus;
 using AgentRuntime.Core.Frozen;
+using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Tail;
 using AgentRuntime.Models;
@@ -111,7 +112,7 @@ public sealed class TailStreamTests : IDisposable
         await module.ContributeAsync(new RuntimeContext("s", 0), withBoard, token);
         Assert.Single(withBoard);
         Assert.Equal("system", withBoard[0].Role);
-        Assert.Equal("[TAIL]\n当前任务: X", withBoard[0].Content);
+        Assert.Equal("[TAIL] " + CurrentTailService.OwnHeaderNote + "\n当前任务: X", withBoard[0].Content);
 
         module.Clear();
         var cleared = new List<ChatMessage>();
@@ -150,7 +151,7 @@ public sealed class TailStreamTests : IDisposable
 
         Assert.Equal(withEmptyTail.Count + 1, withBoard.Count);
         Assert.Equal(withEmptyTail.Select(m => m.Content), withBoard.Take(withEmptyTail.Count).Select(m => m.Content));
-        Assert.Equal("[TAIL]\n当前任务: 实现 R4", withBoard[^1].Content);
+        Assert.Equal("[TAIL] " + CurrentTailService.OwnHeaderNote + "\n当前任务: 实现 R4", withBoard[^1].Content);
         Assert.Equal("system", withBoard[^1].Role);
     }
 
@@ -181,7 +182,7 @@ public sealed class TailStreamTests : IDisposable
         var first = CurrentTailService.Render(CurrentTailService.Snapshot(noisy, CurrentTailSources.Report, 3));
         var second = CurrentTailService.Render(CurrentTailService.Snapshot(noisy, CurrentTailSources.Report, 3));
 
-        Assert.Equal("[TAIL]\n当前任务: 实现 R4\n待办: 闸门放宽", first);
+        Assert.Equal("[TAIL] " + CurrentTailService.OwnHeaderNote + "\n当前任务: 实现 R4\n待办: 闸门放宽", first);
         Assert.Equal(first, second);
 
         // 行序是语义（先当前任务、再待办）：换序 ⇒ 文本必须不同。
@@ -251,5 +252,26 @@ public sealed class TailStreamTests : IDisposable
         await replayed.ContributeAsync(new RuntimeContext("s", 0), b, token);
 
         Assert.Equal(a.Select(m => m.Content), b.Select(m => m.Content));
+    }
+
+    /// <summary>
+    /// **T2（2026-10-11）· 自指状态**：回灌的 <c>[TAIL]</c> 必须带**归属注记** ——
+    /// 模型才认得出「这是我自己上一轮写的」，不会把它当成输入事实而反复自我怀疑（真机 reasoning 原文）。
+    /// 负例：模型把带注记的头行**原样抄回** ⇒ 注记不算一条状态行（否则它会永久留在白板里）。
+    /// </summary>
+    [Fact]
+    public void Tail_Render_CarriesOwnNoteAttribution_AndEchoIsNotState()
+    {
+        var rendered = CurrentTailService.Render(
+            CurrentTailService.Snapshot(["找 a.txt 的 sha256"], CurrentTailSources.Report, 1));
+
+        Assert.StartsWith("[TAIL] (", rendered, StringComparison.Ordinal);
+        Assert.Contains(ProtocolText.OwnStateLead, rendered, StringComparison.Ordinal);
+        Assert.EndsWith("找 a.txt 的 sha256", rendered, StringComparison.Ordinal);
+
+        // 负例：头行注记被抄回 ⇒ 不算正文。
+        var echo = "[TAIL] " + CurrentTailService.OwnHeaderNote + "\nsolve: 真·状态行";
+        Assert.True(CurrentTailService.TryParseReport(echo, out var lines));
+        Assert.Equal(["solve: 真·状态行"], lines);
     }
 }

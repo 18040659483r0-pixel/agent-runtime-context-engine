@@ -6,6 +6,13 @@
 > 规范版本：**V0.1**（2026-09-14 定稿，先于架构实现定义）
 > 目标：无论 Runtime 演进到哪一层，都用**同一套尺子**给出 `Direct API` vs `Agent Runtime` 的可比数字。
 
+## 关于 `runs/`（运行记录的落点与去向）
+
+- `runs/` 是**本机证据落点**：每次跑的 `summary.md` / `records.jsonl` / 流副本 / `-v` 诊断都落在它下面。
+- **`runs/` 下的内容不入库**（设计如此）：正文里出现的 `runs/<名字>/` 一律是**本机路径**，从干净检出里解析不出来。
+- **2026-10-15 处置**：该批 **58 个 run 目录（约 3.9 M）** 已按处置清出本机（主人令：测试套件的运行记录不进公共 SVN）；`runs/` 目录本身仍在版控里（空）。
+- 因此 `docs/` 里引用 `benchmark/runs/<名字>/` 的地方，是**当时的现场证据指针**，不是随库分发物 —— 引用它的结论仍可由 `docs/` 里的摘要/表格复算，**不依赖该目录存在**。
+
 ## 0. 固定项（任何一次测量都必须锁定）
 
 模型、Provider、参数、测试数据、测试流程、网络环境 —— **全部固定**。
@@ -45,9 +52,9 @@
 1. **变体隔离**：每个变体的语料必须带唯一 salt，且 salt 必须放在**冻结前缀的最前面**。
    —— 放在尾部不够：前缀主体仍然相同，变体之间照样共享缓存命中（2026-09-14 第二轮才修干净）。
 2. **冷启动自检**：每个变体的**第 1 轮必须 `cached = 0`**。若不为 0，说明有外部预热（校准调用/其它变体/重复 run），本次数据作废。
-3. **原始记录优先**：报告只是视图；结论必须能从 `records.jsonl` 逐行复算。
+3. **原始记录优先**：报告只是视图；结论必须能从 `records.xml` 逐行复算。
 4. **语料快照私有**：真实素材切出的冻结上下文含私有信息，只落 `local-corpus/`，**永不入公共仓库**。
-5. **成本估算固定**：价格表写进 `benchmark.config.json` 并注明来源与日期。
+5. **成本估算固定**：价格表写进 `benchmark.config.xml` 并注明来源与日期。
 
 ## 2.5 已观测事实（实测，非设计目标）
 
@@ -123,9 +130,9 @@ Direct API   vs   Agent Runtime
 
 | # | 闸门 | 行为 |
 |---|---|---|
-| ① | `benchmark.config.json` → `corpus.lock.allowedSources` | 来源必须**恰好**是三个仓库内相对路径（不得绝对路径 / 不得 `..`） |
+| ① | `benchmark.config.xml` → `corpus.lock.allowedSources` | 来源必须**恰好**是三个仓库内相对路径（不得绝对路径 / 不得 `..`） |
 | ② | 尺子启动自检 `CorpusLock.Verify`（`--plan` 也检） | 违规 → **`exit 3`**，**在取密钥、发请求之前**退出 |
-| ③ | `python3 benchmark/tools/lock-corpus.py --check` | 指纹 + token 上限；`--update` 重新锁 |
+| ③ | `dotnet run --project benchmark/AgentRuntime.Benchmark -- lock-corpus --check` | 指纹 + token 上限；`--update` 重新锁 |
 | ④ | xUnit `CorpusLockTests`（4 条，不引用尺子程序集） | 白名单 / 无私有引用 / token 上限 / 指纹+隐私 |
 
-改语料的标准动作：**改语料 → `lock-corpus.py --update` → `dotnet test` → 提交**（测试会钉住）。
+改语料的标准动作：**改语料 → `lock-corpus --update` → `dotnet test` → 提交**（测试会钉住）。

@@ -5,15 +5,15 @@ namespace AgentRuntime.Core.Skill;
 /// <summary>
 /// **L3 地址表（按 id 取条）** —— 「按 id 装载 L3」的解析入口。
 /// <para>
-/// 依据 <c>docs/DESIGN-SKILL-LAYERS.md</c> §三（仓库形态：<c>&lt;skill&gt;/L3.jsonl</c>，行号即地址）
+/// 依据 <c>docs/DESIGN-SKILL-LAYERS.md</c> §三（仓库形态：<c>&lt;skill&gt;/l3.xml</c>，行号即地址）
 /// + §五（按条装载与动态指派）+ §八（<c>--skill-use S-xxx-007</c>）。
 /// </para>
 /// <para>
 /// 两种形态都吃（同一套 id 空间）：
 /// </para>
 /// <list type="bullet">
-/// <item><b>仓库形态</b>：<c>&lt;root&gt;/&lt;skill&gt;/L3.jsonl</c>（一行一条，第 N 行 = <c>seq</c> N）；</item>
-/// <item><b>派生索引</b>：<c>knowledge/.derived/l3.jsonl</c>（同一形状的单文件汇总）。</item>
+/// <item><b>仓库形态</b>：<c>&lt;root&gt;/&lt;skill&gt;/L3.xml</c>（一段一条，第 N 段 = <c>seq</c> N）；</item>
+/// <item><b>派生索引</b>：<c>knowledge/.derived/l3.xml</c>（同一形状的单文件汇总）。</item>
 /// </list>
 /// <para>
 /// <b>坏数据必须报错</b>（<see cref="InvalidDataException"/>）：地址表不可重建，
@@ -70,8 +70,8 @@ public sealed class SkillIndex
         return strip;
     }
 
-    /// <summary>从**单文件** <c>L3.jsonl</c> 建索引（派生索引 / 任一技能的 L3.jsonl 都可）。</summary>
-    public static SkillIndex FromJsonl(string path)
+    /// <summary>从**单文件** <c>L3.xml</c> 建索引（派生索引 / 任一技能的 L3.xml 都可）。</summary>
+    public static SkillIndex FromFile(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (!File.Exists(path))
@@ -82,28 +82,72 @@ public sealed class SkillIndex
         var byId = new Dictionary<string, SkillStrip>(StringComparer.Ordinal);
         var ids = new List<string>();
         var parsed = new List<(SkillStrip Strip, int Line)>();
-        var lineNumber = 0;
+        var index = 0;
 
-        foreach (var line in File.ReadLines(path, Encoding.UTF8))
+        foreach (var row in Persistence.DataContractXml.ReadFragments<StripRow>(path))
         {
-            lineNumber++;
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue; // 尾随空行容忍；条内换行由 JSON 转义表达，不存在「合法的空行条」。
-            }
-
-            var strip = SkillStrip.ParseLine(line, path, lineNumber);
-            parsed.Add((strip, lineNumber));
+            index++;
+            var strip = SkillStrip.FromRow(row, path, index);
+            parsed.Add((strip, index));
             Add(byId, ids, strip, path);
         }
 
         ValidateAddresses(parsed, path);
+
+        // **L4 同源**（2026-10-10 主人令）：L3 收敛为「分类总目 + 路由」后，**正文住在同目录的 `l4.xml`**
+        // ⇒ **文件形态也要一并收进来**（否则模型点 `[L3] L4-xxx` 会落空 —— master 就取不到正文）。
+        // 目录形态走 FromRepository（它本就枚举 L3.xml 与 L4.xml）。
+        var l4 = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "l4.xml");
+        if (File.Exists(l4))
+        {
+            var parsedL4 = new List<(SkillStrip Strip, int Line)>();
+            var n = 0;
+            foreach (var row in Persistence.DataContractXml.ReadFragments<StripRow>(l4))
+            {
+                n++;
+                var strip = SkillStrip.FromRow(row, l4, n);
+                parsedL4.Add((strip, n));
+                Add(byId, ids, strip, l4);
+            }
+
+            ValidateAddresses(parsedL4, l4);
+        }
+
+        // **旧 id 墓碑**（2026-10-10 · L3 收敛）：589 条切片 → 10 条分类总目 ⇒ 旧 `S-xxx-nnn` **全部失效**。
+        // 同目录有 `l3-tombstones.tsv`（**自有格式，不是 JSON** —— 运行时 R1 铁则不读 JSON）⇒
+        // 把旧 id **别名**到它所属的分类（`ids` 不变，只多一条解析路径）—— 历史引用/旧会话点旧 id 不会落空。
+        // 迁移产物（可重建）⇒ **坏行允许降级**（与 L3 地址表「坏数据必须报错」相反）。
+        var tombstones = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "l3-tombstones.tsv");
+        if (File.Exists(tombstones))
+        {
+            foreach (var line in File.ReadLines(tombstones, Encoding.UTF8))
+            {
+                if (line.Length == 0 || line[0] == '#')
+                {
+                    continue;
+                }
+
+                var parts = line.Split('\t');
+                if (parts.Length < 2)
+                {
+                    continue;
+                }
+
+                var oldKey = Normalize(parts[0]);
+                var newKey = Normalize(parts[1]);
+                if (byId.TryGetValue(newKey, out var target) && !byId.ContainsKey(oldKey))
+                {
+                    byId[oldKey] = target;
+                }
+            }
+        }
+
         return new SkillIndex(byId, ids, path);
     }
 
     /// <summary>
-    /// 从**仓库根**建索引：读 <c>&lt;root&gt;/**/L3.jsonl</c>（按路径升序 ⇒ 确定性）。
-    /// <para><c>_l1.jsonl</c> / <c>_l2.jsonl</c> / <c>.cache/</c> / <c>export/</c> 天然不匹配（它们不在 <c>&lt;skill&gt;/</c> 下）。</para>
+    /// 从**仓库根**建索引：读 <c>&lt;root&gt;/**/L3.xml</c>（按路径升序 ⇒ 确定性）。
+    /// <para><c>_l1.xml</c> / <c>_l2.xml</c> / <c>.cache/</c> / <c>export/</c> 天然不匹配（它们不在 <c>&lt;skill&gt;/</c> 下）。</para>
     /// </summary>
     public static SkillIndex FromRepository(string root)
     {
@@ -117,11 +161,11 @@ public sealed class SkillIndex
         var ids = new List<string>();
 
         foreach (var file in Directory
-            .EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
-            .Where(p => Path.GetFileName(p) is "L3.jsonl" or "L4.jsonl")
+            .EnumerateFiles(root, "*.xml", SearchOption.AllDirectories)
+            .Where(p => Path.GetFileName(p) is "L3.xml" or "L4.xml")
             .OrderBy(p => p, StringComparer.Ordinal))
         {
-            var index = FromJsonl(file);
+            var index = FromFile(file);
             foreach (var id in index.Ids)
             {
                 Add(byId, ids, index._byId[id], file);
@@ -143,17 +187,17 @@ public sealed class SkillIndex
 
         if (File.Exists(path))
         {
-            return FromJsonl(path);
+            return FromFile(path);
         }
 
-        throw new FileNotFoundException($"找不到技能仓库（目录或 L3.jsonl 文件）：{path}", path);
+        throw new FileNotFoundException($"找不到技能仓库（目录或 L3.xml 文件）：{path}", path);
     }
 
     /// <summary>
     /// **行号即地址**闸门：同一技能内部的条必须按 <c>seq = 1..N</c> **连续**出现。
     /// <para>
-    /// 为什么不是「行号 == seq」这么直白：**派生汇总**文件（<c>knowledge/.derived/l3.jsonl</c>）是把各技能的
-    /// <c>L3.jsonl</c> 拼接而成，每个技能都从 <c>seq = 1</c> 重新起算 —— 而**单技能文件**里
+    /// 为什么不是「行号 == seq」这么直白：**派生汇总**文件（<c>knowledge/.derived/l3.xml</c>）是把各技能的
+    /// <c>l3.xml</c> 拼接而成，每个技能都从 <c>seq = 1</c> 重新起算 —— 而**单技能文件**里
     /// 「第 N 行」与「seq N」本来就是同一件事（与 <c>docs/DESIGN-SKILL-LAYERS.md</c> §三 的口径一致）。
     /// 两种形态的共同不变量就是本函数守的这条。
     /// </para>

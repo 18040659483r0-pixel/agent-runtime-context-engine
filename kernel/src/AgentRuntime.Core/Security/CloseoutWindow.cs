@@ -41,7 +41,7 @@ public static class CloseoutWindow
             items.Add(new CloseoutWindowItem(Capability.FsWrite, config.Lifecycle.Pitfalls, "交坑条目（L3 归位）"));
         }
 
-        // 流水线命令：只在**配置里声明过**的那些命令形状（python3 …）上放行。
+        // 流水线命令：只在**配置里声明过**的那些命令形状上放行。
         foreach (var command in config.Lifecycle.Pipeline)
         {
             items.Add(new CloseoutWindowItem(Capability.ProcExec, command, "收尾流水线（判定 / 晋级 / 派生 / 重建）"));

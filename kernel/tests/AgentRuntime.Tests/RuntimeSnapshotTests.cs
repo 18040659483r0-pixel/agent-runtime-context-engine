@@ -26,7 +26,7 @@ public sealed class RuntimeSnapshotTests : IDisposable
 
     /// <summary>一份最小冻结前缀（rules.global）。</summary>
     private static FrozenSnapshot Prefix(string text = "铁则正文", string version = "1") =>
-        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, version, text)]);
+        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, version, text)]);
 
     private RuntimeSnapshot Capture(FrozenSnapshot prefix, long cursor = 4) =>
         SnapshotService.Capture("session-1", prefix, cursor, "/tmp/stream.jsonl", "mock-model", SavedAt);
@@ -60,16 +60,16 @@ public sealed class RuntimeSnapshotTests : IDisposable
         Assert.Equal(prefix.Id, loaded.FrozenSnapshotId);
         Assert.Equal(loaded.FrozenSnapshotId, loaded.Manifest!.SnapshotId);
 
-        // UTF-8 无 BOM + LF；字段序固定（可 diff）。
-        Assert.Equal((byte)'{', first[0]);
+        // UTF-8 无 BOM + LF；元素序固定（Order 显式 ⇒ 可 diff）。
+        Assert.Equal((byte)'<', first[0]);
         var text = File.ReadAllText(path);
         Assert.DoesNotContain("\r", text);
         var keys = new[]
         {
-            "schemaVersion", "sessionId", "frozenSnapshotId", "manifest", "streamCursor",
-            "streamPath", "focus", "pending", "workerState", "model", "savedAt",
+            "SchemaVersion", "SessionId", "FrozenSnapshotId", "Manifest", "StreamCursor",
+            "StreamPath", "Focus", "CurrentTail", "DynamicDraft", "Pending", "WorkerState", "Model", "SavedAt",
         };
-        var offsets = keys.Select(k => text.IndexOf($"\"{k}\"", StringComparison.Ordinal)).ToArray();
+        var offsets = keys.Select(k => text.IndexOf($"<{k}", StringComparison.Ordinal)).ToArray();
         Assert.All(offsets, offset => Assert.True(offset >= 0));
         Assert.Equal(offsets.OrderBy(o => o).ToArray(), offsets);
     }
@@ -151,14 +151,7 @@ public sealed class RuntimeSnapshotTests : IDisposable
     {
         var path = _workspace.File("future.json");
         File.WriteAllText(path, """
-        {
-          "schemaVersion": 99,
-          "frozenSnapshotId": "deadbeefdeadbeef",
-          "streamCursor": 238,
-          "streamPath": "/tmp/stream.jsonl",
-          "model": "future-model",
-          "savedAt": "2030-01-01T00:00:00+08:00"
-        }
+        <Snapshot><SchemaVersion>99</SchemaVersion><FrozenSnapshotId>deadbeefdeadbeef</FrozenSnapshotId><StreamCursor>238</StreamCursor><StreamPath>/tmp/stream.jsonl</StreamPath><Model>future-model</Model></Snapshot>
         """);
 
         var exception = Assert.Throws<InvalidDataException>(() => new SnapshotStore(path).Load());
@@ -228,8 +221,7 @@ public sealed class RuntimeSnapshotTests : IDisposable
         Assert.Equal(4, watermark.StreamCursor);
         Assert.Equal(4, CloseoutService.Load(watermarkPath)!.StreamCursor);
 
-        using var document = JsonDocument.Parse(File.ReadAllText(watermarkPath));
-        Assert.Equal(4, document.RootElement.GetProperty("StreamCursor").GetInt32());
+        Assert.Contains("<StreamCursor>4</StreamCursor>", File.ReadAllText(watermarkPath), StringComparison.Ordinal);
     }
 
     // ---------------- 扩展点 / 层级 ----------------

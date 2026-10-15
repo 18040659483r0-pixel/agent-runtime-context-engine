@@ -23,7 +23,7 @@ public sealed class SnapshotResumeTests : IDisposable
     private static readonly DateTimeOffset SavedAt = new(2026, 9, 15, 0, 53, 0, TimeSpan.FromHours(8));
 
     private static FrozenSnapshot Prefix(string text = "铁则正文", string version = "1") =>
-        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, version, text)]);
+        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, version, text)]);
 
     private string StreamPath => _workspace.File("stream.jsonl");
 

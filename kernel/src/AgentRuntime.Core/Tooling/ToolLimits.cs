@@ -77,9 +77,57 @@ public sealed class ToolLimits
         }
     }
 
+    /// <summary>
+    /// **工具结果被截断时，完整正文的落点目录**（C1，2026-09-26）。
+    /// <para>为什么要有它：截断话术原来写「全文在 <c>/trace</c>」—— 那是个**假指针**（<c>/trace</c> 是 TUI 看
+    /// 生命周期轨迹的命令，不是这条结果的原文落点）。判据只有一个：**顺着指针一步能不能拿到全文**。</para>
+    /// <para>文件名 = 正文 sha256 前 16 位（确定性、可复算、幂等）。</para>
+    /// </summary>
+    public string ResultDirectory { get; init; } = DefaultResultDirectory;
+
+    /// <summary>默认结果落点目录（与 <see cref="PreviewDirectory"/> 同族；主目录判不出时退回临时目录）。</summary>
+    public static string DefaultResultDirectory
+    {
+        get
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return string.IsNullOrWhiteSpace(home)
+                ? Path.Combine(Path.GetTempPath(), "agentruntime-results")
+                : Path.Combine(home, ".agentruntime", "results");
+        }
+    }
+
+    /// <summary>
+    /// <c>exec</c> 结果里**命令回显**的字符上限（C1，2026-09-26）。
+    /// <para>同一份命令在流里出现三遍：① 回复里的 <c>[TOOL]</c> 块 ② <c>RiskClaimed</c> 摘要
+    /// ③ <c>exec</c> 结果开头的回显。实测第三份占 **exec 结果体的 13.6%**（本 task 的 5.9%）。
+    /// 回显只用于「确认跑的是哪条」，不必逐字 —— 超限给 sha256 + 前 N 字符，完整命令回看本轮 <c>[TOOL]</c>。</para>
+    /// </summary>
+    public int MaxCommandEchoChars { get; init; } = 200;
+
+    /// <summary>
+    /// **写入类回执**（<c>write</c> / <c>edit</c>）的字符上限（**唯一声明处**；夹具**读它**，不重抄数字 —— 坑 #138）。
+    /// <para>
+    /// 2026-09-26 定（先量后定）：这两个回执原本把**整段规范化参数**回显一遍 ⇒ <c>write</c> 实测均 **9,792**、
+    /// 最大 **16,334** 字符、**无上限**，而 <c>exec</c> / <c>read</c> 都封在 ~2,000（缺口就在这里）。
+    /// 改成「落点 + 字节数 + sha + 摘要回显」后实测见 <c>WriteReceiptTests</c> 的量数输出。
+    /// </para>
+    /// <para>纪律：**判「写成功」的永远是编译 / 测试，不是回执**（回执只报事实）。</para>
+    /// </summary>
+    public int MaxReceiptChars { get; init; } = 600;
+
+    /// <summary>
+    /// <c>exec</c> 的**工作基准目录**（null ⇒ 继承进程 cwd）。
+    /// <para><b>为什么要显式声明</b>：基准是**隐式状态**里的常客（§十·50 / 坑 #135）—— 同一句
+    /// <c>grep -rln X src</c> 在 CLI 目录里跑得通、换个进程跑就 <c>No such file or directory</c>，
+    /// 而**两次都报 exit≠0 而不是「你站错地方了」**。Worker 与 Master 同进程、cwd 却各说各话，
+    /// 正是这一类。给了值就**必须以它为准**（配了却不存在的目录 ⇒ fail-closed 报错，不静默回落）。</para>
+    /// </summary>
+    public string? WorkingDirectory { get; init; }
+
     /// <summary>人话描述（面板 / 诊断用；唯一来源）。</summary>
     public string Describe() =>
         $"读 ≤{MaxReadLines} 行（硬上限 {AbsoluteMaxReadLines}）· 列 ≤{MaxListEntries} 项 · " +
-        $"结果 ≤{MaxOutputChars} 字符 · exec ≤{ExecTimeoutSeconds}s（硬上限 {AbsoluteMaxExecTimeoutSeconds}s）· " +
-        $"审批面 ≤{MaxApprovalLines} 行 · 截断落点 {PreviewDirectory}";
+        $"结果 ≤{MaxOutputChars} 字符 · 写入回执 ≤{MaxReceiptChars} 字符 · exec ≤{ExecTimeoutSeconds}s（硬上限 {AbsoluteMaxExecTimeoutSeconds}s）· " +
+        $"审批面 ≤{MaxApprovalLines} 行 · 审批落点 {PreviewDirectory} · 结果落点 {ResultDirectory} · 命令回显 ≤{MaxCommandEchoChars} 字符";
 }

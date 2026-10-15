@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using System.Runtime.Serialization;
 using AgentRuntime.Core.Frozen;
 
 namespace AgentRuntime.Core.Snapshot;
@@ -18,31 +18,34 @@ namespace AgentRuntime.Core.Snapshot;
 /// <b>扩展点</b>：加新字段就加一个 <c>init</c> 属性并给默认值（旧快照缺字段走默认值仍可读）；
 /// 不兼容的结构变更靠 <see cref="SchemaVersion"/> 挡在门外（未知版本**拒绝加载**，不静默降级）。
 /// </para>
+/// <para>集合成员一律 <c>string[]</c>（<c>IReadOnlyList</c> 的运行时包装类型不被
+/// <see cref="DataContractSerializer"/> 认，2026-09-29 实测）。</para>
 /// </summary>
+[DataContract(Name = "Snapshot", Namespace = "")]
 public sealed record RuntimeSnapshot
 {
     /// <summary>格式版本闸门；未知版本一律拒绝加载（<see cref="SnapshotService.CurrentSchemaVersion"/>）。</summary>
-    [JsonPropertyName("schemaVersion")]
+    [DataMember(Order = 0)]
     public int SchemaVersion { get; init; }
 
     /// <summary>会话身份；裸聊为空（null）。</summary>
-    [JsonPropertyName("sessionId")]
+    [DataMember(Order = 1)]
     public string? SessionId { get; init; }
 
     /// <summary>当时用的冻结前缀指纹（= <see cref="FrozenSnapshot.Id"/>，可重算自证）。</summary>
-    [JsonPropertyName("frozenSnapshotId")]
+    [DataMember(Order = 2)]
     public string FrozenSnapshotId { get; init; } = string.Empty;
 
     /// <summary>段级账本 → 前缀变了能说出**变了哪几段**（本字段进磁盘，不进 prompt）。</summary>
-    [JsonPropertyName("manifest")]
+    [DataMember(Order = 3)]
     public FrozenManifest? Manifest { get; init; }
 
     /// <summary>流读到第几条（E238 里的 238）。</summary>
-    [JsonPropertyName("streamCursor")]
+    [DataMember(Order = 4)]
     public long StreamCursor { get; init; }
 
     /// <summary>流文件位置（恢复要用）。</summary>
-    [JsonPropertyName("streamPath")]
+    [DataMember(Order = 5)]
     public string StreamPath { get; init; } = string.Empty;
 
     /// <summary>
@@ -52,8 +55,8 @@ public sealed record RuntimeSnapshot
     /// 旧快照缺该字段 ⇒ 空默认（<b>SchemaVersion 不 +1</b>）。
     /// </para>
     /// </summary>
-    [JsonPropertyName("focus")]
-    public IReadOnlyList<string> Focus { get; init; } = [];
+    [DataMember(Order = 6)]
+    public string[] Focus { get; init; } = [];
 
     /// <summary>
     /// **当前尾部（V4.2 已启用 · R4）**：恢复那一刻的白板正文（逐行）。
@@ -63,8 +66,8 @@ public sealed record RuntimeSnapshot
     /// <c>CurrentTailStore</c>（本字段只是「那一刻的快照」，供审计与对账）。
     /// </para>
     /// </summary>
-    [JsonPropertyName("currentTail")]
-    public IReadOnlyList<string> CurrentTail { get; init; } = [];
+    [DataMember(Order = 7)]
+    public string[] CurrentTail { get; init; } = [];
 
     /// <summary>
     /// **动态草稿（V4.3 已启用 · R5）**：恢复那一刻的草稿正文（逐行）。
@@ -74,22 +77,22 @@ public sealed record RuntimeSnapshot
     /// <c>DraftStore</c>（本字段只是「那一刻的快照」，供审计与对账）。
     /// </para>
     /// </summary>
-    [JsonPropertyName("dynamicDraft")]
-    public IReadOnlyList<string> DynamicDraft { get; init; } = [];
+    [DataMember(Order = 8)]
+    public string[] DynamicDraft { get; init; } = [];
 
     /// <summary>**预留位**（Pending Operations，V4 恒空）。</summary>
-    [JsonPropertyName("pending")]
-    public IReadOnlyList<string> Pending { get; init; } = [];
+    [DataMember(Order = 9)]
+    public string[] Pending { get; init; } = [];
 
     /// <summary>**预留位**（Worker State，V7 恒空）。</summary>
-    [JsonPropertyName("workerState")]
+    [DataMember(Order = 10)]
     public string WorkerState { get; init; } = string.Empty;
 
     /// <summary>当时的模型标识 —— Runtime 与 Model 解耦：换模型后用来核对（恢复本身不依赖模型）。</summary>
-    [JsonPropertyName("model")]
+    [DataMember(Order = 11)]
     public string Model { get; init; } = string.Empty;
 
     /// <summary>账本时刻。**不参与指纹**（指纹只看冻结前缀字节）。</summary>
-    [JsonPropertyName("savedAt")]
+    [DataMember(Order = 12)]
     public DateTimeOffset SavedAt { get; init; }
 }

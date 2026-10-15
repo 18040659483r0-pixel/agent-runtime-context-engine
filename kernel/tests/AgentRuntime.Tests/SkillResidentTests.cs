@@ -1,5 +1,6 @@
 using System.Text;
 using AgentRuntime.Core.Frozen;
+using AgentRuntime.Core.Persistence;
 using AgentRuntime.Core.Skill;
 using Xunit;
 
@@ -9,10 +10,19 @@ namespace AgentRuntime.Tests;
 /// **技能常驻层（L1+L2）** 的闸门：稳定（逐字节）、域过滤、坏数据报错、装饰器只挂知识区 Global 槽。
 /// <para>为什么值得这么细：常驻层进 <b>R1 稳定前缀</b> —— 它一变，前缀缓存整体归零；
 /// 它静默变空，模型就「以为自己有知识、其实没有」。两条都在这里钉住。</para>
+/// <para>A4 尾：常驻层源改 <c>l1.xml</c>/<c>l2.xml</c>（行式 XML 片段流）；夹具按真实序列化生成。</para>
 /// </summary>
 public sealed class SkillResidentTests
 {
-    private static string WriteDir(string l1, string l2, string l1Name = "l1.jsonl", string l2Name = "l2.jsonl")
+    /// <summary>造一段 L1 片段（与运行时序列化同一通道 —— 夹具不会与产物分叉）。</summary>
+    private static string L1(string skill, string text) =>
+        DataContractXml.ToFragment(new L1Row { Skill = skill, Text = text }) + "\n";
+
+    /// <summary>造一段 L2 片段。</summary>
+    private static string L2(string skill, string domain, string q, params string[] ids) =>
+        DataContractXml.ToFragment(new L2Row { Skill = skill, Domain = domain, Question = q, Ids = [.. ids] }) + "\n";
+
+    private static string WriteDir(string l1, string l2, string l1Name = "l1.xml", string l2Name = "l2.xml")
     {
         var dir = Path.Combine(Path.GetTempPath(), "wb-resident-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -30,13 +40,8 @@ public sealed class SkillResidentTests
     public void 加载_L1按技能升序_与文件次序无关()
     {
         var dir = WriteDir(
-            """
-            {"skill":"zeta","l1":"Z 的法则","mode":"hybrid"}
-            {"skill":"alpha","l1":"A 的法则","mode":"indexed"}
-            """,
-            """
-            {"skill":"zeta","domain":"software","q":"Z 怎么办","ids":["S-zeta-001"]}
-            """);
+            L1("zeta", "Z 的法则") + L1("alpha", "A 的法则"),
+            L2("zeta", "software", "Z 怎么办", "S-zeta-001"));
 
         try
         {
@@ -52,11 +57,8 @@ public sealed class SkillResidentTests
     public void 同一份输入_两次加载逐字节相同()
     {
         var dir = WriteDir(
-            """{"skill":"a","l1":"法则 A","mode":"hybrid"}""",
-            """
-            {"skill":"a","domain":"software","q":"问题一","ids":["S-a-001"]}
-            {"skill":"a","domain":"ops","q":"问题二","ids":["S-a-002"]}
-            """);
+            L1("a", "法则 A"),
+            L2("a", "software", "问题一", "S-a-001") + L2("a", "ops", "问题二", "S-a-002"));
 
         try
         {
@@ -72,14 +74,8 @@ public sealed class SkillResidentTests
     public void 域过滤_只留该域的L2_L1始终全量()
     {
         var dir = WriteDir(
-            """
-            {"skill":"a","l1":"法则 A","mode":"hybrid"}
-            {"skill":"b","l1":"法则 B","mode":"hybrid"}
-            """,
-            """
-            {"skill":"a","domain":"software","q":"软件问题","ids":["S-a-001"]}
-            {"skill":"a","domain":"ops","q":"运维问题","ids":["S-a-002"]}
-            """);
+            L1("a", "法则 A") + L1("b", "法则 B"),
+            L2("a", "software", "软件问题", "S-a-001") + L2("a", "ops", "运维问题", "S-a-002"));
 
         try
         {
@@ -96,11 +92,11 @@ public sealed class SkillResidentTests
     public void 坏数据_报错而不是静默降级()
     {
         var noIds = WriteDir(
-            """{"skill":"a","l1":"法则","mode":"hybrid"}""",
-            """{"skill":"a","domain":"software","q":"没有问题条目","ids":[]}""");
+            L1("a", "法则"),
+            DataContractXml.ToFragment(new L2Row { Skill = "a", Domain = "software", Question = "没有问题条目", Ids = [] }) + "\n");
         var noL1 = WriteDir(
-            """{"skill":"a","mode":"hybrid"}""",
-            """{"skill":"a","domain":"software","q":"Q","ids":["S-a-001"]}""");
+            DataContractXml.ToFragment(new L1Row { Skill = "a", Text = string.Empty }) + "\n",
+            L2("a", "software", "Q", "S-a-001"));
 
         try
         {
@@ -131,9 +127,9 @@ public sealed class SkillResidentTests
     public void 带下划线的仓库根命名也认()
     {
         var dir = WriteDir(
-            """{"skill":"a","l1":"法则","mode":"hybrid"}""",
-            """{"skill":"a","domain":"software","q":"Q","ids":["S-a-001"]}""",
-            l1Name: "_l1.jsonl", l2Name: "_l2.jsonl");
+            L1("a", "法则"),
+            L2("a", "software", "Q", "S-a-001"),
+            l1Name: "_l1.xml", l2Name: "_l2.xml");
 
         try
         {
@@ -154,8 +150,8 @@ public sealed class SkillResidentTests
     public void 装饰器_只改知识区Global_其他槽原样()
     {
         var dir = WriteDir(
-            """{"skill":"a","l1":"法则","mode":"hybrid"}""",
-            """{"skill":"a","domain":"software","q":"Q","ids":["S-a-001"]}""");
+            L1("a", "法则"),
+            L2("a", "software", "Q", "S-a-001"));
 
         try
         {
@@ -179,8 +175,8 @@ public sealed class SkillResidentTests
     public void 装饰器_内层没有知识文件时常驻层仍然生效()
     {
         var dir = WriteDir(
-            """{"skill":"a","l1":"法则","mode":"hybrid"}""",
-            """{"skill":"a","domain":"software","q":"Q","ids":["S-a-001"]}""");
+            L1("a", "法则"),
+            L2("a", "software", "Q", "S-a-001"));
 
         try
         {

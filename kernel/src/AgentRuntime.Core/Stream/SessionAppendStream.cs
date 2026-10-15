@@ -61,11 +61,19 @@ public sealed class SessionAppendStream
     /// </summary>
     public SessionEvent AppendPreservingTag(SessionEventKind kind, string text, string tag, string? source = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        // **空正文不写空事件**（2026-10-15 真机，查了两小时）：某条 append 喂了空串
+        //（真凶：工具输出为空 ⇒ <c>ToolRunner</c> 直接 <c>Sink.Append(ToolResult, "")</c>）
+        //   ⇒ 这里的断言抛 ArgumentException('text') ⇒ 冒泡到 <c>Program.Main</c> 的 config 分支
+        //   ⇒ **只打一行 [config]、退出码 2、不写转储、不写退出记录 = 无痕消失**。
+        //   运行时的写入口一律兜底成**显式事实**（点名 kind + source）⇒ 整轮不死、且现场自己说话。
+        // ⚠️ <see cref="SessionEvent"/> 构造里的断言**保留** —— 那是给**重放 / 坏数据**的 fail-closed 闸门。
+        var body = string.IsNullOrWhiteSpace(text)
+            ? $"[空正文] ⚠️ {kind} 事件正文为空 —— 不写空事件（来源 {source ?? "—"}；这是一条事实记录，不是内容）"
+            : text;
 
         lock (_gate)   // 写入口持锁：读者（`Snapshot`）才拿得到一张**自洽**的当拍表。
         {
-            var @event = new SessionEvent(_events.Count + 1, kind, text, source, tag);
+            var @event = new SessionEvent(_events.Count + 1, kind, body, source, tag);
             _events.Add(@event);
             return @event;
         }

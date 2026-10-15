@@ -60,11 +60,11 @@ public static class SnapshotService
             StreamCursor = streamCursor,
             StreamPath = streamPath ?? string.Empty,
             // V4 预留位 → V4.1 启用：焦点（Tag 列表）作为**事实**入账。
-            Focus = Core.Focus.FocusService.Normalize(focus),
+            Focus = Core.Focus.FocusService.Normalize(focus).ToArray(),
             // V4.2：白板正文（逐行）作为**事实**入账；旧快照缺字段走空默认。
-            CurrentTail = Core.Tail.CurrentTailService.Normalize(tail),
+            CurrentTail = Core.Tail.CurrentTailService.Normalize(tail).ToArray(),
             // V4.3：草稿正文（逐行）同规入账（R5 与 R4 同构）；旧快照缺字段走空默认。
-            DynamicDraft = Core.Draft.DraftService.Normalize(draft),
+            DynamicDraft = Core.Draft.DraftService.Normalize(draft).ToArray(),
             Pending = [],
             WorkerState = string.Empty,
             Model = model ?? string.Empty,
@@ -84,7 +84,7 @@ public static class SnapshotService
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(stream);
 
-        if (snapshot.Focus.Count == 0)
+        if (snapshot.Focus.Length == 0)
         {
             return [];
         }

@@ -48,7 +48,6 @@ public sealed class FrozenSnapshot
         var ordered = sections
             .OrderBy(s => FrozenZoneTopology.Rank(s.Zone))
             .ThenBy(s => (int)s.Layer)
-            .ThenBy(s => s.DomainId ?? string.Empty, StringComparer.Ordinal)
             .ToArray();
 
         foreach (var section in ordered)

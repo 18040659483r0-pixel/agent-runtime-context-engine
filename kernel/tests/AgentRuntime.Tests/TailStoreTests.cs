@@ -79,7 +79,7 @@ public sealed class TailStoreTests : IDisposable
 
         var state = loaded.ToState();
         Assert.Equal(new[] { "当前任务: 实现 R4", "待办: 闸门放宽" }, state.Lines);
-        Assert.Equal("[TAIL]\n当前任务: 实现 R4\n待办: 闸门放宽", state.Text);
+        Assert.Equal("[TAIL] " + CurrentTailService.OwnHeaderNote + "\n当前任务: 实现 R4\n待办: 闸门放宽", state.Text);
 
         // 落盘口径与账本同规：UTF-8 **无 BOM**、LF 结尾。
         var bytes = File.ReadAllBytes(store.PathFor("default"));
@@ -106,7 +106,7 @@ public sealed class TailStoreTests : IDisposable
         }
 
         var store = new CurrentTailStore(Directory);
-        Assert.EndsWith("default.json", store.PathFor(null), StringComparison.Ordinal);
-        Assert.EndsWith("s1.json", store.PathFor("s1"), StringComparison.Ordinal);
+        Assert.EndsWith("default.xml", store.PathFor(null), StringComparison.Ordinal);
+        Assert.EndsWith("s1.xml", store.PathFor("s1"), StringComparison.Ordinal);
     }
 }

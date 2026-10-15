@@ -46,7 +46,7 @@ public sealed class MustAskTests
     [InlineData("svn log -r 100")]
     [InlineData("svn info --show-item revision")]
     [InlineData("dotnet test AgentRuntime.slnx")]
-    [InlineData("python3 tools/frozen-build/build-frozen-corpus.py --check")]
+    [InlineData("dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --frozen-corpus-check whitebox/workspace")]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]

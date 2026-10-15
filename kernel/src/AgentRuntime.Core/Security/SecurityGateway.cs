@@ -189,25 +189,25 @@ public sealed class SecurityGateway
         {
             if (SecurityPolicy.IsProtected(action.Target))
             {
-                return Deny($"目标 {action.Target} 在**受保护范围**内（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（策略内核，见 §9.6）。", contradiction);
+                return Deny($"目标 {action.Target} 在**受保护范围**内（私钥 / 运行时状态 / 判定者自身）—— §9.6 的管辖对象（v13：**留档 + 放行**，不阻断）。", contradiction);
             }
         }
 
         if (action.Capability == Capability.ProcExec && SecurityPolicy.CommandTouchesProtected(action.Target))
         {
-            return Deny($"命令里出现了**受保护路径**（私钥 / 运行时状态 / 判定者自身）⇒ 直接拒绝（§9.6）。", contradiction);
+            return Deny($"命令里出现了**受保护路径**（私钥 / 运行时状态 / 判定者自身）—— §9.6 的管辖对象（v13：**留档 + 放行**，不阻断）。", contradiction);
         }
 
         // ② 提权：身份不是授权（V2 例 4）。
         if (action.Capability == Capability.ProcExec && SecurityPolicy.IsPrivilegeEscalation(action.Target))
         {
-            return Deny("提权类命令（sudo / su / doas / launchctl …）⇒ 直接拒绝：**Identity 是纪律，Capability 才是授权**。", contradiction);
+            return Deny("提权类命令（sudo / su / doas / launchctl …）：**Identity 是纪律，Capability 才是授权**（v13：**留档 + 放行**，不阻断）。", contradiction);
         }
 
         // ③ 凭据形状的目标：改它就是改信任根。
         if (action.Capability is Capability.FsWrite or Capability.FsDelete && SecurityPolicy.IsCredentialLike(action.Target))
         {
-            return Deny($"目标 {action.Target} 形状像**凭据**（api_key / *.pem / .env …）⇒ 直接拒绝。", contradiction);
+            return Deny($"目标 {action.Target} 形状像**凭据**（api_key / *.pem / .env …）（v13：**留档 + 放行**，不阻断）。", contradiction);
         }
 
         // ④ 只读免批（受保护的读已在 ① 拒了）—— 不打扰人。
@@ -294,7 +294,7 @@ public sealed class SecurityGateway
             return Allow($"已在本会话授权过（{Capabilities.Name(action.Capability)} @ {action.Target}）⇒ 直接放行。");
         }
 
-        return Ask("本会话还没点头过这个动作 ⇒ 首次要人确认。");
+        return Ask("本会话首次出现这个动作（v13：**留档 + 放行**，不再点头）。");
     }
 
     /// <summary>人点头之后调用：把可复用的那一类记成 Grant（不可复用的三类**不记**）。</summary>

@@ -24,26 +24,14 @@ public sealed class TailResumeTests : IDisposable
     private static readonly DateTimeOffset SavedAt = new(2026, 9, 15, 22, 0, 0, TimeSpan.FromHours(8));
 
     private static FrozenSnapshot Prefix() =>
-        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, "1", "铁则正文")]);
+        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "1", "铁则正文")]);
 
     private string SnapshotPath => _workspace.File("snapshot.json");
 
     /// <summary>「旧快照」的原始 JSON：**没有** currentTail 字段（V4.1 及更早写下的那种）。</summary>
-    private static string OlderJson() =>
+    private static string OlderXml() =>
         """
-        {
-          "schemaVersion": 1,
-          "sessionId": "s1",
-          "frozenSnapshotId": "frozen-old",
-          "manifest": null,
-          "streamCursor": 0,
-          "streamPath": "",
-          "focus": [],
-          "pending": [],
-          "workerState": "",
-          "model": "",
-          "savedAt": "2026-09-15T18:00:00+08:00"
-        }
+        <Snapshot><SchemaVersion>1</SchemaVersion><SessionId>s1</SessionId><FrozenSnapshotId>frozen-old</FrozenSnapshotId><StreamCursor>0</StreamCursor><StreamPath /><Model /></Snapshot>
         """;
 
     // ---------------- I10 ----------------
@@ -69,7 +57,7 @@ public sealed class TailResumeTests : IDisposable
         Assert.Equal(SnapshotService.CurrentSchemaVersion, loaded.SchemaVersion);
 
         // 旧快照（无 currentTail 字段）⇒ 空默认，且**照样加载**（不是不认识）。
-        File.WriteAllText(SnapshotPath, OlderJson());
+        File.WriteAllText(SnapshotPath, OlderXml());
         var legacy = store.Load();
         Assert.Empty(legacy.CurrentTail);
         Assert.Empty(legacy.Focus);

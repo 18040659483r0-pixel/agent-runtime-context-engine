@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CurrentTail xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <SessionId>default</SessionId>
+  <Tail xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:string>当前任务: 给 TUI 做零成本演示</d2p1:string>
+    <d2p1:string>待办: 看右栏的 Δ</d2p1:string>
+  </Tail>
+  <Source>manual</Source>
+  <Turn>0</Turn>
+  <UpdatedAt xmlns:d2p1="http://schemas.datacontract.org/2004/07/System">
+    <d2p1:DateTime>2026-10-14T12:44:31.978193Z</d2p1:DateTime>
+    <d2p1:OffsetMinutes>480</d2p1:OffsetMinutes>
+  </UpdatedAt>
+</CurrentTail>

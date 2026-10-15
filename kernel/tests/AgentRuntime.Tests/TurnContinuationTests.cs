@@ -24,7 +24,10 @@ public sealed class TurnContinuationTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private const string ToolAsk = "[TOOL] exec {\"command\":\"echo hi\"}";
+    // 主人 2026-09-29 20:0x 令：master 面已剥到只剩只读（`[Index, Scope]`）⇒ 「工具是否被拒」不再看那一个需批工具，
+    // 而看「一条**不允许**的动作」（MasterDeniedCall = **未登记的工具名** —— fail-closed 拒）。
+    // 判据不变：它仍是一条会**落结果的调用**（ToolDenied 也算结果 ⇒ 续跑判据只看流）。
+    private static readonly string ToolAsk = ToolFaceProbe.MasterDeniedCall();
 
     /// <summary>测试台：临时工作区 + 假模型（**按序**回放多轮回复）+ 真宿主（默认非交互审批 ⇒ 一律拒）。</summary>
     private sealed class Bench : IDisposable
@@ -36,7 +39,7 @@ public sealed class TurnContinuationTests
         public Bench(params string[] replies)
         {
             _replies = replies;
-            _harness = new TuiHarness("turn-continuation", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+            _harness = new TuiHarness("turn-continuation", modules: ["rules","append-stream","tool"]);
             Client = new FakeModelClient((_, _) => Task.FromResult(Response(_replies[Math.Min(_index++, _replies.Length - 1)])));
             Host = RuntimeHost.BootWith(http: null, Client, _harness.Config);
         }
@@ -84,7 +87,7 @@ public sealed class TurnContinuationTests
     // ---------------- ② 结果落地 ⇒ 续跑；模型不点工具 ⇒ 自己停 ----------------
 
     [Fact]
-    public async Task 工具结果落地就续跑_模型不再点工具就自己停()
+    public async Task 工具结果落地就续跑_没有终局就一直续到上限()
     {
         using var b = new Bench(ToolAsk, "好了，没有别的动作。");
 
@@ -93,27 +96,16 @@ public sealed class TurnContinuationTests
         Assert.True(b.Host.HasToolOutcomeSince(cursor));      // 工具被拒 ⇒ 也是结果，也落进流
 
         var trace = new List<string>();
+        var bounded = ContinuationSettings.Default with { MaxRounds = 2 };   // 默认续 ⇒ 用它收口（不再"沉默即停"）
         var ran = await TurnContinuation.RunAsync(
-            b.Host, cursor, ContinuationSettings.Default, new ContinuationBudget(),
+            b.Host, cursor, bounded, new ContinuationBudget(),
             step: token => b.Host.ContinueTurnAsync(cancellationToken: token),
             trace: trace.Add, cancellationToken: Ct);
 
-        Assert.Equal(1, ran);                                 // 接了一轮
-        Assert.Equal(2, b.Client.CallCount);
+        Assert.True(ran >= 1, $"默认续：至少接一轮（实际 {ran}）");   // 2026-10-06：默认续（不再"沉默即停"）
+        Assert.True(b.Client.CallCount >= 2);                 // 首轮 + 至少一轮续轮
         Assert.Contains(trace, line => line.Contains("第 1 轮", StringComparison.Ordinal));
-
-        // **自己停**：不是被上限/预算停的 —— 两个兜底理由都不许出现。
-        Assert.DoesNotContain(trace, line => line.Contains("安全上限", StringComparison.Ordinal));
-        Assert.DoesNotContain(trace, line => line.Contains("执行预算", StringComparison.Ordinal));
-
-        // 再问一次（此时模型已经不点工具了）⇒ 判据为假 ⇒ 不再接。
-        var again = await TurnContinuation.RunAsync(
-            b.Host, b.Host.StreamCount, ContinuationSettings.Default, new ContinuationBudget(),
-            step: token => b.Host.ContinueTurnAsync(cancellationToken: token),
-            trace: trace.Add, cancellationToken: Ct);
-
-        Assert.Equal(0, again);
-        Assert.Equal(2, b.Client.CallCount);                 // 没有多问第三次
+        Assert.Contains(trace, line => line.Contains("安全上限", StringComparison.Ordinal));   // 收口靠上限（安全阀）
     }
 
     private static IReadOnlyList<string> Hints(RuntimeHost host) =>

@@ -1,6 +1,8 @@
+using System.Reflection;
 using AgentRuntime.Core;
 using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Skill;
+using AgentRuntime.Models;
 using System.Text;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
@@ -27,14 +29,78 @@ public sealed class TuiSplitTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    /// <summary>
+    /// 帧基线类测试要**确定性的单轮**：2026-10-06 起宿主**默认续**（协议第 6 条），
+    /// 不停的话帧会停在「续跑中」，帧字节每轮都在变 ⇒ 基线必然失真。
+    /// **呈现测试与语义测试分家**：这里只关自动接续，语义（默认续）由 TurnPulse/TurnContinuation 两组判。
+    /// </summary>
     private static SplitSession NewSession(TuiHarness h, AgentRuntime.Core.Session.TuiStateStore? tuiState = null) =>
-        new(h.Host, h.Ledger, h.Router, verbose: false, tuiState: tuiState);
+        new(h.Host, h.Ledger, h.Router, verbose: false,
+            continuation: AgentRuntime.Hosting.ContinuationSettings.Off, tuiState: tuiState);
 
     private static SplitRegionRow Row(SplitFrame frame, StackRegion region) =>
         frame.Regions.Single(r => r.Region == region);
 
-    // ---------------- T1 ----------------
+    /// <summary>
+    /// **单轮 provider 失败 ≠ 退出进程**（2026-10-15 主人令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
+    /// 提示即可，不需要退出」）。
+    /// <para>从前只有 split 这条路没人接 <see cref="ModelClientException"/>（plain 早接住了：<c>RunPlainAsync</c>
+    /// 每轮 catch 后 continue）⇒ 异常一路冒到 <c>Main</c> ⇒ **整只 TUI 退出（退出码 3）**；真机 2026-10-15 12:01 / 12:18 两次。</para>
+    /// <para>本夹具要四件事：① 不抛；② 屏上有提示；③ **进流留痕**；④ 会话仍在跑。</para>
+    /// </summary>
+    [Fact]
+    public async Task Split_单轮provider超时不退出_只提示且会话继续()
+    {
+        var calls = 0;
+        var client = new FakeModelClient((_, _) => ++calls == 1
+            ? Task.FromException<ChatResponse>(
+                new ModelClientException("请求超时（300s）：https://api.deepseek.com/chat/completions"))
+            : Task.FromResult(new ChatResponse
+            {
+                Id = "fake-2",
+                Model = "fake-model",
+                Choices =
+                [
+                    new ChatChoice { Index = 0, Message = ChatMessage.Assistant("第二句收到"), FinishReason = "stop" },
+                ],
+                Usage = new TokenUsage { PromptTokens = 3, CompletionTokens = 4, TotalTokens = 7 },
+            }));
 
+        using var h = new TuiHarness("split-provider-timeout", client: client);
+        var session = NewSession(h);
+        await session.StartAsync(Ct);
+
+        // ① 不抛（旧代码在这里把异常冒到 Main ⇒ 退出码 3）。
+        await session.SubmitAsync("第一句", Ct);
+
+        // ② 屏上明说「请求失败、会话继续、任务不中断」。
+        Assert.Contains(session.Conversation, e => e.Text.Contains("本轮请求失败", StringComparison.Ordinal));
+
+        // ③ 进流留痕（与「用户中断」同一通道）：模型下轮才看得见这一轮没完成，不会把接续当新任务。
+        var stream = File.ReadAllText(h.Workspace.File("stream.jsonl"));
+        Assert.Contains("没有完成", stream, StringComparison.Ordinal);
+
+        // ④ 会话真的还在跑：第二句拿到正常回复。
+        await session.SubmitAsync("第二句", Ct);
+        Assert.Equal(2, calls);
+    }
+
+    /// <summary>
+    /// **提示点是「只看不砍」**（主人 2026-10-15 令）：到了 5 分钟只**出一行**，不取消、不放弃（≠ 放弃这一轮）。
+    /// 边界用纯函数钉住，不用真等 5 分钟。
+    /// </summary>
+    [Fact]
+    public void Split_提示点_到了才提示且只看不砍()
+    {
+        Assert.Equal(300, AgentRuntime.Core.Worker.PaceWall.NoticeSeconds);   // 5 分钟（唯一家）
+
+        var t0 = 1_000_000L;
+        Assert.False(SplitSession.WaitNoticeDue(t0, t0 + SplitSession.TurnWaitNoticeMs - 1));
+        Assert.True(SplitSession.WaitNoticeDue(t0, t0 + SplitSession.TurnWaitNoticeMs));
+        Assert.False(SplitSession.WaitNoticeDue(0, long.MaxValue));           // 没开始 ⇒ 不提示
+    }
+
+    // ---------------- T1 ----------------
     [Fact]
     public async Task Split_T1_帧里的字节就是真发出去的那一份()
     {
@@ -75,6 +141,44 @@ public sealed class TuiSplitTests
 
         var after = PromptBytes.Sha256Of(await h.Host.PreviewRequestAsync("第二句", Ct));
         Assert.Equal(before, after);
+    }
+
+    /// <summary>
+    /// **T1 的逐轮闸门**（2026-10-14 立）：一条自动接续链里**每一轮**（工具轮 / 收口轮 / 报告轮）落地时，
+    /// 「预览组装的指纹」都必须等于「实发请求的指纹」。出现一次 `T1 破线` 就是红。
+    /// <para>为什么要有它：破线样本**全是偶发**（只在真任务的多轮工具链上出现，mock 快跑一次都不出现），
+    /// 靠人眼在真机蹲守抓不住；把它变成一条**确定性可复现**的驱动，这处才不会静默回归（闸门要有牙）。</para>
+    /// </summary>
+    [Fact]
+    public async Task Split_T1_多轮工具链_逐轮预览与实发不破线()
+    {
+        // 模型**每轮都点工具**（未登记工具名 ⇒ fail-closed 拒，仍是「落进流的结果」）⇒ 只能靠上限收口，
+        // 于是这条链必然跑到「多轮工具链 + 收口轮 + 报告轮」（不依赖人的节奏）。
+        using var h = new TuiHarness(
+            "split-t1-chain",
+            modules: ["rules", "append-stream", "tool"],
+            replies: [ToolFaceProbe.MasterDeniedCall()]);
+
+        var session = new SplitSession(
+            h.Host, h.Ledger, h.Router, verbose: false,
+            continuation: ContinuationSettings.Default with { MaxRounds = 2 });
+
+        await session.StartAsync(Ct);
+        await session.SubmitAsync("动手", Ct);
+
+        // ① 链路真跑起来了（否则下面是**空绿**）：1 首轮 + 2 续跑 + 3 收口 + 1 边界报告轮。
+        Assert.Equal(1 + 2 + TurnContinuation.CapCloseoutRounds + 1, h.Client.CallCount);
+
+        // ② 逐轮都不许破线。主读数是**结构源**（每轮的比对结果计数），人读那行文案只作旁证。
+        Assert.Equal(0, session.T1BreakCount);
+        Assert.DoesNotContain(
+            session.Conversation,
+            e => e.Text.Contains("T1 破线", StringComparison.Ordinal));
+
+        // ③ **结构性保证**（本轮根因修复）：发出去的那一份就是屏上显示的那一份 ——
+        //    **同一个对象**，不是「同样的输入再组装一遍」。两次组装之间世界变了（worker 池状态 /
+        //    流逝秒数 / 后到的异步事件），旧写法就会破线；现在这条钉住它不可能再发生。
+        Assert.Same(session.Shown!.Request, h.Client.LastRequest);
     }
 
     [Fact]
@@ -421,17 +525,23 @@ public sealed class TuiSplitTests
 
         Assert.Contains("合计", text, StringComparison.Ordinal);
         Assert.Contains("本 task", text, StringComparison.Ordinal);
-        Assert.Contains("agent-runtime > ", text, StringComparison.Ordinal);
+        // 2026-10-06：默认续 ⇒ 帧里可能停在"续跑中"的状态行（不再是裸提示符）⇒ 只要求顶框带运行时标识。
+        Assert.Contains("agent-runtime", text, StringComparison.Ordinal);
 
-        // ③ 单栏：顶框一条线到底（**没有分缝 ┬**），每行两端都是框线（不错位）。
-        Assert.Contains(lines, l => l.StartsWith('┌') && l.EndsWith('┐'));
-        Assert.DoesNotContain(lines, l => l.Contains('┬'));
-        Assert.All(lines, l => Assert.Contains(l[0], "┌│├└"));
-        Assert.All(lines, l => Assert.Contains(l[^1], "┐│┤┘"));
+        // ③ **无边框版式**（主人 2026-10-14）：整帧不画框 —— 块与块之间靠**固定位置的 `ⓘ` 提示行**分割
+        //    （第 0 行 = 标题行；顶块内容之后 = 「对话（全宽）」行），与底部状态条同一种自然分割。
+        Assert.StartsWith("ⓘ ", lines[0], StringComparison.Ordinal);
+        Assert.StartsWith("ⓘ ", lines[layout.TopBandRows - 1], StringComparison.Ordinal);
+        Assert.Contains("对话", lines[layout.TopBandRows - 1], StringComparison.Ordinal);
 
-        // ④ 首条分隔线 = 顶框的下框线；正文从它下面开始。
-        var divider = lines.ToList().FindIndex(l => l.Contains('├') && l.Contains('┤'));
-        Assert.Equal(layout.TopBandRows - 1, divider);
+        // 没有任何「整行横线」（旧的上框 / 下框 / 中线都是整行横线）。
+        Assert.DoesNotContain(lines, l => l.TrimEnd().Length > 0
+            && l.TrimEnd().All(c => c is '─' or '┌' or '┐' or '└' or '┘' or '├' or '┤' or '┬' or '┴'));
+
+        // ④ 正文从那条提示行的**下一行**开始（顶块固定不随正文滚动）。
+        Assert.Equal(height, lines.Count);
+        Assert.True(layout.BodyRows > 0, "正文区必须还有行");
+        Assert.DoesNotContain("ⓘ ", lines[layout.TopBandRows], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -621,7 +731,8 @@ public sealed class TuiSplitTests
         });
         using var host = RuntimeHost.BootWith(http: null, hanging, h.Config);
         var router = new PanelRouter(host, h.Ledger, h.Ablation);
-        var session = new SplitSession(host, h.Ledger, router, verbose: false, tuiState: null);
+        // 2026-10-06：默认续会让帧停在"续跑中"⇒ 帧基线类测试要**确定性的单轮**（关自动接续）。
+        var session = new SplitSession(host, h.Ledger, router, verbose: false, continuation: ContinuationSettings.Off, tuiState: null);
         await session.StartAsync(Ct);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -741,14 +852,15 @@ public sealed class TuiSplitTests
         var layout = new SplitLayout(96, 30);
         var lines = SplitRenderer.Render(session.Frame(96, 30));
 
-        // 尺寸精确；正文从顶框下框线的下一行开始（不留半屏空白），抬头行有内容。
+        // 尺寸精确；抬头行 = **「对话（全宽）」提示行**（无边框版式里它就是顶块的最后一行）；
+        // 正文从它的下一行开始（不留半屏空白）。
         Assert.Equal(30, lines.Count);
-        Assert.Contains("对话", lines[layout.TopBandRows], StringComparison.Ordinal);
+        Assert.Contains("对话", lines[layout.TopBandRows - 1], StringComparison.Ordinal);
         Assert.Contains(lines, l => l.Contains("agent-runtime > ", StringComparison.Ordinal));
 
-        // 正文区行数 = BodyRows（顶框 + 正文 + 分隔 + 状态条 + 输入 + 下框 = 高）。
+        // 正文区行数 = BodyRows（顶块含首尾两条提示行 + 正文 + 状态条 + 输入 = 高）。
         Assert.Equal(
-            layout.TopBandRows + layout.BodyRows + 1 + SplitLayout.StripRowsFor(30) + layout.InputRows + 1,
+            layout.TopBandRows + layout.BodyRows + SplitLayout.StripRowsFor(30) + layout.InputRows,
             lines.Count);
     }
 
@@ -841,152 +953,26 @@ public sealed class TuiSplitTests
         Assert.Null(defaults.Cols);
     }
 
-    // ---------------- 「专家」行（主人 2026-09-22 令）----------------
-
-    /// <summary>手造一个 R1 层（只为「专家」行纯函数测试；段 id 逐字给）。</summary>
-    private static StackLayer R1With(params string[] segmentIds) =>
-        new(StackRegion.R1, 2, "R1", "冷冻区", [], 1, "fp", "v1",
-            [.. segmentIds.Select(id => new StackSegment(id, "1", 1, "fp"))], segmentIds.Length, "文本");
-
-    /// <summary>「专家」行的一项（id + 字节）—— 字节只决定 ≈token 显示。</summary>
-    private static ExpertDomain Expert(string id, int bytes = 4) => new(id, bytes);
-
-    /// <summary>带「专家」域清单的帧（96×30 = 最高档）。</summary>
-    private static SplitFrame FrameWithExperts(IReadOnlyList<ExpertDomain> domains) => new()
-    {
-        Title = "AgentRuntime TUI",
-        Subtitle = "t",
-        Conversation = [],
-        Regions = [],
-        ExpertDomains = domains,
-        Totals = new SplitTotals(0, 0, null),
-        RequestNote = string.Empty,
-        Menu = [],
-        MenuSelection = 0,
-        DetailLines = [],
-        DetailScroll = 0,
-        ConversationScroll = 0,
-        Input = string.Empty,
-        InputRows = SplitLayout.InputPanelRowsFor(30),
-        Caret = 0,
-        Focus = PaneFocus.Input,
-        Width = 96,
-        Height = 30,
-    };
-
-    [Fact]
-    public void 专家域_只认真的装进R1的段_次序按预设域()
-    {
-        // 段次序故意与预设次序相反：**同占用**时输出回到 `KnowledgeDomains` 的展示次序。
-        var layers = new[] { R1With("knowledge.expert.finance", "knowledge.expert.software") };
-        Assert.Equal(["software", "finance"], StackPanel.ExpertDomains(layers).Select(d => d.Id));
-
-        // global 段 / 别的区 / 空 ⇒ 一个都不报（配了不等于装了）。
-        Assert.Empty(StackPanel.ExpertDomains([R1With("rules.global", "knowledge.global")]));
-        Assert.Empty(StackPanel.ExpertDomains([]));
-    }
-
-    [Fact]
-    public void 专家域_技能常驻层的域按预设次序()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "wb-expert-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        File.WriteAllText(
-            Path.Combine(dir, "l1.jsonl"),
-            """{"skill":"a","l1":"法则 A"}""",
-            new UTF8Encoding(false));
-        File.WriteAllText(
-            Path.Combine(dir, "l2.jsonl"),
-            """
-            {"skill":"a","domain":"photography","q":"问题一","ids":["S-a-001"]}
-            {"skill":"a","domain":"software","q":"问题二","ids":["S-a-002"]}
-            {"skill":"b","domain":"software","q":"问题三","ids":["S-b-001"]}
-            """,
-            new UTF8Encoding(false));
-
-        try
-        {
-            var resident = SkillResident.Load(dir);
-            var only = StackPanel.ExpertDomains([], resident);
-            Assert.Equal(["software", "photography"], only.Select(d => d.Id));
-            Assert.True(only[0].Bytes > only[1].Bytes, "按占用降序：software 两行 > photography 一行");
-
-            // 冻结 Expert 段 ∪ 常驻域：同名只出现一次（字节**相加**）。
-            var layers = new[] { R1With("knowledge.expert.software") };
-            var merged = StackPanel.ExpertDomains(layers, resident);
-            Assert.Equal(["software", "photography"], merged.Select(d => d.Id));
-            Assert.Equal(only[0].Bytes + 1, merged[0].Bytes);
-        }
-        finally
-        {
-            Directory.Delete(dir, recursive: true);
-        }
-    }
-
-    [Fact]
-    public void 专家行_高档显示_低档不占行_未装载要如实说()
-    {
-        // 96×30（最高档）：区栈与白板之间多一行「专家」；**每类带自己的 ≈token**（4 字节 ⇒ ≈1）。
-        // 次序由宿主给（占用降序）—— 渲染不再排序，屏上就是宿主那一份。
-        var lines = SplitRenderer.Render(FrameWithExperts([Expert("software", 400), Expert("ops", 40)]));
-        Assert.Contains("专家 | 软件 ≈100 | 流程 ≈10", string.Join("\n", lines), StringComparison.Ordinal);
-
-        // 屏面用**短名**（主人 2026-09-22 定），id 仍进账本：未知名回落 id，绝不编名字。
-        Assert.Equal("凭据", Expert("security").Label);
-        Assert.Equal("某新域", Expert("某新域").Label);
-
-        // 屏上的数字 = **真装进 R1 的那份字节 ÷ 4**（唯一一条：与 prompt 同源，不另算）。
-        var domainBytes = SkillResident.Load(
-            Path.Combine(RepoRoot(), "whitebox/workspace/knowledge/.derived")).DomainBytes();
-        var shown = StackPanel.ExpertDomains([], SkillResident.Load(
-            Path.Combine(RepoRoot(), "whitebox/workspace/knowledge/.derived")));
-        Assert.All(shown, d => Assert.Equal(domainBytes[d.Id] / 4, d.ApproxTokens));
-        Assert.Equal(shown.OrderByDescending(d => d.Bytes).Select(d => d.Id), shown.Select(d => d.Id));
-
-        // 一个都没装 ⇒ 如实写「（未装载）」，不许写预设清单。
-        Assert.Contains(
-            "专家 | （未装载）",
-            string.Join("\n", SplitRenderer.Render(FrameWithExperts([]))),
-            StringComparison.Ordinal);
-
-        // 80×24（中档）：这一行不占地方（版式档位决定，不是内容决定）。
-        var mid = FrameWithExperts([Expert("software")]);
-        var midLines = SplitRenderer.Render(new SplitFrame
-        {
-            Title = mid.Title,
-            Subtitle = mid.Subtitle,
-            Conversation = [],
-            Regions = [],
-            ExpertDomains = mid.ExpertDomains,
-            Totals = mid.Totals,
-            RequestNote = mid.RequestNote,
-            Menu = [],
-            MenuSelection = 0,
-            DetailLines = [],
-            DetailScroll = 0,
-            ConversationScroll = 0,
-            Input = string.Empty,
-            InputRows = SplitLayout.InputPanelRowsFor(24),
-            Caret = 0,
-            Focus = PaneFocus.Input,
-            Width = 80,
-            Height = 24,
-        });
-        Assert.DoesNotContain("专家", string.Join("\n", midLines), StringComparison.Ordinal);
-        Assert.All(midLines, l => Assert.Equal(80, TerminalText.WidthOf(l)));
-    }
-
-    /// <summary>仓库根（测试运行目录在 bin/ 下，往上找到含 `whitebox/` 的那层）。</summary>
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "whitebox")))
-        {
-            dir = dir.Parent;
-        }
-
-        return dir?.FullName ?? throw new InvalidOperationException("找不到仓库根（含 whitebox/ 的那层）。");
-    }
 
     private static string Flatten(IEnumerable<string> lines) => string.Join("\n", lines);
+
+    [Fact]
+    public async Task 逐轮重复的同句info行_只铺一次_换了内容照旧铺()
+    {
+        using var h = new TuiHarness("split-info-dedupe", modules: ["rules", "append-stream"]);
+        var session = NewSession(h);
+        await session.StartAsync(Ct);
+
+        var probe = typeof(SplitSession).GetMethod("IsRepeatedInfo", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var conv = typeof(SplitSession).GetProperty("Conversation")!.GetValue(session)!;
+        var addEntry = conv.GetType().GetMethod("Add")!;
+
+        var entryType = typeof(ConversationEntry);
+        var entry = entryType.GetConstructors()[0].Invoke(["info", "[task 收尾] 同一句（带 memory/… handoff/… 地址）"]);
+
+        Assert.False((bool)probe.Invoke(session, ["[task 收尾] 同一句（带 memory/… handoff/… 地址）"])!);
+        addEntry.Invoke(conv, [entry]);
+        Assert.True((bool)probe.Invoke(session, ["[task 收尾] 同一句（带 memory/… handoff/… 地址）"])!);   // 同句 ⇒ 跳过
+        Assert.False((bool)probe.Invoke(session, ["另一句不同的话"])!);                                    // 换了内容 ⇒ 照铺
+    }
 }

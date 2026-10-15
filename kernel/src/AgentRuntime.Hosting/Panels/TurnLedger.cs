@@ -1,22 +1,28 @@
 using System.Globalization;
+using System.Runtime.Serialization;
 using System.Text;
-using System.Text.Json;
 using AgentRuntime.Core;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Hosting.Panels;
 
 /// <summary>一轮的命中账（P2 的一行）。</summary>
+/// <remarks>
+/// 字段全是数字 ⇒ 落盘片段必为**单行** ⇒ 本账本可以按行读 + 坏行跳过
+/// （而事件流的正文可能含换行，所以那边必须用片段读）。
+/// </remarks>
+[DataContract(Name = "Turn", Namespace = "")]
 public sealed record TurnRecord(
-    int Turn,
-    int Messages,
-    int PromptTokens,
-    int CachedTokens,
-    int UncachedTokens,
-    int CompletionTokens,
-    double HitRate,
-    int BlockRemainder,
-    double RuntimeOverheadMs,
-    double TotalMs);
+    [property: DataMember(Order = 0)] int Turn,
+    [property: DataMember(Order = 1)] int Messages,
+    [property: DataMember(Order = 2)] int PromptTokens,
+    [property: DataMember(Order = 3)] int CachedTokens,
+    [property: DataMember(Order = 4)] int UncachedTokens,
+    [property: DataMember(Order = 5)] int CompletionTokens,
+    [property: DataMember(Order = 6)] double HitRate,
+    [property: DataMember(Order = 7)] int BlockRemainder,
+    [property: DataMember(Order = 8)] double RuntimeOverheadMs,
+    [property: DataMember(Order = 9)] double TotalMs);
 
 /// <summary>
 /// **P2 · 命中账本** —— 每轮 prompt / cached / uncached / 命中率 / 块对齐余数 / Runtime 开销。
@@ -78,11 +84,11 @@ public sealed class TurnLedger
     // ---------------- 落盘（F：用量账本） ----------------
 
     /// <summary>
-    /// **把这一轮追加进账本文件**（JSONL，一行一轮 ⇒ 只追加、可复算、坏行不影响前面）。
+    /// **把这一轮追加进账本文件**（XML 片段，一行一轮 ⇒ 只追加、可复算、坏行不影响前面）。
     /// <para>
     /// 为什么要落盘（2026-09-22）：用量以前**只在内存**（面板在用），一旦进程结束就没了 ——
     /// 于是收尾报告只能写「用量 —」，而**能效类改动没法做回归**（只能从字节反推估算）。
-    /// 账本随**流卷**走（<c>&lt;stream&gt;.usage.jsonl</c>）：一次 <c>reset/start</c> 换一卷，
+    /// 账本随**流卷**走（<c>&lt;stream&gt;.usage.xml</c>）：一次 <c>reset/start</c> 换一卷，
     /// 账也跟着分卷，不混两节的钱。
     /// </para>
     /// </summary>
@@ -96,7 +102,7 @@ public sealed class TurnLedger
             Directory.CreateDirectory(dir);
         }
 
-        File.AppendAllText(path, JsonSerializer.Serialize(record, JsonOptions) + "\n", Utf8NoBom);
+        File.AppendAllText(path, DataContractXml.ToFragment(record) + "\n", Utf8NoBom);
     }
 
     /// <summary>
@@ -122,12 +128,9 @@ public sealed class TurnLedger
 
                 try
                 {
-                    if (JsonSerializer.Deserialize<TurnRecord>(line, JsonOptions) is { } r)
-                    {
-                        records.Add(r);
-                    }
+                    records.Add(DataContractXml.FromFragment<TurnRecord>(line));
                 }
-                catch (JsonException)
+                catch (InvalidDataException)
                 {
                     // 坏行 ⇒ 跳过（账本是只追加的，一条坏不能把整卷丢掉）。
                 }
@@ -161,12 +164,10 @@ public sealed class TurnLedger
             + $" · 耗时合计 {ms.ToString("N0", CultureInfo.InvariantCulture)}ms";
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
-
     /// <summary>
     /// **不写 BOM** 的 UTF-8 —— <c>Encoding.UTF8</c> 在**新建文件**时会先写 BOM（EF BB BF）⇒
-    /// 首行就不是严格 JSON 了（.NET 的 <c>File.ReadLines</c> 会自动吞掉 BOM 所以自己读没事，
-    /// 但 **Python / jq / grep 这类外部复算工具会当场报错** —— 账本是要给人复算的，不能带 BOM）。
+    /// 首字节就不是严格文本了（.NET 的 <c>File.ReadLines</c> 会自动吞掉 BOM 所以自己读没事，
+    /// 但 **grep / 解析工具会当场报错** —— 账本是要给人复算的，不能带 BOM）。
     /// </summary>
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 

@@ -1,6 +1,4 @@
-using System.Text;
-using System.Text.Json;
-using AgentRuntime.Core.Frozen;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Core.Snapshot;
 
@@ -11,16 +9,13 @@ namespace AgentRuntime.Core.Snapshot;
 /// 也不给 Append（快照是**整份**账本，不是流水）。要换内容就再 <see cref="Save"/> 一份。
 /// </para>
 /// <para>
-/// <b>原子写</b>：同目录临时文件写完再 <c>File.Move(..., overwrite: true)</c>（同一文件系统内的 rename）。
-/// 于是任何时刻**目标路径要么是旧的完整快照、要么是新的完整快照**，绝不会出现半截 JSON ——
-/// 断电/崩溃时也不会把上一份能用的恢复点弄坏。
+/// <b>原子写</b>：同目录临时文件写完再 rename。于是任何时刻**目标路径要么是旧的完整快照、
+/// 要么是新的完整快照**，绝不会出现半截文件 —— 断电/崩溃时也不会把上一份能用的恢复点弄坏。
 /// </para>
-/// <para>落盘口径与冻结区账本一致：UTF-8 **无 BOM**、LF、字段序固定、可 diff（复用 <see cref="FrozenJson"/>）。</para>
+/// <para>落盘口径：UTF-8 **无 BOM**、LF、字段序固定（<c>Order</c>）、可 diff（<see cref="DataContractXml"/>）。</para>
 /// </summary>
 public sealed class SnapshotStore
 {
-    private static readonly JsonSerializerOptions Options = FrozenJson.Options;
-
     public SnapshotStore(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -43,20 +38,7 @@ public sealed class SnapshotStore
             throw new FileNotFoundException($"找不到快照文件：{Path}", Path);
         }
 
-        RuntimeSnapshot? snapshot;
-        try
-        {
-            snapshot = JsonSerializer.Deserialize<RuntimeSnapshot>(File.ReadAllText(Path, Encoding.UTF8), Options);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidDataException($"快照文件不是合法 JSON：{Path}（{ex.Message}）", ex);
-        }
-
-        if (snapshot is null)
-        {
-            throw new InvalidDataException($"快照内容为空：{Path}");
-        }
+        var snapshot = DataContractXml.ReadFile<RuntimeSnapshot>(Path);
 
         if (snapshot.SchemaVersion != SnapshotService.CurrentSchemaVersion)
         {
@@ -64,42 +46,24 @@ public sealed class SnapshotStore
                 $"快照 schemaVersion={snapshot.SchemaVersion} 不受支持（当前支持 {SnapshotService.CurrentSchemaVersion}）：{Path}。拒绝加载。");
         }
 
-        return snapshot;
+        // 旧快照缺字段 ⇒ 归一成空默认（序列化器不跑构造函数 ⇒ 缺元素读出 null）。
+        return snapshot with
+        {
+            FrozenSnapshotId = snapshot.FrozenSnapshotId ?? string.Empty,
+            StreamPath = snapshot.StreamPath ?? string.Empty,
+            WorkerState = snapshot.WorkerState ?? string.Empty,
+            Model = snapshot.Model ?? string.Empty,
+            Focus = snapshot.Focus ?? [],
+            CurrentTail = snapshot.CurrentTail ?? [],
+            DynamicDraft = snapshot.DynamicDraft ?? [],
+            Pending = snapshot.Pending ?? [],
+        };
     }
 
-    /// <summary>原子写入（临时文件 + 改名）；失败不留半成品，目标路径不出现残缺 JSON。</summary>
+    /// <summary>原子写入（临时文件 + 改名）；失败不留半成品，目标路径不出现残缺文件。</summary>
     public void Save(RuntimeSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-
-        var directory = System.IO.Path.GetDirectoryName(Path);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        // 结尾补 LF（与冻结区账本同规），并归一化换行 → 跨端逐字节一致。
-        var json = JsonSerializer.Serialize(snapshot, Options).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
-        var temporary = $"{Path}.tmp-{Guid.NewGuid():N}";
-
-        try
-        {
-            File.WriteAllText(temporary, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            File.Move(temporary, Path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-            {
-                try
-                {
-                    File.Delete(temporary);
-                }
-                catch (IOException)
-                {
-                    // 清理失败不掩盖原始异常（残留临时文件比半截快照安全得多）。
-                }
-            }
-        }
+        DataContractXml.WriteFileAtomic(Path, snapshot);
     }
 }

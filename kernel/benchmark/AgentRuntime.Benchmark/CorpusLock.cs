@@ -1,7 +1,8 @@
+using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Xml.Serialization;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Benchmark;
 
@@ -22,12 +23,6 @@ namespace AgentRuntime.Benchmark;
 /// </summary>
 public static class CorpusLock
 {
-    private static readonly JsonSerializerOptions LockJson = new(JsonSerializerDefaults.Web)
-    {
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     /// <summary>
     /// **唯一禁字清单**（单一来源，2026-09-17「B 方案」）：`tools/pre-publish-patterns.txt`。
     /// <para>
@@ -71,7 +66,7 @@ public static class CorpusLock
         }
 
         // ① 来源白名单
-        foreach (var (id, raw) in corpus.Sources.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        foreach (var (id, raw) in corpus.SourceMap.OrderBy(kv => kv.Key, StringComparer.Ordinal))
         {
             var normalized = raw.Replace('\\', '/').Trim();
             if (Path.IsPathRooted(normalized) || normalized.StartsWith('~'))
@@ -107,13 +102,13 @@ public static class CorpusLock
         Dictionary<string, string> pinned;
         if (!File.Exists(lockPath))
         {
-            violations.Add($"缺锁文件 {spec.FingerprintFile}（生成：python3 benchmark/tools/lock-corpus.py --update）");
+            violations.Add($"缺锁文件 {spec.FingerprintFile}（生成：dotnet run --project benchmark/AgentRuntime.Benchmark -- lock-corpus --update）");
             pinned = new Dictionary<string, string>(StringComparer.Ordinal);
         }
         else
         {
-            pinned = JsonSerializer.Deserialize<CorpusLockFingerprints>(File.ReadAllText(lockPath, Encoding.UTF8), LockJson)
-                        ?.Files ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            pinned = DataContractXml.ReadFile<CorpusLockDoc>(lockPath).Files
+                        .ToDictionary(e => e.Rel, e => e.Sha256, StringComparer.Ordinal);
         }
 
         var leakPatterns = LeakPatterns(configDir);
@@ -136,7 +131,7 @@ public static class CorpusLock
             var hash = "sha256:" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             if (pinned.TryGetValue(relative, out var expected) && !string.Equals(expected, hash, StringComparison.Ordinal))
             {
-                violations.Add($"语料指纹不符：{relative}（改语料必须同步更新锁：lock-corpus.py --update）");
+                violations.Add($"语料指纹不符：{relative}（改语料必须同步更新锁：lock-corpus --update）");
             }
 
             var text = Encoding.UTF8.GetString(bytes);
@@ -157,29 +152,42 @@ public static class CorpusLock
         "sha256:" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 }
 
-/// <summary>语料锁的判据（写在 benchmark.config.json 的 <c>lock</c> 节）。</summary>
+/// <summary>语料锁的判据（写在 benchmark.config.xml 的 <c>lock</c> 节）。</summary>
 public sealed class CorpusLockSpec
 {
-    /// <summary>允许的语料文件（相对 benchmark.config.json 所在目录；顺序无关）。</summary>
-    [JsonPropertyName("allowedSources")]
+    /// <summary>允许的语料文件（相对配置所在目录；顺序无关）。</summary>
+    [XmlArray("AllowedSources", Order = 0)]
+    [XmlArrayItem("Allow")]
     public List<string> AllowedSources { get; set; } = [];
 
     /// <summary>任一档位的冻结 token 上限。</summary>
-    [JsonPropertyName("maxFrozenTokens")]
+    [XmlElement(Order = 1)]
     public int MaxFrozenTokens { get; set; } = 10_000;
 
     /// <summary>字符→token 的实测换算比（2026-09-14：17,990 字符 = 9,569 token）。</summary>
-    [JsonPropertyName("charsPerToken")]
+    [XmlElement(Order = 2)]
     public double CharsPerToken { get; set; } = 1.88;
 
-    /// <summary>指纹文件名（相对 benchmark.config.json 所在目录）。</summary>
-    [JsonPropertyName("fingerprintFile")]
-    public string FingerprintFile { get; set; } = "corpus.lock.json";
+    /// <summary>指纹文件名（相对配置所在目录）。</summary>
+    [XmlElement(Order = 3)]
+    public string FingerprintFile { get; set; } = "corpus.lock.xml";
 }
 
-/// <summary>锁文件内容：相对路径 → "sha256:…"。</summary>
-public sealed class CorpusLockFingerprints
+/// <summary>锁文件：<c>_comment</c> + 相对路径 → “sha256:…”（A4：JSON → 强类型 XML，<c>corpus.lock.xml</c>）。</summary>
+[DataContract(Name = "CorpusLock", Namespace = "")]
+public sealed class CorpusLockDoc
 {
-    [JsonPropertyName("files")]
-    public Dictionary<string, string> Files { get; set; } = new(StringComparer.Ordinal);
+    [DataMember(Order = 0)] public string Comment { get; set; } =
+        "实验语料锁：测试工程只允许这三个文件；改语料必须同步更新本文件（dotnet run --project benchmark/AgentRuntime.Benchmark -- lock-corpus --update）。";
+
+    [DataMember(Order = 1)] public List<CorpusLockEntry> Files { get; set; } = [];
+}
+
+/// <summary>锁文件的一条（相对路径 → sha256）。</summary>
+[DataContract(Name = "File", Namespace = "")]
+public sealed class CorpusLockEntry
+{
+    [DataMember(Order = 0)] public string Rel { get; set; } = string.Empty;
+
+    [DataMember(Order = 1)] public string Sha256 { get; set; } = string.Empty;
 }

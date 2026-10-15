@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrozenVersions xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <Versions>
+    <Version>
+      <Key>rules.global</Key>
+      <Value>16</Value>
+    </Version>
+    <Version>
+      <Key>knowledge.global</Key>
+      <Value>79</Value>
+    </Version>
+    <Version>
+      <Key>memory.index</Key>
+      <Value>28</Value>
+    </Version>
+  </Versions>
+  <Sources>
+    <Source>
+      <Key>rules.global</Key>
+      <Tier>A</Tier>
+      <Sha256>8c41e4a4d62783e71334b0a47f7b6d9be3af0370c755255546695aad0351ca11</Sha256>
+    </Source>
+    <Source>
+      <Key>knowledge.global</Key>
+      <Tier>A</Tier>
+      <Sha256>31cefd3ee48f833aa03621fe0777ab5ef5b891f29b70a2a91465bfb99fe4f5ee</Sha256>
+    </Source>
+    <Source>
+      <Key>memory.index</Key>
+      <Tier>A</Tier>
+      <Sha256>ffad72c8763ee20d1ac633c96f3954eb597d93305cfad8766cda05caccaf4a07</Sha256>
+    </Source>
+  </Sources>
+</FrozenVersions>

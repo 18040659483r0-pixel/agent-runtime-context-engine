@@ -16,7 +16,7 @@ public enum FrozenZone
     /// <summary>知识区：应该知道什么。</summary>
     Knowledge = 0,
 
-    /// <summary>铁则区：必须遵守什么（层内冲突优先级 Global &gt; Expert &gt; Project）。</summary>
+    /// <summary>铁则区：必须遵守什么（层内冲突优先级 Global &gt; Project）。</summary>
     Rules = 1,
 
     /// <summary>记忆索引区：过去发生过什么（索引而非全文）。</summary>
@@ -33,15 +33,13 @@ public enum FrozenZone
 }
 
 /// <summary>
-/// 冻结区内部的层（论文 §3.3）。Expert 层按「专业领域」横向切分、可选加载。
+/// 冻结区内部的层（论文 §3.3）。
+/// <para><b>2026-10-15 主人令：Expert（专业领域）层整个退役</b>。保留 <c>Project = 2</c> 的数值（不挪号）。</para>
 /// </summary>
 public enum FrozenLayer
 {
     /// <summary>跨领域通用层 —— 永远加载。</summary>
     Global = 0,
-
-    /// <summary>专业领域层 —— 按所选 domain 加载（空 = 全部）。</summary>
-    Expert = 1,
 
     /// <summary>当前项目层 —— 按 project 加载。</summary>
     Project = 2,

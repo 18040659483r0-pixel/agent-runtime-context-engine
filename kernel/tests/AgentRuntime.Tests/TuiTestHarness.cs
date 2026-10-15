@@ -1,5 +1,6 @@
 using AgentRuntime.Core;
 using AgentRuntime.Core.Configuration;
+using AgentRuntime.Core.Persistence;
 using AgentRuntime.Core.Tail;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
@@ -8,31 +9,36 @@ using Xunit;
 
 namespace AgentRuntime.Tests;
 
-/// <summary>一个独立的 TUI 测试台：临时工作区 + 配置文件 + 假模型客户端 + 共享宿主。</summary>
+/// <summary>一个独立的 TUI 测试台：临时工作区 + 配置文件 + 假模型客户端 + 共享宿主。
+/// <para>默认假模型只回一句；要驱动**多轮**（自动接续链 / 工具轮）就传 <c>replies</c> 按序回放。</para></summary>
 internal sealed class TuiHarness : IDisposable
 {
-    public TuiHarness(string label, string? modules = null, bool autoSnapshot = true)
+    public TuiHarness(string label, string[]? modules = null, bool autoSnapshot = true, string[]? replies = null,
+        FakeModelClient? client = null)
     {
         Workspace = new SnapshotTestWorkspace(label);
         Workspace.FrozenRoot();
-        ConfigPath = Workspace.File("config.json");
-        File.WriteAllText(ConfigPath, $$"""
+        ConfigPath = Workspace.File("config.xml");
+        RuntimeConfiguration.Save(new RuntimeConfiguration
         {
-          "baseUrl": "https://example.invalid/v1",
-          "model": "fake-model",
-          "modules": {{modules ?? "[\"system-rules\", \"rules\", \"append-stream\", \"current-tail\", \"dynamic-draft\", \"focus\"]"}},
-          "systemRules": "测试铁则",
-          "frozen": { "root": "./frozen", "watermark": "./watermark.json" },
-          "stream": { "path": "./stream.jsonl" },
-          "snapshot": { "path": "./snapshot.json", "enabled": {{autoSnapshot.ToString().ToLowerInvariant()}} },
-          "focus": { "path": "./focus.json" },
-          "currentTail": { "storePath": "./tail" },
-          "dynamicDraft": { "storePath": "./draft" }
-        }
-        """);
+            BaseUrl = "https://example.invalid/v1",
+            Model = "fake-model",
+            Modules = modules is null
+                ? ["system-rules", "rules", "append-stream", "current-tail", "dynamic-draft", "focus"]
+                : [.. modules],
+            SystemRules = "测试铁则",
+            Frozen = new FrozenConfiguration { Root = "./frozen", Watermark = "./watermark.json" },
+            Stream = new StreamConfiguration { Path = "./stream.jsonl" },
+            Snapshot = new SnapshotConfiguration { Path = "./snapshot.json", Enabled = autoSnapshot },
+            Focus = new FocusConfiguration { Path = "./focus.json" },
+            CurrentTail = new CurrentTailConfiguration { StorePath = "./tail" },
+            DynamicDraft = new DynamicDraftConfiguration { StorePath = "./draft" },
+        }, ConfigPath);
 
         Config = RuntimeHost.ResolveConfiguration(ConfigPath, new HostOverrides());
-        Client = FakeModelClient.Returning("[mock] 收到");
+        Client = client ?? (replies is { Length: > 0 }
+            ? FakeModelClient.ReturningSequence(replies)
+            : FakeModelClient.Returning("[mock] 收到"));
         Host = RuntimeHost.BootWith(http: null, Client, Config);
         Ledger = new TurnLedger();
         Ablation = new AblationService();

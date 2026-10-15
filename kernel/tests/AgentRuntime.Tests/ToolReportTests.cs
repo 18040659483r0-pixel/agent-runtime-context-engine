@@ -24,7 +24,16 @@ public sealed class ToolReportTests
         using var work = new SnapshotTestWorkspace("crash-dump");
         var target = Path.Combine(work.Root, "last-crash.txt");
 
-        AgentRuntime.Tui.CrashDump.Write(new InvalidOperationException("闸门用的假异常"), "/tmp/fake.json", target);
+        // 指针与流都放在临时目录（**不碰真实 ~/.agentruntime**）：判据才可复算。
+        var realStream = Path.Combine(work.Root, "stream.xml");
+        StreamFixtures.Write(realStream,
+            StreamFixtures.Fragment(1, "UserInput", "崩溃前最后一句", tag: "E001"),
+            StreamFixtures.Fragment(2, "AgentOutput", "崩溃前最后一段", tag: "E002"));
+        var pointerPath = Path.Combine(work.Root, "session.xml");
+        new AgentRuntime.Core.Frozen.SessionPointerStore(pointerPath).Save(
+            new AgentRuntime.Core.Frozen.SessionPointer(realStream, false, DateTimeOffset.Now, 1, null));
+
+        AgentRuntime.Tui.CrashDump.Write(new InvalidOperationException("闸门用的假异常"), "/tmp/fake.json", target, pointerPath);
 
         Assert.True(File.Exists(target));
         var text = File.ReadAllText(target);
@@ -32,6 +41,7 @@ public sealed class ToolReportTests
         Assert.Contains("闸门用的假异常", text, StringComparison.Ordinal);
         Assert.Contains("## 会话指针", text, StringComparison.Ordinal);
         Assert.Contains("## 流末", text, StringComparison.Ordinal);
+        Assert.Contains("崩溃前最后一句", text, StringComparison.Ordinal);
         Assert.Contains("/tmp/fake.json", text, StringComparison.Ordinal);
 
         // ② 落点写不进去（拿目录当文件）⇒ 不抛（诊断器不能变成第二个崩溃源）。
@@ -57,6 +67,39 @@ public sealed class ToolReportTests
     }
 
     [Fact]
+    public void 解析_漏写块头的工具元素_响亮拒而不是零动作()
+    {
+        // 2026-10-11 真机 M1：模型重发的块是裸 <call>…</call>（**漏了 [TOOL] 块头**）
+        // ⇒ 旧路 Parse=None ⇒ ToolRunner 走 Nothing（**零事件**）⇒ 模型判「工具结果通道没接线」，
+        // 烧 8 轮后交 [NEED-USER]（模型本身没错，错只是漏写了一个标记）。
+        foreach (var text in new[]
+                 {
+                     "重发一个合规元素。\n\n<call><name>read</name><path>/tmp/a.txt</path></call>",
+                     "<read><path>/tmp/a.txt</path><maxLines>3</maxLines></read>",
+                     "先说明，再给块：\n<call><name>exec</name><command>echo hi</command></call>\n\n[TAIL]\nsolve: x",
+                 })
+        {
+            var result = ToolReport.Parse(text);
+            Assert.Equal(ToolParseStatus.Malformed, result.Status);
+            Assert.Equal(0, result.Calls.Count);
+            Assert.NotNull(result.Error);
+            Assert.Contains("块头", result.Error, StringComparison.Ordinal);
+        }
+
+        // 负例（不许误伤）：「引述」不算「真调用」：
+        // ① 只提标签名（没配对元素）；② **配对了但没有 <name> 也没有参数**（正文里引述一个形状）。
+        foreach (var prose in new[]
+                 {
+                     "元素可以是 <call> 或工具名本身 —— 详见协议。",
+                     "形状是 `<call>…</call>`，刚才漏了那个标记。",
+                     "把 <read> 换成 <list> 即可。",
+                 })
+        {
+            Assert.Equal(ToolParseStatus.None, ToolReport.Parse(prose).Status);
+        }
+    }
+
+    [Fact]
     public void 解析_单次调用_名字与参数原样取回()
     {
         var result = ToolReport.Parse("我先看一下。\n[TOOL] read {\"path\":\"docs/a.md\",\"maxLines\":20}\n");
@@ -66,6 +109,29 @@ public sealed class ToolReportTests
         Assert.Equal("read", result.Call!.Name);
         Assert.Equal("{\"path\":\"docs/a.md\",\"maxLines\":20}", result.Call.ArgumentsJson);
         Assert.Equal("read {\"path\":\"docs/a.md\",\"maxLines\":20}", result.Call.Raw);
+    }
+
+    [Fact]
+    public void 解析_零参调用_登记过的工具要跑得通()
+    {
+        // 主人 2026-09-29 19:56 令（缺口 A②）：`[TOOL] index`（行式、零参）此前被当「空块」拒。
+        // 判据：登记过的工具、零参数必须落 Ok（至于这把工具要不要参数，由工具自己响亮报）。
+        var result = ToolReport.Parse("[TOOL] index");
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal(1, result.Count);
+        Assert.Equal("index", result.Call!.Name);
+        Assert.Equal(string.Empty, result.Call.ArgumentsJson);
+    }
+
+    [Fact]
+    public void 解析_空块_没有名字仍必拒()
+    {
+        // 反面守住：放宽零参**不许**放过「连名字都没有」的块。
+        var result = ToolReport.Parse("[TOOL]");
+
+        Assert.Equal(ToolParseStatus.Malformed, result.Status);
+        Assert.Contains("空块", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,17 +150,33 @@ public sealed class ToolReportTests
     }
 
     [Fact]
-    public void 解析_超过上限即拒绝_不取前几个()
+    public void 解析_超过执行额度不再整篇拒_改由宿主排队()
     {
+        // 2026-09-25 口径变更：解析器只守**硬上限**（防炸）；「每轮跑几个」是宿主的**执行额度**
+        // （超出 ⇒ 排队，见 ToolQueueTests）。旧口径（>4 ⇒ 整篇拒）会把「模型偶尔多发几个」
+        // 升级成「那一轮的动作全丢」，重发还要再买一轮整份上下文。
         var cap = ProtocolText.ToolMaxCallsPerReply;
         var text = string.Join('\n', Enumerable.Range(0, cap + 1).Select(i => $"[TOOL] read {{\"path\":\"f{i}\"}}"));
 
         var result = ToolReport.Parse(text);
 
-        Assert.Equal(ToolParseStatus.TooMany, result.Status);
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
         Assert.Equal(cap + 1, result.Count);
-        Assert.Empty(result.Calls);                       // 刻意**不取前几个**（不替模型挑）
-        Assert.Contains($"最多 {cap} 次", result.Error, StringComparison.Ordinal);
+        Assert.Equal(cap + 1, result.Calls.Count);        // 全取回（按发出顺序）；谁跑谁排队由宿主定
+    }
+
+    [Fact]
+    public void 解析_超过硬上限_整篇拒()
+    {
+        // 硬上限是**防炸**的安全边界，与执行额度不是同一个数（fail-closed 不变）。
+        var hardCap = ToolReport.ToolParseAbsoluteMax;
+        var text = string.Join('\n', Enumerable.Range(0, hardCap + 1).Select(i => $"[TOOL] read {{\"path\":\"f{i}\"}}"));
+
+        var result = ToolReport.Parse(text);
+
+        Assert.Equal(ToolParseStatus.TooMany, result.Status);
+        Assert.Empty(result.Calls);
+        Assert.Contains("解析硬上限", result.Error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -134,9 +216,11 @@ public sealed class ToolReportTests
     [Fact]
     public void 解析_参数跨行也能取到_但遇到下一个块头即停()
     {
-        var result = ToolReport.Parse("[TOOL] write\n{\"path\":\"a.txt\",\n \"content\":\"正文\"}\n[FOCUS] E001");
+        // B1：参数跨行 = **多行块**（`content<<` … `>>`），不再靠 JSON 括号配平。
+        var result = ToolReport.Parse("[TOOL] write\npath: a.txt\ncontent<<\n正文\n>>\n[FOCUS] E001");
         Assert.Equal(ToolParseStatus.Ok, result.Status);
-        Assert.Contains("\"content\"", result.Call!.ArgumentsJson, StringComparison.Ordinal);
+        var args = ToolArgs.Parse(result.Call!.ArgumentsJson);
+        Assert.Equal("正文", args.RequireString("content"));
 
         // 参数段里夹了别的块头 ⇒ 不吞（PITFALLS #30 的同一类错）。
         var malformed = ToolReport.Parse("[TOOL] write\n[TAIL] 任务A");
@@ -153,21 +237,24 @@ public sealed class ToolReportTests
         var blankInside = "[TOOL] write {" + q + "path" + q + ":" + q + "/tmp/x.txt" + q + ","
             + q + "content" + q + ":" + q + "第一行" + "\n\n- 落点：区栈与白板之间" + q + "} risk: none";
 
-        var malformed = ToolReport.Parse(blankInside);
+        // B1（2026-09-29 主人定案）：**旧 JSON 形状已退役**。切段仍在（解析器只切形状），
+        // 但**真值判定**落在 ToolArgs.Parse —— 它必须点明「没转义的换行」并指出行式出路。
+        var parsed = ToolReport.Parse(blankInside);
+        Assert.Equal(ToolParseStatus.Ok, parsed.Status);
 
-        Assert.Equal(ToolParseStatus.Malformed, malformed.Status);
-        Assert.Contains("空行会终止参数", malformed.Error!, StringComparison.Ordinal);
-        Assert.Contains("引号没闭合", malformed.Error!, StringComparison.Ordinal);
-        Assert.Contains("多行正文不要塞进单行 JSON", malformed.Error!, StringComparison.Ordinal);
-        Assert.DoesNotContain("键要带引号", malformed.Error!, StringComparison.Ordinal);
+        var ex = Assert.Throws<ToolUsageException>(() => ToolArgs.Parse(parsed.Call!.ArgumentsJson));
+        Assert.Contains("没转义的换行", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("元素形状", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("写到文件", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("键要带引号", ex.Message, StringComparison.Ordinal);
 
         // 另一半：没有空行、换行落在字符串里（大括号仍配平）⇒ 解析层放过，到 `ToolArgs` 才被 JSON 拒。
         var noBlank = "[TOOL] write {" + q + "path" + q + ":" + q + "/tmp/y" + q + ","
             + q + "content" + q + ":" + q + "第一行" + "\n" + "第二行" + q + "} risk: none";
-        var parsed = ToolReport.Parse(noBlank);
-        Assert.Equal(ToolParseStatus.Ok, parsed.Status);
-        var ex = Assert.Throws<ToolUsageException>(() => ToolArgs.Parse(parsed.Call!.ArgumentsJson));
-        Assert.Contains("没转义的换行", ex.Message, StringComparison.Ordinal);
+        var parsed2 = ToolReport.Parse(noBlank);
+        Assert.Equal(ToolParseStatus.Ok, parsed2.Status);
+        var ex2 = Assert.Throws<ToolUsageException>(() => ToolArgs.Parse(parsed2.Call!.ArgumentsJson));
+        Assert.Contains("没转义的换行", ex2.Message, StringComparison.Ordinal);
     }
 
     // ---------------- 参数体检（ToolArgs） ----------------
@@ -257,9 +344,11 @@ public sealed class ToolReportTests
         var context = new ToolContext(limits, 0, null);
 
         var argsJson = $"{{\"path\":\"{path}\"}}";
-        var all = await read.ExecuteAsync(context, ToolArgs.Parse(argsJson), Ct);
+        var args = ToolArgs.Parse(argsJson);
+        var all = await read.ExecuteAsync(context, args, Ct);
         Assert.True(all.Ok);
-        Assert.StartsWith($"read {argsJson} → 5 行", all.Text, StringComparison.Ordinal);
+        // B1：结果头的参数段 = **规范化行式**（Canonical 是唯一口径）。
+        Assert.StartsWith($"read {args.Canonical} → 5 行", all.Text, StringComparison.Ordinal);
         Assert.Contains("5", all.Text, StringComparison.Ordinal);
 
         var clipped = await read.ExecuteAsync(context, ToolArgs.Parse($"{{\"path\":\"{path}\",\"maxLines\":2}}"), Ct);
@@ -316,7 +405,7 @@ public sealed class ToolReportTests
         await File.WriteAllLinesAsync(
             path, Enumerable.Range(1, 200).Select(i => $"{i:D3} 这是一行用来把窗口撑到字符上限的文字"), Ct);
 
-        var context = new ToolContext(new ToolLimits { MaxOutputChars = 400 }, 0, null);
+        var context = new ToolContext(new ToolLimits { MaxOutputChars = 400 }, 0, null);   // 窗口读用 400；整读上限被抬到 40,000
         var result = await new ReadTool().ExecuteAsync(context, ToolArgs.Parse($"{{\"path\":\"{path}\"}}"), Ct);
 
         Assert.True(result.Truncated);
@@ -325,8 +414,19 @@ public sealed class ToolReportTests
         var shown = int.Parse(head[(head.IndexOf('→') + 1)..].Trim().Split('/')[0]);   // 头部声称的行数
         var visible = lines.Skip(1).Count(static l => l.Contains("这是一行", StringComparison.Ordinal));
         Assert.Equal(shown, visible);                                                  // 头部行号 == 实际可见量
-        Assert.Contains($"用 offset={visible + 1} 接着读", result.Text, StringComparison.Ordinal);   // 指针 = 下一行
-        Assert.Contains("全文在 /trace", result.Text, StringComparison.Ordinal);
+
+        // C1（2026-09-26）：指针必须是**能走通的** —— read 的「全文」就是磁盘上这个文件本身，
+        // 所以真指针 = 同文件 + 下一个 offset；旧话术里的「全文在 /trace」是**假指针**
+        // （/trace 是 TUI 看生命周期轨迹的命令，拿不到这条结果的原文），必须消失。
+        Assert.Contains("接着读同一文件", result.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("全文在 /trace", result.Text, StringComparison.Ordinal);
+
+        // 指针可走通：照它给的 offset 读，能真的拿到下一段（且与上一段不重叠）。
+        var next = await new ReadTool().ExecuteAsync(
+            context, ToolArgs.Parse($"{{\"path\":\"{path}\",\"offset\":{visible + 1}}}"), Ct);
+        Assert.True(next.Ok);
+        // B1（2026-09-29）：回显现在是**行式 canonical**（键按序排、每行一条）—— 意图不变：头部 = 规范调用 + 区间。
+        Assert.StartsWith($"read offset: {visible + 1}\npath: {path} → 第 {visible + 1}~", next.Text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -492,5 +592,135 @@ public sealed class ToolReportTests
 
         Assert.Equal("[TOOLRESULT]", new SessionEvent(1, SessionEventKind.ToolResult, "x").Label);
         Assert.Equal("[TOOLDENIED]", new SessionEvent(1, SessionEventKind.ToolDenied, "x").Label);
+    }
+
+    // ---------------- 解析边界：只认顶层块（2026-09-28） ----------------
+
+    /// <summary>块头字面量（取解析器常量，别在测试里另抄一份 —— 抄一份就会跟着漂）。</summary>
+    private static string Block => ToolReport.Prefix;
+
+    /// <summary>
+    /// **含工具块示例的文件 ⇒ 只执行顶层那一次调用**（2026-09-28 现场）。
+    /// <para>病因：旧实现整篇逐行 StartsWith ⇒ 回复里举例 / 摘抄都会被当成真调用执行（幻影调用 + 队列暴涨）。
+    /// 判据：它是不是被「引起来」的文本。</para>
+    /// </summary>
+    [Fact]
+    public void 解析_围栏里的块头只是示例_只有顶层块被执行()
+    {
+        var text = string.Join('\n',
+        [
+            "我把示例写进文件：",
+            "```",
+            Block + " read {\"path\":\"/etc/hosts\"}",
+            "```",
+            Block + " write {\"path\":\"note.md\",\"content\":\"x\"}",
+        ]);
+
+        var result = ToolReport.Parse(text);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal(1, result.Count);                  // 围栏里的那个不算
+        Assert.Equal("write", result.Call!.Name);       // 只执行顶层那次
+
+        // 未闭合 ⇒ 其后**全部**算示例（fail-safe：宁可不执行，也不执行到「被引用的一段」）。
+        var open = string.Join('\n',
+        [
+            "示例：",
+            "```",
+            Block + " read {\"path\":\"/a\"}",
+            Block + " exec {\"command\":\"rm -rf /tmp/nope\"}",
+        ]);
+        Assert.Equal(ToolParseStatus.None, ToolReport.Parse(open).Status);
+    }
+
+    [Fact]
+    public void 解析_缩进式代码块与引用块里的块头_都不算调用()
+    {
+        var indented = string.Join('\n',
+        [
+            "示例文件内容：",
+            "    " + Block + " read {\"path\":\"/a\"}",
+            Block + " write {\"path\":\"b\",\"content\":\"y\"}",
+        ]);
+        var a = ToolReport.Parse(indented);
+        Assert.Equal(1, a.Count);
+        Assert.Equal("write", a.Call!.Name);
+
+        var quoted = string.Join('\n',
+        [
+            "> " + Block + " read {\"path\":\"/a\"}",
+            Block + " read {\"path\":\"/b\"}",
+        ]);
+        var b = ToolReport.Parse(quoted);
+        Assert.Equal(1, b.Count);
+        Assert.Equal("{\"path\":\"/b\"}", b.Call!.ArgumentsJson);
+    }
+
+    [Fact]
+    public void 解析_顶层块照常_反向自检_新判据没误伤()
+    {
+        // 反向：新判据只排除「被引起来」的文本；波浪号围栏同样算示例，顶层块一次都不能少。
+        var text = string.Join('\n',
+        [
+            "先看一眼。",
+            "~~~",
+            Block + " read {\"path\":\"skipped.md\"}",
+            "~~~",
+            Block + " read {\"path\":\"docs/a.md\"}",
+            Block + " read {\"path\":\"docs/b.md\"}",
+        ]);
+
+        var result = ToolReport.Parse(text);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal(2, result.Count);
+        Assert.Equal(["read", "read"], result.Calls.Select(static c => c.Name));
+    }
+
+    [Fact]
+    public void 参数_零参工具的空参数放行_其余仍拒_缺口A2()
+    {
+        // 主人 2026-09-29 19:56 令（缺口 A②）：解析层放行后，**工具层**也必须放行 ——
+        // 现场：`[TOOL] index` 被解析成 Ok，却在 ToolArgs 这层被「工具参数为空」拦掉。
+        var ok = ToolArgs.Parse(string.Empty, ToolNames.Index);
+        Assert.Empty(ok.Names);
+
+        // 反面守住：其余工具空参数照样响亮拒（fail-closed 不变）。
+        Assert.Throws<ToolUsageException>(() => ToolArgs.Parse(string.Empty, ToolNames.Read));
+        Assert.Throws<ToolUsageException>(() => ToolArgs.Parse(string.Empty));   // 连工具名都不知道 ⇒ 照拒
+    }
+
+    // ---------------- E1（2026-10-10 真机）：多块回复里坏块被静默丢 ----------------
+
+    [Fact]
+    public void 多块回复_其中一块带裸小于号_逐块归一后不丢块()
+    {
+        // 真机 E1（M6/M9/M10 三处）：一条回复 2 个 [TOOL] 块，exec 的命令里带**裸 `<`**（`wc -c < /path`）
+        // ⇒ 旧路只在「一块都取不到」时才归一 ⇒ 这块被 TakeAll 的探针语义**静默跳过**（read 回了、exec 无声无痕）。
+        // 修后：**逐块「严格→归一」** ⇒ 两块都取到。
+        var reply = string.Concat(
+            "[TOOL]\n<call><name>exec</name><command>wc -c < /tmp/x; wc -l < /tmp/x</command></call>\n\n",
+            "[TOOL]\n<call><name>read</name><path>/tmp/x</path></call>\n");
+
+        var r = ToolReport.Parse(reply);
+
+        Assert.Equal(ToolParseStatus.Ok, r.Status);
+        Assert.Equal(2, r.Calls.Count);                          // 旧行为：1（exec 被无声丢掉）
+        Assert.Contains(r.Calls, c => c.Name == ToolNames.Exec);
+        Assert.Contains(r.Calls, c => c.Name == ToolNames.Read);
+    }
+
+    [Fact]
+    public void 取不出的块_整篇拒_绝不静默丢()
+    {
+        // 反面（应红）：块头后面真跟着元素、却连归一也取不出 ⇒ **整篇拒**并说清修法，**不许无声消失**。
+        var reply = string.Concat(
+            "[TOOL]\n<call><name>exec</name><command>oops</wrong>\n\n",     // 闭合标签不匹配 ⇒ 取不出
+            "[TOOL]\n<call><name>read</name><path>/tmp/x</path></call>\n");   // 这一块是好的
+
+        var r = ToolReport.Parse(reply);
+
+        Assert.Equal(ToolParseStatus.Malformed, r.Status);       // 旧行为：Ok + 1 个调用（另一块静默丢）
+        Assert.Contains("绝不静默丢", r.Error!, StringComparison.Ordinal);
     }
 }

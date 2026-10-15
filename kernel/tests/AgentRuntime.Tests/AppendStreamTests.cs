@@ -135,9 +135,8 @@ public sealed class AppendStreamTests
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path,
-                "{\"seq\":1,\"kind\":\"Memory\",\"text\":\"一\"}\n" +
-                "{\"seq\":3,\"kind\":\"Memory\",\"text\":\"跳号了\"}\n");
+            File.WriteAllText(path, StreamFixtures.Fragment(1, "Memory", "一") + "\n" +
+                                    StreamFixtures.Fragment(3, "Memory", "跳号了") + "\n");
 
             var ex = Assert.Throws<InvalidDataException>(() => new SessionStreamStore(path).Load());
             Assert.Contains("期望序号 2", ex.Message);

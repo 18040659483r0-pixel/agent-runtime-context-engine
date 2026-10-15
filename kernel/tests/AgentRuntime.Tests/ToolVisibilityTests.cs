@@ -33,11 +33,13 @@ public sealed class ToolVisibilityTests
     [Fact]
     public async Task 免批的只读动作在卡上计数_在trace里看得到()
     {
-        using var harness = new TuiHarness("tool-lines-read", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("tool-lines-read", modules: ["rules","append-stream","tool"]);
         var note = harness.Workspace.File("note.txt");
         File.WriteAllText(note, "第一行\n第二行\n第三行\n");
 
-        var client = new FakeModelClient((_, _) => Task.FromResult(Reply($"[TOOL] read {{\"path\":\"{note}\"}}")));
+        // 用 master 侧**仍持有**的只读工具（「读原料」已剥给 Worker —— ToolNames.MasterFace）。
+        // 本测试量的是「只读动作在卡上计数、在 /trace 里看得到」，与具体哪把只读工具无关。
+        var client = new FakeModelClient((_, _) => Task.FromResult(Reply("[TOOL] index\nsymbol: SourceIndex")));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);
         var router = new PanelRouter(host, harness.Ledger, harness.Ablation);
         var session = new SplitSession(host, harness.Ledger, router, verbose: false, ContinuationSettings.Off);
@@ -50,8 +52,11 @@ public sealed class ToolVisibilityTests
         // ② 全文在 /trace 里（一条不少）
         var trace = await router.ExecuteAsync("/trace", new StringWriter(), Ct);
         var traceText = string.Join('\n', trace.Lines);
-        Assert.Contains("read", traceText, StringComparison.Ordinal);
-        Assert.Contains("3 行", traceText, StringComparison.Ordinal);
+        Assert.Contains("index", traceText, StringComparison.Ordinal);
+        // 判据同义：结果正文在 trace 里有一份 —— 但 trace **每条轨迹只印首行**（LifecyclePresenter 展开态
+        // 「一条不少、首行不截断」），所以只能断言 index **首行**的自身摘要
+        // （`index … → fresh（N 文件 / N 类型 / N 边；投影 …）`）；第二行起（【结构地图】）在流里，屏上不显示。
+        Assert.Contains("文件", traceText, StringComparison.Ordinal);
 
         // ③ 但**没有**把文件正文倒进对话（那是事件流与 /trace 的活）
         var rendered = string.Join('\n', SplitRenderer.ConversationLines(session.Frame(96, 30), new SplitLayout(96, 30)));
@@ -59,11 +64,13 @@ public sealed class ToolVisibilityTests
     }
 
     [Fact]
-    public async Task 留档的动作在卡上看得见()
+    public async Task 被拒的动作在卡上看得见()
     {
-        using var harness = new TuiHarness("tool-lines-denied", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        // 主人 2026-09-29 20:0x 令：master 面上已无「留档照跑」的动作（需批工具全归 Worker）⇒
+        // 这条不变量在 master 侧的形状 = **被拒的调用在卡上必须有计数注记 + 指向 /trace**（看不见就等于没发生）。
+        using var harness = new TuiHarness("tool-lines-denied", modules: ["rules","append-stream","tool"]);
 
-        var client = new FakeModelClient((_, _) => Task.FromResult(Reply("[TOOL] exec {\"command\":\"echo hi\"}")));
+        var client = new FakeModelClient((_, _) => Task.FromResult(Reply(ToolFaceProbe.MasterDeniedCall())));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);
         var session = new SplitSession(
             host, harness.Ledger, new PanelRouter(host, harness.Ledger, harness.Ablation), verbose: false,
@@ -71,17 +78,15 @@ public sealed class ToolVisibilityTests
 
         await session.SubmitAsync("跑一下", Ct);
 
-        // v13：不再有「拒绝」—— 但**留档必须看得见**（人在卡上就能看出模型自己放行了什么）；
-        // 动作本身照跑（工具计数记账）。
         var card = CardText(session);
-        Assert.Contains("留档", card, StringComparison.Ordinal);
-        Assert.Contains("工具 1", card, StringComparison.Ordinal);
+        Assert.Contains("被拒 1 条", card, StringComparison.Ordinal);
+        Assert.Contains("/trace", card, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task 没有工具事件就不产生计数()
     {
-        using var harness = new TuiHarness("tool-lines-none", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("tool-lines-none", modules: ["rules","append-stream","tool"]);
 
         var client = new FakeModelClient((_, _) => Task.FromResult(Reply("我只是说句话")));
         using var host = RuntimeHost.BootWith(http: null, client, harness.Config);

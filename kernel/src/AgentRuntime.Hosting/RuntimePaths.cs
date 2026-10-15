@@ -23,10 +23,10 @@ public static class RuntimePaths
         return ResolveAgainstConfig(configPath, root);
     }
 
-    /// <summary>水位线路径：留空 → 默认位置（<c>~/.agentruntime/watermark.json</c>）。</summary>
+    /// <summary>水位线路径：留空 → 默认位置（<c>~/.agentruntime/watermark.xml</c>）。</summary>
     public static string ResolveWatermark(string configPath, string? watermark)
     {
-        var value = string.IsNullOrWhiteSpace(watermark) ? "~/.agentruntime/watermark.json" : watermark;
+        var value = string.IsNullOrWhiteSpace(watermark) ? "~/.agentruntime/watermark.xml" : watermark;
         return ResolveAgainstConfig(configPath, value);
     }
 
@@ -42,7 +42,7 @@ public static class RuntimePaths
     }
 
     /// <summary>
-    /// **用量账本路径**（F，2026-09-22）—— 账本跟随**流卷**走：<c>&lt;stream&gt;.usage.jsonl</c>。
+    /// **用量账本路径**（F，2026-09-22）—— 账本跟随**流卷**走：<c>&lt;stream&gt;.usage.xml</c>。
     /// <para>
     /// 为什么挂在流上而不是单独配：一次 <c>reset/start</c> 换一卷新流 ⇒ 账也自然分卷，
     /// 不会把两节会话的钱混在一个账上（与「账本是会话级」同一条口径）。
@@ -50,19 +50,19 @@ public static class RuntimePaths
     /// </para>
     /// </summary>
     public static string? UsageOf(string? streamPath) =>
-        string.IsNullOrWhiteSpace(streamPath) ? null : streamPath + ".usage.jsonl";
+        string.IsNullOrWhiteSpace(streamPath) ? null : streamPath + ".usage.xml";
 
-    /// <summary>快照路径：留空 → 默认 <c>~/.agentruntime/snapshot.json</c>。</summary>
+    /// <summary>快照路径：留空 → 默认 <c>~/.agentruntime/snapshot.xml</c>。</summary>
     public static string ResolveSnapshot(string configPath, string? snapshot)
     {
-        var value = string.IsNullOrWhiteSpace(snapshot) ? "~/.agentruntime/snapshot.json" : snapshot;
+        var value = string.IsNullOrWhiteSpace(snapshot) ? "~/.agentruntime/snapshot.xml" : snapshot;
         return ResolveAgainstConfig(configPath, value);
     }
 
-    /// <summary>焦点缓存路径：留空 → 默认 <c>~/.agentruntime/focus.json</c>。</summary>
+    /// <summary>焦点缓存路径：留空 → 默认 <c>~/.agentruntime/focus.xml</c>。</summary>
     public static string ResolveFocus(string configPath, string? focus)
     {
-        var value = string.IsNullOrWhiteSpace(focus) ? "~/.agentruntime/focus.json" : focus;
+        var value = string.IsNullOrWhiteSpace(focus) ? "~/.agentruntime/focus.xml" : focus;
         return ResolveAgainstConfig(configPath, value);
     }
 
@@ -117,7 +117,7 @@ public static class RuntimePaths
     }
 
     /// <summary>
-    /// 末态快照落点：留空 → 默认 <c>~/.agentruntime/handover.json</c>（**有唯一默认**，不靠猜 —— 与白板/草稿同规）。
+    /// 末态快照落点：留空 → 默认 <c>~/.agentruntime/handover.xml</c>（**有唯一默认**，不靠猜 —— 与白板/草稿同规）。
     /// </summary>
     public static string ResolveHandover(string configPath, string? handover)
     {
@@ -137,7 +137,7 @@ public static class RuntimePaths
     }
 
     /// <summary>L3 技能仓库（V6）：留空 = **不接**（返回 null，不编默认路径 —— 猜错的地址表比没有更坏）。</summary>
-    public static string? ResolveSkillRepo(string configPath, string? repo)
+    public static string? ResolveL3Repo(string configPath, string? repo)
     {
         if (string.IsNullOrWhiteSpace(repo))
         {
@@ -147,19 +147,6 @@ public static class RuntimePaths
         return ResolveAgainstConfig(configPath, repo);
     }
 
-    /// <summary>
-    /// 技能**常驻层目录**（V6+）：留空 = **不接**（返回 null，同 <see cref="ResolveSkillRepo"/> 口径）。
-    /// <para>⚠️ 新加路径字段**必须在这里**解析 —— 漏了就会按 **cwd** 猜（实测：换个 cwd 直接 DirectoryNotFound）。</para>
-    /// </summary>
-    public static string? ResolveSkillResident(string configPath, string? resident)
-    {
-        if (string.IsNullOrWhiteSpace(resident))
-        {
-            return null;
-        }
-
-        return ResolveAgainstConfig(configPath, resident);
-    }
 
     /// <summary>把（可能带 <c>~</c> 的）相对路径按**配置文件所在目录**解析成绝对路径。</summary>
     public static string ResolveAgainstConfig(string configPath, string path)

@@ -173,6 +173,21 @@ public sealed class ExecTool : ToolBase
             CreateNoWindow = true,
         };
 
+        // 工作基准：配了就以它为准（null ⇒ 继承进程 cwd —— W1「关掉即逐字节不变」）。
+        // 配了却不存在 ⇒ fail-closed 报错：静默回落会让「站错地方」伪装成「命令失败」。
+        var workDir = context.Limits.WorkingDirectory;
+        if (!string.IsNullOrWhiteSpace(workDir))
+        {
+            if (!Directory.Exists(workDir))
+            {
+                return ToolOutcome.Failure(
+                    $"exec {command} → 拒绝：工作基准目录不存在（{workDir}）。"
+                    + "配了基准就必须以它为准 —— 绝不静默回落到进程 cwd（那会把「站错地方」伪装成「命令失败」）。");
+            }
+
+            info.WorkingDirectory = workDir;
+        }
+
         var fence = SandboxFence.IsEnabled;
         if (fence && !OperatingSystem.IsWindows() && !SandboxFence.Available)
         {
@@ -260,7 +275,7 @@ public sealed class ExecTool : ToolBase
         string command, string stdout, string stderr, int? exit, bool killed, ToolLimits limits)
     {
         var text = new StringBuilder();
-        text.Append("exec ").Append(command).Append(" → ");
+        text.Append("exec ").Append(ShortCommand(command, limits)).Append(" → ");
         text.Append(killed ? "超时被终止" : $"exit {exit}");
         text.Append('\n');
 
@@ -280,8 +295,24 @@ public sealed class ExecTool : ToolBase
             return body;
         }
 
-        // **超限明说**（不静默截）—— 截断必须让人/模型知道"后面还有"，并给出**下一步怎么拿**。
-        return body[..limits.MaxOutputChars]
-            + $"\n…（按字符上限截断：只给前 {limits.MaxOutputChars} 字符，共 {body.Length} 字符 ⇒ 全文在 /trace；要精准的部分就把命令收窄（grep / head））";
+        // **超限明说**（不静默截）—— 截断必须让人/模型知道"后面还有"，并给出**能走通的**下一步（C1：真指针）。
+        return body[..limits.MaxOutputChars] + TruncationPointer.Of(body, limits, limits.MaxOutputChars);
+    }
+
+    /// <summary>
+    /// 命令回显（C1，2026-09-26）：同一份命令已在 <c>[TOOL]</c> 块与 <c>RiskClaimed</c> 摘要里各现一次，
+    /// 这里是**第三份**。超上限就只给前 N 字符 + sha256 —— 完整命令回看本轮 <c>[TOOL]</c> 块，不必逐字重抄。
+    /// </summary>
+    private static string ShortCommand(string command, ToolLimits limits)
+    {
+        var max = Math.Max(40, limits.MaxCommandEchoChars);
+        if (command.Length <= max)
+        {
+            return command;
+        }
+
+        var bytes = System.Text.Encoding.UTF8.GetByteCount(command);
+        return command[..max]
+            + $"…（命令回显截断：共 {bytes} 字节 · sha256:{TruncationPointer.ShortSha(command)}；完整命令见本轮 [TOOL] 块）";
     }
 }

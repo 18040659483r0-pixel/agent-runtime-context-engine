@@ -23,6 +23,7 @@ path	frozen-private	corpus	私有全量语料（A/B 档）
 path	local-corpus	corpus	私有快照目录（benchmark 产物，绝不发布）
 path	runs	output	实验原始记录目录（切片里不许带；配置引用自己的输出目录合法）
 path	records.jsonl	output	实验原始记录文件（同上）
+path	records.xml	output	实验原始记录文件（XML 形态；同上）
 content	/Users/	safety	macOS 本机路径
 content	C:\\Users	safety	Windows 本机路径
 content	F:\\AgentWorkFlow	safety	内网工作副本路径

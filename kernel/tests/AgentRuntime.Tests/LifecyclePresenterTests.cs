@@ -160,9 +160,13 @@ public sealed class LifecyclePresenterTests
         Assert.Contains(card, l => l.StartsWith("动作：read×1", StringComparison.Ordinal));        // ④ 动作（聚合，不再平铺）
         // v8（主人 2026-09-24 19:30）：意图 / 打算 / 结果**累积** —— 原文在卡上（`/append off` 回到只给最新）。
         Assert.Contains(card, l => l == "结果：run.sh 修好了（退出码 0）");                          // ④ 终局正文（原有内容不变）
-        Assert.Contains(card, l => l.StartsWith("风险：", StringComparison.Ordinal)
-            && l.Contains("risk 声明 1 次", StringComparison.Ordinal)
-            && l.Contains("草稿未决 1 条", StringComparison.Ordinal));                             // ⑤ 可能有问题
+        // 2026-10-14 主人令：**risk 计数与 risk 备注都不上卡**。
+        // 2026-10-15 主人令：**「风险：」整行撤掉**（结果行下面那一行太抢注意力）⇒ 草稿未决 / 留档也不常驻。
+        // 事实不丢：仍在事件流里，`/trace` 可查（本夹具只管屏面）。
+        Assert.DoesNotContain(card, l => l.Contains("risk 声明", StringComparison.Ordinal));
+        Assert.DoesNotContain(card, l => l.StartsWith("它自己声明过：", StringComparison.Ordinal));
+        Assert.DoesNotContain(card, l => l.StartsWith("风险：", StringComparison.Ordinal));
+        Assert.DoesNotContain(card, l => l.Contains("草稿未决", StringComparison.Ordinal));
 
         // 缺数据的那几段**不画**（不编 —— 与 §十·64「认不出就不编」同一纪律）。
         var bare = Report(flow =>
@@ -220,6 +224,24 @@ public sealed class LifecyclePresenterTests
         // v14：被拒的原文在**展开态里必须在**（存档 + 可查看），且仍带 warn 角色（颜色在展开处给）。
         var raw = LifecyclePresenter.Card(lifecycle, expanded: true);
         Assert.Contains(raw, l => l.Contains("[[warn]]", StringComparison.Ordinal) && l.Contains("ToolDenied", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 展开态印多行工具结果正文_缺口A3()
+    {
+        // 主人 2026-09-29 19:56 令：展开态此前**也只印首行** ⇒ 多行工具结果的正文在屏上根本看不到，
+        // 与「原文永远在流里 ⇒ /trace 看原文」的承诺不符。
+        var lifecycle = Card0(flow =>
+        {
+            flow.Append(SessionEventKind.UserInput, "看一下配置");
+            flow.Append(SessionEventKind.ToolResult, "read a.conf → 3 行\nline-two-should-be-visible\nline-three");
+            flow.Append(SessionEventKind.AgentOutput, "[DONE] 看完了");
+        });
+
+        var plain = LifecyclePresenter.Card(lifecycle, expanded: true).Select(Markup.Strip).ToArray();
+
+        Assert.Contains(plain, l => l.Contains("line-two-should-be-visible", StringComparison.Ordinal));
+        Assert.Contains(plain, l => l.Contains("line-three", StringComparison.Ordinal));
     }
 
     // ---------------- 3. 决定型内容不截断 ----------------
@@ -302,10 +324,14 @@ public sealed class LifecyclePresenterTests
             [new LifecycleTurnUsage(1_000, 900, 42, 1_500)]);
 
         Assert.Equal(
-            "1 轮 · 工具 0 · 拒绝 0 · 风险声明 0 · +42 new tokens · 1.5s · 命中 90%",
+            "1 轮 · 工具 0 · 拒绝 0 · +42 new tokens · 1.5s · 命中 90%",
             LifecyclePresenter.Footer(known));
 
         var unknown = Done();
+        // 2026-10-14 主人令：没有 worker 时，**不单开一行**，而是在这行灰色字里插一小段「单 master」。
+        Assert.Contains("单 master", LifecyclePresenter.Footer(known, singleMaster: true), StringComparison.Ordinal);
+        Assert.DoesNotContain("单 master", LifecyclePresenter.Footer(known), StringComparison.Ordinal);
+
         Assert.Contains("用量 —", LifecyclePresenter.Footer(unknown));
         Assert.DoesNotContain("0 new tokens", LifecyclePresenter.Footer(unknown));
     }

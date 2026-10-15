@@ -38,7 +38,7 @@ public sealed class DraftServiceTests
         var first = DraftService.Render(DraftService.Snapshot(noisy, DraftSources.Report, 3));
         var second = DraftService.Render(DraftService.Snapshot(noisy, DraftSources.Report, 3));
 
-        Assert.Equal("[DRAFT]\n构想: 草稿要能整块覆盖\n待确认: 上限 16 行", first);
+        Assert.Equal("[DRAFT] " + DraftService.OwnHeaderNote + "\n构想: 草稿要能整块覆盖\n待确认: 上限 16 行", first);
         Assert.Equal(first, second);
 
         // 行序是语义：换序 ⇒ 文本必须不同。
@@ -149,7 +149,7 @@ public sealed class DraftServiceTests
         // 「重排」也只能靠整块新内容：给出换序后的整份 ⇒ 文本随之改变（不是 Move 出来的）。
         var rendered = DraftService.Render(module.Current);
         module.Override(["构想 D", "追加 E"]);
-        Assert.Equal("[DRAFT]\n构想 D\n追加 E", DraftService.Render(module.Current));
+        Assert.Equal("[DRAFT] " + DraftService.OwnHeaderNote + "\n构想 D\n追加 E", DraftService.Render(module.Current));
         Assert.NotEqual(rendered, DraftService.Render(module.Current));
 
         // 「删除全部」= **空覆盖**（等价于 Clear，不是局部删）。
@@ -165,7 +165,7 @@ public sealed class DraftServiceTests
             var store = new DraftStore(directory);
             var persisted = new DynamicDraftModule(store, new DraftOptions());
             persisted.Override(["构想 一", "构想 二"]);
-            Assert.Equal(2, store.Load(null).Draft.Count);
+            Assert.Equal(2, store.Load(null).Draft.Length);
 
             persisted.Override(["只剩下这一条"]);
             Assert.Equal(new[] { "只剩下这一条" }, store.Load(null).Draft);

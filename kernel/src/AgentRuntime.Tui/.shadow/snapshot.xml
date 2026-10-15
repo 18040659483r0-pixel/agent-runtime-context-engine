@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Snapshot xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <SchemaVersion>1</SchemaVersion>
+  <SessionId i:nil="true" />
+  <FrozenSnapshotId>32ced935305e696b</FrozenSnapshotId>
+  <Manifest>
+    <SnapshotId>32ced935305e696b</SnapshotId>
+    <Entries>
+      <ManifestEntry>
+        <SectionId>protocol.global</SectionId>
+        <Zone>Protocol</Zone>
+        <Layer>Global</Layer>
+        <DomainId i:nil="true" />
+        <Version>63</Version>
+      </ManifestEntry>
+      <ManifestEntry>
+        <SectionId>rules.global</SectionId>
+        <Zone>Rules</Zone>
+        <Layer>Global</Layer>
+        <DomainId i:nil="true" />
+        <Version>14</Version>
+      </ManifestEntry>
+      <ManifestEntry>
+        <SectionId>knowledge.global</SectionId>
+        <Zone>Knowledge</Zone>
+        <Layer>Global</Layer>
+        <DomainId i:nil="true" />
+        <Version>69</Version>
+      </ManifestEntry>
+      <ManifestEntry>
+        <SectionId>memoryindex.global</SectionId>
+        <Zone>MemoryIndex</Zone>
+        <Layer>Global</Layer>
+        <DomainId i:nil="true" />
+        <Version>25</Version>
+      </ManifestEntry>
+    </Entries>
+  </Manifest>
+  <StreamCursor>214</StreamCursor>
+  <StreamPath><path>
+  <Focus xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" />
+  <CurrentTail xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" />
+  <DynamicDraft xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" />
+  <Pending xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays" />
+  <WorkerState></WorkerState>
+  <Model>mock-model</Model>
+  <SavedAt xmlns:d2p1="http://schemas.datacontract.org/2004/07/System">
+    <d2p1:DateTime>2026-10-14T05:24:44.658002Z</d2p1:DateTime>
+    <d2p1:OffsetMinutes>480</d2p1:OffsetMinutes>
+  </SavedAt>
+</Snapshot>

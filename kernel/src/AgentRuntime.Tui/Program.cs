@@ -46,11 +46,15 @@ internal static class Program
             return ExitOk;
         }
 
+        // 退出记录要用的事件流路径：在 try 里解析出来后就地记下（catch 块里拿不到 try 内部的局部量）。
+        string? streamPathForExit = null;
+
         try
         {
             var configPath = options.Config ?? RuntimeHost.LocateDefaultConfig();
             var overrides = options.ToOverrides();
             var config = RuntimeHost.ResolveConfiguration(configPath, overrides);
+            streamPathForExit = config.Stream.Path;
 
             if (options.Rest.Count > 0)
             {
@@ -93,27 +97,38 @@ internal static class Program
         catch (HostUsageException ex)
         {
             Console.Error.WriteLine(ex.Message);
+            InputExit.Record($"[tui] 用法/宿主错误 ⇒ 退出（退出码 {ExitUsage}）：{ex.Message}");
             return ExitUsage;
         }
         catch (ModelClientException ex)
         {
+            // **只剩「启动阶段」的 provider 错误走这里**（2026-10-15 主人令「没退出的道理」）：
+            // 运行期每一轮的 provider 失败现已在会话循环里接住（SplitSession.RunTurnOnceAsync / plain 的 RunPlainAsync）
+            // ⇒ 只提示、会话继续；能冒到这里的基本只有 Boot（密钥/首次装配）阶段。
             Console.Error.WriteLine($"[provider] {ex.Message}");
             if (!string.IsNullOrEmpty(ex.ResponseBody))
             {
                 Console.Error.WriteLine($"[provider:body] {ex.ResponseBody}");
             }
 
+            InputExit.Record($"[tui] provider 错误 ⇒ 退出（退出码 {ExitProvider}）：{ex.Message}");
             return ExitProvider;
         }
         catch (OperationCanceledException)
         {
             // 取消**不是崩溃**（v14 · 2026-09-22）：Ctrl-C 一下 = 中断当前轮（会话继续，在 `SplitSession` 里接住）；
             // 两下 = 退出，走 `CtrlCQuit`（先恢复终端，再以 130 退）。这里只兵底：保证**取消不会变成未捕获异常**。
+            // ⚠️ 但从前的兵底**什么都不留**（直接 return 130）—— 与其它退出路径同一口径：先落盘再退。
+            InputExit.Record(InputExit.Cancelled(sessionClosed: false, streamPath: streamPathForExit));
             return 130;
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or ArgumentException)
         {
             Console.Error.WriteLine($"[config] {ex.Message}");
+
+            // **这条自退路径从前一个字都不留**（2026-10-15 真机：「Model 不能为空」只打一行、退出码 2、
+            // 无转储、无退出记录 ⇒ 「无痕消失」）。与其余出口**同一口径**：先落盘再退。
+            InputExit.Record($"[tui] 配置/用法错误 ⇒ 退出（退出码 {ExitUsage}）：{ex.Message}");
             return ExitUsage;
         }
         catch (Exception ex)
@@ -175,7 +190,7 @@ internal static class Program
         var ledger = new TurnLedger();
         var ablation = new AblationService();
         var router = new PanelRouter(host, ledger, ablation, style);
-        // v12：把 TUI 的人类设置（就地展开那几项）落到 ~/.agentruntime/tui.json —— 下次拉起照旧。
+        // v12：把 TUI 的人类设置（就地展开那几项）落到 ~/.agentruntime/tui.xml —— 下次拉起照旧。
         var session = new SplitSession(host, ledger, router, options.Verbose, options.Continuation, budget,
             new TuiStateStore(TuiStateStore.DefaultPath()), style);
 
@@ -218,6 +233,11 @@ internal static class Program
             var line = Console.ReadLine();
             if (line is null)
             {
+                // **退出要有嗓子**（2026-10-10 · 追 TUI 自退）：干净的 EOF 退出在此之前**不留任何痕迹**
+                //（没有 last-crash.txt、没有屏上提示）⇒ 事后无法归因。说清「为什么退、会话在哪、能不能接续」。
+                Console.Error.WriteLine(
+                    $"[tui] 输入结束（stdin EOF）⇒ 退出。会话已收尾：{host.SessionClosed}；"
+                    + $"事件流：{host.Config.Stream.Path}。用同一 --stream 或 /start 可接续。");
                 break;
             }
 
@@ -235,6 +255,7 @@ internal static class Program
 
             if (line is "exit" or "quit" or "/quit")
             {
+                Console.Error.WriteLine("[tui] 退出（收到 quit 命令）。");
                 break;
             }
 
@@ -354,7 +375,7 @@ internal static class Program
         Console.WriteLine("用法：AgentRuntime.Tui [选项]");
         Console.WriteLine();
         Console.WriteLine("选项（与 CLI 同名者语义一致）：");
-        Console.WriteLine("  --config <path>      配置文件（默认在当前目录 / 程序目录找 config.json）");
+        Console.WriteLine("  --config <path>      配置文件（默认在当前目录 / 程序目录找 config.xml）");
         Console.WriteLine("  --api-key-file <p>   密钥文件**路径**（只传路径；内容不进 argv / 日志；环境变量优先）");
         Console.WriteLine("  --bare               裸聊：仅协议区（R1-P）");
         Console.WriteLine("  --vacuum             真空模式：一条 system 都没有（消融对照专用）");
@@ -366,7 +387,7 @@ internal static class Program
         Console.WriteLine("  --tail-report <p>    on|off：关掉白板自报（运行开关，不是改协议）");
         Console.WriteLine("  --draft-report <p>   on|off：关掉草稿自报（同构）");
         Console.WriteLine("  --verbose, -v        每轮诊断（token / 缓存 / 耗时）打到 stderr");
-        Console.WriteLine("  --auto-continue <n>  自动接续的安全上限轮数（0 = 关；**TUI 默认开 25**）");
+        Console.WriteLine("  --auto-continue <n>  自动接续的安全上限轮数（0 = 关；**TUI 默认开 100**）");
         Console.WriteLine("  --no-auto-continue   关掉自动接续（回到「一轮之后等你说话」）");
         Console.WriteLine("  --auto-budget <min>  自动接续的**经过时间**预算（分钟；0 = 不限；默认 30）");
         Console.WriteLine("  --ui split|plain     split（默认）= 自绘 ANSI 双栏；plain = REPL + 纯文本面板");
@@ -383,7 +404,7 @@ internal static class Program
         Console.WriteLine("双栏按键：");
         Console.WriteLine("  Tab            左 / 右栏焦点（左=输入行与对话流，右=上下文区栈）");
         Console.WriteLine("  ↑↓ / PgUp PgDn 滚动（左栏输对话流；右栏移选中项 / 滚展开正文）");
-        Console.WriteLine("  Enter / →      就地展开 / 收起选中区（正文摊在它自己那一行下面；设置记在 ~/.agentruntime/tui.json）");
+        Console.WriteLine("  Enter / →      就地展开 / 收起选中区（正文摊在它自己那一行下面；设置记在 ~/.agentruntime/tui.xml）");
         Console.WriteLine("  ←              同上（就地展开 / 收起）");
         Console.WriteLine("  Esc            清除面板输出（**不改**就地展开的设置）");
         Console.WriteLine("  （v13 起**没有审批面**：本该问人的动作只留档、照样跑，屏上不再出现 y/N 询问）");
@@ -400,6 +421,6 @@ internal static class Program
         Console.WriteLine("  /focus · /snapshot · /resume · /ablate · /modules · /help · /quit");
         Console.WriteLine();
         Console.WriteLine($"可用模块：{string.Join("、", RuntimeConfiguration.KnownModules)}（protocol 不可摘）");
-        Console.WriteLine("零成本演示：| python3 tools/mock-provider/mock_server.py + --config src/AgentRuntime.Tui/config.demo.json");
+        Console.WriteLine("零成本演示：| dotnet tools/mock-provider/bin/Release/net10.0/MockProvider.dll + --config src/AgentRuntime.Tui/config.demo.xml");
     }
 }

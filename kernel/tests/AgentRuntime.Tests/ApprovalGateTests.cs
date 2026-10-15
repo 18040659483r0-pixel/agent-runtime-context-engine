@@ -62,9 +62,9 @@ public sealed class ApprovalGateTests
 
         var lines = File.ReadAllLines(path);
         Assert.Equal(2, lines.Length);
-        Assert.Contains("\"seq\":1", lines[0], StringComparison.Ordinal);
-        Assert.Contains("\"actor\":\"human\"", lines[0], StringComparison.Ordinal);
-        Assert.Contains("\"decision\":\"Denied\"", lines[1], StringComparison.Ordinal);
+        Assert.Contains("<Seq>1</Seq>", lines[0], StringComparison.Ordinal);
+        Assert.Contains("<Actor>human</Actor>", lines[0], StringComparison.Ordinal);
+        Assert.Contains("<Decision>Denied</Decision>", lines[1], StringComparison.Ordinal);
 
         // 再记一笔 ⇒ 追加（不重写整个文件）。
         var before = File.ReadAllText(path);

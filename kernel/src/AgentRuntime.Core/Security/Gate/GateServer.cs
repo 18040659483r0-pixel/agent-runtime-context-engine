@@ -135,7 +135,7 @@ public sealed class GateServer : IDisposable
                 var line = ReadLine(connection);
                 var request = line is null ? null : GateProtocol.Decode<GateRequest>(line);
                 var response = request is null
-                    ? GateResponse.Fail("请求不是合法的一行 JSON。")
+                    ? GateResponse.Fail("请求不是合法的一行 XML 片段。")
                     : Handle(request);
 
                 WriteLine(connection, GateProtocol.Encode(response));

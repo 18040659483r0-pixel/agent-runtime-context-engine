@@ -18,23 +18,22 @@ public sealed class DeterminismGateTests
     {
         private readonly Dictionary<string, FrozenContent> _map = new(StringComparer.Ordinal);
 
-        public FakeSource With(FrozenZone zone, FrozenLayer layer, string? domain, string text, string version = "1")
+        public FakeSource With(FrozenZone zone, FrozenLayer layer, string text, string version = "1")
         {
-            _map[$"{zone}|{layer}|{domain}"] = new FrozenContent(version, text);
+            _map[$"{zone}|{layer}"] = new FrozenContent(version, text);
             return this;
         }
 
         public FrozenContent? TryGet(FrozenSlot slot) =>
-            _map.TryGetValue($"{slot.Zone}|{slot.Layer}|{slot.DomainId}", out var content) ? content : null;
+            _map.TryGetValue($"{slot.Zone}|{slot.Layer}", out var content) ? content : null;
     }
 
     private static IRuntimeModule[] FrozenModules()
     {
         var source = new FakeSource()
-            .With(FrozenZone.Rules, FrozenLayer.Global, null, "RG", "8")
-            .With(FrozenZone.Knowledge, FrozenLayer.Global, null, "KG", "10")
-            .With(FrozenZone.Knowledge, FrozenLayer.Expert, "software", "KS", "21")
-            .With(FrozenZone.MemoryIndex, FrozenLayer.Global, null, "M", "31");
+            .With(FrozenZone.Rules, FrozenLayer.Global, "RG", "8")
+            .With(FrozenZone.Knowledge, FrozenLayer.Global, "KG", "10")
+            .With(FrozenZone.MemoryIndex, FrozenLayer.Global, "M", "31");
 
         return
         [
@@ -116,14 +115,14 @@ public sealed class DeterminismGateTests
 
         Assert.Equal(expected.PromptText, prefix.PromptText);
         Assert.Equal(expected.Id, prefix.Id);
-        Assert.Equal("RG\n\nKG\n\nKS\n\nM", prefix.PromptText);
+        Assert.Equal("RG\n\nKG\n\nM", prefix.PromptText);
     }
 
     [Fact]
     public void 全局指纹_任一区内容变化即变()
     {
         var changed = FrozenModules().ToArray();
-        changed[0] = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, null, "RG-2", "9"));
+        changed[0] = new RulesModule(new FakeSource().With(FrozenZone.Rules, FrozenLayer.Global, "RG-2", "9"));
 
         Assert.NotEqual(FrozenPrefix.Assemble(FrozenModules()).Id, FrozenPrefix.Assemble(changed).Id);
     }
@@ -134,10 +133,9 @@ public sealed class DeterminismGateTests
         var manifest = FrozenManifest.FromSnapshot(FrozenPrefix.Assemble(FrozenModules()));
 
         Assert.Equal(
-            new[] { "rules.global", "knowledge.global", "knowledge.expert.software", "memoryindex.global" },
+            new[] { "rules.global", "knowledge.global", "memoryindex.global" },
             manifest.Entries.Select(e => e.SectionId).ToArray());
-        Assert.Equal("21", manifest.Entries[2].Version);
-        Assert.Equal("software", manifest.Entries[2].DomainId);
+        Assert.Equal("10", manifest.Entries[1].Version);   // Expert 段退役 ⇒ knowledge.global 上移到 [1]
     }
 
     [Fact]
@@ -145,7 +143,7 @@ public sealed class DeterminismGateTests
     {
         var manifest = FrozenManifest.FromSnapshot(FrozenPrefix.Assemble(FrozenModules()));
 
-        Assert.Equal(manifest.ToJson(), manifest.ToJson());
+        Assert.Equal(manifest.ToXml(), manifest.ToXml());
     }
 
     [Fact]
@@ -153,7 +151,7 @@ public sealed class DeterminismGateTests
     {
         var manifest = FrozenManifest.FromSnapshot(FrozenPrefix.Assemble(FrozenModules()));
 
-        var back = FrozenManifest.FromJson(manifest.ToJson());
+        var back = FrozenManifest.FromXml(manifest.ToXml());
 
         Assert.Equal(manifest.SnapshotId, back.SnapshotId);
         Assert.Equal(manifest.Entries.Select(e => e.SectionId), back.Entries.Select(e => e.SectionId));
@@ -167,17 +165,14 @@ public sealed class DeterminismGateTests
 
         var after = FrozenManifest.FromSnapshot(FrozenSnapshot.Create(
         [
-            new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, "9", "RG"),               // 改版 8 -> 9
-            new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Global, null, "10", "KG"),          // 未变
-            new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Expert, "software", "21", "KS"),    // 未变
-            new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Expert, "finance", "1", "KF"),      // 新增
+            new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "9", "RG"),               // 改版 8 -> 9
+            new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Global, "10", "KG"),          // 未变
             // memoryindex 被删除
         ]));
 
         var diff = before.Diff(after);
 
-        Assert.Contains(diff, d => d.Contains("~ rules.global") && d.Contains("v9"));
-        Assert.Contains(diff, d => d.Contains("+ knowledge.expert.finance"));
+        Assert.Contains(diff, d => d.Contains("~ rules.global") && d.Contains("v8 → v9"));
         Assert.Contains(diff, d => d.Contains("- memoryindex.global"));
         Assert.DoesNotContain(diff, d => d.Contains("knowledge.global"));
     }
@@ -209,9 +204,9 @@ public sealed class DeterminismGateTests
 
         var result = await engine.ChatAsync("问题", TestContext.Current.CancellationToken);
 
-        Assert.Equal(new[] { "RG", "KG", "KS", "M", "问题" }, result.Request.Messages.Select(m => m.Content));
+        Assert.Equal(new[] { "RG", "KG", "M", "问题" }, result.Request.Messages.Select(m => m.Content));
 
-        var frozenText = string.Join("\n\n", result.Request.Messages.Take(4).Select(m => m.Content));
+        var frozenText = string.Join("\n\n", result.Request.Messages.Take(3).Select(m => m.Content));
         Assert.Equal(FrozenPrefix.Assemble(modules).PromptText, frozenText);
     }
 }

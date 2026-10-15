@@ -49,7 +49,7 @@ public sealed record CloseoutChecklistResult(
 /// 边界（刻意的）：
 /// <list type="number">
 /// <item>**只读**：只看，不写、不改写语料、不晋级；</item>
-/// <item>**不复制别的工具的逻辑**：知识库的「态 / 可晋级」判定归 <c>knowledge-repo.py</c>（单一来源）——
+/// <item>**不复制别的工具的逻辑**：知识库的「态 / 可晋级」判定归知识库实现（C# <c>KnowledgeRepoCli</c>，python 原件已退役）（单一来源）——
 /// 这里只报**事实**（版本号 / md 指纹 / 账本指纹 / 两者是否相等）+ 该跑的那条命令；</item>
 /// <item>**没配就明说**（<see cref="CloseoutItemStatus.Unconfigured"/>），不假装查过。</item>
 /// </list>
@@ -63,8 +63,8 @@ public static class CloseoutChecklist
 {
     private static readonly Regex DatedFile = new(@"^(?<date>\d{4}-\d{2}-\d{2})(-\d{4})?\.md$", RegexOptions.Compiled);
 
-    /// <summary>流文件名里的日期（<c>stream-20260921-212947.jsonl</c>）—— 它证明「这一天有过会话」。</summary>
-    private static readonly Regex StreamDate = new(@"^stream-(?<y>\d{4})(?<m>\d{2})(?<d>\d{2})-\d+\.jsonl$", RegexOptions.Compiled);
+    /// <summary>流文件名里的日期（<c>stream-20260921-212947.xml</c>）—— 它证明「这一天有过会话」。</summary>
+    private static readonly Regex StreamDate = new(@"^stream-(?<y>\d{4})(?<m>\d{2})(?<d>\d{2})-\d+\.xml$", RegexOptions.Compiled);
 
     /// <summary><c>AGENTS.md</c> 里被反引号点名的 <c>.md</c>（PITFALLS #92：改名了、指路人没改）。</summary>
     private static readonly Regex PointerToken = new(@"`([A-Za-z0-9_./\-]+\.md)`", RegexOptions.Compiled);
@@ -87,11 +87,24 @@ public static class CloseoutChecklist
                     new CloseoutItem("pitfalls", "踩坑集", CloseoutItemStatus.Unconfigured, "同上"),
                     new CloseoutItem("knowledge", "知识库晋级", CloseoutItemStatus.Unconfigured, "同上"),
                     new CloseoutItem("pointers", "顶层文件指针", CloseoutItemStatus.Unconfigured, "同上"),
+                    new CloseoutItem("worker-findings", "worker 产出汇流", CloseoutItemStatus.Unconfigured, "同上"),
+                    new CloseoutItem("toolface-findings", "工具面拒绝汇流", CloseoutItemStatus.Unconfigured, "同上"),
                 ],
                 ["未配工作区 ⇒ 只报协议义务（第 7 条），**不假装查过**。配 lifecycle.workspace 即可开校验。"]);
         }
 
         var memoryItem = MemoryItem(config, workspace, now);
+        // 2026-10-06（主人令）：worker 自持 R1 之后，它遇到的新问题必须**回流公共层** ——
+        // 收尾时读它的坑集收件箱 + memory（此前只写在注释里，**没有一处真的去读**）。
+        var findings = AgentRuntime.Core.Worker.WorkerFindings.Read(
+            config.Worker.PitfallsInbox,
+            Worker.MinimalWorker.RootOf(config.Worker));
+
+        // **工具面拒绝汇流**（主人 2026-10-15 令）：「任何工具面被拒…还要立刻触发踩坑集，这样下一个 session
+        // 可以由顶层知识库再限制一次远端 AI 的行为」。收件箱由 ToolRunner 在**拒绝那一刻**写；这里只读它、
+        // 把它变成**欠着的账**（不收敛就红）。读法与 worker 同一把尺子。
+        var toolface = AgentRuntime.Core.Worker.WorkerFindings.Read(config.Lifecycle.PitfallsInbox, workerRoot: null);
+
         var items = new List<CloseoutItem>
         {
             memoryItem,
@@ -99,12 +112,36 @@ public static class CloseoutChecklist
             PitfallsItem(config, now),
             KnowledgeItem(workspace),
             PointerItem(config, workspace),
+            WorkerFindingsItem(config, findings),
+            ToolFaceFindingsItem(config, toolface),
         };
 
         var draft = now;   // 占位不用；下面的 note 由调用方补（草稿来自活模块）
         _ = draft;
 
         notes.Add("R5 草稿：把里面**已定**的挑出来（→ 知识或待办），未定的留给下一个会话 —— 这是最容易漏的一类源。");
+
+        // worker 待收敛项**原文也要上屏**（看得见才收敛得掉：行数不够人会当它没东西）。
+        foreach (var line in findings.Pending.Take(10))
+        {
+            notes.Add($"worker 待收敛：{line}");
+        }
+
+        if (findings.PendingCount > 10)
+        {
+            notes.Add($"（另有 {findings.PendingCount - 10} 条，见收件箱原文）");
+        }
+
+        // 工具面待收敛项**原文也要上屏**（看得见才收敛得掉）。
+        foreach (var line in toolface.Pending.Take(10))
+        {
+            notes.Add($"工具面被拒待收敛：{line}");
+        }
+
+        if (toolface.PendingCount > 10)
+        {
+            notes.Add($"（另有 {toolface.PendingCount - 10} 条，见收件箱原文）");
+        }
 
         // 记忆水位（工作区那本账）——收尾报告要把它与**会话水位**（Runtime 那本账）并排显示（见 SessionLifecycle）。
         var text = File.ReadAllText(Path.Combine(workspace, "memory", "收尾水位.md"));
@@ -227,7 +264,7 @@ public static class CloseoutChecklist
 
     /// <summary>
     /// **有过会话的日子**（水位之后、今天之前（含））—— 会话的证据是**流文件**：
-    /// 产物目录里每个 <c>stream-YYYYMMDD-HHMMSS.jsonl</c> 都表示那天真跑过；今天则必然有（收尾就发生在今天）。
+    /// 产物目录里每个 <c>stream-YYYYMMDD-HHMMSS.xml</c> 都表示那天真跑过；今天则必然有（收尾就发生在今天）。
     /// </summary>
     private static IReadOnlyList<string> SessionDays(RuntimeConfiguration config, DateTimeOffset now, string watermark)
     {
@@ -238,7 +275,7 @@ public static class CloseoutChecklist
         var directory = string.IsNullOrWhiteSpace(streamPath) ? null : Path.GetDirectoryName(Path.GetFullPath(streamPath));
         if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
         {
-            foreach (var file in Directory.EnumerateFiles(directory, "stream-*.jsonl"))
+            foreach (var file in Directory.EnumerateFiles(directory, "stream-*.xml"))
             {
                 var name = Path.GetFileName(file);
                 if (name.Contains("corrupt", StringComparison.OrdinalIgnoreCase))
@@ -377,6 +414,14 @@ public static class CloseoutChecklist
             detail += $"；另有 {touched} 个今天改过但名字不带日期的文件（核对一下是不是该改名的交接件）";
         }
 
+        // 2026-10-11：把「下一个编号」直接算出来（形状同 `path-base` Hint 的纪律）——
+        // 此前模型为了给新交接件起名，得自己 `ls` 一趟 handoff/ 找尾号（真机 M10：一次白勘察）。
+        var nextNumber = NextNumber(files.Select(f => f.Name));
+        if (nextNumber is not null)
+        {
+            detail += $"；**下一个编号：{nextNumber}**（按它命名，不必自己再探）";
+        }
+
         return new CloseoutItem(
             "handoff",
             "跨端交接件（每个 task 一件）",
@@ -385,6 +430,58 @@ public static class CloseoutChecklist
     }
 
     /// <summary>踩坑集：今天的条目数（按条目正文里的日期认）。</summary>
+    /// <summary>
+    /// **worker 产出汇流**（2026-10-06）：worker 报的坑 / 交接必须**收敛进公共层**，不能只躺在收件箱里。
+    /// <para>三态：没配收件箱 ⇒ <c>Unconfigured</c>；有未收敛条 ⇒ <c>Pending</c>（带条数与去处）；
+    /// 收敛完（<c>WorkerFindings.MarkAbsorbed</c> 记过账）⇒ <c>Ok</c>。</para>
+    /// </summary>
+    private static CloseoutItem WorkerFindingsItem(RuntimeConfiguration config, AgentRuntime.Core.Worker.WorkerFindings.Digest d)
+    {
+        if (string.IsNullOrWhiteSpace(config.Worker.PitfallsInbox))
+        {
+            return new CloseoutItem("worker-findings", "worker 产出汇流", CloseoutItemStatus.Unconfigured,
+                "未配 worker.pitfallsInbox ⇒ 不校验（worker 报的坑没有落点）");
+        }
+
+        var memory = d.MemoryFiles == 0 ? "memory 0 个文件" : $"memory {d.MemoryFiles} 个文件（{d.MemoryRoot}）";
+        var detail = d.PendingCount == 0
+            ? $"无待收敛项（收件箱共 {d.Total} 条 / 已吸收 {d.Absorbed}）· {memory}"
+            : $"**{d.PendingCount} 条待收敛** · {memory} ⇒ 把 worker 遇到的新问题抽象进**公共 L1/L2 与铁则区**，"
+              + "然后用 `WorkerFindings.MarkAbsorbed` 记账（不记 ⇒ 下一轮还会红）";
+
+        return new CloseoutItem(
+            "worker-findings",
+            "worker 产出汇流",
+            d.PendingCount == 0 ? CloseoutItemStatus.Ok : CloseoutItemStatus.Pending,
+            detail);
+    }
+
+    /// <summary>
+    /// **工具面拒绝汇流**（主人 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底 ——
+    /// 任何工具面拒绝都要**立刻**落进收件箱，收尾必须把它**收敛进顶层知识**（下一个 session 再限制一次它的行为）。
+    /// <para>三态同 <see cref="WorkerFindingsItem"/>：没配 ⇒ <c>Unconfigured</c>；有未收敛条 ⇒ <c>Pending</c>；
+    /// 收敛完（<c>WorkerFindings.MarkAbsorbed</c> 记过账）⇒ <c>Ok</c>。</para>
+    /// </summary>
+    private static CloseoutItem ToolFaceFindingsItem(RuntimeConfiguration config, AgentRuntime.Core.Worker.WorkerFindings.Digest d)
+    {
+        if (string.IsNullOrWhiteSpace(config.Lifecycle.PitfallsInbox))
+        {
+            return new CloseoutItem("toolface-findings", "工具面拒绝汇流", CloseoutItemStatus.Unconfigured,
+                "未配 lifecycle.pitfallsInbox ⇒ 不校验（工具面拒绝没有落点）");
+        }
+
+        var detail = d.PendingCount == 0
+            ? $"无待收敛项（收件箱共 {d.Total} 条 / 已吸收 {d.Absorbed}）"
+            : $"**{d.PendingCount} 条待收敛**（工具面拒绝）⇒ 把**被拒的形状 / 原因**抽象成 L1/L2 的一条约束，"
+              + "然后用 `WorkerFindings.MarkAbsorbed` 记账（不记 ⇒ 下一轮还会红）";
+
+        return new CloseoutItem(
+            "toolface-findings",
+            "工具面拒绝汇流",
+            d.PendingCount == 0 ? CloseoutItemStatus.Ok : CloseoutItemStatus.Pending,
+            detail);
+    }
+
     private static CloseoutItem PitfallsItem(RuntimeConfiguration config, DateTimeOffset now)
     {
         var path = config.Lifecycle.Pitfalls;
@@ -405,6 +502,13 @@ public static class CloseoutChecklist
             ? $"今天（{today}）0 条 —— 若今天没踩坑，这行就是「无需交」，但那是**判断**不是忽略"
             : $"今天（{today}）{count} 条（{path}）";
 
+        // 2026-10-11：同理把「下一条 #N」算出来（真机 M10：为定位坑集尾号又白勘察一趟）。
+        var nextPitfall = NextPitfallNumber(path);
+        if (nextPitfall is not null)
+        {
+            detail += $"；**下一条编号：#{nextPitfall}**；尾行原文在 {path}";
+        }
+
         return new CloseoutItem(
             "pitfalls",
             "踩坑集",
@@ -414,7 +518,7 @@ public static class CloseoutChecklist
 
     /// <summary>
     /// 知识库：**只报事实**（版本 / md 指纹 / 账本指纹 / 是否相等）+ 该跑的命令。
-    /// <para>态与晋级的判定归 <c>knowledge-repo.py</c>（单一来源）—— 这里不复制它。</para>
+    /// <para>态与晋级的判定归知识库实现（C# <c>KnowledgeRepoCli</c>）（单一来源）—— 这里不复制它。</para>
     /// </summary>
     private static CloseoutItem KnowledgeItem(string workspace)
     {
@@ -430,7 +534,7 @@ public static class CloseoutChecklist
             : 0;
 
         var mdSha = Sha256Prefix(md);
-        var ledgerSha = ReadLedgerSha(Path.Combine(knowledge, ".ledger.json"));
+        var ledgerSha = ReadLedgerSha(Path.Combine(knowledge, ".ledger.xml"));
 
         var detail = ledgerSha is null
             ? $"版本快照 {versions} 个 · md 指纹 {mdSha} · **账本缺**（无法比对）⇒ 判定与晋级归工具"
@@ -440,13 +544,26 @@ public static class CloseoutChecklist
             "knowledge",
             "知识库晋级",
             mdSha == ledgerSha ? CloseoutItemStatus.Ok : CloseoutItemStatus.Pending,
-            detail + "；判定/晋级：`python3 tools/skill-repo/knowledge-repo.py --out <knowledge> --closeout|--promote`");
+            detail + "；判定/晋级：`AgentRuntime.Cli --knowledge-repo <knowledge> --closeout|--promote`（C# 实现；python 原件已退役）");
     }
 
     /// <summary>水位文件里第一个 <c>YYYY-MM-DD</c>（"当前水位：截至 2026-09-17" 这类写法都认）。</summary>
     internal static string? TryReadWatermark(string text)
     {
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+
+        // ① **运行时自己写的那条带标签行**（与 Core 的 ReadWatermark **同一来源** —— 两本水位必须同源）。
+        foreach (var line in lines.Where(l => l.Contains("知识水位（运行时写）", StringComparison.Ordinal)))
+        {
+            var m0 = Regex.Match(line, @"\d{4}-\d{2}-\d{2}");
+            if (m0.Success)
+            {
+                return m0.Value;
+            }
+        }
+
+        // ② 老口径（兼容旧文件）：'当前水位' / 'last_organized' 行里的日期。
+        foreach (var line in lines)
         {
             if (!line.Contains("当前水位", StringComparison.Ordinal) && !line.Contains("last_organized", StringComparison.Ordinal))
             {
@@ -478,24 +595,61 @@ public static class CloseoutChecklist
 
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
-            if (document.RootElement.TryGetProperty("current", out var current)
-                && current.TryGetProperty("sha256", out var sha) && sha.ValueKind == System.Text.Json.JsonValueKind.String)
-            {
-                var value = sha.GetString();
-                return string.IsNullOrWhiteSpace(value) ? null : value[..12].ToLowerInvariant();
-            }
+            var doc = AgentRuntime.Core.Persistence.DataContractXml.ReadFile<AgentRuntime.Core.Knowledge.LedgerDoc>(path);
+            var value = doc.Current?.Sha256;
+            return string.IsNullOrWhiteSpace(value) ? null : value[..12].ToLowerInvariant();
         }
-        catch (System.Text.Json.JsonException)
+        catch (InvalidDataException)
         {
             return null;
         }
-
-        return null;
     }
 
     private static string Head(IReadOnlyList<string> names, int count) =>
         names.Count <= count
             ? string.Join('、', names)
             : string.Join('、', names.Take(count)) + $"…（共 {names.Count}）";
+
+    /// <summary>
+    /// 目录里文件名**开头的编号**（<c>47-收尾…md</c> · <c>48-…md</c>）⇒ 报「下一个编号」。
+    /// <para>为什么值得由运行时算：编号是**文件系统的事实**，而它是模型为了给新件起名必须先知道的东西 ——
+    /// 不说 ⇒ 它必然多花一轮去 <c>list</c>（真机 2026-10-11 M10）。返回 <c>null</c> = 目录里没有带编号的名字（不猜）。</para>
+    /// </summary>
+    private static string? NextNumber(IEnumerable<string> names)
+    {
+        var width = 0;
+        var max = -1;
+        foreach (var name in names)
+        {
+            var match = Regex.Match(name, @"^(?<n>\d+)[-_]", RegexOptions.Compiled);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var raw = match.Groups["n"].Value;
+            width = Math.Max(width, raw.Length);
+            max = Math.Max(max, int.Parse(raw, CultureInfo.InvariantCulture));
+        }
+
+        return max < 0
+            ? null
+            : (max + 1).ToString(CultureInfo.InvariantCulture).PadLeft(Math.Max(width, 2), '0');
+    }
+
+    /// <summary>坑集里最大的 <c>#NNN</c>（<c>## #281 …</c>）⇒ 报「下一条 #N」。</summary>
+    private static string? NextPitfallNumber(string path)
+    {
+        var max = 0;
+        foreach (var line in File.ReadLines(path))
+        {
+            var match = Regex.Match(line, @"^#+\s*#(?<n>\d+)", RegexOptions.Compiled);
+            if (match.Success && int.TryParse(match.Groups["n"].Value, out var value) && value > max)
+            {
+                max = value;
+            }
+        }
+
+        return max == 0 ? null : (max + 1).ToString(CultureInfo.InvariantCulture);
+    }
 }

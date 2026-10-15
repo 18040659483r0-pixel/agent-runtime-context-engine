@@ -36,8 +36,8 @@ public sealed class CorpusLockTests
         return dir?.FullName ?? throw new DirectoryNotFoundException("找不到含 AgentRuntime.slnx 的项目根。");
     }
 
-    private static JsonDocument Config() =>
-        JsonDocument.Parse(File.ReadAllText(Path.Combine(BenchDir, "benchmark.config.json"), Encoding.UTF8));
+    private static System.Xml.Linq.XDocument Config() =>
+        System.Xml.Linq.XDocument.Load(Path.Combine(BenchDir, "benchmark.config.xml"));
 
     /// <summary>
     /// **唯一禁字清单**（`tools/pre-publish-patterns.txt`，2026-09-17「B 方案」）——
@@ -62,12 +62,12 @@ public sealed class CorpusLockTests
     [Fact]
     public void 语料来源_必须恰好是白名单里的三个仓库内文件()
     {
-        var sources = Config().RootElement.GetProperty("corpus").GetProperty("sources");
-        var values = sources.EnumerateObject().Select(p => p.Value.GetString()!.Replace('\\', '/')).ToArray();
+        var sources = Config().Root!.Element("Corpus")!.Element("Sources")!.Elements("Source")
+            .Select(e => e.Value.Replace('\\', '/')).ToArray();
 
-        Assert.Equal(Allowed.OrderBy(x => x, StringComparer.Ordinal), values.OrderBy(x => x, StringComparer.Ordinal));
-        Assert.All(values, v => Assert.DoesNotContain("..", v));
-        Assert.All(values, v => Assert.False(Path.IsPathRooted(v), $"来源不得用绝对路径：{v}"));
+        Assert.Equal(Allowed.OrderBy(x => x, StringComparer.Ordinal), sources.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.All(sources, v => Assert.DoesNotContain("..", v));
+        Assert.All(sources, v => Assert.False(Path.IsPathRooted(v), $"来源不得用绝对路径：{v}"));
     }
 
     [Fact]
@@ -75,40 +75,53 @@ public sealed class CorpusLockTests
     {
         var (badPaths, badContent) = Patterns();   // 与发布扫描器**同源**（不另抄一份）
 
-        // 配置：只看**生效字段**（跳过 `_comment` 这类说明键——说明里必须能讲清楚「为什么禁」）。
-        using var config = Config();
+        // 配置：只看**生效字段**（跳过 Comment 类说明元素——说明里必须能讲清楚「为什么禁」）。
+        var config = Config();
         var values = new List<string>();
-        Collect(config.RootElement, values);
+        foreach (var element in config.Descendants())
+        {
+            if (element.Name.LocalName is "Comment" or "PricingComment" or "CorpusComment")
+            {
+                continue;
+            }
+
+            if (!element.HasElements)
+            {
+                values.Add(element.Value);
+            }
+
+            values.AddRange(element.Attributes().Select(a => a.Value));
+        }
         foreach (var value in values)
         {
             foreach (var pattern in badPaths)
             {
                 Assert.False(value.Contains(pattern, StringComparison.Ordinal),
-                    $"benchmark.config.json 生效字段出现「{pattern}」：{value}");
+                    $"benchmark.config.xml 生效字段出现「{pattern}」：{value}");
             }
 
             foreach (var pattern in badContent)
             {
                 Assert.False(Regex.IsMatch(value, pattern),
-                    $"benchmark.config.json 生效字段命中禁字规则「{pattern}」：{value}");
+                    $"benchmark.config.xml 生效字段命中禁字规则「{pattern}」：{value}");
             }
         }
 
         // 启动脚本：整份文本都不得出现。
-        var script = Path.Combine(RepoRoot(), "benchmark", "run-bench.sh");
+        var script = Path.Combine(RepoRoot(), "tools", "wb-cli", "Launch.cs");
         if (File.Exists(script))
         {
             var text = File.ReadAllText(script, Encoding.UTF8);
             foreach (var pattern in badPaths)
             {
                 Assert.False(text.Contains(pattern, StringComparison.Ordinal),
-                    $"run-bench.sh 不得出现「{pattern}」（测试工程只用 10K 切片）");
+                    $"bench 启动器（wb-cli）不得出现「{pattern}」（测试工程只用 10K 切片）");
             }
 
             foreach (var pattern in badContent)
             {
                 Assert.False(Regex.IsMatch(text, pattern),
-                    $"run-bench.sh 命中禁字规则「{pattern}」（测试工程只用 10K 切片）");
+                    $"bench 启动器（wb-cli）命中禁字规则「{pattern}」（测试工程只用 10K 切片）");
             }
         }
     }
@@ -146,26 +159,28 @@ public sealed class CorpusLockTests
     [Fact]
     public void 任一档位冻结规模_不得超过10k_token()
     {
-        var tiers = Config().RootElement.GetProperty("corpus").GetProperty("tiers");
-        foreach (var tier in tiers.EnumerateArray())
+        var tiers = Config().Root!.Element("Corpus")!.Element("Tiers")!.Elements("Tier");
+        foreach (var tier in tiers)
         {
-            var chars = tier.GetProperty("slices").EnumerateArray()
-                .Sum(s => s.GetProperty("chars").GetInt32());
+            var chars = tier.Element("Slices")!.Elements("Slice")
+                .Sum(s => int.Parse(s.Attribute("Chars")!.Value, System.Globalization.CultureInfo.InvariantCulture));
             var tokens = chars / CharsPerToken;
 
             Assert.True(tokens <= MaxFrozenTokens,
-                $"档位 {tier.GetProperty("id").GetString()} 冻结 {chars} 字符 ≈ {tokens:0} token，超过上限 {MaxFrozenTokens}");
+                $"档位 {tier.Attribute("Id")!.Value} 冻结 {chars} 字符 ≈ {tokens:0} token，超过上限 {MaxFrozenTokens}");
         }
     }
 
     [Fact]
     public void 语料指纹必须与锁文件一致_且不含隐私模式()
     {
-        var lockPath = Path.Combine(BenchDir, "corpus.lock.json");
-        Assert.True(File.Exists(lockPath), "缺 corpus.lock.json（生成：python3 benchmark/tools/lock-corpus.py --update）");
+        var lockPath = Path.Combine(BenchDir, "corpus.lock.xml");
+        Assert.True(File.Exists(lockPath), "缺 corpus.lock.xml（生成：dotnet run --project benchmark/AgentRuntime.Benchmark -- lock-corpus --update）");
 
-        using var pinned = JsonDocument.Parse(File.ReadAllText(lockPath, Encoding.UTF8));
-        var files = pinned.RootElement.GetProperty("files");
+        // 锁文件是**强类型 XML**（A4）—— 按元素名取，不引类型依赖。
+        var lockDoc = System.Xml.Linq.XDocument.Load(lockPath);
+        var pinned = lockDoc.Root!.Element("Files")!.Elements("File")
+            .ToDictionary(e => e.Element("Rel")!.Value, e => e.Element("Sha256")!.Value, StringComparer.Ordinal);
 
         var (_, leakPatterns) = Patterns();   // 与发布扫描器**同源**（不另抄一份）
 
@@ -174,7 +189,7 @@ public sealed class CorpusLockTests
             var path = Path.Combine(BenchDir, relative);
             Assert.True(File.Exists(path), $"白名单文件不存在：{relative}");
 
-            var expected = files.GetProperty(relative).GetString();
+            var expected = pinned[relative];
             var actual = "sha256:" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
             Assert.Equal(expected, actual);
 

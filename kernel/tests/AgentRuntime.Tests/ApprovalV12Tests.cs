@@ -287,7 +287,7 @@ public sealed class ApprovalV12Tests
     [Fact]
     public async Task 严格模式_命令打开后_声明none的普通写仍走判定层_留档()
     {
-        using var harness = new TuiHarness("strict-on", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("strict-on", modules: ["rules","append-stream","tool"]);
         var gateway = GatewayOf(harness.Host);
 
         Assert.False(gateway.StrictMode);   // 出厂默认关（默认口径是「模型自判」，不是严格）
@@ -311,7 +311,7 @@ public sealed class ApprovalV12Tests
     [Fact]
     public async Task 严格模式_命令关闭后_恢复模型自判自动放行()
     {
-        using var harness = new TuiHarness("strict-off", modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        using var harness = new TuiHarness("strict-off", modules: ["rules","append-stream","tool"]);
         var gateway = GatewayOf(harness.Host);
 
         await harness.Router.ExecuteAsync("/strict on", harness.Stderr, Ct);

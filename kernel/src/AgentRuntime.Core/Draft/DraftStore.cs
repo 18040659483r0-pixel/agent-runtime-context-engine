@@ -1,6 +1,4 @@
-using System.Text;
-using System.Text.Json;
-using AgentRuntime.Core.Frozen;
+using AgentRuntime.Core.Persistence;
 
 namespace AgentRuntime.Core.Draft;
 
@@ -10,7 +8,7 @@ namespace AgentRuntime.Core.Draft;
 /// ⚠️ <b>与 <c>focus.json</c> 的口径**正好相反**</b>（PITFALLS #24 判据：能否重建决定坏文件处置）：
 /// </para>
 /// <list type="bullet">
-/// <item><c>focus.json</c> 是**可重建的加速缓存**（流才是真相源）⇒ 坏掉降级当「没有缓存」；</item>
+/// <item><c>focus.xml</c> 是**可重建的加速缓存**（流才是真相源）⇒ 坏掉降级当「没有缓存」；</item>
 /// <item>本存储**就是真相源**（草稿不在流里、无法从流重算）⇒ **坏文件必须报错**，
 /// 绝不做「当没有」的降级（那等于把主人的草稿悄悄清空还装作没事）。</item>
 /// </list>
@@ -19,12 +17,10 @@ namespace AgentRuntime.Core.Draft;
 /// 局部编辑会引入不可复算的增量操作，与「账本可逐字节 diff」的既有纪律冲突；
 /// 语义上的「删 / 改 / 重排」由**整块新内容**表达（见 <c>DynamicDraftModule.ObserveAsync</c>）。
 /// </para>
-/// <para>位置：<c>&lt;目录&gt;/&lt;sessionId&gt;.json</c>（默认目录 <c>~/.agentruntime/draft</c>，由组合根解析）。</para>
+/// <para>位置：<c>&lt;目录&gt;/&lt;sessionId&gt;.xml</c>（默认目录 <c>~/.agentruntime/draft</c>，由组合根解析）。</para>
 /// </summary>
 public sealed class DraftStore
 {
-    private static readonly JsonSerializerOptions Options = FrozenJson.Options;
-
     /// <summary>未指定 sessionId 时使用的键（单会话日常使用）。</summary>
     public const string DefaultSessionKey = "default";
 
@@ -56,10 +52,46 @@ public sealed class DraftStore
 
     /// <summary>某个会话的草稿文件路径。</summary>
     public string PathFor(string? sessionId) =>
-        System.IO.Path.Combine(Directory, KeyOf(sessionId) + ".json");
+        System.IO.Path.Combine(Directory, KeyOf(sessionId) + ".xml");
 
     /// <summary>文件是否已存在（只读判断）。</summary>
     public bool Exists(string? sessionId) => File.Exists(PathFor(sessionId));
+
+    /// <summary>
+    /// **跨会话承接**（主人 2026-10-14 20:40 令）：白板 R4 / 草稿 R5 是**工作台面**，不是「本次会话的临时物」。
+    /// <para>本会话还没有自己那份（新 sessionId ⇒ 新文件名）时，就从**同目录里最近改动的**那一份 **copy** 过来
+    /// （旧件**不动** —— 旧会话自己那份留着，可回溯）。</para>
+    /// <para><b>为什么必须有</b>（真机现场）：主人在上一会话交代「记录下个 session 要继续做的活」，
+    /// 新会话却拿到**空白**白板/草稿 ⇒ 远端 AI 只能自己去翻旧会话遗留 ⇒ 白烧巨量时间。
+    /// 协议第 7/9 条本来就写着「reset 定格 · start 从末态装载」—— 这条把它补到**冷启动**这一路。</para>
+    /// </summary>
+    /// <returns>承接来源的键；没有可承接的（或本会话已有）⇒ <c>null</c>。</returns>
+    public string? CarryFromNewest(string? sessionId)
+    {
+        var target = PathFor(sessionId);
+        if (File.Exists(target) || !System.IO.Directory.Exists(Directory))
+        {
+            return null;
+        }
+
+        var newest = new DirectoryInfo(Directory)
+            .GetFiles("*.xml")
+            .Where(f => !string.Equals(f.FullName, target, StringComparison.Ordinal))
+            // **跳过「空台面」的件**（2026-10-15 真机：最近改动的恰是空件 ⇒ 承接一份空的进来；
+            //   主人的口径：台面**只要更新过一次就永远不可能是空的**）⇒ 宁取次新的**有内容**那一份。
+            .Where(f => !IsEmptyState(f))
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .FirstOrDefault();
+
+        if (newest is null)
+        {
+            return null;
+        }
+
+        File.Copy(newest.FullName, target, overwrite: false);
+        return Path.GetFileNameWithoutExtension(newest.Name);
+    }
+
 
     /// <summary>
     /// 读取草稿；**文件不存在 ⇒ null**（新会话）；**坏文件 ⇒ 抛 <see cref="InvalidDataException"/>**（不降级）。
@@ -75,16 +107,17 @@ public sealed class DraftStore
         DraftEntry? entry;
         try
         {
-            entry = JsonSerializer.Deserialize<DraftEntry>(File.ReadAllText(path, Encoding.UTF8), Options);
+            entry = DataContractXml.ReadFile<DraftEntry>(path);
         }
-        catch (JsonException ex)
+        catch (InvalidDataException ex)
         {
             throw new InvalidDataException(
-                $"草稿存储文件不是合法 JSON：{path}（{ex.Message}）—— 草稿是**唯一真相源**（不可从流重建），" +
+                $"草稿存储文件不是合法内容：{path}（{ex.Message}）—— 草稿是**唯一真相源**（不可从流重建），" +
                 "坏文件必须报错，不做「当没有」的降级。", ex);
         }
 
-        return entry ?? throw new InvalidDataException($"草稿存储内容为空：{path}（唯一真相源，拒绝当作空草稿）。");
+        entry = entry ?? throw new InvalidDataException($"草稿存储内容为空：{path}（唯一真相源，拒绝当作空草稿）。");
+        return entry with { Draft = entry.Draft ?? [] };
     }
 
     /// <summary>读取草稿；文件缺失 ⇒ 空默认（不是错误）。</summary>
@@ -102,28 +135,7 @@ public sealed class DraftStore
             System.IO.Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(entry, Options).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
-        var temporary = $"{path}.tmp-{Guid.NewGuid():N}";
-
-        try
-        {
-            File.WriteAllText(temporary, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-            {
-                try
-                {
-                    File.Delete(temporary);
-                }
-                catch (IOException)
-                {
-                    // 清理失败不掩盖原始异常（残留临时文件比半截 JSON 安全）。
-                }
-            }
-        }
+        DataContractXml.WriteFileAtomic(path, entry);
     }
 
     /// <summary>路径展开（支持 <c>~/</c>），与 CLI 其余路径同规。</summary>
@@ -131,4 +143,23 @@ public sealed class DraftStore
         directory.StartsWith("~/", StringComparison.Ordinal)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), directory[2..])
             : directory;
+
+    /// <summary>
+    /// 这份台面件是不是**空台面**（承接时跳过它 —— 主人 2026-10-15 口径：台面**只要更新过一次就永远不可能是空的**）。
+    /// <para>🔑 判据必须**先加载**，不能看字节：① 能加载且 **0 行** ⇒ 空台面 ⇒ 跳过；
+    /// ② **加载失败（坏文件）⇒ 照旧拷过去**（fail-closed：坏文件必须响亮报错、绝不静默当没有 —— 本存储的既有纪律）；
+    /// ③ 有内容 ⇒ 拷。</para>
+    /// </summary>
+    private bool IsEmptyState(FileInfo file)
+    {
+        try
+        {
+            var id = System.IO.Path.GetFileNameWithoutExtension(file.Name);
+            return (TryLoad(id)?.Draft.Length ?? 0) == 0;
+        }
+        catch (Exception)
+        {
+            return false;   // 坏文件 ⇒ 不算「空台面」⇒ 照旧拷（让 loader 响亮报错）
+        }
+    }
 }

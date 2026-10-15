@@ -28,6 +28,17 @@ public sealed class ReadTool : ToolBase
 
     public override string Describe(ToolArgs args) => $"read {args.Canonical}";
 
+    /// <summary>
+    /// **跨调用**记住「这一窗读过了」（C1，2026-09-26）：实测同一批文件被反复读同一个窗
+    /// （12 次 read 均 2,126 字符）。键 = 会话 + 文件真身；值 = 各窗的正文 sha（**逐字节**判据，不靠行号）。
+    /// </summary>
+    private readonly Dictionary<string, List<SeenWindow>> _seen = new();
+
+    /// <summary>D3 最小版：同一会话内每份文件被**整文件**读过几次（key = session + path）。</summary>
+    private readonly Dictionary<string, int> _wholeReads = new();
+
+    private readonly record struct SeenWindow(int From, int To, string Sha, int Turn);
+
     /// <summary>体检：必填 <c>path</c>（审批之前就要能确定「读哪一个」）；<c>symbol</c> 与行窗参数互斥。</summary>
     public override void Validate(ToolArgs args)
     {
@@ -145,6 +156,7 @@ public sealed class ReadTool : ToolBase
         // 两种读法（二选一，冲突已在 Validate 里拒）：① v19 按符号取整段；② 按行窗取一段。
         int from;
         int limit;
+        var wholeFileIntent = false;   // 2026-10-11："整读意图" = 从头 + 没显式限窗（或要的行数 ≥ 全文）
         string? head = null;                                 // 摘要前缀（符号定位时用它说出「取的是哪一段」）
         if (!string.IsNullOrEmpty(symbol))
         {
@@ -173,10 +185,15 @@ public sealed class ReadTool : ToolBase
             from = args.OptionalInt("offset") ?? 1;          // 从 1 起的行号（与 [OC] 同语义）
             if (from < 1)
             {
-                throw new ToolUsageException($"offset 必须为从 1 起的行号（正整数），实际 {from}。");
+                // 保持既有契约（fail-closed）：offset 必须为正整数。
+                // 2026-09-28 回改：批次 5 我一度把 0 容错成「从头读」，但那**改掉了已上闸门的契约**
+                //（ToolReportTests 当场红）。正解是**把话术说清**，不是放宽闸门：要从头读就别给 offset。
+                throw new ToolUsageException($"offset 必须为从 1 起的行号（正整数），实际 {from}；要从头读就**别给 offset**。");
             }
 
             limit = Math.Min(requested, context.Limits.AbsoluteMaxReadLines);
+            var explicitWindow = args.OptionalInt("limit") is not null || args.OptionalInt("maxLines") is not null;
+            wholeFileIntent = from == 1 && (!explicitWindow || requested >= all.Length);
         }
 
         limit = Math.Min(limit, context.Limits.AbsoluteMaxReadLines);   // 两种读法都不能越过硬上限
@@ -186,7 +203,7 @@ public sealed class ReadTool : ToolBase
         // （PITFALLS「两层截断别拿一层当另一层」的坑：模型按头部行号下结论会漏内容）。
         var window = all.Skip(from - 1).ToArray();
         var taken = Math.Min(window.Length, limit);
-        var cap = context.Limits.MaxOutputChars;
+        var cap = context.Limits.MaxOutputChars;   // 2026-10-11 实测：抬高整读上限反而让模型「淹」（comp ×3，22.8s）⇒ 回退，维持 2,000
 
         var fitted = 0;
         var used = 0;
@@ -206,8 +223,31 @@ public sealed class ReadTool : ToolBase
         var byChars = fitted < taken;                        // 是字符窗先到（而不是行窗）
         var body = string.Join('\n', window.Take(fitted));
         var next = from + fitted;                            // 截断时把**下一段起点**写进结果（自解释；不改前缀）
+        // C1（2026-09-26）：指针必须能走通 —— read 的「全文」就是磁盘上这个文件本身，
+        // 所以真指针是 `offset={next}`（原来还缀一句「全文在 /trace」是假指针：那是 TUI 看轨迹的命令）。
+        // 2026-10-11（主人令）：**只有「整读意图」**才走「到此为止」；显式限窗的**窗口读**仍保留准指针。
+        var anchor = wholeFileIntent && byChars && fitted > 0 && all.Length > fitted * 3
+            ? $"；**整读不可用（本文件 {all.Length} 行 > 单次上限）** —— 锚："
+              + $"{all.Length} 行 / {new FileInfo(path).Length} 字节 / sha256 {ShortFileSha(path) ?? "（算不出）"} · "
+              + $"首行 = {(all[0].Length > 60 ? all[0][..60] + "…" : all[0])} · "
+              + $"末 2 行 = {string.Join(" ⏎ ", all.TakeLast(2).Select(x => x.Length > 60 ? x[..60] + "…" : x))}"
+            : string.Empty;
+
+        static string? ShortFileSha(string p)
+        {
+            try
+            {
+                using var st = File.OpenRead(p);
+                return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(st))
+                    .ToLowerInvariant()[..16];
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
         var tail = more
-            ? $"（截断：{(byChars ? $"字符上限 {cap}" : $"行数上限 {limit}")} ⇒ 用 offset={next} 接着读；全文在 /trace）"
+            ? $"（截断：{(byChars ? $"字符上限 {cap}" : $"行数上限 {limit}")} ⇒ 用 offset={next} 接着读同一文件）{anchor}"
             : string.Empty;
         var summary = head is not null
             ? $"{head}{(fitted == 0 ? $"；⚠️ 这一段开头就放不下（单条结果上限 {cap} 字符）" : string.Empty)}{tail}"
@@ -219,8 +259,79 @@ public sealed class ReadTool : ToolBase
                         ? $"第 {from} 行起放不下（单条结果上限 {cap} 字符）—— 把窗口改小或提高 offset（共 {all.Length} 行）"
                         : $"第 {from}~{from + fitted - 1} 行 / 共 {all.Length} 行{tail}"));
 
-        var text = $"read {args.Canonical} → {summary}\n{body}";
+        var echo = NoteRepeat(context, path, from, fitted, body);
+        var repeatWhole = NoteWholeFileRead(context, path, from, fitted, all.Length);
+        var text = $"read {args.Canonical} → {summary}\n{body}{echo}{repeatWhole}";
         return ToolOutcome.Success(text, more);
+    }
+
+    /// <summary>
+    /// 记录本窗，并在**逐字节相同**时如实提示一次（C1）。
+    /// <para>只报事实，**不给「还没读哪几段」的清单** —— 附待办清单会让它把清单读满（坑 #115）。</para>
+    /// <para>判据必须可复算：比的是正文 sha，不是「行号看起来一样」（内容可能变了）。</para>
+    /// </summary>
+    /// <summary>
+    /// **同一会话内同一文件被「整文件读」≥2 次 ⇒ 响亮报一条**（2026-09-28 · 批次 6 的 D3 **最小版**）。
+    /// <para><b>如实标注：这是最小版，不是硬闸门</b> —— 判据是 <c>sessionId + path</c>，
+    /// <b>没有贯通 task 标识</b>（协议第 13 条的分派里没有稳定的 task id 落到工具上下文）。
+    /// 因此它<b>只报事实、不阻断</b>；要做到「同一 task 内 ⇒ 红」，先把 task 标识贯通到工具调用再说。</para>
+    /// <para>为什么仍然值得做：整文件重复读是侦察期最贵的动作（每次几 KB，且每轮重发）。</para>
+    /// </summary>
+    private string NoteWholeFileRead(ToolContext context, string path, int from, int fitted, int total)
+    {
+        if (fitted <= 0 || from != 1 || fitted != total)
+        {
+            return string.Empty;   // 只统计**整文件**读（部分窗口不算）
+        }
+
+        var key = $"{context.SessionId ?? "-"}\n{path}";
+        lock (_seen)
+        {
+            _wholeReads.TryGetValue(key, out var n);
+            n++;
+            _wholeReads[key] = n;
+            return n >= 2
+                ? $"\n（⚠️ 本会话第 {n} 次**整文件**读这一份（D3 最小版：session+path 计数，**未贯通 task**）—— 重复读整文件是最贵的动作；要别处就换 offset，或派给 worker）"
+                : string.Empty;
+        }
+    }
+
+    private string NoteRepeat(ToolContext context, string path, int from, int fitted, string body)
+    {
+        if (fitted <= 0)
+        {
+            return string.Empty;
+        }
+
+        var key = $"{context.SessionId ?? "-"}\n{path}";
+        var sha = TruncationPointer.ShortSha(body);
+        lock (_seen)
+        {
+            var list = _seen.TryGetValue(key, out var v) ? v : (_seen[key] = []);
+            SeenWindow? prior = null;
+            foreach (var e in list)
+            {
+                if (e.Sha == sha)
+                {
+                    prior = e;
+                    break;
+                }
+            }
+
+            if (prior is { } p)
+            {
+                return $"\n（⚠️ 这一窗与第 {p.Turn} 轮读到的第 {p.From}~{p.To} 行**逐字节相同** · sha256:{sha}"
+                     + " —— 同一份内容不必再读；要看别处就换 offset）";
+            }
+
+            list.Add(new SeenWindow(from, from + fitted - 1, sha, context.Turn));
+            if (list.Count > 64)
+            {
+                list.RemoveAt(0);
+            }
+
+            return string.Empty;
+        }
     }
 }
 
@@ -257,7 +368,7 @@ public sealed class ListTool : ToolBase
 
         var truncated = entries.Length > context.Limits.MaxListEntries;
         var body = string.Join('\n', entries.Take(context.Limits.MaxListEntries));
-        var (clamped, truncatedByChars) = Clamp(body, context.Limits.MaxOutputChars);
+        var (clamped, truncatedByChars) = Clamp(body, context.Limits.MaxOutputChars, context.Limits);
 
         var summary = truncated
             ? $"{context.Limits.MaxListEntries}/{entries.Length} 项（截断：上限 {context.Limits.MaxListEntries} 项）"
@@ -342,8 +453,10 @@ public sealed class WriteTool : ToolBase
             : before == after ? "覆盖（与写入前逐字节相同）"
             : $"覆盖（{hadBytes} → {new FileInfo(path).Length} 字节）";
 
-        var text = $"write → 落点 {path} · {bytes} 字节 · {verdict} · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}"
-                 + $"\n（参数回显：{args.Canonical}）";
+        // 回执**不回显整段参数**（正文刚由它自己写进去，回显一遍纯属重复 —— 2026-09-26 B 案）：
+        // 只报事实（落点 / 字节数 / 变化 / sha）+ **参数摘要**（长字符串压成 字节数·sha256·首行）。
+        var head = $"write → 落点 {path} · {bytes} 字节 · {verdict} · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}";
+        var text = head + $"\n（参数回显：{args.SummaryCapped(context.Limits.MaxReceiptChars - head.Length - 8)}）";
 
         if (madeDirectory)
         {
@@ -447,9 +560,9 @@ public sealed class EditTool : ToolBase
             .ConfigureAwait(false);
         var after = FileEvidence.Sha256(path);
 
-        var text = $"edit → 落点 {path} · 替换 1 处（{oldText.Length} 字符 → {newText.Length} 字符）"
-                 + $" · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}"
-                 + $"\n（参数回显：{args.Canonical}）";
+        var head = $"edit → 落点 {path} · 替换 1 处（{oldText.Length} 字符 → {newText.Length} 字符）"
+                 + $" · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}";
+        var text = head + $"\n（参数回显：{args.SummaryCapped(context.Limits.MaxReceiptChars - head.Length - 8)}）";
         if (FileEvidence.IsTempArea(path))
         {
             text += $"\n⚠️ 落点在**系统临时区**（{FileEvidence.TempRootOf(path)}）：正文 / 知识**不该写这里**。";

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MsSuite</RootNamespace>
+    <AssemblyName>ms-suite</AssemblyName>
+    <!-- **[WB] M 套件驱动的 C# 替身**（`.stage1/ms/**` 的 .py → C#，[OC] 直接操作 [WB] · 2026-10-14）。
+         位置说明：它是**工具**不是运行时 ⇒ 住 `tools/`，不住 `src/`。
+         依据：**R2 铁则**（`docs/RULES-RUNTIME.md`）—— 它要起 `dotnet` 跑 TUI（`tools/` 不受 R2 限制；R2 只扫 `src/`）。
+         形状：零外部依赖；自产读数一律 **XML**（R1：不引 `System.Text.Json`）。
+         方向：tools → src（单向）。 -->
+  </PropertyGroup>
+
+</Project>

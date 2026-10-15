@@ -38,7 +38,7 @@ public sealed class ContinuationCapTests
     private static async Task<(SplitSession Session, RuntimeHost Host, int Calls)> RunAsync(
         string label, ContinuationSettings settings, Func<int, string> script)
     {
-        var harness = new TuiHarness(label, modules: "[\"rules\",\"append-stream\",\"tool\"]");
+        var harness = new TuiHarness(label, modules: ["rules","append-stream","tool"]);
         var calls = 0;
         var client = new FakeModelClient((_, _) =>
         {

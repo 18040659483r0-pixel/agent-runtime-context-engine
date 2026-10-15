@@ -8,8 +8,8 @@ namespace AgentRuntime.Core.Frozen;
 /// **磁盘冻结语料来源**：把「区 / 层 / 领域」映射成 <c>frozen/</c> 下的文件。
 /// <para>目录布局（相对 <c>root</c>）：</para>
 /// <code>
-/// rules/global.md                rules/expert/&lt;domain&gt;.md     rules/project/&lt;project&gt;.md
-/// knowledge/global.md            knowledge/expert/&lt;domain&gt;.md   knowledge/project/&lt;project&gt;.md
+/// rules/global.md                rules/project/&lt;project&gt;.md
+/// knowledge/global.md            knowledge/project/&lt;project&gt;.md
 /// memory/index.md
 /// </code>
 /// <para>
@@ -62,10 +62,8 @@ public sealed class FileFrozenContentSource : IFrozenContentSource
     private static string? RelativePath(FrozenSlot slot) => slot switch
     {
         { Zone: FrozenZone.Rules, Layer: FrozenLayer.Global } => "rules/global.md",
-        { Zone: FrozenZone.Rules, Layer: FrozenLayer.Expert, DomainId: { } rd } when IsSafe(rd) => $"rules/expert/{rd}.md",
         { Zone: FrozenZone.Rules, Layer: FrozenLayer.Project, ProjectId: { } rp } when IsSafe(rp) => $"rules/project/{rp}.md",
         { Zone: FrozenZone.Knowledge, Layer: FrozenLayer.Global } => "knowledge/global.md",
-        { Zone: FrozenZone.Knowledge, Layer: FrozenLayer.Expert, DomainId: { } kd } when IsSafe(kd) => $"knowledge/expert/{kd}.md",
         { Zone: FrozenZone.Knowledge, Layer: FrozenLayer.Project, ProjectId: { } kp } when IsSafe(kp) => $"knowledge/project/{kp}.md",
         { Zone: FrozenZone.MemoryIndex, Layer: FrozenLayer.Global } => "memory/index.md",
         _ => null,

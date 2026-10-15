@@ -24,7 +24,7 @@ public sealed class CloseoutTests : IDisposable
     private string WatermarkPath => Path.Combine(_dir, "state", "watermark.json");
 
     private static FrozenSnapshot Snapshot(string rulesText, string version = "1") =>
-        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, version, rulesText)]);
+        FrozenSnapshot.Create([new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, version, rulesText)]);
 
     [Fact]
     public void 从未收尾_判定为待收尾()
@@ -79,7 +79,7 @@ public sealed class CloseoutTests : IDisposable
     {
         var watermark = new CloseoutWatermark(FrozenManifest.FromSnapshot(Snapshot("A")), 0, DateTimeOffset.Now);
 
-        var back = CloseoutWatermark.FromJson(watermark.ToJson());
+        var back = CloseoutWatermark.FromXml(watermark.ToXml());
 
         Assert.Equal(watermark.FrozenSnapshotId, back.FrozenSnapshotId);
         Assert.Equal(watermark.StreamCursor, back.StreamCursor);
@@ -96,30 +96,17 @@ public sealed class CloseoutTests : IDisposable
     {
         var snapshot = FrozenSnapshot.Create(
         [
-            new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, null, "8", "R"),
-            new FrozenSection(FrozenZone.Knowledge, FrozenLayer.Expert, "software", "21", "K"),
+            new FrozenSection(FrozenZone.Rules, FrozenLayer.Global, "8", "R"),
         ]);
 
         var watermark = CloseoutService.Perform(WatermarkPath, snapshot, 0, DateTimeOffset.Now);
 
         Assert.Equal(
-            new[] { "rules.global", "knowledge.expert.software" },
+            new[] { "rules.global" },
             watermark.Manifest.Entries.Select(e => e.SectionId).ToArray());
-        Assert.Equal("21", watermark.Manifest.Entries[1].Version);
+        Assert.Equal("8", watermark.Manifest.Entries[0].Version);   // Expert 段退役 ⇒ 只剩 rules.global
     }
 
-    [Fact]
-    public void 杂项待整理_被上报()
-    {
-        var root = Path.Combine(_dir, "frozen");
-        Directory.CreateDirectory(Path.Combine(root, "knowledge", "expert"));
-        File.WriteAllText(Path.Combine(root, "knowledge", "expert", "misc.md"), "这条不知道归哪类\n还有这条也悬着\n");
-
-        var items = CloseoutService.PendingMisc(new FileFrozenContentSource(root));
-
-        Assert.Equal(2, items.Count);
-        Assert.Contains(items, i => i.Contains("这条不知道归哪类"));
-    }
 
     [Fact]
     public void 真实产品语料_收尾可跑通并落水位线()
