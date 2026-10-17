@@ -6,7 +6,7 @@ using AgentRuntime.Modules.Worker;
 namespace AgentRuntime.Cli;
 
 /// <summary>
-/// **`worker` 子命令**（主人 2026-10-10 令）—— 把 **worker 模块从运行时拔掉 / 装回**的**正规入口**。
+/// **`worker` 子命令**（用户 2026-10-10 令）—— 把 **worker 模块从运行时拔掉 / 装回**的**正规入口**。
 ///
 /// <list type="table">
 /// <item><c>worker status [--config &lt;path&gt;]</c>：报事实（配置里开不开 · 生效模块清单里有没有 <c>worker-dispatch</c>）</item>

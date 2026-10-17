@@ -6,7 +6,7 @@ namespace AgentRuntime.Core.Worker;
 
 /// <summary>
 /// **派发意图**（封闭 8 类 · 设计稿 <c>docs/DESIGN-INTENT-TYPES.md</c> §三）。
-/// <para>主人 2026-09-30 15:34/15:44/15:47 令：委派方法太宽泛 ⇒ 每次派发 = **一句自然语言目的** ＋
+/// <para>用户 2026-09-30 15:34/15:44/15:47 令：委派方法太宽泛 ⇒ 每次派发 = **一句自然语言目的** ＋
 /// **一组由远端模型自选的枚举组合**；组合把"要什么"收窄成**无歧义的固定操作**；
 /// 意图之间**完全不交叉**，迫使远端只能选其中一种。</para>
 /// <para><b>形状由运行时定，值由模型给</b>（§二·原则 3）：本文件的枚举/交付形状是**唯一声明处**。</para>
@@ -97,7 +97,7 @@ public static class DispatchIntents
     };
 
     /// <summary>
-    /// 该类意图的**含义**（类型层：它是什么 / 什么时候该用它）—— 主人 2026-09-30 17:08 令：
+    /// 该类意图的**含义**（类型层：它是什么 / 什么时候该用它）—— 用户 2026-09-30 17:08 令：
     /// "每一个枚举都要把含义告诉协议区，而不是只写一种典型用法；参考 **类型 ↔ 实例**"。
     /// <para>与 <see cref="DeliveryShape"/> 的分工：含义说"什么时候用"，形状说"交出来长什么样"。</para></summary>
     public static string Meaning(DispatchIntentKind kind) => kind switch
@@ -129,7 +129,7 @@ public static class DispatchIntents
 
     /// <summary>
     /// 该类意图回执**必须给出**的键（**唯一声明处**；与 <see cref="DeliveryShape"/> 由夹具钉住一致）。
-    /// <para>主人 2026-09-30 16:44 口径：交付形状由**意图唯一决定**，worker **无裁量**；缺键 = 不合格 ⇒ 退回，
+    /// <para>用户 2026-09-30 16:44 口径：交付形状由**意图唯一决定**，worker **无裁量**；缺键 = 不合格 ⇒ 退回，
     /// 运行时**不兜底、不宽容**（"不需要某个真值"不是省略的理由 —— 那是选错了意图 / criteria）。</para></summary>
     /// <summary>
     /// **窗口规则（唯一声明处 · 协议区 <c>[WINDOW]</c> 由它渲染）**：窗口是**读源**还是**写目标** ——
@@ -143,7 +143,7 @@ public static class DispatchIntents
         _ => false,
     };
 
-    /// <summary>**跨树守卫只对写侧生效**（2026-10-09 主人令「B」）：WRITE/EDIT 的**写目标**靠 base 解析（跨树会「读得到、写不对」）；
+    /// <summary>**跨树守卫只对写侧生效**（2026-10-09 用户令「B」）：WRITE/EDIT 的**写目标**靠 base 解析（跨树会「读得到、写不对」）；
     /// 读类 / EXEC 的 window 只是「读源 / 范围提示」⇒ 跨树无害（放行 + 注记）。</summary>
     public static bool WindowMustStayInBase(DispatchIntentKind kind) => kind switch
     {

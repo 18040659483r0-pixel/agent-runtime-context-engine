@@ -217,7 +217,7 @@ static List<string> GrepFilesNamed(string dir, string nameFilter, string needle,
 
 static List<SegResult> Check(string ws, string project, string needle)
 {
-    // 2026-10-14：**去 skill-repo**（2026-09-10 已退役）—— S3 改指项目的 `docs/PITFALLS*.md`；
+    // 2026-10-14：S3 改指项目的 `docs/PITFALLS*.md`（旧知识仓库已退役）；
     // A1/A2/C1 改指现行语料 `knowledge/{knowledge.md,.derived/{l3,l4}.xml}`（尺子曾指向已拆的房间，四段恒 ❌）。
     var kn = Path.Combine(ws, "knowledge");
     var derived = Path.Combine(kn, ".derived");
@@ -235,7 +235,7 @@ static List<SegResult> Check(string ws, string project, string needle)
     var hanHits = GrepDir(Path.Combine(ws, "handoff"), needle, [".md", ".xml"]);
     Add("S2", "源 · handoff", hanHits.Count > 0, hanHits);
 
-    // S3 源 · pitfalls —— 坑集的家 = 项目的 `docs/PITFALLS.md` / `PITFALLS-INDEX.md`（旧 `skill-repo/` 已退役）
+    // S3 源 · pitfalls —— 坑集的家 = 项目的 `docs/PITFALLS.md` / `PITFALLS-INDEX.md`（旧知识仓库目录已退役）
     var pitHits = GrepFilesNamed(Path.Combine(project, "docs"), "PITFALLS", needle, [".md"]);
     Add("S3", "源 · pitfalls", pitHits.Count > 0, pitHits);
 
@@ -432,7 +432,7 @@ static int Audit(string ws)
         Console.WriteLine($"  … 其余 {pending.Count - 25} 条");
     }
 
-    Console.WriteLine("[audit] 抽象完成后记账：verify-loop --mark <坑 id> <吸收它的位置，如 skill#L1>");
+    Console.WriteLine("[audit] 抽象完成后记账：verify-loop --mark <坑 id> <吸收它的位置，如 KNOWLEDGE.md#L1>");
     return 1;
 }
 

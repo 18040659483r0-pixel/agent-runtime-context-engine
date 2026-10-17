@@ -6,7 +6,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker 的持续流**（2026-09-29 主人令：worker 是派生自同一台 master engine 的第二个会话）。
+/// **worker 的持续流**（2026-09-29 用户令：worker 是派生自同一台 master engine 的第二个会话）。
 /// <para>三条判据各一个断言：① 流**按 provider 分家、不按派发实例分家**（与 memory 同一条纪律）；
 /// ② 归档**只移不删**（可恢复）；③ 没有流时归档是空操作（不凭空造目录、不抛）。</para>
 /// </summary>
@@ -90,7 +90,7 @@ public sealed class WorkerStreamTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(_root, "nobody", "archive")));
     }
 
-    // ④ **worker 集合**（主人 2026-09-29 18:50）：reset 对**每一个** worker 生效，不是只动当前那一个。
+    // ④ **worker 集合**（用户 2026-09-29 18:50）：reset 对**每一个** worker 生效，不是只动当前那一个。
     [Fact]
     public void 集合里有几家_就归档几家_顺序按名字升序()
     {

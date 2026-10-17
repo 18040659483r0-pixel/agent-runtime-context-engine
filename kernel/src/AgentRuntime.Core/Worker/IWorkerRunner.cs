@@ -12,13 +12,13 @@ public interface IWorkerRunner
     Task<WorkerResult> RunAsync(WorkerRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>与 <see cref="RunAsync(WorkerRequest, CancellationToken)"/> 同义，但**每跑一轮**回调一次进度
-    /// （2026-10-09 主人令）—— TUI 的「工蜂」卡靠它在**还在跑**时就能显示第 N 轮。
+    /// （2026-10-09 用户令）—— TUI 的「工蜂」卡靠它在**还在跑**时就能显示第 N 轮。
     /// <para><b>默认实现 = 不报进度</b>（既有实现者一字不改）；真报进度的实现者（<c>MinimalWorker</c>）重写这条。
     /// 进度**按调用点归位**（调用方绑自己的 worker id），多 worker 异步交叉在飞时互不串。</para></summary>
     Task<WorkerResult> RunAsync(WorkerRequest request, CancellationToken cancellationToken, Action<WorkerProgress>? progress)
         => RunAsync(request, cancellationToken);
 
-    /// <summary>**弃单回流**（2026-10-10 主人令 · 治水位待办 ⑤）：把 worker 自己那份 <c>abandoned.log</c> 里
+    /// <summary>**弃单回流**（2026-10-10 用户令 · 治水位待办 ⑤）：把 worker 自己那份 <c>abandoned.log</c> 里
     /// **还没还清**的作废记录交出来，供宿主接进**下一次派发的 NOTE:</b> 段 —— 让 worker **主动看到**「上一条已作废」，
     /// 而不是把作废的活当成当前活接着干（真机 2026-10-09：闸门误停之后，下一次派发仍带着旧任务的残渣 ⇒ 永远卡住）。
     /// <para><b>默认实现 = 没有</b>（既有实现者一字不改）；<c>MinimalWorker</c> 读它自己 memory 家里的那份。</para>

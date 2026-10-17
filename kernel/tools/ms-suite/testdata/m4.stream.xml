@@ -1,10 +1,10 @@
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>1</Seq><Tag>E001</Tag><Kind>UserInput</Kind><Source i:nil="true" /><Text>[MS:v1] 在 <path> 下新建 verify.txt，就三行：第一行 acc=write，第二行 nonce=K7QF2M，第三行 done；每行行尾一个换行。</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>2</Seq><Tag>E002</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[TOOL] &lt;call&gt;&lt;name&gt;write&lt;/name&gt;&lt;path&gt;<path>
+<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>1</Seq><Tag>E001</Tag><Kind>UserInput</Kind><Source i:nil="true" /><Text>[MS:v1] 在 /home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/.stage1/ms/shadow2/live/new/ 下新建 verify.txt，就三行：第一行 acc=write，第二行 nonce=K7QF2M，第三行 done；每行行尾一个换行。</Text></Event>
+<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>2</Seq><Tag>E002</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[TOOL] &lt;call&gt;&lt;name&gt;write&lt;/name&gt;&lt;path&gt;/home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/.stage1/ms/shadow2/live/new/verify.txt&lt;/path&gt;&lt;content&gt;acc=write
 nonce=K7QF2M
 done
 &lt;/content&gt;&lt;/call&gt;&lt;risk&gt;none&lt;/risk&gt;</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>3</Seq><Tag>E003</Tag><Kind>ToolResult</Kind><Source>write</Source><Text>write → 落点 <path> · 28 字节 · 新建 · sha (无)→76014435b030
-（参数回显：content: &lt;28 B · sha256:76014435b030 · 首行：acc=write…&gt; · path: <path>
+<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>3</Seq><Tag>E003</Tag><Kind>ToolResult</Kind><Source>write</Source><Text>write → 落点 /home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/.stage1/ms/shadow2/live/new/verify.txt · 28 字节 · 新建 · sha (无)→76014435b030
+（参数回显：content: &lt;28 B · sha256:76014435b030 · 首行：acc=write…&gt; · path: /home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/.stage1/ms/shadow2/live/new/verify.txt）</Text></Event>
 <Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>4</Seq><Tag>E004</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[DONE] 已按要求在指定路径新建 `verify.txt`，三行内容 + 行尾换行，共 28 字节。
 
 [REPORT]
@@ -18,4 +18,4 @@ done
 found [noticed]: 目标目录此前未确认是否已存在，`write` 报「新建」，说明是该路径下第一个文件。
 next [rec]: 无需后续动作；若需跨机留存，可让它在收尾时随 `.stage1` 一并处置。</Text></Event>
 <Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>5</Seq><Tag>E005</Tag><Kind>Hint</Kind><Source>runtime</Source><Text>[task 收尾] 本任务得解，但收尾件还没交：会话记忆（水位线之后的）（水位 2026-09-26；**缺 1 篇日记**：2026-10-11.md （有过会话的日子都必须有一篇 —— 缺件与无件不是一回事））；踩坑集（今天（2026-10-11）0 条 —— 若今天没踩坑，这行就是「无需交」，但那是**判断**不是忽略） —— 按协议第 7 条交掉（handoff / 坑条目），或明确说「这次不需要」。
-[task 收尾·锤] 本任务碰过的产物读值（**运行时实测，直接引用即可，不必重读**）：measured: path=<path> bytes=28 lines=3 sha256=76014435b0305cc914faa05696126c56b8aa998ad8b6458d84e7a91cddbe5839。</Text></Event>
+[task 收尾·锤] 本任务碰过的产物读值（**运行时实测，直接引用即可，不必重读**）：measured: path=/home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/.stage1/ms/shadow2/live/new/verify.txt bytes=28 lines=3 sha256=76014435b0305cc914faa05696126c56b8aa998ad8b6458d84e7a91cddbe5839。</Text></Event>

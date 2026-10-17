@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **master 请求改节拍上限**（主人 2026-10-09：「让 master 直接设定」）：
+/// **master 请求改节拍上限**（用户 2026-10-09：「让 master 直接设定」）：
 /// `[PACE] ceiling=300|600|off` —— **白名单外一律响亮拒绝**，绝不静默当成没发生。
 /// </summary>
 public sealed class PaceRequestTests

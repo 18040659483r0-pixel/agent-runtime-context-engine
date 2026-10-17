@@ -56,7 +56,22 @@ internal static class CloseoutTiming
 
         foreach (var (label, cmd) in Segments)
         {
+            var started = DateTime.Now;
             var (seconds, rc, text) = Tui.Run(dll, tuiDir, cfg, cmd + "\n", 900);
+
+            // **不许假绿**（2026-10-17 真机）：stdin 不是 TTY，`/closeout` 可能只打启动行就 EOF（0.1 s）。
+            // 判据 = 这一段真的产出了 `closeout-*.md` 报告；没有 ⇒ 该段不算过。
+            if (cmd.Contains("closeout", StringComparison.OrdinalIgnoreCase))
+            {
+                var produced = Directory.EnumerateFiles(proj, "closeout-*.md", SearchOption.AllDirectories)
+                    .Any(f => File.GetLastWriteTime(f) >= started.AddSeconds(-1));
+                if (!produced)
+                {
+                    rc = rc == 0 ? 1 : rc;
+                    text += "\n[ms-suite] 未发现新的 closeout-*.md ⇒ 该段没有真正执行（stdin 非 TTY；请改用 tmux 真机档）。\n";
+                }
+            }
+
             File.WriteAllText(Path.Combine(outDir, label + ".txt"), text, new UTF8Encoding(false));
             report.Add(new XElement("Segment",
                 new XAttribute("name", label),

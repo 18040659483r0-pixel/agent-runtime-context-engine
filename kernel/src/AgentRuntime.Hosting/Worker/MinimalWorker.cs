@@ -72,7 +72,7 @@ public sealed class MinimalWorker : IWorkerRunner
     public static string ProviderOf(WorkerConfiguration cfg) => WorkerPaths.Provider(cfg);
 
     /// <summary>
-    /// **worker 的持续事件流**（主人 2026-09-29）：按 provider 分家、**不按派发实例分家**。
+    /// **worker 的持续事件流**（用户 2026-09-29）：按 provider 分家、**不按派发实例分家**。
     /// <para>worker 是派生自同一台 master engine 的**第二个会话**，它该有一条**持续**的会话流
     /// （与 master 同一套会话指针 / 水位线续接），而不是每派发新建一份。</para>
     /// </summary>
@@ -89,7 +89,7 @@ public sealed class MinimalWorker : IWorkerRunner
     public Task<WorkerResult> RunAsync(WorkerRequest request, CancellationToken cancellationToken = default) =>
         DispatchAsync(request, cancellationToken);
 
-    /// <summary>带**实时进度**的重载（2026-10-09 主人令）：每跑一轮回调一次 —— TUI 的「工蜂」卡靠它显示第 N 轮。
+    /// <summary>带**实时进度**的重载（2026-10-09 用户令）：每跑一轮回调一次 —— TUI 的「工蜂」卡靠它显示第 N 轮。
     /// <para>进度**按调用点归位**（调用方绑自己的 worker id）：多 worker 异步交叉在飞时，各自一份、不串。</para></summary>
     public Task<WorkerResult> RunAsync(WorkerRequest request, CancellationToken cancellationToken,
         Action<WorkerProgress>? progress) => DispatchAsync(request, cancellationToken, progress);
@@ -99,7 +99,7 @@ public sealed class MinimalWorker : IWorkerRunner
         ? WorkerWatermark.MemoryFor(Root, _providerName)
         : Path.GetFullPath(_cfg.MemoryRoot);
 
-    /// <summary>**弃单回流**（2026-10-10 主人令 · 治水位待办 ⑤）：交回 worker 自己那份 <c>abandoned.log</c> 里
+    /// <summary>**弃单回流**（2026-10-10 用户令 · 治水位待办 ⑤）：交回 worker 自己那份 <c>abandoned.log</c> 里
     /// **还没还清**的一条，供宿主接进**下一次派发的 NOTE:</b> 段（见 <see cref="AgentRuntime.Core.Worker.IWorkerRunner"/>）。</summary>
     public string OutstandingAbandonNote() => AbandonedRecord(MemoryRoot());
 
@@ -139,7 +139,7 @@ public sealed class MinimalWorker : IWorkerRunner
         var id = $"{DateTimeOffset.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
         var dir = Path.Combine(Root, _providerName, id);
         Directory.CreateDirectory(dir);
-        // **持续流**（主人 2026-09-29）：按 provider 分家、**不按派发实例分家** —— worker 是派生自同一台 master
+        // **持续流**（用户 2026-09-29）：按 provider 分家、**不按派发实例分家** —— worker 是派生自同一台 master
         // engine 的第二个会话，它该有一条持续流（判据同 `WorkerWatermark.MemoryFor`）。
         var streamPath = StreamPathOf(_cfg);
         Directory.CreateDirectory(Path.GetDirectoryName(streamPath)!);
@@ -184,7 +184,7 @@ public sealed class MinimalWorker : IWorkerRunner
         var store = new SessionStreamStore(streamPath);
         var stream = store.LoadOrRecover(out _);
 
-        // **真实 prompt 闸**（2026-10-09 主人令）：上面那条只估 R1；这里把 **R2（全量 —— append-only 流的真实长度）** 也算进去 ——
+        // **真实 prompt 闸**（2026-10-09 用户令）：上面那条只估 R1；这里把 **R2（全量 —— append-only 流的真实长度）** 也算进去 ——
         // 真机：真实 prompt 341k 而旧口径估 62k ⇒ 那条**永不响**。
         var r2Bytes = stream.Events.Sum(e => (e.Text ?? string.Empty).Length);
         var realTokens = (ModuleRegistry.WorkerPrefixBytes(FrozenSource, selection) + r2Bytes
@@ -212,13 +212,13 @@ public sealed class MinimalWorker : IWorkerRunner
             new ToolLimits { WorkingDirectory = string.IsNullOrWhiteSpace(request.Base) ? (WindowResolver.FindRepoRoot() ?? Root) : request.Base },
             allowed,
             ledger,
-            // **区状态按派发分家**（P1 · 2026-10-09 主人令）：白板/草稿是「本任务做到哪了」的**工作状态**，
+            // **区状态按派发分家**（P1 · 2026-10-09 用户令）：白板/草稿是「本任务做到哪了」的**工作状态**，
             // 用**派发 id** 当会话键 ⇒ 上一次（尤其失败的那次）的 [TAIL]/[DRAFT] **不会**流进下一次派发。
             sessionId: id,
             regionStoreDir: memoryRoot,       // R4/R5 落在这里（**按派发 id 分文件**）⇒ 同一派发内跨轮可继承、跨派发绝不继承
-            // 2026-10-06（主人令 · 方案 A）：worker 也装 **铁则区 + 知识区（L1+L2）** ——
+            // 2026-10-06（用户令 · 方案 A）：worker 也装 **铁则区 + 知识区（L1+L2）** ——
             // 与 master **同一份源、同一选择器**（逐字节同一份）。L3/L4 由 worker 自己按 id 下探。
-            // 2026-10-10（主人令 · 治水位待办 ①）：**memory-index 这一区从 master 那份脱钩**，改指
+            // 2026-10-10（用户令 · 治水位待办 ①）：**memory-index 这一区从 master 那份脱钩**，改指
             // **worker 自己的 memory 家**（<workerHome>/memory/index.md，收尾时生成）—— 铁则/知识两区仍同一份。
             frozen: AgentRuntime.Core.Frozen.WorkerMemoryIndexSource.Of(FrozenSource, Path.Combine(Root, _providerName)),
             selection: selection);
@@ -228,7 +228,7 @@ public sealed class MinimalWorker : IWorkerRunner
             new RuntimeOptions { Model = _cfg.Provider.Model, Temperature = 0 },
             modules);
 
-        // 装配**落痕**（2026-10-07 主人令："worker 启动时加载了哪些上下文模块，展示给我看"）：
+        // 装配**落痕**（2026-10-07 用户令："worker 启动时加载了哪些上下文模块，展示给我看"）：
         // 只进**派发日志**（零 prompt 代价），与 EnsureWorkerModulesMatch 同一份名清单。
         Append(dispatchPath, new WorkerDispatchLog
         {
@@ -237,7 +237,7 @@ public sealed class MinimalWorker : IWorkerRunner
             Request = "modules=" + string.Join(",", modules.Select(m => m.Name)),
         });
 
-        // **字节身份自证**（主人 2026-09-29 令）：派发物是字节装配出来的 ⇒ 送到远端前必须仍**逐字节相等**。
+        // **字节身份自证**（用户 2026-09-29 令）：派发物是字节装配出来的 ⇒ 送到远端前必须仍**逐字节相等**。
         // 不相等 = 中途有谁动过文本（Trim / 重编码 / CRLF）⇒ 响亮失败，不把带病的 payload 发出去。
         if (request.PayloadBytes.Length > 0
             && !request.PayloadBytes.AsSpan().SequenceEqual(DispatchFrame.Of(request.Task).Span))
@@ -292,7 +292,7 @@ public sealed class MinimalWorker : IWorkerRunner
                 });
             }
 
-            // **共用接续链**（2026-09-29 主人 OOD 口径）：与 master 走**同一份** TurnContinuation ——
+            // **共用接续链**（2026-09-29 用户 OOD 口径）：与 master 走**同一份** TurnContinuation ——
             // 工具结果 ⇒ 续跑 · 上限/预算 ⇒ 收口 · 终局自验被拒（open 未清）⇒ 补轮。
             // worker 只提供「事实的观察者」（WorkerTurnHost）与自己的话术（OpenNudge），不再自写一套循环。
             var turns = 1;
@@ -392,7 +392,7 @@ public sealed class MinimalWorker : IWorkerRunner
         // —— ⑤ 解析凝结结果（缺字段不算"任务失败"，但**如实标注**是契约问题）
         var parsed = WorkerReportParser.Parse(text);
 
-        // A3 的「半块再催一轮」已**并回共用链**（主人 2026-09-29：不留 SettleNudge/SettleRetries 那套**旁路判据**）：
+        // A3 的「半块再催一轮」已**并回共用链**（用户 2026-09-29：不留 SettleNudge/SettleRetries 那套**旁路判据**）：
         // 「没交块 / open 未清 ⇒ 催」本来就由 `TurnPulsePolicy` 判 `Nudge`、由链在同一条 `ContinuationBudget` 下补轮；
         // 在这里再写一条 `engine.ChatAsync` 等于**多一条不报账的补轮通道**（绕开轮数/预算/终局自验三处判据）。
         // 半块仍然**响亮**：走到这里说明没结算 ⇒ 下面的 Failure 已带原文落点。
@@ -483,7 +483,7 @@ public sealed class MinimalWorker : IWorkerRunner
         // A2 运行时兜底（坑 #210）：**工具被拒 ⇒ reason 必填** —— 不由模型自觉。
         // 判据取**事件事实**（worker 自己流里的 ToolDenied 事件），不取它自述的文本：它常把「被拒」结算成
         // 「读不到」，于是下一次补发带着**错修正**去改路径 / 权限（真正的病是调用形状）。此处纠正成与病因一致的枚举。
-        // **被拒是不是「没做成」，看它有没有被补救**（2026-09-30 条目 10 + 待办 1 · 主人口径）：
+        // **被拒是不是「没做成」，看它有没有被补救**（2026-09-30 条目 10 + 待办 1 · 用户口径）：
         // 只认**未被补救**的拒绝 —— 最后一次 `ToolDenied` 之后若出现过**带退出码且为 0** 的工具结果，
         // 说明它已经换法重试成功 ⇒ 不算「藏了未完成项」。旧口径是「本跑出现过任何一次 ToolDenied」⇒
         // 真机：写命令被拒 → 换法重试成功、产物真在盘上，却仍被判 ToolNotAllowed（钝判据把成功读成失败）。
@@ -529,18 +529,18 @@ public sealed class MinimalWorker : IWorkerRunner
         // **结算才算收敛**：没交回 [WORKER] 块 ⇒ 记 settled=false（那一格不算干成）。
         WorkerWatermark.Advance(watermarkPath, _providerName, id, memoryRoot, parsed.Found, DateTimeOffset.Now);
 
-        // ① worker 的 memory **记录**（主人 2026-09-29 口径：memory 的价值是「worker 侧 R2 + memory 本身
+        // ① worker 的 memory **记录**（用户 2026-09-29 口径：memory 的价值是「worker 侧 R2 + memory 本身
         //    就有知识 / 方法论收敛的意义」⇒ **记录要留下**）：落一行**事实**（可扫、可 diff、可抽象）。
         //    ⚠️ **只写一次**：这条调用曾被重放到三次 ⇒ 同一次派发在记录里出现 3 行（坑 #242 的真因是
         //    「调用被重放」，不是「写不幂等」）—— 工具侧重放没有幂等保护时，副作用必须自己收口。
         AppendMemoryRecord(memoryRoot, id, request.Task, parsed.Found, usage.Turns, DateTimeOffset.Now);
 
-        // **任务收口**（P0 · 2026-10-09 主人令）：一次派发结束就把它**自己的区状态结掉** ——
+        // **任务收口**（P0 · 2026-10-09 用户令）：一次派发结束就把它**自己的区状态结掉** ——
         // 失败（没交回契约块）⇒ 落一条**弃单**（`abandoned.log`）并清掉它的 [TAIL]/[DRAFT]。
         CloseTaskRegion(memoryRoot, id, parsed.Found, reason == WorkerFailureReason.None ? null : reason.ToString(), request.Task, DateTimeOffset.Now);
 
         // **回执类**（封闭 6 类 · 设计稿 §四）**只认 worker 自己声明的那一格**（`kind=`）。
-        // 运行时**不推、不猜、不兜底**（主人 2026-10-06 口径：实质层由远端自证，运行时只管形状层）：
+        // 运行时**不推、不猜、不兜底**（用户 2026-10-06 口径：实质层由远端自证，运行时只管形状层）：
         // 没给 `kind=`、或给了清单外的值 ⇒ `Kind = null` —— 这就是**形状缺项**，由 ApplyDeliveryGate /
         // 终局断言退回并指明唯一正确写法。（旧行为：运行时按 conclusion/open/toolDenied **代它判类**，
         // 判不出还兜底成 done/partial/blocked —— 甚至能把「没声明」洗成 done ⇒ 已删。）
@@ -558,7 +558,7 @@ public sealed class MinimalWorker : IWorkerRunner
             Evidence = measured is null ? parsed.Evidence : [.. parsed.Evidence, measured],
             Changes = parsed.Changes,
             Covered = parsed.Covered,   // v29：覆盖度进模型 ⇒ 主侧才能按应有集合核它
-            // **容错必留痕**（主人 2026-10-07 令）：这份回执原本是非法 XML、靠归一读出来的 ⇒ 记一笔。
+            // **容错必留痕**（用户 2026-10-07 令）：这份回执原本是非法 XML、靠归一读出来的 ⇒ 记一笔。
             ShapeNote = parsed.ShapeNormalized
                 ? "回执 XML 混入未转义标签（形如 <blank>），运行时已归一后放行 —— 形状层容错，记这一笔"
                 : string.Empty,
@@ -614,19 +614,19 @@ public sealed class MinimalWorker : IWorkerRunner
                || text.Contains("rc=0", StringComparison.OrdinalIgnoreCase));
 
     /// 把一次派发的**事实**记进 worker 的 memory 家（<c>&lt;memory&gt;/dispatch-log.md</c>）：一行一条，可扫、可 diff、可抽象。
-    /// <para>主人 2026-09-29 口径：worker 的 memory 保留独立、**记录要留下** —— 它的价值是「worker 侧 R2 + memory
+    /// <para>用户 2026-09-29 口径：worker 的 memory 保留独立、**记录要留下** —— 它的价值是「worker 侧 R2 + memory
     /// 本身就有知识 / 方法论收敛的意义」。此前这个家 0 个文件，等于「记录」从没接上，跨派发的收敛无物可依。</para>
     /// <para>落的是**事实**（谁 · 何时 · 结算没结算 · 几轮 · 干什么活），不是散文。</para>
     /// </summary>
     /// <summary>
-    /// **任务收口**（P0 · 2026-10-09 主人令）：一次派发结束就把它**自己的区状态**结掉。
+    /// **任务收口**（P0 · 2026-10-09 用户令）：一次派发结束就把它**自己的区状态**结掉。
     /// <para>失败（没交回契约块 / 调用失败 / 被闸门掉停）⇒ 落一条**弃单**（<c>abandoned.log</c>：谁、何时、因何作废）并清掉它的
     /// [TAIL]/[DRAFT]；成功 ⇒ 只清（区状态是**本任务的工作状态**，不跨任务）。</para>
     /// <para>为什么必须有它：worker 的白板/草稿是「我做到哪了」，**按任务**才是对的；留到下一次派发 ⇒ 它接着跑上一次的活
     /// （真机 2026-10-09：闸门误停之后，下一次派发仍带着旧任务的残渣 ⇒ 就算把闸门调大也**永远卡住**）。</para>
     /// <para>**幂等**：同 id 只留一行弃单（收尾块可能被重放，坑 #242）。清不掉不阻塞收口（按 id 分家 ⇒ 不串）。</para>
     /// </summary>
-    /// <summary>读 <c>abandoned.log</c>，交回**还没还清**的那一条作废记录（弃单回流 · 2026-10-10 主人令）。
+    /// <summary>读 <c>abandoned.log</c>，交回**还没还清**的那一条作废记录（弃单回流 · 2026-10-10 用户令）。
     /// <para>「还清」的判据可复算：最后一条作废的时间 **≤** 最后一次 <c>settled=true</c>（dispatch-log.md）的时间 ⇒ 不回流。</para>
     /// <para>没还清才回流 —— 一条**欠着的账**，不是常驻前缀（R1 稳定前缀一个字节不动，§十·4）。只读，不写。</para></summary>
     public static string AbandonedRecord(string memoryRoot)
@@ -768,7 +768,7 @@ public sealed class MinimalWorker : IWorkerRunner
         public int CachedTokens { get; private set; }
         public int CompletionTokens { get; private set; }
 
-        /// <summary>**此刻上下文**（2026-10-09 主人令）：**最新一轮**的 prompt（不是逐轮之和）—— 看"现在吃多大"。</summary>
+        /// <summary>**此刻上下文**（2026-10-09 用户令）：**最新一轮**的 prompt（不是逐轮之和）—— 看"现在吃多大"。</summary>
         public int ContextTokens { get; private set; }
 
         /// <summary>最新一轮的缓存命中部分（配 <see cref="ContextTokens"/> 算此刻命中率）。</summary>

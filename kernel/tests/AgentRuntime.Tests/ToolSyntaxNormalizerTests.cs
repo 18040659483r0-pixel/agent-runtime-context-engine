@@ -29,7 +29,7 @@ public sealed class ToolSyntaxNormalizerTests
     [Fact]
     public void 归一_标准形状_逐字节不变_且幂等()
     {
-        // B1（2026-09-29 主人定案）：**标准形状 = 行式键值（零转义）** —— 归一器对它必须逐字节不动。
+        // B1（2026-09-29 用户定案）：**标准形状 = 行式键值（零转义）** —— 归一器对它必须逐字节不动。
         var std = H + " read\npath: a.cs\n";
 
         Assert.Equal(std, ToolSyntaxNormalizer.Normalize(std));                       // 逐字节不变
@@ -189,7 +189,7 @@ public sealed class ToolSyntaxNormalizerTests
         Assert.Equal(good, ToolSyntaxNormalizer.Normalize(good));
     }
 
-    // ---------------- 真机两形态（2026-10-14 · 主人 23:04 会话；34 条事件含 DSML）----------------
+    // ---------------- 真机两形态（2026-10-14 · 用户 23:04 会话；34 条事件含 DSML）----------------
 
     [Fact]
     public void 真机_裸DSML开场标记_后面跟正确行式_标记连残行一起剥掉()
@@ -255,5 +255,109 @@ public sealed class ToolSyntaxNormalizerTests
         var broken = H + " write{\"path\":\"docs/A.md\"";
 
         Assert.Equal(broken, ToolSyntaxNormalizer.Normalize(broken));
+    }
+
+    // ---------------- 2026-10-17 修：**认形状，不认标记**（标记被上一环剥掉后仍要归一） ----------------
+
+    [Fact]
+    public void 归一_标记已被上一环剥掉_裸invoke块仍要归出可解析的调用()
+    {
+        // 现场（2026-10-17 00:1x 真机 tmux 会话）：模型吐原生块，而 `ControlTokens.Strip`（响应成型处）
+        // **已经先把标记剥掉了**；旧归一器却用「正文里有 DSML 标记吗」当**要不要归一**的开关
+        // ⇒ 判「不用归一」⇒ 裸 `invoke name="exec">…</invoke>` **谁也不管**（既不当调用、也不删）
+        // ⇒ 那一轮**没有调用发生** = 白烧（真机：一条回复里连续 7 轮）。
+        // 本夹具钉住：**没有标记也必须归一，而且归完真的能解析**。
+        const string bare =
+            "我先跑一条。\ninvoke name=\"exec\">\nparameter name=\"command\" string=\"true\">pwd</parameter>\n</invoke>\n";
+
+        var normalized = ToolSyntaxNormalizer.Normalize(bare);
+        Assert.NotEqual(bare, normalized);                      // 必须真的动手（旧行为 = 原样返回 ⇒ 白烧）
+
+        var parsed = ToolReport.Parse(normalized);
+        Assert.Equal(ToolParseStatus.Ok, parsed.Status);        // 关键：归完**真的能解析**
+        Assert.Equal("exec", parsed.Call!.Name);
+        Assert.Equal("pwd", ToolArgs.Parse(parsed.Call.ArgumentsJson).RequireString("command"));
+
+        // 与「标记还在」的那一份**语义等价**（不必逐字节：带标记那份剥完会在块头前留一个空格，
+        // 那是**既有行为**、也是本批刻意不动的部分）。
+        var marked = "我先跑一条。\n" + ControlTokens.Dsml + " invoke name=\"exec\">\n"
+                     + ControlTokens.Dsml + " parameter name=\"command\" string=\"true\">pwd</parameter>\n"
+                     + "</" + ControlTokens.Dsml + " invoke>\n";
+        var parsedMarked = ToolReport.Parse(ToolSyntaxNormalizer.Normalize(marked));
+        Assert.Equal(ToolParseStatus.Ok, parsedMarked.Status);
+        Assert.Equal(parsed.Call!.Name, parsedMarked.Call!.Name);
+        Assert.Equal(parsed.Call.ArgumentsJson, parsedMarked.Call.ArgumentsJson);
+    }
+
+    [Fact]
+    public void 归一_无标记时_未知工具名与围栏内示例都不当真调用()
+    {
+        // 防误伤：无标记（弱证据）⇒ 只认**封闭集**里的工具名；且**围栏内 = 示例**（家规 §十·51）。
+        const string unknown = "invoke name=\"notatool\">parameter name=\"x\">1</parameter></invoke>";
+        Assert.DoesNotContain(H, ToolSyntaxNormalizer.Normalize(unknown), StringComparison.Ordinal);
+
+        const string fenced =
+            "这个形状长这样：\n```text\ninvoke name=\"exec\">\nparameter name=\"command\">pwd</parameter>\n</invoke>\n```\n";
+        Assert.DoesNotContain(H, ToolSyntaxNormalizer.Normalize(fenced), StringComparison.Ordinal);
+    }
+
+    // ---------------- 批 2/3（2026-10-17）：家族扩面 + 归一留痕 ----------------
+
+    [Fact]
+    public void 归一_批2_tool_call家族与容器外壳也归成协议形()
+    {
+        // 批 2：**同一个骨架的三种叫法**（invoke / tool_call / function_call）+ **容器外壳**。
+        const string body = "tool_call name=\"exec\">\nparameter name=\"command\">pwd</parameter>\n</tool_call>";
+        var text = "我先跑一条。\n<tool_calls>\n" + body + "\n</tool_calls>\n";
+
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+        var parsed = ToolReport.Parse(normalized);
+        Assert.Equal(ToolParseStatus.Ok, parsed.Status);
+        Assert.Equal("exec", parsed.Call!.Name);
+        Assert.Equal("pwd", ToolArgs.Parse(parsed.Call.ArgumentsJson).RequireString("command"));
+
+        // 批 3：**归一必留痕**（哪些形状被归一了）
+        Assert.Contains(traces, t => t.StartsWith("native-", StringComparison.Ordinal));
+        Assert.Contains("wrapper", traces);
+    }
+
+    [Fact]
+    public void 归一_批3_没动就不报痕迹_计数只随真归一增长()
+    {
+        var before = ToolSyntaxNormalizer.NativeNormalizedCount;
+
+        var (same, none) = ToolSyntaxNormalizer.NormalizeTraced("普通一句人话，没有工具块。");
+        Assert.Empty(none);                                     // 没动 ⇒ 一条痕迹都不报
+        Assert.Equal("普通一句人话，没有工具块。", same);
+
+        _ = ToolSyntaxNormalizer.NormalizeTraced(
+            "invoke name=\"exec\">\nparameter name=\"command\">pwd</parameter>\n</invoke>");
+        Assert.Equal(before + 1, ToolSyntaxNormalizer.NativeNormalizedCount);
+    }
+
+    [Fact]
+    public void 归一_批4_TOOL标签与裸call块()
+    {
+        // 真机 M10：块头写成 <TOOL>，且一个回复里连续多个裸 <call>
+        const string text = "<TOOL> <call><name>exec</name><command>pwd</command></call>\n"
+                          + "<TOOL> <call><name>list</name><path>/tmp</path></call>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+        var parsed = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, parsed.Status);
+        Assert.Equal(2, parsed.Calls.Count);
+        Assert.Contains("marker-normalized", traces);
+
+        // 真机 M7：裸 <call> 没有块头
+        const string bare = "先看一眼：\n<call><name>list</name><path>/tmp</path></call>";
+        var (n2, t2) = ToolSyntaxNormalizer.NormalizeTraced(bare);
+        var p2 = ToolReport.Parse(n2);
+        Assert.Equal(ToolParseStatus.Ok, p2.Status);
+        Assert.Equal("list", p2.Call!.Name);
+        Assert.Contains(t2, t => t.StartsWith("headerless-call:", StringComparison.Ordinal));
+
+        // 围栏内 = 示例，不得当调用
+        const string fenced = "示例：\n```text\n<call><name>list</name><path>/tmp</path></call>\n```\n";
+        Assert.Equal(ToolParseStatus.None, ToolReport.Parse(ToolSyntaxNormalizer.Normalize(fenced)).Status);
     }
 }

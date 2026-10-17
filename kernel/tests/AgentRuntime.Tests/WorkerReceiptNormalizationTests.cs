@@ -13,7 +13,7 @@ namespace AgentRuntime.Tests;
 /// 第四次换 `EXEC` 才通。三条失败回执**全都**带 `<blank>`，成功的那几条**都不带** —— 相关性 100%。</para>
 ///
 /// <para><b>口径</b>：与派发侧同一句 —— <b>归一优先（§十·47）；拒绝是最后手段</b>。
-/// 但容错**必须留痕**（主人 2026-10-07 令）⇒ `normalized=true`，由调用方记 `[形状注记]`。</para>
+/// 但容错**必须留痕**（用户 2026-10-07 令）⇒ `normalized=true`，由调用方记 `[形状注记]`。</para>
 /// </summary>
 public sealed class WorkerReceiptNormalizationTests
 {
@@ -21,10 +21,10 @@ public sealed class WorkerReceiptNormalizationTests
     private const string RealBlankMarkerReceipt =
         "[RESULT] <receipt><kind>done</kind>"
         + "<answer>文件前三行已逐字交回，sha256 为实算值。</answer>"
-        + "<addr><path>"
+        + "<addr>/home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/docs/PITFALLS.md</addr>"
         + "<sha256>f8d7f6365e23b37d3ed09e98745110b71447cedfb4c891bad06454ee6dc3dc35</sha256>"
         + "<text># AgentRuntime 踩坑集（L3 最细颗粒度，素材层）\n<blank>\n> 通用方法论查 `workspace/METHODOLOGY.md`（L1/L2）；本文件只记本项目具体坑。</text>"
-        + "<basis><path> | shasum -a 256 rc=0</basis></receipt>";
+        + "<basis>/home/user/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/docs/PITFALLS.md:1-3 | shasum -a 256 rc=0</basis></receipt>";
 
     [Fact]
     public void 未转义标签的回执_归一后读出全部成员_且报留痕()

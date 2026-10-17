@@ -3,7 +3,7 @@ using System;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// 失败形状的事实装配（2026-09-27，主人 A 项）：worker 失败/超时时，回执**必须**带
+/// 失败形状的事实装配（2026-09-27，用户 A 项）：worker 失败/超时时，回执**必须**带
 /// reason / missing / retryable 三字段 —— 本类就是从「失败文本」推出这三件事实的唯一处。
 /// 实测背景：`#W1 sync ❌ 90002ms`（provider 90s 超时）此前只写「请求超时」，三字段全缺。
 /// </summary>
@@ -64,7 +64,7 @@ public static class WorkerFailureFacts
     }
 
     /// <summary>可否认带修正补发：不可达/契约未结算/证据不符 ⇒ 可（④ 必补发）。
-    /// <para><b>2026-10-09（主人令 · 停即拆 · 设计 <c>docs/DESIGN-SPLIT-ON-STOP.md</c> 阶段 1）</b>：<c>ProviderTimeout</c> **不再**是「可重试」——
+    /// <para><b>2026-10-09（用户令 · 停即拆 · 设计 <c>docs/DESIGN-SPLIT-ON-STOP.md</c> 阶段 1）</b>：<c>ProviderTimeout</c> **不再**是「可重试」——
     /// 「慢」的处置是**停 + 拆小**，不是**重发同一块**。真机实证：provider 400s 超时被判可重试 ⇒ 重发同块 2 次 ⇒ 单条派发 **1,200,0xx ms**（`E110/E137`）。
     /// 与闸门路同口径（那条路早已 <c>Retryable=false</c>）。</para></summary>
     public static bool IsRetryable(WorkerFailureReason reason) =>

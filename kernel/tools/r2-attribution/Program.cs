@@ -18,7 +18,7 @@ namespace AgentRuntime.Tools.R2Attribution;
 /// token 估算：渲染字符 / 4。
 /// </para>
 /// <para>用法：<c>r2-attribution &lt;stream.xml&gt;…</c> · <c>--dir &lt;d&gt;</c> · <c>--compare OLD NEW</c> · <c>--xml</c>。</para>
-/// <para><b>与 py 的唯一接口差异</b>：<c>--json</c> → <c>--xml</c>（主人令：不许 JSON，输出改 XML 文档）。</para>
+/// <para><b>与 py 的唯一接口差异</b>：<c>--json</c> → <c>--xml</c>（用户令：不许 JSON，输出改 XML 文档）。</para>
 /// </summary>
 public static class Program
 {
@@ -39,7 +39,7 @@ public static class Program
                 case "--compare" when i + 2 < args.Length: compare = [args[++i], args[++i]]; break;
                 case "--xml": xml = true; break;
                 case "--json":
-                    Console.Error.WriteLine("[r2] --json 已废（主人令：不许 JSON）⇒ 用 --xml");
+                    Console.Error.WriteLine("[r2] --json 已废（用户令：不许 JSON）⇒ 用 --xml");
                     return 2;
                 default:
                     if (args[i].StartsWith('-'))

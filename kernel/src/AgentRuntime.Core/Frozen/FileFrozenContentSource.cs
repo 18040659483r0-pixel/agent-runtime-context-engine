@@ -64,6 +64,7 @@ public sealed class FileFrozenContentSource : IFrozenContentSource
         { Zone: FrozenZone.Rules, Layer: FrozenLayer.Global } => "rules/global.md",
         { Zone: FrozenZone.Rules, Layer: FrozenLayer.Project, ProjectId: { } rp } when IsSafe(rp) => $"rules/project/{rp}.md",
         { Zone: FrozenZone.Knowledge, Layer: FrozenLayer.Global } => "knowledge/global.md",
+        { Zone: FrozenZone.Decision, Layer: FrozenLayer.Global } => "decision/global.md",
         { Zone: FrozenZone.Knowledge, Layer: FrozenLayer.Project, ProjectId: { } kp } when IsSafe(kp) => $"knowledge/project/{kp}.md",
         { Zone: FrozenZone.MemoryIndex, Layer: FrozenLayer.Global } => "memory/index.md",
         _ => null,

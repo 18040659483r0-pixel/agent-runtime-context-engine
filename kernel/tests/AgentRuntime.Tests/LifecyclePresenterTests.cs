@@ -47,7 +47,7 @@ public sealed class LifecyclePresenterTests
         flow.Append(SessionEventKind.AgentOutput, "[DONE] run.sh 修好了（退出码 0）");
     });
 
-    // ---------------- 决策点：正文为空 vs 块式正文（2026-09-22 主人真机现场） ----------------
+    // ---------------- 决策点：正文为空 vs 块式正文（2026-09-22 用户真机现场） ----------------
 
     [Fact]
     public void 决策点_正文为空_不画空问题位_改成一句告警()
@@ -97,7 +97,7 @@ public sealed class LifecyclePresenterTests
         var plainLines = lines.Select(Markup.Strip).ToArray();
         Assert.Contains(plainLines, l => l == "生命周期 #1");
         Assert.Contains(plainLines, l => l == "用户：把 run.sh 修好");
-        // v8（主人 2026-09-24 19:30）：结果**累积**显示 —— 了结时终局块正文照旧作一条 `结果：`（卡上原有内容不变）。
+        // v8（用户 2026-09-24 19:30）：结果**累积**显示 —— 了结时终局块正文照旧作一条 `结果：`（卡上原有内容不变）。
         Assert.Contains(plainLines, l => l == "结果：run.sh 修好了（退出码 0）");
     }
 
@@ -133,7 +133,7 @@ public sealed class LifecyclePresenterTests
     [Fact]
     public void 卡是一条任务叙事_需求意图打算过程动作结果风险齐()
     {
-        // 主人 2026-09-22 23:0x 定：一张卡要讲清「理解了什么需求 / 打算怎么做 / 过程中发现了什么问题 /
+        // 用户 2026-09-22 23:0x 定：一张卡要讲清「理解了什么需求 / 打算怎么做 / 过程中发现了什么问题 /
         // 最后做了什么动作 / 还有什么可能有问题」——而不是只把「**末轮**结果」顶上来。
         // 全部字段都是**纯投影**（同一条流两次聚合逐字段相同；零模型调用、零协议改动）。
         var report = Report(flow =>
@@ -158,10 +158,10 @@ public sealed class LifecyclePresenterTests
         Assert.Contains(card, l => l == "过程：");                                                 // ③ 过程发现
         Assert.Contains(card, l => l.Contains("被拒 1 次：工具块不合语法", StringComparison.Ordinal));
         Assert.Contains(card, l => l.StartsWith("动作：read×1", StringComparison.Ordinal));        // ④ 动作（聚合，不再平铺）
-        // v8（主人 2026-09-24 19:30）：意图 / 打算 / 结果**累积** —— 原文在卡上（`/append off` 回到只给最新）。
+        // v8（用户 2026-09-24 19:30）：意图 / 打算 / 结果**累积** —— 原文在卡上（`/append off` 回到只给最新）。
         Assert.Contains(card, l => l == "结果：run.sh 修好了（退出码 0）");                          // ④ 终局正文（原有内容不变）
-        // 2026-10-14 主人令：**risk 计数与 risk 备注都不上卡**。
-        // 2026-10-15 主人令：**「风险：」整行撤掉**（结果行下面那一行太抢注意力）⇒ 草稿未决 / 留档也不常驻。
+        // 2026-10-14 用户令：**risk 计数与 risk 备注都不上卡**。
+        // 2026-10-15 用户令：**「风险：」整行撤掉**（结果行下面那一行太抢注意力）⇒ 草稿未决 / 留档也不常驻。
         // 事实不丢：仍在事件流里，`/trace` 可查（本夹具只管屏面）。
         Assert.DoesNotContain(card, l => l.Contains("risk 声明", StringComparison.Ordinal));
         Assert.DoesNotContain(card, l => l.StartsWith("它自己声明过：", StringComparison.Ordinal));
@@ -193,12 +193,12 @@ public sealed class LifecyclePresenterTests
 
         var plain = LifecyclePresenter.Card(lifecycle).Select(Markup.Strip).ToArray();
 
-        // v8：模型散文**在卡上**（作为「结果」的一条 —— 主人要看得见思考过程）；
+        // v8：模型散文**在卡上**（作为「结果」的一条 —— 用户要看得见思考过程）；
         // 只切到它的正文（行内 `[TOOL]` 也切掉），且**工具结果原文照旧不上卡**（只在 `/trace`）。
         Assert.Contains(plain, l => l.Contains("先看一下", StringComparison.Ordinal));
         Assert.DoesNotContain(plain, l => l.Contains("read run.sh → 42 行", StringComparison.Ordinal));
 
-        // v14（主人 2026-09-22 01:1x）：被拒调用**不再常驻红字** —— 折叠态只给一句计数注记 + 指到哪里看原文。
+        // v14（用户 2026-09-22 01:1x）：被拒调用**不再常驻红字** —— 折叠态只给一句计数注记 + 指到哪里看原文。
         Assert.DoesNotContain(plain, l => l.StartsWith("拒绝 E005", StringComparison.Ordinal));
         Assert.Contains(plain, l => l.Contains($"被拒 {denied} 条", StringComparison.Ordinal) && l.Contains("/trace", StringComparison.Ordinal));
 
@@ -229,7 +229,7 @@ public sealed class LifecyclePresenterTests
     [Fact]
     public void 展开态印多行工具结果正文_缺口A3()
     {
-        // 主人 2026-09-29 19:56 令：展开态此前**也只印首行** ⇒ 多行工具结果的正文在屏上根本看不到，
+        // 用户 2026-09-29 19:56 令：展开态此前**也只印首行** ⇒ 多行工具结果的正文在屏上根本看不到，
         // 与「原文永远在流里 ⇒ /trace 看原文」的承诺不符。
         var lifecycle = Card0(flow =>
         {
@@ -249,9 +249,9 @@ public sealed class LifecyclePresenterTests
     [Fact]
     public void 结果累积_每轮一行_多的行给_result指针()
     {
-        // v8（主人 2026-09-24 19:4x 定）：「**有新结果就加上一行**」——
+        // v8（用户 2026-09-24 19:4x 定）：「**有新结果就加上一行**」——
         // 结果一次**一行**（行尾带 `E###`）；该轮还有续行 ⇒ 给 `/result` 去处（**不截字**）。
-        var prose = "先纠一条：我上轮的结论可能错，正在复核。\n\n## A 案（照主人批的写全）\n| 1 | ProtocolText.cs | 删 45 字符 |\n| 3 | MaxTokens doc | 改成真值 |";
+        var prose = "先纠一条：我上轮的结论可能错，正在复核。\n\n## A 案（照用户批的写全）\n| 1 | ProtocolText.cs | 删 45 字符 |\n| 3 | MaxTokens doc | 改成真值 |";
         var lifecycle = Card0(flow =>
         {
             flow.Append(SessionEventKind.UserInput, "A 案具体是什么样的？");
@@ -328,7 +328,7 @@ public sealed class LifecyclePresenterTests
             LifecyclePresenter.Footer(known));
 
         var unknown = Done();
-        // 2026-10-14 主人令：没有 worker 时，**不单开一行**，而是在这行灰色字里插一小段「单 master」。
+        // 2026-10-14 用户令：没有 worker 时，**不单开一行**，而是在这行灰色字里插一小段「单 master」。
         Assert.Contains("单 master", LifecyclePresenter.Footer(known, singleMaster: true), StringComparison.Ordinal);
         Assert.DoesNotContain("单 master", LifecyclePresenter.Footer(known), StringComparison.Ordinal);
 

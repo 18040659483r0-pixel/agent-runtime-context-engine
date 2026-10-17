@@ -4,7 +4,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Core.Frozen;
 
 /// <summary>
-/// **收尾（内置）** —— 主人 2026-10-11 定的形态：
+/// **收尾（内置）** —— 用户 2026-10-11 定的形态：
 /// <list type="number">
 /// <item><b>原料</b>（只读）：**水位线之后「新出现」的内容** —— <c>memory</c> 日记 · 踩坑集条目 · handoff 条目
 /// （**三者同类，都是原料**；memory 还承载「用户对铁则区的改动意图」）。</item>
@@ -152,7 +152,7 @@ public static class CloseoutJob
     }
 
     /// <summary>
-    /// **一次成型问法**（主人点名「问法很重要」）：两问 ——
+    /// **一次成型问法**（用户点名「问法很重要」）：两问 ——
     /// ① 有没有值得固化到顶部知识库的（有 ⇒ 凝练成 L1/L2/L3/L4 条目）；② 有没有铁则要新增/改动（给文件名 + 编号）。
     /// </summary>
     public static string BuildAsk(IReadOnlyList<CloseoutSlice> material, IReadOnlyList<ICloseoutSink> sinks)
@@ -161,10 +161,9 @@ public static class CloseoutJob
 
         var text = new System.Text.StringBuilder();
         text.AppendLine("收尾。下面是**你上次收尾之后新出现**的全部材料（只读给你看，不要回写材料）。");
-        text.AppendLine("两问，只回你要给的**新条目**，别复述材料：");
-        text.AppendLine("  ① **有没有值得固化到顶部知识库的内容？** 有 ⇒ 把它**凝练成 L1/L2/L3/L4 条目**");
-        text.AppendLine("     （L1 一条法则一句话 / L2 一个情形 / L3 分类总目与路由 / L4 原技能逐字）。");
-        text.AppendLine("  ② **有没有铁则要新增或改动？** 有 ⇒ 直接写出**那一条铁则**（用「铁则 <编号> · <标题>」起头，正文紧随）。");
+        text.AppendLine("只回你要给的**新条目**，别复述材料：");
+        text.AppendLine("  **有没有铁则要新增或改动？** 有 ⇒ 直接写出**那一条铁则**（用「铁则 <编号> · <标题>」起头，正文紧随）。");
+        text.AppendLine("  （知识树不在这里生长：`knowledge/knowledge.md` 是活版，收尾只重建派生并校验。）");
         text.AppendLine("没有就明说「本批无新增」——**不要为了交差硬凑**。");
         text.AppendLine();
         text.AppendLine("回写格式（每类一个块）：");
@@ -292,7 +291,7 @@ public static class CloseoutJob
         }
 
         // **水位线由运行时提高到最新位置**（不是模型给的 —— 机械事实归运行时）。
-        // **但材料被截断时绝不推进**（2026-10-11 主人令）：上限之外的部分会被静默跳过 ⇒ 推进水位 = 假干净。
+        // **但材料被截断时绝不推进**（2026-10-11 用户令）：上限之外的部分会被静默跳过 ⇒ 推进水位 = 假干净。
         var truncated = material.Where(s => s.Truncated).Select(s => s.Id).ToArray();
         if (!string.IsNullOrWhiteSpace(context.WatermarkFile) && File.Exists(context.WatermarkFile))
         {
@@ -416,36 +415,6 @@ public sealed class HandoffSource(string workspace) : ICloseoutSource
 }
 
 // ───────────────────────── 内置落点（运行时写） ─────────────────────────
-
-/// <summary>落点：**知识库 `KNOWLEDGE.md`**（L1/L2/L3/L4 条目由模型给、运行时写）。</summary>
-public sealed class KnowledgeSink(string workspace) : ICloseoutSink
-{
-    public string Id => "knowledge";
-    public string Title => "顶部知识库（KNOWLEDGE.md）";
-    public string File { get; } = Path.Combine(workspace, "KNOWLEDGE.md");
-
-    public IReadOnlyList<string> Apply(string content, IEnumerable<string> allowedRoots)
-    {
-        var roots = allowedRoots.ToArray();
-        var existing = System.IO.File.Exists(File) ? System.IO.File.ReadAllText(File) : string.Empty;
-        var have = existing.Replace("\r\n", "\n").Split('\n').Select(l => l.Trim()).ToHashSet(StringComparer.Ordinal);
-
-        // **只追加、去重、绝不覆盖**（2026-10-11 真收尾当场）：旧口径 `Write` = 整份覆盖 ⇒
-        // 一次收尾把 339 行的知识库冲成 14 行（知识丢失）。去重 ⇒ 幂等；没有新行 ⇒ 什么都不写。
-        var fresh = content.Replace("\r\n", "\n").Split('\n')
-            .Select(l => l.TrimEnd())
-            .Where(l => !string.IsNullOrWhiteSpace(l) && !have.Contains(l.Trim()))
-            .ToList();
-        if (fresh.Count == 0)
-        {
-            return ["[收尾·写] knowledge：给的条目**都已在库里** ⇒ 一条也没追加（不覆盖）。"];
-        }
-
-        var merged = existing.TrimEnd('\n') + "\n\n" + string.Join('\n', fresh) + "\n";
-        CorpusWriter.Write(File, merged, roots);
-        return [$"[收尾·写] knowledge ← {File} · **追加 {fresh.Count} 条**（保留原有 {existing.Replace("\r\n", "\n").Split('\n').Length} 行；不再整份覆盖）· {System.Text.Encoding.UTF8.GetByteCount(merged)} 字节（运行时写）"];
-    }
-}
 
 /// <summary>
 /// 落点：**铁则区**（源文件 = <c>AGENTS.md</c>；frozen <c>rules/global.md</c> 由它派生）。

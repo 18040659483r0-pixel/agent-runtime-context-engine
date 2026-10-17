@@ -8,7 +8,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker memory 要真有记录**（主人 2026-09-29 口径：记录要留下）。
+/// **worker memory 要真有记录**（用户 2026-09-29 口径：记录要留下）。
 /// <para>判据是盘上事实：跑过一次派发之后，<c>&lt;memory&gt;/dispatch-log.md</c> 里有那一行 ——
 /// 而不是「代码里有这句调用」。</para>
 /// </summary>

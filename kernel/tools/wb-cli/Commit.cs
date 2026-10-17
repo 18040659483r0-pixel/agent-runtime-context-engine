@@ -62,6 +62,10 @@ internal static class Commit
         Console.Write(Svn(["status", .. paths]).Out);
 
         // ③ commit
+        // **提交前先记 HEAD**：零提交时 `svn commit` 依然 rc=0，下面的逐路径自证也全部通过
+        // ⇒ 从前会打出「✅ 回读一致」而**实际一个字节都没入库**（2026-10-17 真机，[WB] 上报）。
+        var repoUrl = Svn(["info", "--show-item", "repos-root-url", paths[0]]).Out.Trim();
+        var headBefore = Svn(["info", "--show-item", "revision", repoUrl]).Out.Trim();
         Console.WriteLine("== [3/4] svn commit ==");
         var (rcC, outC) = Svn(["commit", "-F", msgFile, .. paths]);
         Console.Write(outC);
@@ -106,7 +110,17 @@ internal static class Commit
             return 1;
         }
 
-        Console.WriteLine("✅ 回读一致：所列路径均已入库且工作副本干净");
+        // **牙**：只有 HEAD 真的推进了，才算「这次提交成立」（零提交 ≠ 已入库）。
+        var headAfter = Svn(["info", "--show-item", "revision", repoUrl]).Out.Trim();
+        var advanced = long.TryParse(headBefore, out var headB) && long.TryParse(headAfter, out var headA) && headA > headB;
+        if (!advanced)
+        {
+            Console.Error.WriteLine($"⚠️ 本次**零提交**（HEAD 仍 r{headAfter}）：没有可提交的改动 —— **这不等于「已入库」**");
+            Console.Error.WriteLine("   （判据：HEAD 必须 r<before> → r<after> 递增；零提交时从上到下全绿 = 假绿）");
+            return 0;
+        }
+
+        Console.WriteLine($"✅ 回读一致：所列路径均已入库且工作副本干净（HEAD r{headBefore} → r{headAfter}）");
         return 0;
     }
 

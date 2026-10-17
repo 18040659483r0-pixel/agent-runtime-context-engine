@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **WB 运行时的铁则闸门**（`docs/RULES-RUNTIME.md` · 主人 2026-10-07 立）。
+/// **WB 运行时的铁则闸门**（`docs/RULES-RUNTIME.md` · 用户 2026-10-07 立）。
 /// <para><b>R1</b>：自有格式一律强类型 XML；JSON 只许出现在**三类对外/迁移例外**里。
 /// 闸门用**基线账本**（"增长类闸门带基线账本"）：今天**一处都不许新增**；迁移时逐条销账（只许缩不许长）。</para>
 /// <para><b>R2</b>：运行时不调起 Python；唯一能起进程的是工具面 <c>ExecTool</c>；仓内 `.py` 是**待迁清单**，如实计数。</para>

@@ -15,7 +15,7 @@ namespace AgentRuntime.Hosting;
 /// 所以「配置无 worker」与「已摘除」在判定上**逐字同义**，不会各写一套。
 /// </para>
 /// <para>
-/// 纪律（主人 2026-09-26 00:2x 定）：**可用性由运行时以 Hint 给，协议区不写** ——
+/// 纪律（用户 2026-09-26 00:2x 定）：**可用性由运行时以 Hint 给，协议区不写** ——
 /// 走既有 <see cref="SessionEventKind.Hint"/> 通道（appended event ⇒ **零缓存代价**），
 /// 不为配置在协议区开新口子（<c>P1</c>「来源只能是代码」）。
 /// </para>

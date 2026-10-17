@@ -4,7 +4,7 @@ using System.Text;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **消息信封**（主人 2026-10-07 令）：master 与 worker 之间的每一次往返都带一封**可对号**的信封 ——
+/// **消息信封**（用户 2026-10-07 令）：master 与 worker 之间的每一次往返都带一封**可对号**的信封 ——
 /// 谁发的 / 发给谁（**指纹**）、什么时候（**datetime**）、哪一条（**id** = 指纹+时刻的 hash）、
 /// 以及**答的是哪一条**（<c>re=</c>）。收方不必靠上下文猜「这是哪一问的回话」。
 ///
@@ -94,7 +94,7 @@ public sealed record MessageEnvelope(
 }
 
 /// <summary>
-/// **一方身份**（主人 2026-10-07 令：启动 master / worker 时**一并给出两边的指纹**）——
+/// **一方身份**（用户 2026-10-07 令：启动 master / worker 时**一并给出两边的指纹**）——
 /// 名字 + 指纹；进信封的 <c>from</c>/<c>to</c>，也让「谁跟谁在对话」在任何一条流里可查。
 /// </summary>
 /// <param name="Role">角色（<c>master</c> / <c>worker</c>）。</param>

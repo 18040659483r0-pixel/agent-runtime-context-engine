@@ -24,5 +24,8 @@
     <Project Path="tools/ms-suite/MsSuite.csproj" />
     <Project Path="tools/wb-cli/WbCli.csproj" />
     <Project Path="tools/experiments/knowledge-loop/VerifyLoop.csproj" />
+    <Project Path="tools/knowledge-tree/KnowledgeTree.csproj" />
+    <Project Path="tools/deploy/Deploy.csproj" />
+    <Project Path="tools/deploy-testsuite/DeployTest.csproj" />
   </Folder>
 </Solution>

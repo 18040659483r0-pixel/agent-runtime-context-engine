@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **主 provider 的超时墙由「账本速率」导出**（甲案 · 主人 2026-10-11 定）。
+/// **主 provider 的超时墙由「账本速率」导出**（甲案 · 用户 2026-10-11 定）。
 ///
 /// <para><b>为什么要它（实测两处病）</b>：</para>
 /// <list type="number">
@@ -28,7 +28,7 @@ namespace AgentRuntime.Core.Worker;
 public static class PaceWall
 {
     /// <summary>墙的下限（秒）—— 再快的端点也不低于它（防「快 ⇒ 砍到 0」）。</summary>
-    /// <remarks><b>2026-10-15 主人令「墙太紧了，起码放宽 5 倍」：60 → 300。</b>
+    /// <remarks><b>2026-10-15 用户令「墙太紧了，起码放宽 5 倍」：60 → 300。</b>
     /// 真机（当日）：会话账本中位 **9.1s** ⇒ 旧式只给 **60s**，而同一账本尾部有 **62.5s** 的轮
     /// （8927 输出 token）⇒ **正常但慢的一轮被打断**（且 TUI 随之退出）。5 倍后同一账本 ⇒ **300s**。</remarks>
     public const int MinWallSeconds = 300;
@@ -40,7 +40,7 @@ public static class PaceWall
     public const double KMedian = 15.0;
 
     /// <summary>
-    /// **提示点（秒）**：一轮在上游等过这么久，就**提示一声**（主人 2026-10-15 令：「照常执行下去，只提示，我自己知道就行了，
+    /// **提示点（秒）**：一轮在上游等过这么久，就**提示一声**（用户 2026-10-15 令：「照常执行下去，只提示，我自己知道就行了，
     /// 任务要继续做完」）—— **只看不砍**：不中断这一轮、不放弃一点活、不回退任何状态。
     /// <para>唯一家：TUI 的等待提示与 `pacer master` 的读数都读它（不各处手写 300）。</para>
     /// </summary>

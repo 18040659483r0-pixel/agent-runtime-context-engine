@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
-/// **工具面口径的唯一来源**（2026-09-29 主人令：worker 与 master 口径必须对齐，
+/// **工具面口径的唯一来源**（2026-09-29 用户令：worker 与 master 口径必须对齐，
 /// 「只给一段典型用法」证明不够 —— 教就得照 master 那边怎么教的教）。
 ///
 /// <para><b>为什么要有这个类</b>：同一套「怎么写 <c>[TOOL]</c>」此前**有两份文本** ——

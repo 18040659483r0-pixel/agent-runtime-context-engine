@@ -5,7 +5,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **「链要不要停 / 什么时候接着跑」四态**（2026-09-29 主人令）。
+/// **「链要不要停 / 什么时候接着跑」四态**（2026-09-29 用户令）。
 /// <para>判据只有一份（<see cref="TurnPulsePolicy.Classify"/>：纯函数）—— 这里逐态钉死四个出口，
 /// 以及「派发在飞」与「回执到达」是**成对**的两个事实（别用字面量猜）。</para>
 /// </summary>
@@ -71,7 +71,7 @@ public sealed class TurnPulseTests
     [Fact]
     public void 没有终局_一律默认续()
     {
-        // 2026-10-06（主人令 · 协议第 6 条）：**默认续** —— 停只由远端显式选三种模式；
+        // 2026-10-06（用户令 · 协议第 6 条）：**默认续** —— 停只由远端显式选三种模式；
         // 旧口径（"什么都没做 ⇒ 停"）已废，这里必须续（否则任何中间态都会把链停死）。
         Assert.Equal(TurnPulse.Continue, TurnPulsePolicy.Classify(
             hasOutcome: false, dispatchInFlight: false,

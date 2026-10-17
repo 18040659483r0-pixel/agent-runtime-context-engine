@@ -28,7 +28,7 @@ public sealed record HandoverSnapshot(
     [property: DataMember(Order = 4)] int StreamCursor,
     [property: DataMember(Order = 5)] DateTimeOffset At,
     [property: DataMember(Order = 6)] string? StreamPath,
-    // —— 接续线索（主人 2026-09-22 23:1x 报）——
+    // —— 接续线索（用户 2026-09-22 23:1x 报）——
     // 老文件没有这两项 ⇒ 默认空/false，照旧可读（不改旧档）。
     [property: DataMember(Order = 7)] string? LastUserMessage = null,
     [property: DataMember(Order = 8)] bool LastTurnInterrupted = false,
@@ -53,7 +53,7 @@ public sealed record HandoverSnapshot(
     /// **接续线索**：上一会话最后一条用户消息 + 它有没有答完。
     /// <para>
     /// 为什么要有它：中断（Ctrl-C）不在流里留痕，而 <c>reset</c> 按设计丢事件 ⇒ 新会话里那句“接续”
-    /// 会被当成**全新问题**，模型只能满仓库去猜题意（主人 2026-09-22 23:1x 真机现场）。
+    /// 会被当成**全新问题**，模型只能满仓库去猜题意（用户 2026-09-22 23:1x 真机现场）。
     /// </para>
     /// </summary>
     public bool HasContinuation => !string.IsNullOrWhiteSpace(LastUserMessage);

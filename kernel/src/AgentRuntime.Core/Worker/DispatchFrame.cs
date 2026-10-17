@@ -4,7 +4,7 @@ using System.Text;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **派发物的字节装配**（主人 2026-09-29 13:5x 令）：全程 <c>byte[]</c> —— 不拼字符串、不 <c>Trim</c>、
+/// **派发物的字节装配**（用户 2026-09-29 13:5x 令）：全程 <c>byte[]</c> —— 不拼字符串、不 <c>Trim</c>、
 /// 不 <c>Split</c>、不转义，只在**最后一个边界解码一次**（<see cref="Decode"/>）。
 ///
 /// <para><b>为什么</b>：派发物此前是「多段字符串拼出来」的 ⇒「中途有没有谁动过文本」**无法证伪**。

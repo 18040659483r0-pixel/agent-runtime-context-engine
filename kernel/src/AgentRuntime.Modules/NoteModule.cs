@@ -7,7 +7,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Modules;
 
 /// <summary>
-/// **笔记落盘**（D3-A · 2026-10-09 主人令 · 设计 <c>docs/DESIGN-SPLIT-ON-STOP.md</c> §十）：
+/// **笔记落盘**（D3-A · 2026-10-09 用户令 · 设计 <c>docs/DESIGN-SPLIT-ON-STOP.md</c> §十）：
 /// master 写一个 <c>[NOTE]</c> 块 ⇒ 运行时**确定性**把它追加进当日 <c>memory/YYYY-MM-DD.md</c>
 /// （活版根 = <c>lifecycle.workspace</c>）。**零注入、不经派发链**。
 ///

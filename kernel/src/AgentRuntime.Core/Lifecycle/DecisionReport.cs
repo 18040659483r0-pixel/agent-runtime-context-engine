@@ -24,7 +24,7 @@ public sealed record DecisionReport : TaskDecisionReport
     /// **宿主「请交决策报告」那一句的来源标记**（进 <c>Hint</c> 事件的账本字段 <c>Source</c>）——
     /// 聚合器靠它认出「哪条 Hint 是报告请求」，从而把**紧随其后的那一条回复**当报告。
     /// <para><b>为什么用 Source 而不是新事件 KIND</b>：History 是不可变的事件流，加 KIND = 改模型看得见的字符表；
-    /// 而 Source 只是**账本字段**（不进 prompt）⇒ 零协议代价（主人 2026-09-24 定「走既有 Hint 通道」）。</para>
+    /// 而 Source 只是**账本字段**（不进 prompt）⇒ 零协议代价（用户 2026-09-24 定「走既有 Hint 通道」）。</para>
     /// </summary>
     public const string RequestSource = "report-request";
 
@@ -50,7 +50,7 @@ public sealed record DecisionReport : TaskDecisionReport
     /// <para>
     /// 为什么它必须能进来：报告原先只分「原料」（不进）与「总结」（进），**缺第三类「成品」**
     /// —— 交付给人阅读/消费的内容本身（题面 / 文案 / 方案正文）。只写「不许铺原料」会把成品一起拍死
-    /// （2026-09-24 主人问「为什么题进不了报告」当场抓出，坑 #154 · `§十·61`）。
+    /// （2026-09-24 用户问「为什么题进不了报告」当场抓出，坑 #154 · `§十·61`）。
     /// </para>
     /// <para>
     /// **与 <see cref="Outcome"/> 的分工**：Outcome 是「现在什么是真的」（判断）；本字段是「请读这个东西」（交付物）。

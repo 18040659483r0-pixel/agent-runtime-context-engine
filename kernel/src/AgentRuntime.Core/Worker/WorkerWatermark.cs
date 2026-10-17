@@ -67,7 +67,7 @@ public sealed class WorkerWatermark
     public const string StreamFileName = "stream.xml";
 
     /// <summary>
-    /// **worker 的持续事件流落点**（主人 2026-09-29）：<c>&lt;root&gt;/&lt;标识&gt;/stream.xml</c> ——
+    /// **worker 的持续事件流落点**（用户 2026-09-29）：<c>&lt;root&gt;/&lt;标识&gt;/stream.xml</c> ——
     /// 与 <see cref="MemoryFor"/> **同一条纪律**（按 provider 分家，**不按派发实例分家**）。
     /// <para>旧写法挂在 <c>&lt;root&gt;/&lt;provider&gt;/&lt;workerId&gt;/stream.xml</c> 下 ⇒ 上一条的会话痕迹对下一条不可见，
     /// 「派生自同一台 engine 的第二个会话」只是句空话。</para>
@@ -75,7 +75,7 @@ public sealed class WorkerWatermark
     public static string StreamFor(string root, string provider) => Path.Combine(root, provider, StreamFileName);
 
     /// <summary>
-    /// **归档 worker 的持续流**（reset 时与 master 一并，主人 2026-09-29）—— 只移动、绝不删除；
+    /// **归档 worker 的持续流**（reset 时与 master 一并，用户 2026-09-29）—— 只移动、绝不删除；
     /// 返回归档到哪（没有流 ⇒ null）。判据是可机器比对的事实（文件真的没了 / 真的在 archive 下）。
     /// </summary>
     public static string? ArchiveStream(string root, string provider, DateTimeOffset now)
@@ -123,7 +123,7 @@ public sealed class WorkerWatermark
     }
 
     /// <summary>
-    /// **worker 集合**（主人 2026-09-29 18:50）：<c>&lt;root&gt;</c> 下的**家名**（= provider 标识目录）。
+    /// **worker 集合**（用户 2026-09-29 18:50）：<c>&lt;root&gt;</c> 下的**家名**（= provider 标识目录）。
     /// <para>判据 = 「像一个家」（<c>watermark.xml</c> / <c>stream.xml</c> / <c>memory/</c> 至少有一样），
     /// **不是**「目录存在」—— 根下可能有 archive / 临时目录，那不是 worker。</para>
     /// <para>顺序 = **名字升序**（确定性、可复算；单/多 worker 同一套码）。根不存在 ⇒ 空集合（不抛）。</para>
@@ -183,7 +183,7 @@ public sealed class WorkerWatermark
     }
 
     /// <summary>
-    /// **会话起点逐个读集合**（start 侧，主人 2026-09-29 18:50）：每家一行读数（家名 · 累计派发 · 末次是否结算）。
+    /// **会话起点逐个读集合**（start 侧，用户 2026-09-29 18:50）：每家一行读数（家名 · 累计派发 · 末次是否结算）。
     /// <para>与 <see cref="ArchiveAll"/> 的分工照抄「reset 结束 / start 开始」：reset **归档**每一条流，
     /// start **宣告**每一家的状态 —— 两边都**遍历同一个集合**（<see cref="FamiliesOf"/>），不是只动当前那一个。</para>
     /// <para>坏 watermark ⇒ 不抛（start 不该因为一个坏账本起不来），如实标 <c>（账本读不出）</c>。</para>

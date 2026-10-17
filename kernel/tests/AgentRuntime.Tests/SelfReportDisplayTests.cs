@@ -46,7 +46,7 @@ public sealed class SelfReportDisplayTests
 
         await session.SubmitAsync("动手", Ct);
 
-        // v8（主人 2026-09-24 19:30）：正文**照旧在卡上**（作「结果」的一条，累积显示）—— 自报块仍不在屏上。
+        // v8（用户 2026-09-24 19:30）：正文**照旧在卡上**（作「结果」的一条，累积显示）—— 自报块仍不在屏上。
         var card = AgentRuntime.Presentation.Markup.Strip(
             Assert.Single(session.Conversation, entry => entry.Kind == "lifecycle").Text);
         Assert.Contains("结果：好，我改完了。", card, StringComparison.Ordinal);
@@ -126,8 +126,8 @@ public sealed class SelfReportDisplayTests
             ContinuationSettings.Off);
         await session.StartAsync(Ct);
 
-        // v15（主人 2026-09-22 02:2x）：自报（白板 / 草稿 / 焦点）不再占右栏，**并进顶部框**：
-        // 全档（≥28 行）各占一行；矮屏压成一行计数。主人要的「打开就看得见」照旧成立。
+        // v15（用户 2026-09-22 02:2x）：自报（白板 / 草稿 / 焦点）不再占右栏，**并进顶部框**：
+        // 全档（≥28 行）各占一行；矮屏压成一行计数。用户要的「打开就看得见」照旧成立。
         var wide = SplitRenderer.Render(session.Frame(96, 30));
         Assert.Contains(wide, l => l.Contains("白板", StringComparison.Ordinal));
         Assert.Contains(wide, l => l.Contains("草稿", StringComparison.Ordinal));

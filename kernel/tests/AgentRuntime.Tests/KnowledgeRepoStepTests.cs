@@ -9,10 +9,11 @@ namespace AgentRuntime.Tests;
 public sealed class KnowledgeRepoStepTests
 {
     private const string Md =
-        "<!--cat S-demo-001 演示域-->\n\n- **这一类是什么**：演示\n- 问题 → L4-demo-001\n\n"
-        + "## demo\n<!-- skill: demo | src: /nonexistent/demo/SKILL.md | ends_with_newline: true | mode: indexed -->\n"
-        + "**L1 法则**：f\n\n**L2 问题地图**\n- [ops] 一个问题 → 见 L3 S-demo-001\n\n"
-        + "### S-demo-001 t\n<!--wrap: 0 0-->\n\nx\n";
+        "# 知识库（测试）\n\n"
+        + "## L1 · 法则\n\n<!--kn: L1-tst-001 next=L2-tst-001-->\n**法则**：一条。\n\n"
+        + "## L2 · 问题形状\n\n<!--kn: L2-tst-001 next=L3-tst-001-->\n**问题？**\n\n"
+        + "## L3 · 处理单元\n\n<!--kn: L3-tst-001 next=L4-tst-001-->\n**做法**：一步。\n\n"
+        + "## L4 · 重型知识\n\n<!--kn: L4-tst-001-->\n**证据**：一条。\n";
 
     private static string TempDir()
     {
@@ -44,7 +45,8 @@ public sealed class KnowledgeRepoStepTests
         var lines = step.Run(Context(ws));
 
         Assert.True(File.Exists(Path.Combine(dir, ".derived", "summary.xml")));
-        Assert.True(File.Exists(Path.Combine(dir, ".derived", "l4.xml")));
-        Assert.Contains(lines, l => l.Contains("就地重建", StringComparison.Ordinal) && l.Contains("不再起 python", StringComparison.Ordinal));
+        Assert.True(File.Exists(Path.Combine(dir, ".derived", "nodes.xml")));
+        Assert.True(File.Exists(Path.Combine(dir, ".derived", "l1.xml")));
+        Assert.Contains(lines, l => l.Contains("就地重建", StringComparison.Ordinal) && l.Contains("知识树", StringComparison.Ordinal));
     }
 }

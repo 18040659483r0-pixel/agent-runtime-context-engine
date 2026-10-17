@@ -1,9 +1,0 @@
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>1</Seq><Tag>E001</Tag><Kind>UserInput</Kind><Source i:nil="true" /><Text>把这轮的部署代号确认一下</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>2</Seq><Tag>E002</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[mock] 收到：把这轮的部署代号确认一下
-[DONE] 已处理：把这轮的部署代号确认一下</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>3</Seq><Tag>E003</Tag><Kind>UserInput</Kind><Source i:nil="true" /><Text>那回滚窗口呢？</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>4</Seq><Tag>E004</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[mock] 收到：把这轮的部署代号确认一下
-[DONE] 已处理：把这轮的部署代号确认一下</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>5</Seq><Tag>E005</Tag><Kind>UserInput</Kind><Source i:nil="true" /><Text>再确认一次部署代号</Text></Event>
-<Event xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Seq>6</Seq><Tag>E006</Tag><Kind>AgentOutput</Kind><Source i:nil="true" /><Text>[mock] 收到：把这轮的部署代号确认一下
-[DONE] 已处理：把这轮的部署代号确认一下</Text></Event>

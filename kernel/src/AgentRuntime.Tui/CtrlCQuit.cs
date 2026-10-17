@@ -3,7 +3,7 @@ using System.Text;
 namespace AgentRuntime.Tui;
 
 /// <summary>
-/// **Ctrl-C 两下退出**（主人 2026-09-20 14:3x：「按 control+c 两次就可以退出 whitebox 到终端」）。
+/// **Ctrl-C 两下退出**（用户 2026-09-20 14:3x：「按 control+c 两次就可以退出 whitebox 到终端」）。
 /// <para>
 /// 为什么需要它（不只是习惯问题）：TUI 在**备用屏**（<c>?1049h</c>）里画，默认的 SIGINT 处理会直接杀掉进程
 /// ⇒ <b>备用屏回不去</b>，终端留在白板界面。所以这里接管 <c>CancelKeyPress</c>：

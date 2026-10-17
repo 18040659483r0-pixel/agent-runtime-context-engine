@@ -5,7 +5,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Modules;
 
 /// <summary>
-/// **收尾窗口（动态段）**（主人 2026-09-30 01:03：「让 master 在收尾时获得全部工具处理能力，
+/// **收尾窗口（动态段）**（用户 2026-09-30 01:03：「让 master 在收尾时获得全部工具处理能力，
 /// 并且完全 master 自己收尾，而 start 后还是按照 默认 master 指挥 worker 干活的模式做」；
 /// **2026-09-30 12:47 收紧为强制**：「收尾命令中强制使用 master 全量工具授权；非收尾阶段工具面从 master 手中收走」——
 /// 即：本模块**由收尾命令（<c>SessionLifecycle.Closeout</c>）强制挂上**，不再有 <c>--closeout-face</c> 启动开关，

@@ -3,7 +3,7 @@ using AgentRuntime.Core.Stream;
 namespace AgentRuntime.Hosting;
 
 /// <summary>
-/// **这一轮之后，链该做什么** —— 「停手交接」的**唯一判据**（2026-09-29 主人令）。
+/// **这一轮之后，链该做什么** —— 「停手交接」的**唯一判据**（2026-09-29 用户令）。
 /// <para>
 /// 为什么必须有它：过去「停不停」有两处各写一套（master 的 <c>RuntimeHost.HasToolOutcomeSince</c>
 /// 与 worker 的 <c>WorkerTurnHost.HasToolOutcomeSince</c>），两处都把事件集合**硬编码**成
@@ -138,7 +138,7 @@ public static class TurnPulsePolicy
         }
 
         // ⑥ 没有终局、没有在飞的派发、没有可消费的结果 —— 这一格是**两种宿主唯一的分岔**：
-        //     · **master（defaultContinue=true）**：**默认续**（主人 2026-10-06 令 · 协议第 6 条）。
+        //     · **master（defaultContinue=true）**：**默认续**（用户 2026-10-06 令 · 协议第 6 条）。
         //       旧口径在此判 Stop ⇒ 任何中间态都会把链停死（同族：催稿/退回曾在链外 r1170 ·
         //       [DISPATCH] 不是工具调用 · WorkerDispatchRefused 不算结果 r1278 · [BASE] 答完即停）。
         //       **停只由远端显式选三种模式**（得解 / 无解 / 需裁定）；运行时**不干扰**。

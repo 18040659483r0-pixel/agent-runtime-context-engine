@@ -170,7 +170,7 @@ public sealed class SandboxFenceTests
         }
 
         // 「自迭代」的直接看门狗：默认下，围栏里往**运行时自身目录**写必须放行，
-        // 否则 `dotnet build` 写自己的输出目录会被自己的笼子拒掉（主人 2026-09-16 21:2x 定的红线）。
+        // 否则 `dotnet build` 写自己的输出目录会被自己的笼子拒掉（用户 2026-09-16 21:2x 定的红线）。
         var previousSelf = Environment.GetEnvironmentVariable(SecurityPolicy.ProtectSelfEnv);
         var probe = Path.Combine(
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(AppContext.BaseDirectory)), "self-iter-probe.txt");

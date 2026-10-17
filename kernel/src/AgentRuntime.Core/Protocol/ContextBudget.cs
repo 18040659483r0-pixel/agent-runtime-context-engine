@@ -46,7 +46,7 @@ public sealed record BudgetStatus(int PromptTokens, int WindowTokens, double Rat
 public static class ContextBudget
 {
     /// <summary>提议阈值：上下文达到模型窗口的这个比例、且任务已了结 ⇒ 提议收尾 + 重开（**唯一声明处**）。</summary>
-    public const double ProposeRatio = 0.20;
+    public const double ProposeRatio = 0.80;
 
     /// <summary>同上的百分数形式（给人看的措辞用）。</summary>
     public const double ProposePercent = ProposeRatio * 100d;
@@ -59,8 +59,9 @@ public static class ContextBudget
     public static bool ShouldPropose(TerminalReport terminal, int promptTokens, int windowTokens)
     {
         ArgumentNullException.ThrowIfNull(terminal);
-        return terminal.IsSettled
-            && windowTokens > 0
+        // 用户 2026-10-17 15:5x：**80% 是唯一停手点**，不再要求「任务已终局」
+        //（<80% 一律继续做下一个 task；任务终局只是「可以更早收」的额外理由，不是门槛）。
+        return windowTokens > 0
             && promptTokens > 0
             && Ratio(promptTokens, windowTokens) >= ProposeRatio;
     }
@@ -72,8 +73,9 @@ public static class ContextBudget
         var percent = (Ratio(promptTokens, windowTokens) * 100d).ToString("F1", CultureInfo.InvariantCulture);
         var threshold = ProposePercent.ToString("F0", CultureInfo.InvariantCulture);
         return
-            $"[收尾提议] 上下文 {promptTokens} / {windowTokens} token = {percent}%（阈值 {threshold}%）" +
-            $"且本任务{terminal.Label} ⇒ 建议现在 /closeout + /reset：收尾（记水位线）后重开一条空事件流，" +
-            "白板与草稿继承、缓存重新建立（历史越长越贵，越早重开越省）。";
+            $"[收尾要求] 上下文 {promptTokens} / {windowTokens} token = {percent}%（阈值 {threshold}%）" +
+            $"；本任务{terminal.Label} ⇒ **现在收尾**：/closeout → /reset → /start，" +
+            "然后**接着做同一个任务**（白板与草稿继承、缓存重新建立）。**不要再问人**；" +
+            "唯一例外 = 决策库 / 项目级设计原则书没讲清楚（gap）。";
     }
 }

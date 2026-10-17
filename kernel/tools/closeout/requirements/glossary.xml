@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：术语表（GLOSSARY.md）。协议第 7 条把 glossary 列进 session closeout 要收敛的东西 ⇒ 它必须有落点与权限。 -->
+<Requirement>
+  <Id>glossary</Id>
+  <Title>术语表（GLOSSARY.md）</Title>
+  <Order>85</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/GLOSSARY.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

@@ -1,3 +1,4 @@
+using System.Text;
 using AgentRuntime.Core;
 using AgentRuntime.Core.Knowledge;
 using AgentRuntime.Core.Configuration;
@@ -8,7 +9,6 @@ using AgentRuntime.Core.Lifecycle;
 using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Security.Gate;
 using AgentRuntime.Presentation;
-using AgentRuntime.Core.Skill;
 using AgentRuntime.Core.Snapshot;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Worker;
@@ -38,7 +38,7 @@ internal static class Program
         string? configPath = null;
         var verbose = false;
         var chat = false;
-        // 2026-10-07（主人令）：CLI 与 TUI **同口径 —— 默认开**（协议第 6 条：默认续，停由远端显式选三模式）。
+        // 2026-10-07（用户令）：CLI 与 TUI **同口径 —— 默认开**（协议第 6 条：默认续，停由远端显式选三模式）。
         //   `--auto-continue 0` / `--no-auto-continue` 仍然关得掉；未指定 = Default.MaxRounds。
         var autoContinue = AgentRuntime.Hosting.ContinuationSettings.Default.MaxRounds;   // 0 = 关
         string? modulesOverride = null;
@@ -51,20 +51,14 @@ internal static class Program
         string? frozenBump = null;
         var frozenTier = FrozenCorpusCli.DefaultTier;
         var frozenSpec = false;
-        string? knowledgeOut = null;
-        var knowledgeMode = "";
+        string? knowledgeWorkspace = null;
+        var knowledgeBuild = false;
+        var knowledgeCheck = false;
         string? knowledgeRollback = null;
         var knowledgeAcceptExternal = false;
         string? knowledgePitfallsSrc = null;
         string? knowledgeHandoffSrc = null;
         string? knowledgePitfallsProj = null;
-        string? l3Out = null;
-        string? l3Kind = null;
-        string? l3Source = null;
-        string? l3Proj = null;
-        var l3Mode = "derive";
-        string? l3Ledger = null;
-        string? l3Ref = null;
         string? pitfallsKind = null;
         string? pitfallsSrc = null;
         var pitfallsCheck = false;
@@ -118,17 +112,17 @@ internal static class Program
         string? stateDir = null;
         var allowUids = new List<uint>();
         string? apiKeyFileOverride = null;
-        string? skillRepoOverride = null;
-        string? skillUse = null;
+        string? knowledgeRepoOverride = null;
+        string? knowledgeUse = null;
         var message = new List<string>();
 
-        // **pacer 子命令**（主人 2026-10-09 定）：账本 show / reset / calib / probe —— 先于选项解析截下。
+        // **pacer 子命令**（用户 2026-10-09 定）：账本 show / reset / calib / probe —— 先于选项解析截下。
         if (args.Length > 0 && string.Equals(args[0], "pacer", StringComparison.OrdinalIgnoreCase))
         {
             return await PacerCli.RunAsync(args[1..]);
         }
 
-        // **worker 子命令**（主人 2026-10-10 令）：把 worker 模块**从运行时拔掉 / 装回**的正规入口 ——
+        // **worker 子命令**（用户 2026-10-10 令）：把 worker 模块**从运行时拔掉 / 装回**的正规入口 ——
         // status / off / on（定向改配置里的 worker.enabled，其余字节不动）。同样先于选项解析截下。
         if (args.Length > 0 && string.Equals(args[0], "worker", StringComparison.OrdinalIgnoreCase))
         {
@@ -349,59 +343,15 @@ internal static class Program
                     frozenWorkspace ??= "whitebox/workspace";   // 允许 `--bump all` 单用（默认工作区）
                     frozenBump = args[++i];
                     break;
-                case "--knowledge-repo" when i + 1 < args.Length:
-                    // B4-b：知识库维护（C# 版 · 逐字节等价于 knowledge-repo.py）。默认动作 = --derive-only 之外的由模式行指定。
-                    knowledgeOut = args[++i];
+                case "--kn-build" when i + 1 < args.Length:
+                    // 知识树：活版 → 派生层（只常驻 L1）。
+                    knowledgeWorkspace = args[++i];
+                    knowledgeBuild = true;
                     break;
-                case "--knowledge-derive-only":
-                    knowledgeMode = "derive";
-                    break;
-                case "--knowledge-check":
-                    knowledgeMode = "check";
-                    break;
-                case "--knowledge-closeout":
-                    knowledgeMode = "closeout";
-                    break;
-                case "--knowledge-promote":
-                    knowledgeMode = "promote";
-                    break;
-                case "--knowledge-rollback" when i + 1 < args.Length:
-                    knowledgeMode = "rollback";
-                    knowledgeRollback = args[++i];
-                    break;
-                case "--knowledge-accept-external":
-                    knowledgeAcceptExternal = true;
-                    break;
-                case "--knowledge-pitfalls-src" when i + 1 < args.Length:
-                    knowledgePitfallsSrc = args[++i];
-                    break;
-                case "--knowledge-handoff-src" when i + 1 < args.Length:
-                    knowledgeHandoffSrc = args[++i];
-                    break;
-                case "--knowledge-pitfalls-proj" when i + 1 < args.Length:
-                    knowledgePitfallsProj = args[++i];
-                    break;
-                case "--l3-unify" when i + 1 < args.Length:
-                    // B4-b 依赖件：坑集/交接 → 逐条索引（**行式 XML 片段流**，落点 `.xml`；C# 版 · 行为等价于已退役的 l3-unify.py）。
-                    l3Out = args[++i];
-                    break;
-                case "--l3-kind" when i + 1 < args.Length:
-                    l3Kind = args[++i];
-                    break;
-                case "--l3-source" when i + 1 < args.Length:
-                    l3Source = args[++i];
-                    break;
-                case "--l3-proj" when i + 1 < args.Length:
-                    l3Proj = args[++i];
-                    break;
-                case "--l3-mode" when i + 1 < args.Length:
-                    l3Mode = args[++i];
-                    break;
-                case "--l3-ledger" when i + 1 < args.Length:
-                    l3Ledger = args[++i];
-                    break;
-                case "--l3-ref" when i + 1 < args.Length:
-                    l3Ref = args[++i];
+                case "--kn-check" when i + 1 < args.Length:
+                    // 知识树：结构校验 + 派生层逐字节对拍。
+                    knowledgeWorkspace = args[++i];
+                    knowledgeCheck = true;
                     break;
                 case "--pitfalls-index" when i + 1 < args.Length:
                     pitfallsKind = "index";
@@ -426,13 +376,13 @@ internal static class Program
                 case "--worker-run" when i + 1 < args.Length:
                     workerRun = args[++i];
                     break;
-                case "--skill-repo" when i + 1 < args.Length:
-                    // L3 地址表（目录或任一 l3.xml）；与 config.skill.repo 同义，命令行优先。
-                    skillRepoOverride = args[++i];
+                case "--kn-repo" when i + 1 < args.Length:
+                    // 知识树地址表（.derived 目录或 nodes.xml）；与 config.knowledge.repo 同义，命令行优先。
+                    knowledgeRepoOverride = args[++i];
                     break;
-                case "--skill-use" when i + 1 < args.Length:
-                    // 按 id 装载 L3 条（离线：不调模型、不需密钥）；逗号分隔可一次多条。
-                    skillUse = args[++i];
+                case "--kn-use" when i + 1 < args.Length:
+                    // 按 id 装载知识节点（离线：不调模型、不需密钥）；逗号分隔可一次多条。
+                    knowledgeUse = args[++i];
                     break;
                 case "--api-key-file" when i + 1 < args.Length:
                     // 只接受**路径**：密钥内容绝不出现在 argv / 日志 / 配置里。
@@ -492,29 +442,10 @@ internal static class Program
                     tier: frozenTier);
             }
 
-            // **知识库维护（C# 版 · B4-b）**：收尾流水线里那条 python 的 C# 替身（判据 = 逐字节等价）。
-            if (knowledgeOut is not null)
+            // **知识树（v74 · 全新知识库）**：活版 → 派生层 / 结构校验。
+            if (knowledgeBuild || knowledgeCheck)
             {
-                return KnowledgeRepoCli.Run(
-                    knowledgeOut,
-                    knowledgeMode.Length > 0 ? knowledgeMode : "fail",
-                    knowledgeRollback,
-                    knowledgeAcceptExternal,
-                    knowledgePitfallsSrc ?? "",
-                    knowledgeHandoffSrc ?? "",
-                    knowledgePitfallsProj ?? "rt");
-            }
-
-            // **坑集/交接逐条定位（C# 版 · B4-b 依赖件 · l3-unify）**。
-            if (l3Out is not null)
-            {
-                if (l3Kind is null || l3Source is null)
-                {
-                    Console.Error.WriteLine("--l3-unify 需要 --l3-kind（pitfalls|handoff）与 --l3-source。");
-                    return ExitUsage;
-                }
-
-                return L3UnifyCli.Run(l3Source, l3Kind, l3Proj, l3Out, l3Mode, l3Ledger, l3Ref);
+                return RunKnowledgeTree(knowledgeWorkspace ?? "whitebox/workspace", knowledgeCheck);
             }
 
             // **坑集派生（C# 版 · B4）**：索引 / 公开变体（收尾流水线的两条 block 闸门）。
@@ -596,7 +527,7 @@ internal static class Program
                 FocusPolicy = focusPolicy,
                 TailReport = tailReport,
                 DraftReport = draftReport,
-                L3Repo = skillRepoOverride,
+                KnowledgeRepo = knowledgeRepoOverride,
             };
 
             var config = RuntimeHost.ResolveConfiguration(configPath, overrides);
@@ -656,9 +587,9 @@ internal static class Program
                 return AppendDocumentToStream(config, appendPath, appendKind, appendSource);
             }
 
-            if (skillUse is not null)
+            if (knowledgeUse is not null)
             {
-                return UseSkillStrips(config, skillUse);
+                return UseKnowledge(config, knowledgeUse);
             }
 
             if (streamShow)
@@ -684,7 +615,7 @@ internal static class Program
             }
 
             // 装配（客户端 + 引擎 + 模块集）与 TUI 共用同一段代码：RuntimeHost.Boot。
-            // v13：不再有审批闸门（主人 2026-09-21 定「放弃 runtime 的硬闸门」）——
+            // v13：不再有审批闸门（用户 2026-09-21 定「放弃 runtime 的硬闸门」）——
             // 本该问人的动作由 ToolRunner **留档 + 放行**，CLI 不再逐项问 y/N。
             using var host = RuntimeHost.Boot(config, overrides, apiKey);
 
@@ -1095,7 +1026,7 @@ internal static class Program
     private static SessionEventKind InferStreamKind(string path)
     {
         var lowered = path.Replace('\\', '/').ToLowerInvariant();
-        if (lowered.Contains("skill")) return SessionEventKind.Skill;
+        if (lowered.Contains("skill")) return SessionEventKind.Knowledge;
         if (lowered.Contains("pitfall")) return SessionEventKind.Pitfall;
         if (lowered.Contains("handoff")) return SessionEventKind.ProjectKnowledge;
         if (lowered.Contains("memory")) return SessionEventKind.Memory;
@@ -1103,36 +1034,33 @@ internal static class Program
     }
 
     /// <summary>
-    /// `--skill-use S-xxx-007[,…]`：**按 id 装载 L3 条**（不调模型、不需密钥）。
-    /// <para>
-    /// 与 `--append` 的区别：`--append` 装的是「一整份文档」，本命令装的是「地址表里的某几条」——
-    /// 正文逐字节取自 <c>l3.xml</c>，走**同一条 append 通道**进流（<c>docs/DESIGN-SKILL-LAYERS.md</c> §五 ③）。
-    /// </para>
+    /// `--kn-use L3-iso-001[,…]`：**按 id 装载知识节点**（不调模型、不需密钥）。
+    /// <para>正文逐字节取自 <c>nodes.xml</c>；同 id 第二次只推 <c>kn-ref</c> 指针（不重复拼正文）。</para>
     /// </summary>
-    internal static int UseSkillStrips(RuntimeConfiguration config, string idsCsv)
+    internal static int UseKnowledge(RuntimeConfiguration config, string idsCsv)
     {
         if (string.IsNullOrWhiteSpace(config.Stream.Path))
         {
-            Console.Error.WriteLine("[技能] 未指定事件流文件：用 config.stream.path 或 --stream <path>。");
+            Console.Error.WriteLine("[KN] 未指定事件流文件：用 config.stream.path 或 --stream <path>。");
             return ExitUsage;
         }
 
-        if (string.IsNullOrWhiteSpace(config.L3.Repo))
+        if (string.IsNullOrWhiteSpace(config.Knowledge.Repo))
         {
-            Console.Error.WriteLine("[技能] 未指定 L3 地址表：用 config.skill.repo 或 --skill-repo <目录|l3.xml>。");
+            Console.Error.WriteLine("[KN] 未指定知识树地址表：用 config.Knowledge.repo 或 --kn-repo <目录|nodes.xml>。");
             return ExitUsage;
         }
 
-        var index = SkillIndex.Load(config.L3.Repo!);
+        var index = KnowledgeIndex.Load(config.Knowledge.Repo!);
         var store = new SessionStreamStore(config.Stream.Path);
-        var loader = new SkillLoader(index, store.Load(), store);
+        var loader = new KnowledgeLoader(index, store.Load(), store);
 
-        Console.WriteLine($"[技能] 地址表：{index.Origin}（共 {index.Count} 条）");
+        Console.WriteLine($"[KN] 地址表：{index.Origin}（共 {index.Count} 条）");
 
         var ids = RuntimeHost.SplitList(idsCsv);
         if (ids.Count == 0)
         {
-            Console.Error.WriteLine("[技能] --skill-use 没给 id（格式 S-<短名>-<3 位序号>，如 S-bench-007）。");
+            Console.Error.WriteLine("[KN] --kn-use 没给 id（格式 L<层>-<短名>-<3 位序号>，如 L3-iso-001）。");
             return ExitUsage;
         }
 
@@ -1142,15 +1070,64 @@ internal static class Program
             var @event = loader.Load(id);   // 不在地址表 ⇒ 抛错（不猜、不静默）
             if (alreadyLoaded)
             {
-                Console.WriteLine($"[技能] {id} 已在流里（#{@event.Seq}），不重复装载。");
+                Console.WriteLine($"[KN] {id} 已在流里 ⇒ 只推指针 {@event.Label} #{@event.Seq}");
             }
             else
             {
-                Console.WriteLine($"[技能] 已装载 #{@event.Seq} {@event.Label} ← {id}（{@event.Text.Length} 字符）");
+                Console.WriteLine($"[KN] 已装载 #{@event.Seq} {@event.Label} ← {id}（{@event.Text.Length} 字符）");
             }
         }
 
-        Console.WriteLine($"[技能] 流文件：{store.Path}（现有 {loader.Stream.Count} 条）；事件正文逐字节取自地址表。");
+        Console.WriteLine($"[KN] 流文件：{store.Path}（现有 {loader.Stream.Count} 条）；正文逐字节取自知识树。");
+        return ExitOk;
+    }
+
+    /// <summary>
+    /// `--kn-build` / `--kn-check`：知识树派生与校验（进程内；不起外部工具）。
+    /// </summary>
+    internal static int RunKnowledgeTree(string workspace, bool checkOnly)
+    {
+        var root = System.IO.Path.GetFullPath(workspace);
+        var tree = KnowledgeTree.Load(root);
+
+        if (checkOnly)
+        {
+            var issues = tree.Validate();
+            var derived = System.IO.Path.Combine(root, "knowledge", ".derived");
+            var (l1Xml, nodesXml, summaryXml) = tree.Derive();
+
+            static bool Same(string path, string expected)
+            {
+                return File.Exists(path)
+                       && string.Equals(File.ReadAllText(path, Encoding.UTF8), expected, StringComparison.Ordinal);
+            }
+
+            var equal = Same(System.IO.Path.Combine(derived, "l1.xml"), l1Xml)
+                        && Same(System.IO.Path.Combine(derived, "nodes.xml"), nodesXml)
+                        && Same(System.IO.Path.Combine(derived, "summary.xml"), summaryXml);
+
+            foreach (var issue in issues)
+            {
+                Console.WriteLine("  " + issue);
+            }
+
+            Console.WriteLine($"[KN] L1 {tree.Nodes.Count(n => n.Layer == 1)} · L2 {tree.Nodes.Count(n => n.Layer == 2)} · "
+                            + $"L3 {tree.Nodes.Count(n => n.Layer == 3)} · L4 {tree.Nodes.Count(n => n.Layer == 4)} · 边 {tree.Edges.Count}");
+            Console.WriteLine(equal ? "[KN] 派生层逐字节一致 ✅" : "[KN] 派生层与重算不一致 ❌（先 --kn-build）");
+            return issues.Any(i => i.IsRed) || !equal ? 1 : 0;
+        }
+
+        var red = tree.Validate().Count(i => i.IsRed);
+        if (red > 0)
+        {
+            Console.Error.WriteLine($"[KN] 源不合法（红 {red}）⇒ 拒绝写派生层（fail-closed）。");
+            return 2;
+        }
+
+        tree.WriteDerived(root);
+        Console.WriteLine($"[KN] 已建：L1 {tree.Nodes.Count(n => n.Layer == 1)} · L2 {tree.Nodes.Count(n => n.Layer == 2)} · "
+                        + $"L3 {tree.Nodes.Count(n => n.Layer == 3)} · L4 {tree.Nodes.Count(n => n.Layer == 4)} · 边 {tree.Edges.Count}");
+        Console.WriteLine($"[KN] 常驻 L1 字节 = {Encoding.UTF8.GetByteCount(tree.RenderL1())}");
         return ExitOk;
     }
 
@@ -1256,7 +1233,7 @@ internal static class Program
     /// </summary>
     private static async Task<int> AutoContinueAsync(RuntimeHost host, bool verbose, int budget, int cursor)
     {
-        // 2026-10-07（主人令）：**续跑只有一个实现** —— 这里改成与 TUI 同一条 `TurnContinuation`，
+        // 2026-10-07（用户令）：**续跑只有一个实现** —— 这里改成与 TUI 同一条 `TurnContinuation`，
         // 不再手写第二份循环（同族教训：两处各写一套 ⇒ 必然分叉）。
         var settings = budget == 0
             ? AgentRuntime.Hosting.ContinuationSettings.Off
@@ -1442,12 +1419,14 @@ internal static class Program
         Console.WriteLine("  --color auto|always|never   落屏上色策略（默认 auto：TTY 且非 NO_COLOR/TERM=dumb 才上色）");
         Console.WriteLine("  --color-depth auto|16|256|truecolor  色深（默认 auto；与 OpenClaw 侧同色）");
         Console.WriteLine("  --stream <path>    覆盖 config.stream.path（事件流文件，JSONL，只追加）");
-        Console.WriteLine("  --append <file>    把一份 L3 文档**逐条**追加进事件流（不需要密钥）");
+        Console.WriteLine("  --append <file>    把一份知识文档**逐条**追加进事件流（不需要密钥）");
         Console.WriteLine("  --kind <k>         配合 --append 指定事件类型（默认按路径猜）");
         Console.WriteLine($"                     可用：{SessionEventKinds.LabelList}");
         Console.WriteLine("  --source <id>      配合 --append 记录来源指针（账本字段，不进 prompt）");
-        Console.WriteLine("  --skill-repo <p>   L3 地址表（技能仓库目录，或任一 l3.xml；也可以用 config.skill.repo）");
-        Console.WriteLine("  --skill-use <ids>  按 id 装载 L3 条（逗号分隔，如 S-bench-007,S-svnwf-000；不需要密钥）");
+        Console.WriteLine("  --kn-repo <p>   知识树地址表（.derived 目录或 nodes.xml；也可以用 config.knowledge.repo）");
+        Console.WriteLine("  --kn-use <ids>  按 id 装载知识节点（逗号分隔，如 L3-iso-001,L4-iso-001；不需要密钥）");
+        Console.WriteLine("  --kn-build <ws> 活版 → 派生层（只常驻 L1）");
+        Console.WriteLine("  --kn-check <ws> 知识树结构校验 + 派生层逐字节对拍");
         Console.WriteLine("  --stream-show      渲染事件流尾部（不需要密钥）");
         Console.WriteLine("  --stream-tail <n>  配合 --stream-show 指定行数（默认 20）");
         Console.WriteLine("  --lifecycle-show   只读回放事件流：按「一次用户请求 = 一张卡」聚合出生命周期（不需要密钥，不调模型）");

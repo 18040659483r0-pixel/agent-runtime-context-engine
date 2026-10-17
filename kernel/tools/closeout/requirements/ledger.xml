@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：收尾账本（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>ledger</Id>
+  <Title>收尾账本</Title>
+  <Order>60</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>ledger</Role><Path>tools/closeout/ledger.xml</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

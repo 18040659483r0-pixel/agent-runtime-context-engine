@@ -137,7 +137,7 @@ public static class RuntimePaths
     }
 
     /// <summary>L3 技能仓库（V6）：留空 = **不接**（返回 null，不编默认路径 —— 猜错的地址表比没有更坏）。</summary>
-    public static string? ResolveL3Repo(string configPath, string? repo)
+    public static string? ResolveKnowledgeRepo(string configPath, string? repo)
     {
         if (string.IsNullOrWhiteSpace(repo))
         {

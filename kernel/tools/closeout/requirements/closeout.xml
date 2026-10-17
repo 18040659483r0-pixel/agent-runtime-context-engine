@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：收尾自身（声明自证）（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>closeout</Id>
+  <Title>收尾自身（声明自证）</Title>
+  <Order>5</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>cfg</Role><Path>tools/closeout</Path><Must>true</Must></Artifact>
+    <!-- 收尾自己的账：水位收敛点行 + 账本（文件级声明 ⇒ 比 memory 的目录声明更具体，最长前缀优先） -->
+    <Artifact><Role>watermark</Role><Path>whitebox/workspace/memory/收尾水位.md</Path><Must>true</Must></Artifact>
+    <Artifact><Role>ledger</Role><Path>tools/closeout/ledger.xml</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

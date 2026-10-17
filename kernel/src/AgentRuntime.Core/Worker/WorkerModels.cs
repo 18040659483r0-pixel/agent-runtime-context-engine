@@ -25,7 +25,7 @@ public sealed class WorkerRequest
 
     /// <summary>
     /// **送出去的那份字节**（`DispatchFrame.Compose` 的产物）—— `Task` 就是它**解码一次**的结果。
-    /// <para>为什么要带字节（主人 2026-09-29 令）：① 身份可复算（<see cref="ContractSha"/>）；
+    /// <para>为什么要带字节（用户 2026-09-29 令）：① 身份可复算（<see cref="ContractSha"/>）；
     /// ② 送到远端前可自证「没被谁动过」（`DispatchFrame.RoundTrips`）；③ 中途不再有字符串拼装。</para>
     /// </summary>
     public byte[] PayloadBytes { get; init; } = [];
@@ -53,7 +53,7 @@ public sealed class WorkerResult
     public string Conclusion { get; init; } = string.Empty;
 
     /// <summary>
-    /// **分析结论正文**（主人 2026-09-29 19:16 令）：worker 真正要交的那个东西（≤N 行）。
+    /// **分析结论正文**（用户 2026-09-29 19:16 令）：worker 真正要交的那个东西（≤N 行）。
     /// <para>为什么与 <see cref="Conclusion"/> 分开：conclusion 只装状态（done/impossible）⇒ 分析无处安放、
     /// 被迫塞进 evidence，master 只能「要逐字原文」——那正是 #220 断头与「派发写成工具级」的共同根因。
     /// </para>
@@ -78,7 +78,7 @@ public sealed class WorkerResult
     /// <summary>失败原因（<see cref="Ok"/>=false 时必填；按形状报事实，不写"失败了"）。</summary>
     public string? Failure { get; init; }
 
-    /// <summary>原始事件流落点（**持续流**：按 provider 分家，跨派发不换 —— 主人 2026-09-29）。</summary>
+    /// <summary>原始事件流落点（**持续流**：按 provider 分家，跨派发不换 —— 用户 2026-09-29）。</summary>
     public string? StreamPath { get; init; }
 
     /// <summary>
@@ -94,7 +94,7 @@ public sealed class WorkerResult
 
     /// <summary>
     /// **回执结论类**（封闭 6 类 · 设计稿 §四）：**只由 worker 自己声明**（回执里的 `kind=` 那一格）。
-    /// <para>运行时**不推、不猜、不兜底**（主人 2026-10-06 口径）：没声明 ⇒ <c>null</c> = 形状缺项，退回。</para>
+    /// <para>运行时**不推、不猜、不兜底**（用户 2026-10-06 口径）：没声明 ⇒ <c>null</c> = 形状缺项，退回。</para>
     /// <para>为什么要有它：每类有**自己的必需字段集** ⇒ 终局自验按类取字段，不再要求“四字段齐”（那一坑就是
     /// “失败回执永远活不过闸门 ⇒ 死循环”）。<c>null</c> = 判不出（旧形状允许留空结论）。</para>
     /// </summary>
@@ -134,22 +134,22 @@ public sealed class WorkerResult
     /// </summary>
     public IReadOnlyList<string> Handoff { get; init; } = [];
 
-    /// <summary>**形状注记**（主人 2026-10-07 令）：回执**缺了哪些成员、但从散文补到了** ——
+    /// <summary>**形状注记**（用户 2026-10-07 令）：回执**缺了哪些成员、但从散文补到了** ——
     /// 容错是允许的，但**必须留痕**（遵从率就是靠它算的）。非空 ⇒ 调用方记一条 <c>[形状注记]</c>。</summary>
     public string ShapeNote { get; init; } = string.Empty;
 
     /// <summary>**回执成员袋**（交付键的载体）：`addr`/`bytes`/`lines`/`sha256`/… 原样带上，
-    /// 供 master 的视图（`ResultLine`）与按意图核的闸门使用（主人 2026-10-07）。</summary>
+    /// 供 master 的视图（`ResultLine`）与按意图核的闸门使用（用户 2026-10-07）。</summary>
     public IReadOnlyDictionary<string, string> Members { get; init; } = new Dictionary<string, string>();
 
     /// <summary>
     /// **答的是哪一条派发**（<see cref="MessageEnvelope.Id"/>）：回执上的 <c>re=</c> —— 让 master
-    /// 在「多 worker / async 在飞」时也能把回执与派发机器对上号（主人 2026-10-07 令）。
+    /// 在「多 worker / async 在飞」时也能把回执与派发机器对上号（用户 2026-10-07 令）。
     /// </summary>
     public string Re { get; init; } = string.Empty;
 
     /// <summary>
-    /// **机器决策报告**（<see cref="MachineDecisionReport"/> · 主人 2026-10-07 令）：终局三态
+    /// **机器决策报告**（<see cref="MachineDecisionReport"/> · 用户 2026-10-07 令）：终局三态
     /// （得解 / 无解 / 需要人类裁决）任一 ⇒ 非空。它把宽泛说辞**收窄**成机器可锁死的字段
     /// （回执 <c>kind</c> 六类 + 回执契约闸门 + 该意图交付键）—— 运行时只做形状层，据此把状态交给 master。
     /// </summary>
@@ -185,14 +185,14 @@ public sealed class WorkerUsage
     public int Turns { get; init; }
     public long ElapsedMs { get; init; }
 
-    /// <summary>**此刻上下文**（2026-10-09 主人令）：**最新一轮**的 prompt —— 与上面的累加值不同（缓存部分**不重复累计**）。</summary>
+    /// <summary>**此刻上下文**（2026-10-09 用户令）：**最新一轮**的 prompt —— 与上面的累加值不同（缓存部分**不重复累计**）。</summary>
     public int ContextTokens { get; init; }
 
     /// <summary>最新一轮的缓存命中部分（配 <see cref="ContextTokens"/> 算此刻命中率）。</summary>
     public int ContextCached { get; init; }
 }
 
-/// <summary>**一次派发的实时进度**（2026-10-09 主人令）：worker **每跑一轮**上报一次，喂给池 ⇒ TUI 的「工蜂」卡
+/// <summary>**一次派发的实时进度**（2026-10-09 用户令）：worker **每跑一轮**上报一次，喂给池 ⇒ TUI 的「工蜂」卡
 /// 在**还在跑**的时候就能显示「第 N 轮 / 已耗时 / 到此为止的用量」。
 /// <para><b>多 worker 前提</b>：进度**按 worker id 归位**（<c>WorkerPool.Report(id, …)</c>）—— sync/async 交叉在飞时，
 /// 每条派发各有自己的一份，不共享、不串。</para>

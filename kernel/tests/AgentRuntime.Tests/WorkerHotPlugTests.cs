@@ -173,7 +173,7 @@ public sealed class WorkerHotPlugTests
         b.Reply = "[DISPATCH] 把 A 的读取改到新 API | window: src/A.cs | mode: sync";
         var outcome = await host.RunTurnAsync("干活", cancellationToken: Ct);
 
-        // 响亮：**流里一条**（账本可数）—— 2026-10-14 主人令：屏上不再单开一行（灰色页脚里插「单 master」即可），
+        // 响亮：**流里一条**（账本可数）—— 2026-10-14 用户令：屏上不再单开一行（灰色页脚里插「单 master」即可），
         // 所以这里改判「正文**不**再铺这行」，事实由下面的流内 Hint 兜住（PITFALLS #77：不上屏 ≠ 不存在）。
         Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[降级]", StringComparison.Ordinal));
         var degraded = host.Modules.OfType<AppendStreamModule>().Single().Stream.Events

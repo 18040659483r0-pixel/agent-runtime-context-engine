@@ -29,39 +29,39 @@
     <Project />
   </Frozen>
   <Stream>
-    <Path>../../.stage1/stream-20260929-0400-master-test.xml</Path>
+    <Path>state/stream.xml</Path>
     <MaxEvents>0</MaxEvents>
   </Stream>
   <Lifecycle>
     <Workspace>../../whitebox/workspace</Workspace>
     <Window>always</Window>
-    <Pitfalls>../../docs/PITFALLS.md</Pitfalls>
-    <PitfallsInbox>../../docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
+    <Pitfalls>docs/PITFALLS.md</Pitfalls>
+    <PitfallsInbox>docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
     <Pipeline />
-    <Handover>~/.agentruntime/handover.xml</Handover>
+    <Handover>state/handover.xml</Handover>
     <NativeCloseout>true</NativeCloseout>
   </Lifecycle>
   <Snapshot>
-    <Path>../../.stage1/snapshot.xml</Path>
+    <Path>state/snapshot.xml</Path>
     <Enabled>true</Enabled>
   </Snapshot>
   <Focus>
-    <Path>../../.stage1/focus.xml</Path>
+    <Path>state/focus.xml</Path>
     <Policy>report</Policy>
     <TopK>16</TopK>
     <MinWeight>0.95</MinWeight>
     <HalfLifeTurns>40</HalfLifeTurns>
   </Focus>
   <CurrentTail>
-    <StorePath>../../.stage1/tail</StorePath>
+    <StorePath>state/tail</StorePath>
   </CurrentTail>
   <DynamicDraft>
-    <StorePath>../../.stage1/draft</StorePath>
+    <StorePath>state/draft</StorePath>
   </DynamicDraft>
   <ToolQueue />
-  <L3>
-    <Repo>../../whitebox/workspace/knowledge/.derived/l3.xml</Repo>
-  </L3>
+  <Knowledge>
+    <Repo>../../whitebox/workspace/knowledge/.derived/nodes.xml</Repo>
+  </Knowledge>
   <Worker>
     <Enabled>false</Enabled>
     <ProviderName />

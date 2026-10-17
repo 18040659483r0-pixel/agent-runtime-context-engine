@@ -48,7 +48,7 @@ public enum RiskClaimOutcome
 /// <b>它只判断「有没有权力做」，不判断「想得对不对」</b>。判定次序是固定的七条，每条都能单独测：
 /// </para>
 /// <list type="number">
-/// <item>受保护目标（写 / 删 / 读 / 命令里碰到）⇒ <b>DENY</b>（主人 19:15 那条：目的地是保护文件，直接拒绝）；</item>
+/// <item>受保护目标（写 / 删 / 读 / 命令里碰到）⇒ <b>DENY</b>（用户 19:15 那条：目的地是保护文件，直接拒绝）；</item>
 /// <item>提权（<c>sudo</c> / <c>su</c> / <c>doas</c> …）⇒ <b>DENY</b>（V2 例 4：身份是管理员也不放行）；</item>
 /// <item>凭据形状的目标（写 / 删）⇒ <b>DENY</b>；</item>
 /// <item><b>must-ask 档</b>（发布 / 不可逆 / 未登记工具）⇒ <b>ASK 且永不记住</b>；</item>
@@ -164,7 +164,7 @@ public sealed class SecurityGateway
     /// 打开时 <see cref="Decide"/> **忽略模型的 <c>risk:</c> 声明**（等价于「未声明」⇒ 按旧分类逐条问人）：
     /// 只读照旧免批，其余动作回到「首次必须有人点头」的老口径。
     /// **与声明无关的那几类照旧被分类标记**（受保护目标 / 提权 / 凭据 / must-ask / 可疑可执行）——
-    /// v13 起它们**只留档、不拦截**（主人：「凭据和私钥，暂时也放行」）。
+    /// v13 起它们**只留档、不拦截**（用户：「凭据和私钥，暂时也放行」）。
     /// </para>
     /// <para>
     /// 与 <c>/grants-clear</c> 的分工：本开关只管「声明」这一层；**已授权的一事一批 / 范围授权仍在**
@@ -272,7 +272,7 @@ public sealed class SecurityGateway
             return Ask("这个可执行文件**是本会话里刚写出来的**（来源可疑）⇒ 必须重新点头（V2 例 7：Action 每一次都独立授权）。");
         }
 
-        // ⑨ **范围授权**（主人 2026-09-17 02:52 选 A）：人**一次点头**记住的「同类族」（会话级、进程结束即失效）。
+        // ⑨ **范围授权**（用户 2026-09-17 02:52 选 A）：人**一次点头**记住的「同类族」（会话级、进程结束即失效）。
         //    它排在 must-ask / 宽能力 / 可疑可执行 **之后** ⇒ 那三类天生盖不住；硬拒（①②③）更在前。
         //    写类还要过**永久例外**：.git/ · 构建文件 · 脚本这些「写 → 执行」链的形状照旧问。
         if (Grants.CoversScope(action.Capability, action.Target) is { } scope)
@@ -287,7 +287,7 @@ public sealed class SecurityGateway
             return Allow($"本会话已授权范围：{GrantScopes.Describe(scope)} ⇒ 放行（例外形状仍会问）。");
         }
 
-        // ⑩ 复用：授权过一次的同类动作不再问（主人的话）。
+        // ⑩ 复用：授权过一次的同类动作不再问（用户的话）。
         if (Grants.Covers(action.Capability, action.Target, Now))
         {
             AutoAllowed++;

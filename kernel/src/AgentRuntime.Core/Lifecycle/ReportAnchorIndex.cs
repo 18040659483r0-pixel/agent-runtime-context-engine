@@ -51,7 +51,7 @@ public sealed record ReportAnchorIndex(IReadOnlyList<ReportAnchor> Anchors)
         return found.Length > 0;
     }
 
-    /// <summary>锚表那几行（**默认关**：只有要展开时才印 —— 主人 19:1x 定）。</summary>
+    /// <summary>锚表那几行（**默认关**：只有要展开时才印 —— 用户 19:1x 定）。</summary>
     public IReadOnlyList<string> Lines()
     {
         if (Anchors.Count == 0)

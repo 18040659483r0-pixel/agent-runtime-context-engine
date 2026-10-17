@@ -1,0 +1,5 @@
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-err-001</Id><Text>**坏数据报错**：不可重建的数据（地址表/账本）必须抛错；可重建的缓存才允许降级。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-evd-001</Id><Text>**证据优先**：说「完成」必须给出可复算的证据（命令 + 读数 + 复算方式），不接受自陈。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-gate-001</Id><Text>**闸门留牙**：用「应该红」的负例证明；分母 0 印 N/A 并计欠账，不许印 PASS；豁免默认不豁免。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-iso-001</Id><Text>**产物隔离**：为运行服务的中间产物放系统缓存/临时区，不进用户可见区；自产目录必须进自身扫描排除名单。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-pfx-001</Id><Text>**稳定前缀**：改头部一个字节 ⇒ 缓存整段作废；内容只追加；动态内容永不前置。</Text></KnL1>

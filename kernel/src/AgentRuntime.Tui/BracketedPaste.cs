@@ -10,7 +10,7 @@ namespace AgentRuntime.Tui;
 /// </summary>
 /// <remarks>
 /// <para>
-/// **为什么必须做**（2026-09-24 主人真机报）：TUI 原本只认 <see cref="ConsoleKey.Enter"/> ⇒
+/// **为什么必须做**（2026-09-24 用户真机报）：TUI 原本只认 <see cref="ConsoleKey.Enter"/> ⇒
 /// 多行粘贴被拆成 N 条用户消息，每条都把当轮**打断**一次（流里留下 N 条
 /// 「用户中断了上一轮 …… 该轮没有终局块」的 Hint），而真正活下来的任务文本**只剩最后一行**。
 /// </para>

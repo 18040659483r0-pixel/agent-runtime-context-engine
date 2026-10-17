@@ -1,0 +1,33 @@
+MIT License
+
+Copyright (c) 2026 XU XINYUE
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+Scope note (not part of the MIT text): this license covers the kernel
+(`src/AgentRuntime.Core`, `Modules`, `Providers`, `Hosting`, `Cli`) and the
+observation console (`src/AgentRuntime.Tui`). It does NOT cover private corpora
+(`frozen-private*`), internal knowledge bases, experiment records or internal
+engineering documents — those are not part of any public release.
+
+Corpus notice (not part of the MIT text): the **public corpus slice**
+(`benchmark/AgentRuntime.Benchmark/corpus/`) is contributed so that others can
+run and reproduce the measurements. It is **NOT** part of the MIT grant —
+all rights to that material remain with the author (see
+`benchmark/AgentRuntime.Benchmark/corpus/NOTICE.md`).
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

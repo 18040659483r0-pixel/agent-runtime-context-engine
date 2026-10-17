@@ -82,7 +82,7 @@ public class AgentRuntimeEngine
     public Task<RuntimeResult> ChatAsync(string message, CancellationToken cancellationToken = default, ChatRequest? preassembled = null) =>
         RunAsync(message, continuation: false, runtimeNotice: false, cancellationToken, preassembled);
 
-    /// <summary>**运行时提示轮**（2026-10-09 主人令）：给模型一句**运行时自己的话**（催稿 / 语法提示）。
+    /// <summary>**运行时提示轮**（2026-10-09 用户令）：给模型一句**运行时自己的话**（催稿 / 语法提示）。
     /// <para>它会进本轮 prompt（模型看得见），但**不写 `UserInput` 事件**（记成 Hint）——
     /// 形状上就分得开「谁说的」：聚合器 / 任何读者不再把运行时提示数成用户的新 task。</para></summary>
     public Task<RuntimeResult> NudgeAsync(string message, CancellationToken cancellationToken = default, ChatRequest? preassembled = null) =>

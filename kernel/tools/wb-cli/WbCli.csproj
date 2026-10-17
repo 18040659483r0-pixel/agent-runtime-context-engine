@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>WbCli</RootNamespace>
     <AssemblyName>wb-cli</AssemblyName>
-    <!-- **[WB] 运维/发布/同步 CLI** —— 把仓里最后 11 个 `.sh` 一律搬成 C#（主人 2026-10-14 令）。
+    <!-- **[WB] 运维/发布/同步 CLI** —— 把仓里最后 11 个 `.sh` 一律搬成 C#（用户 2026-10-14 令）。
          住 `tools/`（要起 dotnet / rsync / svn / tmux / sips / zip / launchctl —— R2 只扫 `src/`）。
          零外部依赖；子命令见 `wb-cli`（无参）。 -->
   </PropertyGroup>

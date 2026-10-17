@@ -39,9 +39,9 @@ public abstract class FrozenZoneModuleBase : RuntimeModuleBase, IFrozenZoneModul
 
     /// <summary>
     /// 本区内容来源的**只读出口**（唯一接缝，子类不外传）。
-    /// <para>为什么要有它（主人 2026-09-22 令）：技能**常驻层（L1+L2）**是挂在知识区来源上的
+    /// <para>为什么要有它（用户 2026-09-22 令）：技能**常驻层（L1+L2）**是挂在知识区来源上的
     /// **装饰器**，而顶层 TUI 的「专家」行要报「R1 里**实际**装了哪些专家分类」
-    /// ⇒ 只能从**真装的来源**读（<see cref="SkillResidentContentSource.Resident"/>），
+    /// ⇒ 只能从**真装的来源**读（<see cref="L12ResidentContentSource.Resident"/>），
     /// 不能从配置反推（配了但没内容 = 没装载）。</para>
     /// </summary>
     public IFrozenContentSource ContentSource => Source;
@@ -153,3 +153,27 @@ public sealed class MemoryIndexModule : ContentZoneModuleBase
         yield return new FrozenSlot(Zone, FrozenLayer.Global);
     }
 }
+
+/// <summary>
+/// **决策库区**（并列内容层）—— 用户 2026-10-17：位置**排在知识区之后**、只常驻 **L1**。
+/// <para>结构同记忆索引区：单层 <see cref="FrozenLayer.Global"/>。</para>
+/// </summary>
+public sealed class DecisionModule : ContentZoneModuleBase
+{
+    public const string ModuleName = "decision";
+
+    public DecisionModule(IFrozenContentSource source, FrozenSelection? selection = null)
+        : base(source, selection)
+    {
+    }
+
+    public override string Name => ModuleName;
+
+    public override FrozenZone Zone => FrozenZone.Decision;
+
+    protected override IEnumerable<FrozenSlot> Slots()
+    {
+        yield return new FrozenSlot(Zone, FrozenLayer.Global);
+    }
+}
+

@@ -2,7 +2,7 @@ namespace AgentRuntime.Core.Worker;
 
 /// <summary>
 /// **临时回执（InterimReceipt）** —— worker 卡在「需要人定」的那一步时交出的**裁决请求**
-/// （主人 2026-10-07 令）。
+/// （用户 2026-10-07 令）。
 ///
 /// <para><b>它和「终局回执」不是一回事</b>：
 /// 终局回执（<see cref="ReceiptKind"/>）结算的是**结果**；临时回执要的是**一次裁决** ——
@@ -64,7 +64,7 @@ public sealed record InterimReceipt(
     /// </summary>
     public static InterimReceipt? From(string? text)
     {
-        // XML 优先（主人 2026-10-07）：临时回执是一个元素 ⇒ 自定界、按名取、顺序无关。
+        // XML 优先（用户 2026-10-07）：临时回执是一个元素 ⇒ 自定界、按名取、顺序无关。
         if (RulingXml.Take(text) is { } xml)
         {
             var xmlKind = RulingKinds.Parse(xml.Kind);

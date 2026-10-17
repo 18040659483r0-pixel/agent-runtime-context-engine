@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：记忆系统（兜底）（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>memory</Id>
+  <Title>记忆系统（兜底）</Title>
+  <Order>10</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>r</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/memory</Path><Must>true</Must></Artifact>
+    <Artifact><Role>index</Role><Path>whitebox/workspace/MEMORYINDEX.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+  <Checks>
+    <Check><Id>memory.szone</Id><Sev>block</Sev><Enabled>true</Enabled>
+      <Params><Param><K>minBytes</K><V>300</V></Param></Params></Check>
+    <Check><Id>memory.watermark</Id><Sev>block</Sev><Enabled>true</Enabled>
+      <Params><Param><K>waterGapTolerance</K><V>2</V></Param></Params></Check>
+  </Checks>
+</Requirement>

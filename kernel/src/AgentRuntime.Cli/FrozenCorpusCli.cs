@@ -30,10 +30,13 @@ public static class FrozenCorpusCli
         ]),
         ("knowledge/global.md", "knowledge.global",
         [
-            ("一、知识当前版本（KNOWLEDGE.md：L1/L2 + 唯一索引入口）", "full", ["KNOWLEDGE.md"], "A"),
-            ("二、技能知识库（L1 法则 + L2 问题地图；L3 正文按需逐条取）", "knowledge-l12", [], "A"),
-            ("三、踩坑集索引（L3：节级）", "pitfall-index", [], "A"),
-            ("五、项目文档索引（L3）", "project-index", [], "B"),
+            ("一、知识库（L1 法则常驻；L2~L4 按需扩散取）", "knowledge-l1", [], "A"),
+            ("二、踩坑集索引（L3：节级）", "pitfall-index", [], "A"),
+            ("三、项目文档索引（L3）", "project-index", [], "B"),
+        ]),
+        ("decision/global.md", "decision.global",
+        [
+            ("一、取向总纲（L1 · 常驻；决策库全文按需下钻）", "decision-l1", [], "A"),
         ]),
         ("memory/index.md", "memory.index",
         [
@@ -75,6 +78,7 @@ public static class FrozenCorpusCli
 
         // ① 先把三个区都算出来（未落地的 mode ⇒ 如实跳过，不进账本）。
         var rendered = new List<(string Out, string Version, string Text, SectionMeta Meta)>();
+        var skipped = new List<string>();
         foreach (var (rel, key, blocks) in Spec)
         {
             var version = versions.TryGetValue(key, out var v) ? v : "1";
@@ -87,6 +91,7 @@ public static class FrozenCorpusCli
             catch (InvalidDataException ex)
             {
                 Console.WriteLine($"[跳过] {rel}：{ex.Message}");
+                skipped.Add(rel);
             }
         }
 
@@ -177,6 +182,17 @@ public static class FrozenCorpusCli
             {
                 Console.Error.WriteLine($"[校验] ❌ {bad} 项不合格");
                 return 1;
+            }
+
+            // 用户 2026-10-17 令（只警告不阻断 + 真问题不能被淹没）：**跳过的文件不算绿**。
+            // 真机：`knowledge/global.md`（最大的一份语料）因源根缺失被**整份跳过**，汇总却照样印
+            // 「✅ 产物与源一致」⇒ 它从未被校验，而所有人以为它是绿的。
+            if (skipped.Count > 0)
+            {
+                Console.Error.WriteLine($"[校验] ⚠️ 仍有 {skipped.Count} 个文件**未被校验**（跳过）：{string.Join("、", skipped)}");
+                Console.Error.WriteLine("         ⇒ **这不等于「产物与源一致」**：上述文件本次既没比字节、也没验版本纪律。");
+                Console.Error.WriteLine("         修法：把源根指到含 `projects/` 的那一层（本地布局已无该根），或修源根推导。");
+                return 0;   // 只警告、不阻断（用户令）；但**绝不印 ✅**
             }
 
             Console.WriteLine("[校验] ✅ 产物与源一致、版本纪律成立");
@@ -344,7 +360,8 @@ public static class FrozenCorpusCli
     private static string ZoneOf(string rel) =>
         rel.StartsWith("rules/", StringComparison.Ordinal) ? "rules"
         : rel.StartsWith("knowledge/", StringComparison.Ordinal) ? "knowledge"
-        : rel.StartsWith("memory/", StringComparison.Ordinal) ? "memory-index" : "unknown";
+        : rel.StartsWith("memory/", StringComparison.Ordinal) ? "memory-index"
+        : rel.StartsWith("decision/", StringComparison.Ordinal) ? "decision" : "unknown";
 
     /// <summary>渲染一个区：<c>&lt;!-- frozen: version=N --&gt;</c> + 各块（<c>## 标题</c> + 正文）。</summary>
     /// <summary>一个区的账本条目（与 py 的 meta 同形）。</summary>
@@ -403,17 +420,86 @@ public static class FrozenCorpusCli
         return $"<!-- frozen: version={version} -->\n" + string.Join('\n', parts);
     }
 
+    /// <summary>
+    /// **坑集 / 项目文档的源根**：老布局 = <c>&lt;shared&gt;/projects</c>；本地版布局（无 <c>projects/</c>）= 仓根 <c>docs/</c>。
+    /// <para>2026-10-17 真机：<c>shared</c> 解析成 <c>~</c> ⇒ <c>~/projects</c> 不存在 ⇒ <c>knowledge/global.md</c> **整份被跳过**
+    /// （最大的一份语料从没被校验过）。这里给出**本地布局的回落**，让那份能真正被渲染/校验。</para>
+    /// </summary>
+    private static string ResolveDocRoot(string shared, string ws)
+    {
+        var legacy = Path.Combine(shared, "projects");
+        if (Directory.Exists(legacy))
+        {
+            return legacy;
+        }
+
+        var project = Path.GetFullPath(Path.Combine(ws, "..", ".."));
+        var docs = Path.Combine(project, "docs");
+        if (Directory.Exists(docs))
+        {
+            return docs;   // 本地版布局：坑集与项目文档在仓根 docs/ 下
+        }
+
+        throw new InvalidDataException($"找不到文档源根：既无 {legacy}，也无 {docs}");
+    }
+
     private static string? BuildBlock(string mode, string[] sources, string ws, string shared) => mode switch
     {
         "full" => ReadText(Path.Combine(ws, sources[0])).Trim() + "\n",
         "persona" => GenPersona(ws, sources),
         "pointer" => GenPointer(),
         "mem-headings" => GenMemHeadings(ws, sources[0]),
-        "knowledge-l12" => GenKnowledgeL12(ws),
-        "pitfall-index" => GenPitfallIndex(shared),
-        "project-index" => GenProjectIndex(shared),
+        "knowledge-l1" => GenKnowledgeL1(ws),
+        "decision-l1" => GenDecisionL1(ws),
+        "pitfall-index" => GenPitfallIndex(ResolveDocRoot(shared, ws)),
+        "project-index" => GenProjectIndex(ResolveDocRoot(shared, ws)),
         _ => throw new InvalidDataException($"未知 mode: {mode}（切片 1 之外，待 B4-a 后续）"),
     };
+
+    /// <summary>
+    /// **决策库的 L1（常驻）**：从活版 `DECISION-LIBRARY.md` 的 `## L1 …` 段逐行取（不装载 L2~L4）。
+    /// <para>批次 3a：渲染器就绪，**尚未登记进 Spec** —— 登记要连带 `versions.xml` 源锚 + 产物 + 提示词接线，
+    /// 一次做齐才不破「产物＝重算」这条纪律（见 `DESIGN-DECISION-LIBRARY` §八·一）。</para>
+    /// </summary>
+    private static string GenDecisionL1(string ws)
+    {
+        var path = Path.Combine(ws, "DECISION-LIBRARY.md");
+        if (!File.Exists(path))
+        {
+            throw new InvalidDataException($"缺 {path}（决策库活版）");
+        }
+
+        var kept = new List<string>();
+        var inside = false;
+        foreach (var line in File.ReadAllText(path, Encoding.UTF8).Replace("\r\n", "\n").Split('\n'))
+        {
+            if (line.StartsWith("## ", StringComparison.Ordinal))
+            {
+                if (inside)
+                {
+                    break;   // 到 L2 就停 —— L1 之外一律不常驻（R1 只放 L1）
+                }
+
+                inside = line.StartsWith("## L1", StringComparison.Ordinal);
+                continue;
+            }
+
+            if (!inside || line.StartsWith("> ", StringComparison.Ordinal))
+            {
+                continue;    // 段首说明是给人看的，不进常驻
+            }
+
+            kept.Add(line.TrimEnd());
+        }
+
+        var body = string.Join('\n', kept).Trim();
+        if (body.Length == 0)
+        {
+            throw new InvalidDataException("决策库 L1 段为空（`## L1` 下没有任何条目）");
+        }
+
+        return body + "\n";
+    }
 
     private static string GenPersona(string ws, string[] sources)
     {
@@ -456,41 +542,17 @@ public static class FrozenCorpusCli
     }
 
 
-    /// <summary>技能知识库的**常驻部分**：L1 法则 + L2 问题地图（源 = <c>knowledge/.derived/{l1,l2}.xml</c>）。</summary>
-    private static string GenKnowledgeL12(string ws)
+    /// <summary>知识库的**常驻部分 = 只有 L1**（源 = <c>knowledge/.derived/l1.xml</c>）。</summary>
+    private static string GenKnowledgeL1(string ws)
     {
-        var l1Path = Path.Combine(ws, "knowledge", ".derived", "l1.xml");
-        var l2Path = Path.Combine(ws, "knowledge", ".derived", "l2.xml");
-        if (!File.Exists(l1Path) || !File.Exists(l2Path))
-        {
-            throw new InvalidDataException($"知识库派生缺失：{Path.GetDirectoryName(l1Path)}（先跑 knowledge-repo --derive-only）");
-        }
-
-        var l1 = AgentRuntime.Core.Persistence.DataContractXml
-            .ReadFragments<AgentRuntime.Core.Skill.L1Row>(l1Path).ToList();
-        var l2 = AgentRuntime.Core.Persistence.DataContractXml
-            .ReadFragments<AgentRuntime.Core.Skill.L2Row>(l2Path).ToList();
-
-        var outLines = new List<string> { "### L1 · 法则（1 技能 = 1 条；最抽象的定位）", "" };
-        foreach (var row in l1)
-        {
-            outLines.Add($"- `{row.Skill}`：{row.Text}");
-        }
-
-        outLines.AddRange(["", "### L2 · 问题地图（1 行 = 1 个具体问题 → 见 L3 的**某几条**；L3 正文按需逐条取）", ""]);
-        foreach (var row in l2)
-        {
-            outLines.Add($"- `{row.Skill}` [{row.Domain}] {row.Question} → 见 L3 {string.Join(' ', row.Ids)}");
-        }
-
-        outLines.AddRange(["", $"（共 {l1.Count} 条法则 / {l2.Count} 个问题；L3 正文逐条按 id 取用，不进常驻。）"]);
-        return string.Join('\n', outLines) + "\n";
+        var resident = AgentRuntime.Core.Knowledge.KnowledgeResident.Load(
+            Path.Combine(ws, "knowledge", ".derived"));
+        return resident.Text;
     }
 
     /// <summary>踩坑集**节级**索引（跳公开变体与产物副本；排序键 = 绝对路径的 NFC）。</summary>
-    private static string GenPitfallIndex(string shared)
+    private static string GenPitfallIndex(string root)   // 参数已是**源根本身**（老布局 shared 或本地仓根 docs），不再内部拼 projects
     {
-        var root = Path.Combine(shared, "projects");
         if (!Directory.Exists(root))
         {
             throw new InvalidDataException($"找不到 {root}");
@@ -507,7 +569,7 @@ public static class FrozenCorpusCli
         var skipped = 0;
         foreach (var path in files)
         {
-            var rel = Nfc(Path.GetRelativePath(shared, path));
+            var rel = Nfc(Path.GetRelativePath(root, path));
             if (rel.EndsWith("-public.md", StringComparison.Ordinal) || rel.Contains("/runs/", StringComparison.Ordinal))
             {
                 skipped++;
@@ -537,9 +599,8 @@ public static class FrozenCorpusCli
     }
 
     /// <summary>项目文档索引（B 档；按 py 的多重排除）。</summary>
-    private static string GenProjectIndex(string shared)
+    private static string GenProjectIndex(string root)   // 参数已是**源根本身**（老布局 shared 或本地仓根 docs），不再内部拼 projects
     {
-        var root = Path.Combine(shared, "projects");
         if (!Directory.Exists(root))
         {
             throw new InvalidDataException($"找不到 {root}");
@@ -560,7 +621,7 @@ public static class FrozenCorpusCli
         var outLines = new List<string>();
         foreach (var path in files)
         {
-            var rel = Nfc(Path.GetRelativePath(shared, path));
+            var rel = Nfc(Path.GetRelativePath(root, path));
             var m = Regex.Match(ReadText(path), @"^#{1,3} (.+)$", RegexOptions.Multiline);
             var title = m.Success ? Nfc(m.Groups[1].Value.Trim()) : string.Empty;
             outLines.Add($"- `{rel}` — {title}（{new FileInfo(path).Length / 1024} KB）");
@@ -572,7 +633,7 @@ public static class FrozenCorpusCli
     private static string GenPointer() =>
         "以下资源的**正文不在冻结区**（L3），按需取用；索引见 knowledge/global：\n\n"
         + "- 环境 / 部署 / 主机 / 工具：`TOOLS.md`\n"
-        + "- 技能手册：**`knowledge/knowledge.md`**（L1 法则 + L2 问题地图常驻；**L3 条正文按 id 逐条取**）\n"
+        + "- 知识库：**`knowledge/knowledge.md`**（只常驻 L1；**L2~L4 用 `[KN] <id>` 按需扩散取**）\n"
         + "- 踩坑集：`projects/*/PITFALLS.md`（清单 = 踩坑集节级索引）\n"
         + "- 跨端交接：`handoff/*.md`（清单 = 交接索引）\n"
         + "- 项目方法论文档：`projects/*/docs/`（清单 = 项目文档索引）\n";

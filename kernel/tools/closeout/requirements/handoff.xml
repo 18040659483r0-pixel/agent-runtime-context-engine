@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：交接件（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>handoff</Id>
+  <Title>交接件</Title>
+  <Order>80</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>dir</Role><Path>whitebox/workspace/handoff</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

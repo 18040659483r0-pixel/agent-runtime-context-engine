@@ -88,7 +88,7 @@ public static class DispatchParser
     }
 
     /// <summary>**只去 ASCII 空白**（空格 / 制表 / CR）—— <c>string.Trim()</c> 会连**全角空格 U+3000 与 NBSP**
-    /// 一起吃掉，那是**静默改字**（主人 2026-09-29 令：不许可）。</summary>
+    /// 一起吃掉，那是**静默改字**（用户 2026-09-29 令：不许可）。</summary>
     private static string TrimAscii(string s) => s.Trim(' ', '\t', '\r');
 
     /// <summary>像不像一个「键: 值」段（用来区分「结构写错」与「任务里恰好带了个竖线」）。</summary>
@@ -115,7 +115,7 @@ public static class DispatchParser
             return new Parsed(ok, bad);
         }
 
-        // —— XML 优先（主人 2026-10-07）：<c>[INTENT]</c> 的块是一个**元素** ⇒ 自定界、按名取、顺序无关。 ——
+        // —— XML 优先（用户 2026-10-07）：<c>[INTENT]</c> 的块是一个**元素** ⇒ 自定界、按名取、顺序无关。 ——
         var xmlIntents = XmlBlock.TakeAll(text, IntentPrefix);
         var shapeNormalized = false;
         if (xmlIntents.Count == 0 && LooksLikeIntentElement(text))
@@ -164,7 +164,7 @@ public static class DispatchParser
                 var scope = one.Scope?.ToList() ?? [];
                 var criteria = one.Criteria.Length > 0 ? one.Criteria : "full";
                 var when = one.When.Length > 0 ? one.When : "sync";
-                // **side_effects 归一**（§十·47 · 2026-10-09 主人令「A」）：它的**唯一合法值由 kind 固定**
+                // **side_effects 归一**（§十·47 · 2026-10-09 用户令「A」）：它的**唯一合法值由 kind 固定**
                 // （`DefaultSideEffects`）⇒ 给了别的值不是「选错了组合」，而是**机械写错** ⇒ 运行时直接改正 + 落痕（拒是最后手段）。
                 // 真机：master 给 EXEC 写 `none`（EXEC 只合法 `local`）⇒ 旧行为响亮拒、白烧一轮；这类拒因零歧义、本该归一。
                 var parsedKind = one.Kind.Length > 0 ? DispatchIntents.ParseKind(one.Kind) : null;
@@ -295,7 +295,7 @@ public static class DispatchParser
                 }
                 else if (part.StartsWith("ask:", StringComparison.OrdinalIgnoreCase))
                 {
-                    // ①（主人 2026-09-29 19:14 令）：**要什么结论** —— 与 must:（什么叫完成）分开：
+                    // ①（用户 2026-09-29 19:14 令）：**要什么结论** —— 与 must:（什么叫完成）分开：
                     // 前者是「交什么」，后者是「交到什么程度算够」。
                     ask = TrimAscii(part[4..]);
                 }
@@ -360,7 +360,7 @@ public static class DispatchParser
                     $"任务正文里有 {rejoined} 个 `|`（协议用它分段）—— 已**并回任务**（以前是静默截断）；建议换个符号。"));
             }
 
-            // ⚠️ 旧形状（没声明组合）**不再做词表判据**（主人 2026-10-06：「运行时不做任何语义判断，直接拿掉」）——
+            // ⚠️ 旧形状（没声明组合）**不再做词表判据**（用户 2026-10-06：「运行时不做任何语义判断，直接拿掉」）——
             // 形状/语法判据只对**声明了组合**的派发生效（见 ParseIntent 那三条），这里只收下解析结果。
             ok.Add(new Dispatch(task, window, mode, must, ask));
         }
@@ -448,7 +448,7 @@ public static class DispatchParser
             return (null, new Malformed(headLine, "[INTENT] 后面必须是**一句自然语言目的**（它是意图的真相，不能省）。"), null);
         }
 
-        // ⚠️ 语义判据（工具名 / 步骤词 / 「要逐字」词表）**全部撤掉**（主人 2026-10-06：「运行时不做任何语义判断，直接拿掉」）——
+        // ⚠️ 语义判据（工具名 / 步骤词 / 「要逐字」词表）**全部撤掉**（用户 2026-10-06：「运行时不做任何语义判断，直接拿掉」）——
         // 运行时只做**语法 / 形状**判据：组合缺没缺、类名在不在清单、组合合不合法、地址绝不绝（见下面四条）。
         // 与 XML 分支**同一口径**：组合是必需件 ⇒ 缺 / 不认 / 非法 ⇒ **响亮拒绝，绝不派发**。
         Normalized? nrm = null;

@@ -66,7 +66,7 @@ public sealed class ToolVisibilityTests
     [Fact]
     public async Task 被拒的动作在卡上看得见()
     {
-        // 主人 2026-09-29 20:0x 令：master 面上已无「留档照跑」的动作（需批工具全归 Worker）⇒
+        // 用户 2026-09-29 20:0x 令：master 面上已无「留档照跑」的动作（需批工具全归 Worker）⇒
         // 这条不变量在 master 侧的形状 = **被拒的调用在卡上必须有计数注记 + 指向 /trace**（看不见就等于没发生）。
         using var harness = new TuiHarness("tool-lines-denied", modules: ["rules","append-stream","tool"]);
 

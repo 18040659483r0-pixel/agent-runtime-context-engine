@@ -1,6 +1,6 @@
 # 封版 0.1.0 — Agent Runtime 内核（V0 裸聊 + V1 模块管线）
 
-> 日期：2026-09-14　封版人：樱桃（MACARM）　版本：**0.1.0**
+> 日期：2026-09-14　封版人：助手（MACARM）　版本：**0.1.0**
 > 封版 = **架构主干与可测边界冻结**；后续版本只做「加模块 / 加机制」，**不允许改动下列冻结项**。
 
 ## 一、封版判据（满足才可封版）
@@ -25,7 +25,7 @@
 4. **计时口径**：`RuntimeOverheadMs = TotalMs − ProviderCallMs`（唯一定义处）。
 5. **密钥纪律**：密钥只从环境变量或本地文件取，**不进日志 / 异常 / 仓库**。
 6. **实验纪律**：变体隔离 salt 必须位于**冻结前缀最前面**；语料快照与 runs 记录不入公共仓库。
-7. **实验语料锁**（主人 2026-09-14 定死）：测试工程**只允许**使用 `benchmark/AgentRuntime.Benchmark/corpus/` 的 10K 切片（17,990 字符 ≈ **9,569 token**）；**改动语料必须同步 `corpus.lock.json`**。四处闸门同时守：
+7. **实验语料锁**（用户 2026-09-14 定死）：测试工程**只允许**使用 `benchmark/AgentRuntime.Benchmark/corpus/` 的 10K 切片（17,990 字符 ≈ **9,569 token**）；**改动语料必须同步 `corpus.lock.json`**。四处闸门同时守：
    ① `benchmark.config.json` 的 `corpus.lock.allowedSources` 白名单；
    ② 尺子启动即检 `CorpusLock.Verify`（违规 → `exit 3`，**在取密钥/发请求之前**退出）；
    ③ `python3 benchmark/tools/lock-corpus.py --check`；

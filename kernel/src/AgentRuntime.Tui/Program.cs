@@ -40,6 +40,21 @@ internal static class Program
     {
         var options = TuiOptions.Parse(args);
 
+        // 用户 2026-10-17 令（运行时/闸门只警告不阻断）：把**两条进程外的「无痕死亡」通道**先接上留痕。
+        // ① AppDomain.UnhandledException —— 后台线程未捕获异常 ⇒ CLR abort；
+        //    ~/Library/Logs/DiagnosticReports 那 8 份 dotnet-*.ips **全是原生帧、没有托管栈** ⇒ 事后归因不了。
+        //    本钩子是**通知性质**（拦不住终止），但能把**托管栈先落盘**。
+        // ② TaskScheduler.UnobservedTaskException —— **观察掉**（SetObserved）⇒ 不触发进程拆除，同时留痕。
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => CrashDump.Write(
+            e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString() ?? "(非异常对象)"),
+            options.Config);
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            CrashDump.Write(e.Exception, options.Config);
+            e.SetObserved();
+            Console.Error.WriteLine("[warn] 未观察的 Task 异常：已落盘 + 已观察掉（不拆进程）");
+        };
+
         if (options.Help)
         {
             PrintUsage();
@@ -69,7 +84,7 @@ internal static class Program
                 return ExitUsage;
             }
 
-            // v13：工具面**不再有审批闸门**（主人 2026-09-21 定：放弃 runtime 的硬闸门）⇒
+            // v13：工具面**不再有审批闸门**（用户 2026-09-21 定：放弃 runtime 的硬闸门）⇒
             // 本该问人的动作由 ToolRunner **留档 + 放行**，右侧授权区不再出现。
             // 自动接续的预算钟照旧（它只服务续跑，与审批无关）。
             var budget = new ContinuationBudget();
@@ -97,12 +112,11 @@ internal static class Program
         catch (HostUsageException ex)
         {
             Console.Error.WriteLine(ex.Message);
-            InputExit.Record($"[tui] 用法/宿主错误 ⇒ 退出（退出码 {ExitUsage}）：{ex.Message}");
-            return ExitUsage;
+            return ExitPolicy.WarnAndStayAlive("用法/宿主错误", ex, ExitUsage, streamPathForExit);
         }
         catch (ModelClientException ex)
         {
-            // **只剩「启动阶段」的 provider 错误走这里**（2026-10-15 主人令「没退出的道理」）：
+            // **只剩「启动阶段」的 provider 错误走这里**（2026-10-15 用户令「没退出的道理」）：
             // 运行期每一轮的 provider 失败现已在会话循环里接住（SplitSession.RunTurnOnceAsync / plain 的 RunPlainAsync）
             // ⇒ 只提示、会话继续；能冒到这里的基本只有 Boot（密钥/首次装配）阶段。
             Console.Error.WriteLine($"[provider] {ex.Message}");
@@ -111,8 +125,7 @@ internal static class Program
                 Console.Error.WriteLine($"[provider:body] {ex.ResponseBody}");
             }
 
-            InputExit.Record($"[tui] provider 错误 ⇒ 退出（退出码 {ExitProvider}）：{ex.Message}");
-            return ExitProvider;
+            return ExitPolicy.WarnAndStayAlive("provider（启动阶段）错误", ex, ExitProvider, streamPathForExit);
         }
         catch (OperationCanceledException)
         {
@@ -124,12 +137,11 @@ internal static class Program
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or ArgumentException)
         {
+            // 2026-10-17 01:01 真机**就是这条打死会话的**：代理对被截断劈开 ⇒ EncoderFallbackException
+            // （它是 ArgumentException 的子类）⇒ 落到这里 ⇒ 原本「只打一行 [config] + 退出码 2」= 会话当场消失。
+            // 用户令：**不许阻断** ⇒ 只警告 + 留在原地；现场（含托管栈）落盘。
             Console.Error.WriteLine($"[config] {ex.Message}");
-
-            // **这条自退路径从前一个字都不留**（2026-10-15 真机：「Model 不能为空」只打一行、退出码 2、
-            // 无转储、无退出记录 ⇒ 「无痕消失」）。与其余出口**同一口径**：先落盘再退。
-            InputExit.Record($"[tui] 配置/用法错误 ⇒ 退出（退出码 {ExitUsage}）：{ex.Message}");
-            return ExitUsage;
+            return ExitPolicy.WarnAndStayAlive("配置/用法错误", ex, ExitUsage, streamPathForExit);
         }
         catch (Exception ex)
         {
@@ -140,7 +152,8 @@ internal static class Program
             CrashDump.Write(ex, options.Config);
             Console.Error.WriteLine($"[tui] 未捕获异常已落盘：{CrashDump.Path}");
             Console.Error.WriteLine($"[tui] {ex.GetType().Name}: {ex.Message}");
-            throw;
+            // 用户 2026-10-17 令：**不再往上抛** —— 「抛出 = 进程死 = 事后归因不了」，正是要治的病。
+            return ExitPolicy.WarnAndStayAlive("未捕获异常（兜底）", ex, ExitUsage, streamPathForExit);
         }
     }
 

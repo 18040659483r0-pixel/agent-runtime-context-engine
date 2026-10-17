@@ -34,9 +34,11 @@ public static class ToolSyntaxNormalizer
     /// （因为剥标记只剥掉了 <c>&lt;｜｜DSML｜｜</c>，留下一个空格 ⇒ <c>&lt;/ invoke&gt;</c>）。
     /// 只认 <c>&lt;/invoke&gt;</c>（<c>&lt;/</c> 后无空白）⇒ 整块归不出 ⇒ **又回到静默丢**（真机：首条回复白花一轮）。
     /// ⇒ **收盘一律容忍 <c>&lt;/</c> 后的空白**，并同时收 <c>&lt;/call&gt;</c> 这种写歪的收尾。
+    /// <para><b>批 2（2026-10-17）</b>：动词扩到 <c>invoke</c> / <c>tool_call</c> / <c>function_call</c>（同一个骨架的三种叫法），
+    /// 收尾也容许用到这三种动词；<b>容器</b>（<c>&lt;tool_calls&gt;…</c>）由 <see cref="ControlTokens.Wrappers"/> 刘掉。</para>
     /// </summary>
     private static readonly Regex InvokePattern = new(
-        "invoke\\s+name=\"(?<name>[^\"]+)\"\\s*>(?<body>.*?)</\\s*(?:invoke|call)\\s*>",
+        "(?:invoke|tool_call|function_call)\\s+name=\"(?<name>[^\"]+)\"\\s*>(?<body>.*?)</\\s*(?:(?:invoke|tool_call|function_call)|call)\\s*>",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
     private static readonly Regex ParamPattern = new(
@@ -74,28 +76,152 @@ public static class ToolSyntaxNormalizer
         "(?<head><call><name>(?<name>" + ToolAlt + ")</name>)(?<body>.*?)</\\k<name>>",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
-    /// <summary>归一：DSML ⇒ <c>[TOOL]</c>；包裹标记 ⇒ 剥掉。没有可归一的 ⇒ **原样返回**（逐字节不变）。</summary>
-    public static string Normalize(string? text)
+    /// <summary>模型把块头写成 <c>&lt;TOOL&gt;</c>（大小写 / 尖括号）：认形状，不认标记。</summary>
+    private static readonly Regex ToolTagPattern = new(@"<\s*TOOL\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary><c>&lt;/TOOL&gt;</c> 收盘：不是协议的一部分，剥掉。</summary>
+    private static readonly Regex ToolCloseTagPattern = new(@"</\s*TOOL\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>DSML 剥除后的残形：<c>invoke name="TOOL]"&gt;</c>（真机 M7）。</summary>
+    private static readonly Regex ToolInvokeResiduePattern = new(
+        @"invoke\s+name\s*=\s*""TOOL\]""\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>一个裸 <c>&lt;call&gt;…&lt;/call&gt;</c> 块（无块头）。</summary>
+    private static readonly Regex BareCallBlockPattern = new(
+        @"<call>.*?</call>", RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <summary>块里的工具名（用于判断裸块是不是一次真调用）。</summary>
+    private static readonly Regex CallNamePattern = new(
+        @"<name>\s*(?<n>[A-Za-z0-9_.-]+)\s*</name>", RegexOptions.Compiled);
+
+    /// <summary>
+    /// **兜底批 4（2026-10-17 用户令「运行时兜底」）**：
+    /// ① <c>&lt;TOOL&gt;</c> / <c>&lt;/TOOL&gt;</c> ⇒ 规范块头；② DSML 残形 ⇒ 规范块头；
+    /// ③ **无块头的裸 <c>&lt;call&gt;</c>**（围栏外、工具名在封闭集）⇒ 补上 <c>[TOOL]</c>。
+    /// <para>真机（M7/M10）两族：模型把块写成 <c>&lt;TOOL&gt;</c>，或在连续正文里只发裸 <c>&lt;call&gt;</c>；
+    /// 旧路「块头是唯一认块信号」⇒ 整篇拒 ⇒ 白烧轮次。归一优先，拒绝是最后手段。</para>
+    /// </summary>
+    private static string NormalizeBlockMarkers(string s, List<string> traces)
     {
-        if (string.IsNullOrEmpty(text)) return text ?? string.Empty;
+        if (ToolTagPattern.IsMatch(s) || ToolCloseTagPattern.IsMatch(s) || ToolInvokeResiduePattern.IsMatch(s))
+        {
+            s = ToolTagPattern.Replace(s, ToolReport.Prefix + " ");
+            s = ToolCloseTagPattern.Replace(s, string.Empty);
+            s = ToolInvokeResiduePattern.Replace(s, ToolReport.Prefix + " ");
+            traces.Add("marker-normalized");
+        }
+
+        var wrapped = 0;
+        s = BareCallBlockPattern.Replace(s, m =>
+        {
+            var before = s[..m.Index].TrimEnd();
+            if (before.EndsWith(ToolReport.Prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return m.Value;
+            }
+
+            if (InsideFence(s, m.Index))
+            {
+                return m.Value;
+            }
+
+            var nm = CallNamePattern.Match(m.Value);
+            if (!nm.Success || !ToolNames.All.Contains(nm.Groups["n"].Value, StringComparer.Ordinal))
+            {
+                return m.Value;
+            }
+
+            wrapped++;
+            return ToolReport.Prefix + " " + m.Value;
+        });
+
+        if (wrapped > 0)
+        {
+            traces.Add($"headerless-call:{wrapped}");
+        }
+
+        return s;
+    }
+
+    /// <summary>
+    /// 某个下标是否落在**围栏代码块**（<c>```</c> … <c>```</c>）里 —— 家规：**围栏内 = 示例**（§十·51）
+    /// ⇒ 示例里的调用骨架**不当真调用**（只用于**无标记**这条新路径）。
+    /// </summary>
+    private static bool InsideFence(string s, int index)
+    {
+        var inside = false;
+        for (var i = 0; i < index && i + 2 < s.Length; i++)
+        {
+            if (s[i] == '\n' && s[i + 1] == '`' && s[i + 2] == '`' && i + 3 < s.Length && s[i + 3] == '`')
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
+    /// <summary>归一：DSML ⇒ <c>[TOOL]</c>；包裹标记 ⇒ 剥掉。没有可归一的 ⇒ **原样返回**（逐字节不变）。</summary>
+    public static string Normalize(string? text) => NormalizeTraced(text).Text;
+
+    /// <summary>
+    /// 同 <see cref="Normalize"/>，但**回报它归一了什么**（批 3：归一必留痕——容错必须记账，§十·66）。
+    /// <para><c>Traces</c> 例：<c>native-marked:exec</c>（带标记的 DSML 块）/ <c>native-bare:exec</c>（标记已被上层剥掉的裸块）/
+    /// <c>wrapper</c>（只剥了包裹标记）。空 = 什么都没动。</para>
+    /// </summary>
+    public static (string Text, IReadOnlyList<string> Traces) NormalizeTraced(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return (text ?? string.Empty, []);
 
         var s = text;
-        foreach (var m in WrapperMarkers) s = s.Replace(m, string.Empty, StringComparison.Ordinal);
+        var traces = new List<string>();
+        foreach (var m in WrapperMarkers)
+        {
+            if (s.Contains(m, StringComparison.Ordinal))
+            {
+                s = s.Replace(m, string.Empty, StringComparison.Ordinal);
+                traces.Add("wrapper");
+            }
+        }
 
-        if (!s.Contains(Dsml, StringComparison.Ordinal)) return NormalizeCompactKeys(WrapLooseCalls(s));
-
-        // 把标记剥掉：<｜｜DSML｜｜invoke …> ⇒ invoke …；</｜｜DSML｜｜invoke> ⇒ </invoke>。
-        // **收尾那一份也要剥**：它的眼睛是 `</`（不是 `<`）—— 只剥开头 ⇒ 收盘标记留在正文里
-        // ⇒ 参数正则匹配不上 ⇒ 整块归不出（2026-09-29 当场抓到）。
-        // 标记那一层 + **残留行**统一剥（唯一口）：`<｜｜DSML｜｜ calls>` 这种裸标记剥完会剩一个 ` calls>` 残行 ⇒ 连行丢掉。
-        // ⚠️ 剥的只是「标记」：`invoke name="…"` / `parameter name="…"` 的 payload 一字不动
-        //    ⇒ 下面的形状归一（invoke/parameter ⇒ [TOOL] 行式）照常工作。
-        s = ControlTokens.Strip(s);
+        // **认形状，不认标记**（2026-10-17 修）：以前这里用「正文里有 <c>｜｜DSML｜｜</c> 吗」当**要不要归一**的开关。
+        // 而标记在上一环（`ControlTokens.Strip`，响应成型处 `ChatModels`）就已经被剥掉了 ⇒ 到这里开关为假 ⇒
+        // **裸的 `invoke name="…">…</invoke>` 块谁也不管**（既不当调用、也不删）⇒ 那一轮没有调用发生 = 白烧。
+        // 真机（2026-10-17 唐 00:1x 的 tmux 会话）：一条回复里**连续 7 轮**都是这个形状。
+        // 现在：**标记在就剥，不在就直接进形状归一** —— 两层分工各写一句：
+        //   `ControlTokens` = 只剥控制标记；本归一器 = 只认形状（与标记在不在无关）。
+        var hadMarker = s.Contains(Dsml, StringComparison.Ordinal);
+        if (hadMarker)
+        {
+            // 把标记剥掉：<｜｜DSML｜｜invoke …> ⇒ invoke …；</｜｜DSML｜｜invoke> ⇒ </invoke>。
+            // **收尾那一份也要剥**：它的眼睛是 `</`（不是 `<`）—— 只剥开头 ⇒ 收盘标记留在正文里
+            // ⇒ 参数正则匹配不上 ⇒ 整块归不出（2026-09-29 当场抓到）。
+            // 标记那一层 + **残留行**统一剥（唯一口）：`<｜｜DSML｜｜ calls>` 这种裸标记剥完会剩一个 ` calls>` 残行 ⇒ 连行丢掉。
+            // ⚠️ 剥的只是「标记」：`invoke name="…"` / `parameter name="…"` 的 payload 一字不动
+            //    ⇒ 下面的形状归一（invoke/parameter ⇒ [TOOL] 行式）照常工作。
+            s = ControlTokens.Strip(s);
+        }
 
         var sb = new StringBuilder();
         var cursor = 0;
         foreach (Match inv in InvokePattern.Matches(s))
         {
+            var name = inv.Groups["name"].Value;
+
+            // **防误伤**：**无标记**时只认**封闭集**里的工具名（有标记 = 强证据，名字任意，交给解析器 fail-closed）。
+            // 这条是“示例/叙述里提到 invoke name="…"”不被当真调用的那道门。
+            if (!hadMarker && !ToolNames.All.Contains(name, StringComparer.Ordinal))
+            {
+                continue;   // 不推进 cursor ⇒ 这一段由下一次命中或末尾照抄
+            }
+
+            // **围栏内 = 示例**（家规 §十·51）：无标记时，落在 ``` 里的调用骨架**不当真调用**
+            // （否则“一条讲这个 bug 的回复”会把自己的示例执行掉）。
+            if (!hadMarker && InsideFence(s, inv.Index))
+            {
+                continue;
+            }
+
             sb.Append(s, cursor, inv.Index - cursor);          // 块外的正文照抄
             cursor = inv.Index + inv.Length;
             var args = new List<string>();
@@ -103,14 +229,31 @@ public static class ToolSyntaxNormalizer
             {
                 args.Add($"\"{p.Groups["key"].Value}\":{Atomize(p.Groups["value"].Value)}");
             }
-            var name = inv.Groups["name"].Value;
             var lineForm = ToLineForm(name, "{" + string.Join(",", args) + "}");
             sb.Append(lineForm ?? $"{ToolReport.Prefix} {name} {{{string.Join(",", args)}}}");
             sb.Append("\nrisk: none\n");                  // 声明随块走（行式：声明是单独一行）
+
+            traces.Add($"native-{(hadMarker ? "marked" : "bare")}:{name}");
         }
         sb.Append(s, cursor, s.Length - cursor);
-        return NormalizeCompactKeys(WrapLooseCalls(sb.ToString()));
+
+        // **批 3 的计数**：归一了多少次“原生形” —— 用于看趋势（持续上升再议§十·47 的另一半）。
+        for (var i = 0; i < traces.Count; i++)
+        {
+            if (traces[i].StartsWith("native-", StringComparison.Ordinal))
+            {
+                _ = Interlocked.Increment(ref _nativeCount);
+            }
+        }
+
+        var shaped = NormalizeBlockMarkers(sb.ToString(), traces);
+        return (NormalizeCompactKeys(WrapLooseCalls(shaped)), traces);
     }
+
+    private static int _nativeCount;
+
+    /// <summary>**本进程已归一过的原生调用形次数**（批 3：只看趋势；持续上升则值得再议“堵死绕过”）。</summary>
+    public static int NativeNormalizedCount => Volatile.Read(ref _nativeCount);
 
     /// <summary>
     /// **一处容错**：把「认得出的一次调用」但**外壳写歪**的块，统一补成规范形状
@@ -177,7 +320,7 @@ public static class ToolSyntaxNormalizer
     /// <summary>
     /// **紧凑对象的跨行修复**（2026-10-14 真机得出来的 **Top1 病因**）。
     /// <para>
-    /// 现场（主人 23:04 会话 + 历史合计 16 次被拒、每次白烧一轮）：模型把整篇正文塞进 JSON 的
+    /// 现场（用户 23:04 会话 + 历史合计 16 次被拒、每次白烧一轮）：模型把整篇正文塞进 JSON 的
     /// <c>content</c>，而**正文里的换行没转义** ⇒ 行式归一按行切 ⇒ JSON 被切成十几行、括号深度不为 0
     /// ⇒ 归一放弃 ⇒ 解析器「取不出 XML 元素」⇒ **整篇拒**。而模型自己重试时用的就是 <c>键&lt;&lt;</c> 块
     /// （正是本方法能自动生成的那一种）—— 所以这一刀**本该运行时替它做**。

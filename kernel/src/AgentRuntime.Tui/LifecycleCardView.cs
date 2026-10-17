@@ -34,7 +34,7 @@ internal static class LifecycleCardView
     /// <param name="lifecycle">当前生命周期（<c>report.Current</c>）。</param>
     /// <param name="withHint">要不要带那一行操作提示（只给活动卡）。</param>
     /// <param name="accumulate">
-    /// **累积显示**（默认开；<c>/append off</c> 关）—— 意图 / 打算 / 结果逐条追加（主人 2026-09-24 19:30 定）。
+    /// **累积显示**（默认开；<c>/append off</c> 关）—— 意图 / 打算 / 结果逐条追加（用户 2026-09-24 19:30 定）。
     /// </param>
     public static ConversationEntry Entry(TaskLifecycle lifecycle, bool withHint = true, bool accumulate = true,
         IReadOnlyList<string>? workers = null)

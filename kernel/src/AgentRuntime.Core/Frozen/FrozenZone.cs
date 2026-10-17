@@ -22,6 +22,9 @@ public enum FrozenZone
     /// <summary>记忆索引区：过去发生过什么（索引而非全文）。</summary>
     MemoryIndex = 2,
 
+    /// <summary>决策库区：用户**怎么定的**（L1 常驻，排在知识区之后）。</summary>
+    Decision = 4,
+
     /// <summary>
     /// **协议区（R1-P）**：远端 AI 与本地 Runtime 的交互契约（怎么读上下文、怎么回话、状态归谁）。
     /// <para>
@@ -34,7 +37,7 @@ public enum FrozenZone
 
 /// <summary>
 /// 冻结区内部的层（论文 §3.3）。
-/// <para><b>2026-10-15 主人令：Expert（专业领域）层整个退役</b>。保留 <c>Project = 2</c> 的数值（不挪号）。</para>
+/// <para><b>2026-10-15 用户令：Expert（专业领域）层整个退役</b>。保留 <c>Project = 2</c> 的数值（不挪号）。</para>
 /// </summary>
 public enum FrozenLayer
 {

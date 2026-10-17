@@ -14,14 +14,14 @@ namespace AgentRuntime.Core.Worker;
 /// </summary>
 public static class WorkerProtocolText
 {
-    /// <para><b>v17（2026-09-30 主人令「意图枚举组合写入协议区」）</b>：回执改**两段式** —— 首行
+    /// <para><b>v17（2026-09-30 用户令「意图枚举组合写入协议区」）</b>：回执改**两段式** —— 首行
     /// <c>[RESULT] &lt;一句自然语言结论&gt;</c>（<c>[WORKER]</c> 仍认）+ <c>kind=</c>（封闭 6 类：done / partial /
     /// blocked / refused / impossible / need_human）+ **按类取字段**（终局自验按 <c>kind</c> 取，不再要求"四字段齐"
     /// ⇒ 解掉"失败回执永远活不过闸门 ⇒ 死循环"）。<b>先量后定</b>：实测 4,900 字符 / 21 行 ⇒ 预算 4,400 → **5,400**。</para>
     /// <summary>版本（进 Worker 的账本，**不进 prompt** —— 与主协议同一纪律）。</summary>
     /// <summary>版本标记（带日期时间，与主协议同一形状；<see cref="Version"/> 保持短）。</summary>
-    public const string VersionStamp = "v47（2026-10-15 13:15）";
-    public const string Version = "47";
+    public const string VersionStamp = "v48（2026-10-17 17:10）";
+    public const string Version = "48";
 
     /// <summary>行预算（**唯一声明处**）—— v39 起共用段新增 `[PACE]` 节 ⇒ 110 → 115。</summary>
     public const int DeclaredMaxLines = 115;
@@ -35,7 +35,7 @@ public static class WorkerProtocolText
 
     /// <summary>
     /// 契约正文（英文正文 + **工具面口径直接引用 <see cref="AgentRuntime.Core.Tooling.ToolFaceClause"/>**）。
-    /// <para><b>v9（2026-09-29 主人令）</b>：不再「只给一段典型用法」（证明不够）——
+    /// <para><b>v9（2026-09-29 用户令）</b>：不再「只给一段典型用法」（证明不够）——
     /// 工具面**照 master 那边的口径教**（形状 / 每把工具要哪些键 / 节奏与省字，三份都取自唯一来源），
     /// 于是「同一形状一处认、一处不认」的分叉从结构上就不可能。</para>
     /// </summary>
@@ -61,7 +61,7 @@ public static class WorkerProtocolText
         + "13) YOUR WHITEBOARD: on the first turn open a [TAIL] block (solve: <path pursued> / step: <n> -- <what this round does>, plus todos, <=12 lines) and a [DRAFT] block for open items (<=16 lines) when unsure; keep both standing alone (never depend on old event ids) -- the runtime reloads them next turn, WITHIN THIS DISPATCH ONLY (a whiteboard never carries over to the next dispatch).\n"
         + "14) PITFALLS: whenever a shape/syntax problem came back, or a call was denied and you then got it right -- record the lesson in `pitfalls:` (one line, reusable). That is how the next session -- even a brand-new user -- stops repeating it.\n"
         + "15) RETRY BOUND: at most TWICE per approach; then settle honestly (blocked with `blocker:` + `tried:`, or partial with `open:`) -- do not loop.\n"
-        + "16) KNOWLEDGE: the rules and the L1/L2 map are in YOUR OWN prefix - the SAME text the Master has - so read them there. L3/L4 detail is NOT carried by the dispatch. **L3 = the category map + routing** (`whitebox/workspace/knowledge/.derived/l3.xml`: one entry per category, each routing a problem shape to the specific SKILL you need) and **L4 = the original SKILL, verbatim** (`whitebox/workspace/knowledge/.derived/l4.xml`, ids `L4-<short>-001`) under base. Route by the L2 map in your prefix: problem -> category (`S-...`) -> the `L4-...` it names - fetch ONE entry by id, never in bulk. If what you need is not there, say exactly what in `open:`; the Master reads `open:` and re-dispatches with it.\n"
+        + "16) KNOWLEDGE: the L1 laws are in YOUR OWN prefix - the SAME text the Master has - so read them there. L2~L4 detail is NOT carried by the dispatch. The knowledge tree is `whitebox/workspace/knowledge/` (live `knowledge.md`; derived `whitebox/workspace/knowledge/.derived/nodes.xml`); ids are `L<layer>-<short>-<n>`. Drill by id: L1 law -> L2 question shape -> L3 unit -> L4 evidence - fetch ONE node by id, never in bulk. If what you need is not there, say exactly what in `open:`; the Master reads `open:` and re-dispatches with it.\n"
         + "17) STOPPED OR SUPERSEDED: your [TAIL]/[DRAFT] belong to the CURRENT TASK only. If the runtime stops you (pace gate / timeout) or a new TASK arrives, STOP the earlier work -- never continue a superseded or abandoned task: drop that whiteboard and start from the new TASK. The runtime records an abandoned dispatch (abandoned.log) and does NOT re-run it; a leftover from a previous task is NOT your current work.\n"
         + "\n" + MasterWorkerProtocol.Text;
 

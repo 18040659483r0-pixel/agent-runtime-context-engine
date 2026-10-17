@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **裁定的三种形态**（主人 2026-10-07 令：*「要么回复 worker 提出的 123 建议直接选，要么给出新的建议，
+/// **裁定的三种形态**（用户 2026-10-07 令：*「要么回复 worker 提出的 123 建议直接选，要么给出新的建议，
 /// 具体如何决策交给 master 处理，我们运行时只设计形状」*）。
 /// <para>运行时**只给形状** —— 选哪一个、改成什么，全是 master 的判断。</para>
 /// </summary>
@@ -18,7 +18,7 @@ public enum RulingDecision
 }
 
 /// <summary>
-/// **裁定回信（RulingReply）** —— master 对 worker 那份**临时回执**的回复（主人 2026-10-07 令）。
+/// **裁定回信（RulingReply）** —— master 对 worker 那份**临时回执**的回复（用户 2026-10-07 令）。
 /// <para>它是 <see cref="InterimReceipt"/> 的**对偶**：那边问、这边答；形状同构（块头 + <c>verdict:</c> + 该类的键）。</para>
 /// <para><b>它必须带「续」</b>（<see cref="IChainEvent"/>）：裁定回来 = worker 接着干（默认续）。
 /// <c>Escalate</c> 是唯一「不立刻续」的形态 —— 那一问挂起，等人的回话再走（仍由链的默认续语义承载）。</para>
@@ -54,7 +54,7 @@ public sealed record RulingReply(RulingDecision Decision, string Value, string R
     /// <summary>从一段文本里取裁定（缺 <c>verdict:</c> / 缺该形的键 ⇒ null，形状缺项）。</summary>
     public static RulingReply? Parse(string? text)
     {
-        // XML 优先（主人 2026-10-07）。
+        // XML 优先（用户 2026-10-07）。
         if (VerdictXml.Take(text) is { } xml)
         {
             var xmlDecision = RulingReplies.Parse(xml.Decision);

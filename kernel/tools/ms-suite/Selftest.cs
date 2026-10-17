@@ -1,5 +1,5 @@
 // 自检：把 metrics 的「与 python 逐字节等价」判据**固化进工程**（参考输入 + 金标一起入库）。
-// 这样 python 参考退役后，判据仍在跑（skill `script-port-to-runtime`：判据别比被测物活得长）。
+// 这样 python 参考退役后，判据仍在跑（纪律：判据别比被测物活得长）。
 using System.Text;
 
 namespace MsSuite;

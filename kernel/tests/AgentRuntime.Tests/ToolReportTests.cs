@@ -114,7 +114,7 @@ public sealed class ToolReportTests
     [Fact]
     public void 解析_零参调用_登记过的工具要跑得通()
     {
-        // 主人 2026-09-29 19:56 令（缺口 A②）：`[TOOL] index`（行式、零参）此前被当「空块」拒。
+        // 用户 2026-09-29 19:56 令（缺口 A②）：`[TOOL] index`（行式、零参）此前被当「空块」拒。
         // 判据：登记过的工具、零参数必须落 Ok（至于这把工具要不要参数，由工具自己响亮报）。
         var result = ToolReport.Parse("[TOOL] index");
 
@@ -137,7 +137,7 @@ public sealed class ToolReportTests
     [Fact]
     public void 解析_多次调用_按发出顺序全取回()
     {
-        // v14（主人 2026-09-22 定）：一次回复允许最多 ProtocolText.ToolMaxCallsPerReply 次调用 ——
+        // v14（用户 2026-09-22 定）：一次回复允许最多 ProtocolText.ToolMaxCallsPerReply 次调用 ——
         // 为什么：真机实测一场简单提问 9 轮，其中 4 轮是「读一点、看一点、再读一点」，每轮都要重发整份上下文。
         var result = ToolReport.Parse(
             "[TOOL] read {\"path\":\"a\"}\n[TOOL] write {\"path\":\"b\",\"content\":\"x\"}");
@@ -237,7 +237,7 @@ public sealed class ToolReportTests
         var blankInside = "[TOOL] write {" + q + "path" + q + ":" + q + "/tmp/x.txt" + q + ","
             + q + "content" + q + ":" + q + "第一行" + "\n\n- 落点：区栈与白板之间" + q + "} risk: none";
 
-        // B1（2026-09-29 主人定案）：**旧 JSON 形状已退役**。切段仍在（解析器只切形状），
+        // B1（2026-09-29 用户定案）：**旧 JSON 形状已退役**。切段仍在（解析器只切形状），
         // 但**真值判定**落在 ToolArgs.Parse —— 它必须点明「没转义的换行」并指出行式出路。
         var parsed = ToolReport.Parse(blankInside);
         Assert.Equal(ToolParseStatus.Ok, parsed.Status);
@@ -283,7 +283,7 @@ public sealed class ToolReportTests
         Assert.NotEqual(a.Digest("read"), a.Digest("list"));              // 同名不同工具 ⇒ 不同键
     }
 
-    // ---------------- 路径真身（S1；**不做围栏** —— 主人 2026-09-16 03:00 定） ----------------
+    // ---------------- 路径真身（S1；**不做围栏** —— 用户 2026-09-16 03:00 定） ----------------
 
     [Fact]
     public void 路径_不做围栏_任意绝对路径都算出真身()
@@ -397,7 +397,7 @@ public sealed class ToolReportTests
     [Fact]
     public async Task 读_字符窗截断_头部行号等于实际可见行数且指针给下一行()
     {
-        // 2026-09-22（主人令 A）：单条结果上限 8,000 → 2,000 字符。降上限的前提是**指针准** ——
+        // 2026-09-22（用户令 A）：单条结果上限 8,000 → 2,000 字符。降上限的前提是**指针准** ——
         // 旧写法先取行窗、再用字符窗砍正文 ⇒ 头部写「400/632 行」而实际只看得到 ~240 行，
         // 模型按头部下结论就会漏内容（PITFALLS「两层截断别拿一层当另一层」）。
         using var work = new SnapshotTestWorkspace("tool-read-char-cap");
@@ -507,7 +507,7 @@ public sealed class ToolReportTests
     [Fact]
     public void exec_已在最小集_且需批()
     {
-        // 主人 2026-09-16 12:58 定：**exec 请回来**（[WB] 要自持 ⇒ 必须能自己跑 svn 与语料重建脚本）。
+        // 用户 2026-09-16 12:58 定：**exec 请回来**（[WB] 要自持 ⇒ 必须能自己跑 svn 与语料重建脚本）。
         // 03:00 的「没有跑命令这一项」口径已作废；安全框架后补。
         Assert.True(ToolNames.IsKnown("exec"));
         Assert.Contains("exec", ToolNames.ListText, StringComparison.OrdinalIgnoreCase);
@@ -680,7 +680,7 @@ public sealed class ToolReportTests
     [Fact]
     public void 参数_零参工具的空参数放行_其余仍拒_缺口A2()
     {
-        // 主人 2026-09-29 19:56 令（缺口 A②）：解析层放行后，**工具层**也必须放行 ——
+        // 用户 2026-09-29 19:56 令（缺口 A②）：解析层放行后，**工具层**也必须放行 ——
         // 现场：`[TOOL] index` 被解析成 Ok，却在 ToolArgs 这层被「工具参数为空」拦掉。
         var ok = ToolArgs.Parse(string.Empty, ToolNames.Index);
         Assert.Empty(ok.Names);

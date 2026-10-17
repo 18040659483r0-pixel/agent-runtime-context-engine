@@ -34,7 +34,7 @@ public static class WindowMaterial
 
     /// <summary>
     /// **轮数硬上限**（**唯一声明处**，master 侧与 worker 侧共用同一个数）。
-    /// <para>100 的来历（2026-09-29 主人定）：与 master 同量级 —— 真机里「master 做得了、worker 做不完」
+    /// <para>100 的来历（2026-09-29 用户定）：与 master 同量级 —— 真机里「master 做得了、worker 做不完」
     /// 的根因之一就是这里被夹在 40；<c>maxRounds</c> 一升，时间预算随之自动顶到
     /// <c>MaxTimeBudgetSeconds</c>（1800s = 30min）。再往上仍更划算的是**分段派发**。</para>
     /// </summary>

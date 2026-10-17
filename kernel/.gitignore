@@ -1,0 +1,23 @@
+bin/
+obj/
+runs/
+local-corpus/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+*.trx
+api_key*
+!config.json
+
+# 私有冻结语料产物（派生；由 tools/frozen-build 确定性生成，禁止手改、不入库）
+frozen-private/
+frozen-private-b/
+
+# 手动搬运用的打包产物（zip，每次重生成）
+dist/
+
+# TUI 零成本演示产物（可再生；见 docs/TUI-DEMO-SAMPLE.md）
+src/AgentRuntime.Tui/.demo/

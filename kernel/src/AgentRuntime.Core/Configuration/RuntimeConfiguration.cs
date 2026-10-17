@@ -149,11 +149,11 @@ public sealed class RuntimeConfiguration
     public ToolQueueConfiguration ToolQueue { get; set; } = new();
 
     /// <summary>
-    /// L3 技能仓库（V6「按 id 装载」的地址表来源）：<b>只含路径</b>，不含行数 / 上限之类的协议参数。
-    /// <para>留空 = 不接「按 id 装载」（<c>[L3]</c> 自报照旧写在协议里，只是本会话不兑现）。</para>
+    /// 知识树（v74「按 id 装载」的地址表来源）：<b>只含路径</b>，不含行数 / 上限之类的协议参数。
+    /// <para>留空 = 不接「按 id 装载」（<c>[KN]</c> 自报照旧写在协议里，只是本会话不兑现）。</para>
     /// </summary>
     [DataMember]
-    public L3Configuration L3 { get; set; } = new();
+    public KnowledgeConfiguration Knowledge { get; set; } = new();
 
     /// <summary>最小 Worker（便宜 Provider + 受限工具面 + 受限上下文）。见 <c>docs/DESIGN-MINIMAL-WORKER.md</c>。</summary>
     [DataMember]
@@ -255,17 +255,6 @@ public sealed class RuntimeConfiguration
                     "由**协议区**声明（代码常量，用户无权改）；配置里只留 storePath。请从配置里移除该元素 —— 与 currentTail / focus.reportHint 同口径，显式拒绝而不静默忽略。");
             }
         }
-
-        foreach (var key in RemovedL3Keys)
-        {
-            if (Has("L3", key))
-            {
-                throw new InvalidDataException(
-                    $"配置项 l3.{key} 已删除（{path}）：技能常驻层（L1+L2）**不再挂载** —— " +
-                    "冻结语料的 knowledge 块二本来就是同一份（再追加 = 装两遍，白付 3,858 tok/轮）。" +
-                    "请从配置里移除该元素 —— 与 focus.reportHint / currentTail / dynamicDraft 同口径，显式拒绝而不静默忽略。");
-            }
-        }
     }
 
     /// <summary>已被协议区接管、不得再出现在配置里的 R4 键（显式拒绝，见 <see cref="RejectRemovedKeys"/>）。</summary>
@@ -273,9 +262,6 @@ public sealed class RuntimeConfiguration
 
     /// <summary>已被协议区接管、不得再出现在配置里的 R5 键（同口径）。</summary>
     private static readonly string[] RemovedDynamicDraftKeys = ["maxLines", "maxChars", "reportHint"];
-
-    /// <summary>已退役（2026-10-10 · 去重 A）、不得再出现在配置里的 l3 键。</summary>
-    private static readonly string[] RemovedL3Keys = ["resident", "residentDomains"];
 
     public void Validate()
     {
@@ -362,7 +348,7 @@ public sealed class RuntimeConfiguration
     /// （写在后面会被确定性闸门当「动态区次序违规」报错 —— 那道闸门故意不纠正、只报错）。
     /// </para>
     /// </summary>
-    public static readonly string[] KnownModules = ["protocol", "system-rules", "session", "append-stream", "tool", "worker-dispatch", "note", "rules", "knowledge", "memory-index", "focus", "current-tail", "dynamic-draft", "worker-knowledge"];
+    public static readonly string[] KnownModules = ["protocol", "system-rules", "session", "append-stream", "tool", "worker-dispatch", "note", "rules", "knowledge", "decision", "memory-index", "focus", "current-tail", "dynamic-draft", "worker-knowledge", "decision-bypass"];
 
     /// <summary>会话模块名（互斥校验用）。</summary>
     public const string SessionModuleName = "session";
@@ -428,7 +414,7 @@ public sealed class LifecycleConfiguration
 
     /// <summary>
     /// **收尾窗口的开放模式**：<c>closeout</c>（默认 = 只在 <c>/closeout</c> 那一刻开）｜<c>always</c>（整个会话常开）。
-    /// <para>主人 2026-09-20 16:1x：「现在一次收尾要按十几次权限授权……我们需要的是一个更加宽泛的权限约束方式」——
+    /// <para>用户 2026-09-20 16:1x：「现在一次收尾要按十几次权限授权……我们需要的是一个更加宽泛的权限约束方式」——
     /// task 级的收尾件（handoff / 坑）发生在任务过程中，只在 <c>/closeout</c> 开窗 ⇒ 那些写还在窗外逐条问。
     /// <c>always</c> = 把「配置声明的那几类目标」在整个 tasklife 里静默放行（v13：分类仍算，但只留档、不拦截）。</para>
     /// </summary>
@@ -441,7 +427,7 @@ public sealed class LifecycleConfiguration
 
     /// <summary>
     /// **工具面拒绝的收件箱**（如 <c>docs/TOOLFACE-PITFALLS.md</c>）；留空 = 不写（不猜路径）。
-    /// <para><b>主人 2026-10-15 令</b>：远端 AI 即使读了协议区仍会一上来先试 JSON、被拒；协议区讲了但遵从率低 ⇒
+    /// <para><b>用户 2026-10-15 令</b>：远端 AI 即使读了协议区仍会一上来先试 JSON、被拒；协议区讲了但遵从率低 ⇒
     /// 由**知识库系统兜底**：<b>任何工具面拒绝，除了记录，还要立刻落进踩坑集</b>，
     /// 下一个 session 再由**顶层知识库**限制一次它的行为。</para>
     /// <para>为什么要机械落盘而不是「提醒模型去记」：拒绝只进事件流就**等于没记**（同 worker 的教训：写进模型读不到的地方 = 只留给人看）。
@@ -473,7 +459,7 @@ public sealed class LifecycleConfiguration
     /// 显式配了才启用「跨进程续接」这一整套。</para>
     /// </summary>
     /// <summary>
-    /// **内置收尾**（2026-10-11 主人定）：收尾**由运行时自己做** —— 收集未收敛内容 → **一次模型调用** →
+    /// **内置收尾**（2026-10-11 用户定）：收尾**由运行时自己做** —— 收集未收敛内容 → **一次模型调用** →
     /// 运行时**自己覆盖那些 MD**（<c>CloseoutJob</c>）。**处理内容是文件 IO，不是起进程**（R2 只管起进程）。
     /// 默认 <c>false</c>：不显式打开时，收尾仍按旧口径（协议第 7/8 条，远端 AI 跑流水线）。
     /// </summary>
@@ -609,22 +595,17 @@ public sealed class DynamicDraftConfiguration
 }
 
 /// <summary>
-/// L3 技能仓库（V6）的配置：**只含地址表路径**。
+/// 知识树（v74）的配置：**只含地址表路径**。
 /// <para>路径相对 CLI/TUI 配置文件目录解析（与 <c>frozen.root</c> / <c>stream.path</c> 同规），
-/// 且**可以是目录也可以是文件**：目录 = 仓库形态（<c>&lt;skill&gt;/l3.xml</c>），
-/// 文件 = 单文件形态（如 <c>knowledge/.derived/l3.xml</c>）—— <c>SkillIndex.Load</c> 自己判形态。</para>
-/// <para>留空 = 不接「按 id 装载」（无地址表 ⇒ <c>[L3]</c> 自报无处可查，不猜、不静默）。</para>
+/// 可以是派生目录（<c>knowledge/.derived</c>）或 <c>nodes.xml</c> 文件。</para>
+/// <para>留空 = 不接「按 id 装载」（无地址表 ⇒ <c>[KN]</c> 自报无处可查，不猜、不静默）。</para>
 /// </summary>
 [DataContract(Namespace = "")]
-public sealed class L3Configuration
+public sealed class KnowledgeConfiguration
 {
-    /// <summary>技能仓库根目录或任一 <c>l3.xml</c>；留空 = 未接。</summary>
+    /// <summary>知识树派生目录或 <c>nodes.xml</c>；留空 = 未接。</summary>
     [DataMember]
     public string? Repo { get; set; }
-
-    // **2026-10-10（主人令 · 去重 A）**：`resident` / `residentDomains` 两个键**已退役** ——
-    // 冻结语料的 knowledge 块二本来就是同一份 L1+L2，再追加一遍就是装两遍（实测白付 3,858 tok/轮）。
-    // 旧键由 RejectRemovedKeys 显式拒绝（不静默忽略）。
 }
 
 /// <summary>

@@ -31,7 +31,7 @@ public enum BudgetVerdict
 /// </summary>
 public sealed class MasterBudgetGate
 {
-    /// <summary>目标档位：master 的非缓存新增占比上限（§13 主人定 0.10）。</summary>
+    /// <summary>目标档位：master 的非缓存新增占比上限（§13 用户定 0.10）。</summary>
     public const double DefaultK = 0.10;
 
     /// <summary>判定下限（token）：总量不到它 ⇒ TooSmall，不判（防假红）。</summary>

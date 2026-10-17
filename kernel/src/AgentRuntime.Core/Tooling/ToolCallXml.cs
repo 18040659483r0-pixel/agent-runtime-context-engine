@@ -4,7 +4,7 @@ using AgentRuntime.Core.Persistence;
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
-/// **工具调用 = 一个类型**（主人 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
+/// **工具调用 = 一个类型**（用户 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
 ///
 /// <para><b>为什么换成它</b>：旧路是"行扫描 + 切段 + 拼 JSON 再解析" —— 段落**没有自定界**，
 /// 于是抄来的上下文行会被一起切进去（真机：回声里的 <c>timeoutSeconds: 30</c> ⇒ 判"参数重复" ⇒ 整条命令被拒）。</para>

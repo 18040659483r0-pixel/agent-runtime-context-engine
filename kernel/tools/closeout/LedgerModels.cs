@@ -101,6 +101,12 @@ public sealed class CheckItem
 {
     [DataMember(Order = 0)] public string Name { get; set; } = string.Empty;
 
+    /// <summary>所属要件模块 id（`memory` / `pitfalls` / `archive` …）。</summary>
+    [DataMember(Order = 6)] public string Module { get; set; } = string.Empty;
+
+    /// <summary>模块类别：`core`（必达，红即阻断）/ `extension`（扩展，红只上账、不阻断）。</summary>
+    [DataMember(Order = 7)] public string Class { get; set; } = string.Empty;
+
     [DataMember(Order = 1)] public string Sev { get; set; } = string.Empty;
 
     [DataMember(Order = 2)] public bool Ok { get; set; }

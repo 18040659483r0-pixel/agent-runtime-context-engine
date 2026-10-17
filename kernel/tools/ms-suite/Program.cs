@@ -1,5 +1,5 @@
 // [WB] M 套件工具 —— `.stage1/ms/**` 的 python 驱动搬到 `tools/` 的 C# 版。
-// 每一片 = 一个产物（skill `script-port-to-runtime` 的纪律）：判据是**与盘上产物逐字节等价**。
+// 每一片 = 一个产物（纪律）：判据是**与盘上产物逐字节等价**。
 using MsSuite;
 
 if (args.Length == 0)

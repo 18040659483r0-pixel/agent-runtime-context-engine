@@ -18,7 +18,8 @@ namespace AgentRuntime.Tui;
 /// </para>
 /// <para>
 /// 三条纪律：① **只读流，不写流**（崩溃现场一个字都不改）；② 本类**自己绝不抛**
-/// （落盘失败只往 stderr 说一句 —— 诊断器不能变成第二个崩溃源）；③ 覆盖写，只留最近一次。
+/// （落盘失败只往 stderr 说一句 —— 诊断器不能变成第二个崩溃源）；③ 覆盖写 <c>last-crash.txt</c>（只留最近一次，既有工具按它读），
+/// **另追加** <c>crash-log.txt</c>（用户 2026-10-17 令：「收集所有退出报错」—— 覆盖式根本收不全）。
 /// </para>
 /// </summary>
 public static class CrashDump
@@ -28,6 +29,12 @@ public static class CrashDump
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".agentruntime",
         "last-crash.txt");
+
+    /// <summary>**追加式**崩溃日志（唯一声明处）：<c>~/.agentruntime/crash-log.txt</c>（用户 2026-10-17 令）。</summary>
+    public static string AppendLogPath => System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".agentruntime",
+        "crash-log.txt");
 
     /// <summary>流末复制多少行（够看清「最后一件事是什么」，又不至于把整卷搬过来）。</summary>
     private const int TailLines = 12;
@@ -55,6 +62,13 @@ public static class CrashDump
             var path = targetPath ?? Path;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
             File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
+
+            // 追加一份（覆盖式只留最后一次 ⇒ 收集不全）。targetPath 是**只给测试用**的覆盖
+            // ⇒ 那种情况不追加，免得把测试写进真实日志区。
+            if (targetPath is null)
+            {
+                File.AppendAllText(AppendLogPath, text.ToString(), new UTF8Encoding(false));
+            }
         }
         catch (Exception dumpFailure)
         {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：踩坑集（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>pitfalls</Id>
+  <Title>踩坑集</Title>
+  <Order>30</Order>
+  <Class>core</Class>
+  <Outside>rw</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>src</Role><Path>docs/PITFALLS.md</Path><Must>true</Must></Artifact>
+    <Artifact><Role>derived</Role><Path>docs/PITFALLS-INDEX.md</Path><Must>true</Must></Artifact>
+    <Artifact><Role>derived</Role><Path>docs/PITFALLS-public.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+  <Checks>
+    <Check><Id>pitfalls.placements</Id><Sev>block</Sev><Enabled>true</Enabled></Check>
+  </Checks>
+</Requirement>

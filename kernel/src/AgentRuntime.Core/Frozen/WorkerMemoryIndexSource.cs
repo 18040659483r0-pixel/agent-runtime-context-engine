@@ -1,14 +1,14 @@
 namespace AgentRuntime.Core.Frozen;
 
 /// <summary>
-/// **worker 自己的记忆索引源**（2026-10-10 主人令 · 治水位待办 ①）：把 <c>memory-index</c> 这一区**从 master 那份脱钩**，
+/// **worker 自己的记忆索引源**（2026-10-10 用户令 · 治水位待办 ①）：把 <c>memory-index</c> 这一区**从 master 那份脱钩**，
 /// 改指向 **worker 自己的 memory 家**（<c>&lt;workerHome&gt;/memory/index.md</c>）。
 /// <para>
 /// **只换一格**：铁则区 / 知识区仍与 master **同一份源**（逐字节同一份）；换的只是记忆索引
 /// —— 它本来就是**各自的时间线**（worker 不该读 master 的会话索引）。
 /// </para>
 /// <para>
-/// <b>为什么是装饰器而不是新模块</b>：与 <see cref="SkillResidentContentSource"/> 同规 —— 走冻结区唯一的接缝
+/// <b>为什么是装饰器而不是新模块</b>：与 <see cref="L12ResidentContentSource"/> 同规 —— 走冻结区唯一的接缝
 /// （内容来源）⇒ 天然落进 R1 稳定前缀、天然进 <c>FrozenPrefix</c> 指纹，且**不新增区 / 不改拓扑**。
 /// 换源 = **一次**前缀变化（一次缓存失效）；此后索引**只在收尾重生成** ⇒ 会话内逐字节稳定（§十·4）。
 /// </para>

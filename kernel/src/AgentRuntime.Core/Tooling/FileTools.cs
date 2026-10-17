@@ -225,7 +225,7 @@ public sealed class ReadTool : ToolBase
         var next = from + fitted;                            // 截断时把**下一段起点**写进结果（自解释；不改前缀）
         // C1（2026-09-26）：指针必须能走通 —— read 的「全文」就是磁盘上这个文件本身，
         // 所以真指针是 `offset={next}`（原来还缀一句「全文在 /trace」是假指针：那是 TUI 看轨迹的命令）。
-        // 2026-10-11（主人令）：**只有「整读意图」**才走「到此为止」；显式限窗的**窗口读**仍保留准指针。
+        // 2026-10-11（用户令）：**只有「整读意图」**才走「到此为止」；显式限窗的**窗口读**仍保留准指针。
         var anchor = wholeFileIntent && byChars && fitted > 0 && all.Length > fitted * 3
             ? $"；**整读不可用（本文件 {all.Length} 行 > 单次上限）** —— 锚："
               + $"{all.Length} 行 / {new FileInfo(path).Length} 字节 / sha256 {ShortFileSha(path) ?? "（算不出）"} · "
@@ -477,7 +477,7 @@ public sealed class WriteTool : ToolBase
 /// <summary>
 /// <c>edit</c> —— 精确替换（**需批**）。
 /// <para>
-/// 与「主人在自己工作区里改文件」同一条纪律：<b>必须唯一匹配</b> ——
+/// 与「用户在自己工作区里改文件」同一条纪律：<b>必须唯一匹配</b> ——
 /// 匹配 0 次 ⇒ 失败（没改），2 次以上 ⇒ **拒绝**（判不出该改哪一处；改错一处比不改更糟）。
 /// 审批面给的是**精确的 oldText → newText 块**（S2）。
 /// </para>

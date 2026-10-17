@@ -34,6 +34,9 @@ public static class ControlTokens
     [
         "<｜begin▁of▁sentence｜>", "<｜end▁of▁sentence｜>",
         "<｜begin_of_sentence｜>", "<｜end_of_sentence｜>",
+        // 批 2（2026-10-17）：**原生调用的容器**（同名骨架的“外壳”）—— 它本身不是内容，只剩了 ⇒ 剥掉。
+        // ⚠️ 精确串替换：`<tool_call>`（无属性）不会碰到 `<tool_call name="…">`（那是调用本体，由归一器的 InvokePattern 收）。
+        "<tool_calls>", "</tool_calls>", "<function_calls>", "</function_calls>",
     ];
 
     /// <summary>

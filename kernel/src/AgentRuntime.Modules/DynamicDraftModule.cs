@@ -101,7 +101,7 @@ public sealed class DynamicDraftModule : RuntimeModuleBase, IDraftRegionModule
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>人工覆盖草稿（<c>--draft "文本"</c>：保留给主人写未定稿需求）。</summary>
+    /// <summary>人工覆盖草稿（<c>--draft "文本"</c>：保留给用户写未定稿需求）。</summary>
     public DraftState Override(IEnumerable<string>? lines, int turn = 0)
     {
         if (DraftService.IsOverLimit(DraftService.Normalize(lines), _options))

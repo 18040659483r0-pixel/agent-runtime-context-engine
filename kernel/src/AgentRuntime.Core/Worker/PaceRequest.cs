@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **master 请求改节拍闸门**（主人 2026-10-09：「需要 master 协议区理解，这样可以直接让 master 设定」）。
+/// **master 请求改节拍闸门**（用户 2026-10-09：「需要 master 协议区理解，这样可以直接让 master 设定」）。
 /// <para><b>两种形状</b>（都在同一行内，唯一声明处）：</para>
 /// <list type="bullet">
 /// <item><c>[PACE] ceiling=300|600|1200|off</c> —— 老口径：改**上限**（注意：上限只在 <c>C/v</c> 超过它时才咬）。</item>
@@ -17,7 +17,7 @@ public sealed record PaceRequest(string Ceiling, double GateSeconds = 0)
     /// <summary>块头（唯一声明处）。</summary>
     public const string Marker = "[PACE]";
 
-    /// <summary>`ceiling=` 允许的取值（老口径白名单，**唯一声明处**）—— 2026-10-14 加 `1200`（主人把闸门上界提到 20 分钟）。</summary>
+    /// <summary>`ceiling=` 允许的取值（老口径白名单，**唯一声明处**）—— 2026-10-14 加 `1200`（用户把闸门上界提到 20 分钟）。</summary>
     public static readonly string[] Allowed = ["300", "600", "1200", "off"];
 
     /// <summary>`gate=` 的秒数区间（含端点）。</summary>

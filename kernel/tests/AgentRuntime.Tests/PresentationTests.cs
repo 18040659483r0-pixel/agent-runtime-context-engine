@@ -168,7 +168,7 @@ public sealed class PresentationTests
         // 16 色兜底档：亮黄 93（沿用 aixterm 亮色）。
         Assert.Contains("\u001b[93m", StyleTable.Standard16.Render(text), StringComparison.Ordinal);
 
-        // 真彩档：原色 38;2;240;201;135（不掺提亮前缀 —— 主人：「过于鲜艳会闪瞎眼睛」）。
+        // 真彩档：原色 38;2;240;201;135（不掺提亮前缀 —— 用户：「过于鲜艳会闪瞎眼睛」）。
         Assert.Contains("\u001b[38;2;240;201;135m", StyleTable.StandardTrueColor.Render(text), StringComparison.Ordinal);
     }
 
@@ -183,7 +183,7 @@ public sealed class PresentationTests
         Assert.Equal("#F2A65A", StyleTable.HexOf(StyleRole.Todo));
         Assert.Equal("#F97066", StyleTable.HexOf(StyleRole.Warn));
         Assert.Equal("#7B7F87", StyleTable.HexOf(StyleRole.Dim));
-        Assert.Equal("—", StyleTable.HexOf(StyleRole.You));   // 斜体：字体属性、无色（主人 2026-09-22 定）
+        Assert.Equal("—", StyleTable.HexOf(StyleRole.You));   // 斜体：字体属性、无色（用户 2026-09-22 定）
 
         // 除加粗（Strong）外，不带 "1;" 提亮前缀（上一版就是它把颜色"闪"起来的）。
         foreach (var role in new[] { StyleRole.Path, StyleRole.Attention, StyleRole.Done, StyleRole.Todo, StyleRole.Warn })

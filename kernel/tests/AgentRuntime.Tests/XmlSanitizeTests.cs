@@ -1,5 +1,5 @@
 using AgentRuntime.Core.Persistence;
-using AgentRuntime.Core.Skill;
+using AgentRuntime.Core.Knowledge;
 using Xunit;
 
 namespace AgentRuntime.Tests;
@@ -15,7 +15,7 @@ public sealed class XmlSanitizeTests
     [Fact]
     public void 合法代理对_emoji_逐字保留()
     {
-        const string s = "🍒 樱桃 🚀 끝";
+        const string s = "🍒 助手 🚀 끝";
         Assert.Equal(s, DataContractXml.Sanitize(s));
     }
 
@@ -39,15 +39,15 @@ public sealed class XmlSanitizeTests
     [Fact]
     public void 片段往返_emoji_不丢()
     {
-        var row = new StripRow
+        var row = new AgentRuntime.Core.Knowledge.KnNodeRow
         {
-            Id = "S-aedit-000", Skill = "agent-file-editing", Seq = 1,
-            Title = "🍒 带 emoji 的标题", Kind = "WholeSkill", Domain = "software",
+            Id = "L3-aedit-001", Layer = 3, Short = "aedit", Seq = 1,
+            Title = "🍒 带 emoji 的标题",
             Text = "第一行 🍒\n第二行 🚀\t制表\n第三行",
         };
 
         var line = DataContractXml.ToFragment(row);
-        var back = DataContractXml.FromFragment<StripRow>(line);
+        var back = DataContractXml.FromFragment<AgentRuntime.Core.Knowledge.KnNodeRow>(line);
 
         Assert.Equal(row.Text, back.Text);
         Assert.Equal(row.Title, back.Title);

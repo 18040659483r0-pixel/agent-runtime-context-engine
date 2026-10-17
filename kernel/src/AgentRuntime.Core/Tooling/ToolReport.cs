@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AgentRuntime.Core.Persistence;
 using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Security;
@@ -36,7 +37,7 @@ public enum RiskClaimStatus
 
 /// <summary>
 /// 解析结局。
-/// <para><b>v14（2026-09-22 主人定）</b>：一次回复**允许最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 次**调用
+/// <para><b>v14（2026-09-22 用户定）</b>：一次回复**允许最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 次**调用
 /// （旧口径 = <c>one call per reply</c>）。为什么改：真机实测一场简单提问烧 9 轮，其中 4 轮是「读一点、看一点、再读一点」
 /// —— 一次只准点一个动作，取证就只能一轮一轮地挤。结果**按发出顺序**逐个回，一一对应不变。</para>
 /// </summary>
@@ -110,6 +111,10 @@ public static class ToolReport
     /// </summary>
     public const int ToolParseAbsoluteMax = 64;
 
+    /// <summary>围栏代码块内的内容 = **示例**（§十·51），不计入「漏写块头」。</summary>
+    private static string StripFencedBlocks(string text) =>
+        Regex.Replace(text, "```.*?```", string.Empty, RegexOptions.Singleline);
+
     /// <summary>从一段回复里取全部 <c>[TOOL]</c> 块（最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 个，按发出顺序）。</summary>
     public static ToolParseResult Parse(string? responseText)
     {
@@ -118,7 +123,7 @@ public static class ToolReport
             return ToolParseResult.Empty;
         }
 
-        // —— 新形状（主人 2026-10-07）：**块头 + 一个 XML 元素** ——
+        // —— 新形状（用户 2026-10-07）：**块头 + 一个 XML 元素** ——
         //    元素自定界 ⇒ 块外的文本（抄来的上下文行）**进不来** ⇒ 幻影重复参数从结构上消失。
         // 严格取不到 ⇒ **归一后重试**（裸 `&` / 未转义 `<`；§十·47 归一优先、拒绝是最后手段）。
         // 真机 2026-10-08：worker 交出完全合规的 `<call>…<command>a && b</command>…</call>`，
@@ -183,7 +188,7 @@ public static class ToolReport
             // **不许静默丢**（2026-10-11 真机，与 E1 同族）：文本里真有一个**本族元素**却没写块头 ⇒ **响亮拒**。
             // 旧路走 Empty（零事件）⇒ 模型判「工具通道没接线」，烧 8 轮后交 [NEED-USER]（模型其实是好的，是它漏写了标记）。
             // 边界（有意收窄）：只在**一个块都没有**时查；已经有合规块时不查 —— 那多半是正文里引述示例。
-            var headerless = ToolCallXml.CountHeaderless(responseText);
+            var headerless = ToolCallXml.CountHeaderless(StripFencedBlocks(responseText));
             if (headerless > 0)
             {
                 return new ToolParseResult(
@@ -330,7 +335,7 @@ public static class ToolReport
             return (null, $"多行块没有收尾：需要在单独一行写 `{ToolArgs.BlockEndLine}`。{ToolArgs.ShapeHint}");
         }
 
-        // 主人 2026-09-29 19:56 令（缺口 A②）：**登记过的工具、零参数也要跑得通**（如 `[TOOL] index`）。
+        // 用户 2026-09-29 19:56 令（缺口 A②）：**登记过的工具、零参数也要跑得通**（如 `[TOOL] index`）。
         // 判据收紧到「连名字都没有 / 名字没登记」才算空块：名字合法 ⇒ 这是一次**零参调用**，
         // 该不该给参数由**工具自己**响亮报（解析层不替它判，也不静默降级）。
         if (body.Count == 0 && !ToolNames.IsZeroArgCallable(name))
@@ -375,7 +380,7 @@ public static class ToolReport
 
         var firstInline = space < 0 ? string.Empty : payload[(space + 1)..].Trim();
 
-        // B1（2026-09-29 主人定案）：**行式键值**是新形状 —— 不走 JSON 配平那条路。
+        // B1（2026-09-29 用户定案）：**行式键值**是新形状 —— 不走 JSON 配平那条路。
         // 判据只看一件事：同一行参数是不是以 `{` 起（那才是旧 JSON 形状）。
         if (!firstInline.StartsWith('{'))
         {

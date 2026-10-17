@@ -8,7 +8,7 @@ using AgentRuntime.Hosting.Worker;
 namespace AgentRuntime.Cli;
 
 /// <summary>
-/// **`pacer` 子命令**（主人 2026-10-09 定稿）—— 节拍器的**校准与重置**面。
+/// **`pacer` 子命令**（用户 2026-10-09 定稿）—— 节拍器的**校准与重置**面。
 ///
 /// <list type="table">
 /// <item><c>pacer show</c>：打账本（速率范围 / 中位 / 当前闸门）</item>
@@ -80,7 +80,7 @@ public static class PacerCli
     }
 
     /// <summary>
-    /// **master 侧此刻速率**（2026-10-10 主人令）：读 <c>&lt;流&gt;.usage.xml</c>（主 provider 的每轮 token/耗时）。
+    /// **master 侧此刻速率**（2026-10-10 用户令）：读 <c>&lt;流&gt;.usage.xml</c>（主 provider 的每轮 token/耗时）。
     /// <para><b>为什么要有它</b>：worker 有节拍账本（<c>pacer show</c>），而 master 侧只有一个**硬超时墙** ——
     /// 真机实测端点速率能 240 tok/s → **3 tok/s**（多轮 250~1330s）；墙太紧就会把会话打断，而「此刻多慢」**无处可查**。
     /// 判据可复算：每轮速率 = CompletionTokens / (TotalMs/1000)。</para>
@@ -239,7 +239,7 @@ public static class PacerCli
     /// <summary>
     /// **带 master 的校准**（`--with-master`）：跑**真 lifecycle** —— 复用 CLI 自己的 master 轮次
     /// （<c>Program.RunOnceAsync</c>，含自动接续），量「一个用例从发料到出终局」的墙钟。
-    /// <para>这才是主人要的「**work task lifecycle**」口径；不带这个开关时量的是**派发级**（worker only）。</para>
+    /// <para>这才是用户要的「**work task lifecycle**」口径；不带这个开关时量的是**派发级**（worker only）。</para>
     /// </summary>
     private static async Task<int> CalibWithMasterAsync(string cfgPath, RuntimeConfiguration config, int repeat)
     {

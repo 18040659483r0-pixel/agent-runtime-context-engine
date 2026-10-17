@@ -4,7 +4,7 @@ using AgentRuntime.Core.Persistence;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **派发 = 一个类型**（主人 2026-10-07 令：解析走 XML 序列化）。
+/// **派发 = 一个类型**（用户 2026-10-07 令：解析走 XML 序列化）。
 /// <para>线上形状（块头 + 一个元素；成员**按名**取，顺序无关）：</para>
 /// <code>
 /// [INTENT] &lt;intent&gt;&lt;purpose&gt;…&lt;/purpose&gt;&lt;kind&gt;READ&lt;/kind&gt;&lt;criteria&gt;full&lt;/criteria&gt;&lt;when&gt;sync&lt;/when&gt;&lt;sideEffects&gt;none&lt;/sideEffects&gt;&lt;scope&gt;/abs/a&lt;/scope&gt;&lt;/intent&gt;
@@ -48,7 +48,7 @@ public sealed class DispatchXml
 }
 
 /// <summary>
-/// **任务回执 = 一个类型**（主人 2026-10-07 令）。
+/// **任务回执 = 一个类型**（用户 2026-10-07 令）。
 /// <para>线上形状：<c>[RESULT] &lt;receipt&gt;&lt;kind&gt;done&lt;/kind&gt;…&lt;/receipt&gt;</c>（<c>[WORKER]</c> 块头仍认）。
 /// **交付键**作为一等成员（<c>basis</c> / <c>covered</c> / …），不再靠"从文本里找 <c>bytes=</c>"。</para>
 /// </summary>
@@ -79,7 +79,7 @@ public sealed class ReceiptXml
     [DataMember(Name = "reason", EmitDefaultValue = false)] public string? Reason { get; init; }
     [DataMember(Name = "retryable", EmitDefaultValue = false)] public bool Retryable { get; init; }
 
-    // —— 各意图的**交付键**（主人 2026-10-07 令：交付键是**一等成员**，不再靠“从文本里找 bytes=”）。
+    // —— 各意图的**交付键**（用户 2026-10-07 令：交付键是**一等成员**，不再靠“从文本里找 bytes=”）。
     //    READ: addr/bytes/lines/sha256 · READ#verbatim: addr/sha256/text · LOCATE: items/count ·
     //    VERIFY: claim/actual/verdict · WRITE: path/bytes/lines/sha256/state · EDIT: path/before_sha/after_sha/line ·
     //    EXEC: command/rc/stdout · DERIVE: conclusion/basis。缺省 = 该类不用它。
@@ -172,7 +172,7 @@ public sealed class ReceiptXml
 
     /// <summary>取本类型，并报**是不是归一救回来的**。
     /// <para><paramref name="normalized"/> = 真：原形状里有未转义标签，靠 <see cref="XmlBlock.TakeLenient"/>
-    /// 归一后才读出来。容错是允许的，但**必须留痕**（主人 2026-10-07 令：遵从率的账）——
+    /// 归一后才读出来。容错是允许的，但**必须留痕**（用户 2026-10-07 令：遵从率的账）——
     /// 调用方据此记一条 <c>[形状注记]</c>。</para></summary>
     public static ReceiptXml? Take(string? text, out bool normalized)
     {
@@ -242,7 +242,7 @@ public sealed class ReceiptXml
 }
 
 /// <summary>
-/// **临时回执（裁决请求）= 一个类型**（主人 2026-10-07 令）。
+/// **临时回执（裁决请求）= 一个类型**（用户 2026-10-07 令）。
 /// <para>线上形状：<c>[RULING] &lt;ruling&gt;&lt;ask&gt;…&lt;/ask&gt;&lt;kind&gt;CHOOSE_TARGET&lt;/kind&gt;&lt;options&gt;/abs/a&lt;/options&gt;…&lt;/ruling&gt;</c></para>
 /// </summary>
 [DataContract(Name = "ruling", Namespace = "")]
@@ -289,7 +289,7 @@ public sealed class RulingXml
 }
 
 /// <summary>
-/// **裁定回信 = 一个类型**（主人 2026-10-07 令；临时回执的对偶）。
+/// **裁定回信 = 一个类型**（用户 2026-10-07 令；临时回执的对偶）。
 /// <para>线上形状：<c>[RULING-ANSWER] &lt;verdict&gt;&lt;decision&gt;PICK&lt;/decision&gt;&lt;value&gt;2&lt;/value&gt;&lt;re&gt;d-…&lt;/re&gt;&lt;/verdict&gt;</c></para>
 /// </summary>
 [DataContract(Name = "verdict", Namespace = "")]

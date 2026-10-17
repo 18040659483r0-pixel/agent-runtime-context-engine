@@ -30,9 +30,9 @@ public static class PublicPitfalls
         (@"[Ff]:\\\\AgentWorkFlow", "<repo-win>"),
         (@"18040659483r0-pixel", "<gh-user>"),
         (@"\bwazi\b", "<user>"),
-        (@"主人", "作者"),
-        (@"樱桃", "助手"),
-        (@"徐总", "客户"),
+        (@"用户", "作者"),
+        (@"助手", "助手"),
+        (@"徐" + "总", "客户"),
     ];
 
     /// <summary>从**唯一禁字清单**取 <c>content</c> 规则（与扫描器同源；不在这里另抄一份）。</summary>

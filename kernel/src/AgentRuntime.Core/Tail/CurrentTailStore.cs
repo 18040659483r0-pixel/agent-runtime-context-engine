@@ -41,10 +41,10 @@ public sealed class CurrentTailStore
     public bool Exists(string? sessionId) => File.Exists(PathFor(sessionId));
 
     /// <summary>
-    /// **跨会话承接**（主人 2026-10-14 20:40 令）：白板 R4 / 草稿 R5 是**工作台面**，不是「本次会话的临时物」。
+    /// **跨会话承接**（用户 2026-10-14 20:40 令）：白板 R4 / 草稿 R5 是**工作台面**，不是「本次会话的临时物」。
     /// <para>本会话还没有自己那份（新 sessionId ⇒ 新文件名）时，就从**同目录里最近改动的**那一份 **copy** 过来
     /// （旧件**不动** —— 旧会话自己那份留着，可回溯）。</para>
-    /// <para><b>为什么必须有</b>（真机现场）：主人在上一会话交代「记录下个 session 要继续做的活」，
+    /// <para><b>为什么必须有</b>（真机现场）：用户在上一会话交代「记录下个 session 要继续做的活」，
     /// 新会话却拿到**空白**白板/草稿 ⇒ 远端 AI 只能自己去翻旧会话遗留 ⇒ 白烧巨量时间。
     /// 协议第 7/9 条本来就写着「reset 定格 · start 从末态装载」—— 这条把它补到**冷启动**这一路。</para>
     /// </summary>
@@ -61,7 +61,7 @@ public sealed class CurrentTailStore
             .GetFiles("*.xml")
             .Where(f => !string.Equals(f.FullName, target, StringComparison.Ordinal))
             // **跳过「空台面」的件**（2026-10-15 真机：最近改动的恰是空件 ⇒ 承接一份空的进来；
-            //   主人的口径：台面**只要更新过一次就永远不可能是空的**）⇒ 宁取次新的**有内容**那一份。
+            //   用户的口径：台面**只要更新过一次就永远不可能是空的**）⇒ 宁取次新的**有内容**那一份。
             .Where(f => !IsEmptyState(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)
             .FirstOrDefault();
@@ -128,7 +128,7 @@ public sealed class CurrentTailStore
             : directory;
 
     /// <summary>
-    /// 这份台面件是不是**空台面**（承接时跳过它 —— 主人 2026-10-15 口径：台面**只要更新过一次就永远不可能是空的**）。
+    /// 这份台面件是不是**空台面**（承接时跳过它 —— 用户 2026-10-15 口径：台面**只要更新过一次就永远不可能是空的**）。
     /// <para>🔑 判据必须**先加载**，不能看字节：① 能加载且 **0 行** ⇒ 空台面 ⇒ 跳过；
     /// ② **加载失败（坏文件）⇒ 照旧拷过去**（fail-closed：坏文件必须响亮报错、绝不静默当没有 —— 本存储的既有纪律）；
     /// ③ 有内容 ⇒ 拷。</para>

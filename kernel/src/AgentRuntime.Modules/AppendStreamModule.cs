@@ -1,13 +1,13 @@
 using AgentRuntime.Core;
 using AgentRuntime.Core.Focus;
-using AgentRuntime.Core.Skill;
+using AgentRuntime.Core.Knowledge;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Models;
 
 namespace AgentRuntime.Modules;
 
 /// <summary>
-/// **Append Stream 模块**（V3）—— 把会话变成「只追加事件流」，并提供 **L3 逐条加载**。
+/// **Append Stream 模块**（V3）—— 把会话变成「只追加事件流」，并提供 **知识按 id 加载**。
 /// <para>
 /// 三条职责：
 /// </para>
@@ -15,15 +15,15 @@ namespace AgentRuntime.Modules;
 /// <item><see cref="ContributeAsync"/>：把流里的事件**按序**贡献成消息（用户/助手保持角色，其余为 system）。</item>
 /// <item><see cref="ObserveAsync"/>：把本轮「用户输入 + 模型输出」作为两条事件**追加**进流（并落盘）；
 /// 开启后还会把回复末尾的自报（<c>[FOCUS] E### …</c>）作为 **FocusReport 事件** 追加进流（V4.1）。</item>
-/// <item><see cref="AppendDocument"/>：把一份 L3 文档（技能手册 / 踩坑集 / 知识）**逐条**追加进流 ——
+/// <item><see cref="AppendDocument"/>：把一份知识文档（踩坑集 / 交接 / 知识）**逐条**追加进流 ——
 /// 这就是「技能按需进 append-only 区」的实现（一次一条，不一次性全灌）。</item>
-/// <item><see cref="Skills"/>（V6）：模型在回复末尾自报 <c>[L3] S-xxx-007</c> ⇒ **按 id** 把那一条的正文
+/// <item><see cref="Knowledge"/>（v74）：模型在回复末尾自报 <c>[KN] L3-xxx-001</c> ⇒ **按 id** 把那一条的正文
 /// 经同一条 append 通道装进流（<c>docs/DESIGN-SKILL-LAYERS.md</c> §五 ③）。</item>
 /// </list>
 /// <para>
 /// 与 <see cref="SessionModule"/> 的关系：二者都是「会话历史的家」，因此**互斥**
 /// （同时挂会让历史重复）。区别：会话模块是可变的内存列表（V1）；本模块是只追加的事件流（V3），
-/// 且是**唯一**能承载 L3 逐条加载的模块。
+/// 且是**唯一**能承载「按 id 加载知识」的模块。
 /// </para>
 /// </summary>
 public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
@@ -44,21 +44,21 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     /// 组合根（<see cref="ModuleRegistry"/>）仅在挂了 focus 模块时才打开它。
     /// </para>
     /// </param>
-    /// <param name="skills">
-    /// **L3 地址表**（V6；null = 不接「按 id 装载」）。
-    /// <para>给了它 ⇒ 回复末尾的 <c>[L3] S-xxx-007</c> 块会被兑现：该条正文按既有 append 通道进流。</para>
+    /// <param name="knowledge">
+    /// **知识树地址表**（v74；null = 不接「按 id 装载」）。
+    /// <para>给了它 ⇒ 回复末尾的 <c>[KN] L3-xxx-001</c> 块会被兑现：该节点正文按既有 append 通道进流。</para>
     /// </param>
-    /// <param name="loadSkillReports">
-    /// 是否兑现回复里的 <c>[L3]</c> 自报（默认 true）。
-    /// <para>关掉 = **运行开关**（像 <c>--tail-report off</c>），不是改协议：协议里 <c>[L3]</c> 块照旧声明。</para>
+    /// <param name="loadKnowledgeReports">
+    /// 是否兑现回复里的 <c>[KN]</c> 自报（默认 true）。
+    /// <para>关掉 = **运行开关**，不是改协议：协议里 <c>[KN]</c> 块照旧声明。</para>
     /// </param>
     public AppendStreamModule(
         SessionAppendStream stream,
         SessionStreamStore? store = null,
         int maxEvents = 0,
         bool captureFocusReports = false,
-        SkillIndex? skills = null,
-        bool loadSkillReports = true)
+        KnowledgeIndex? knowledge = null,
+        bool loadKnowledgeReports = true)
     {
         ArgumentNullException.ThrowIfNull(stream);
         if (maxEvents < 0)
@@ -70,8 +70,8 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
         _store = store;
         _captureFocusReports = captureFocusReports;
         MaxEvents = maxEvents;
-        Skills = skills is null ? null : new SkillLoader(skills, stream, store);
-        LoadSkillReports = loadSkillReports;
+        Knowledge = knowledge is null ? null : new KnowledgeLoader(knowledge, stream, store);
+        LoadKnowledgeReports = loadKnowledgeReports;
     }
 
     public override string Name => ModuleName;
@@ -79,15 +79,15 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     /// <summary>底层事件流（只读地暴露给诊断/测试；写入口只有本模块的方法）。</summary>
     public SessionAppendStream Stream { get; }
 
-    /// <summary>**按 id 装载 L3** 的入口（V6；未接地址表时为 null）。</summary>
-    public SkillLoader? Skills { get; }
+    /// <summary>**按 id 装载知识** 的入口（v74；未接地址表时为 null）。</summary>
+    public KnowledgeLoader? Knowledge { get; }
 
-    /// <summary>是否兑现回复里的 <c>[L3]</c> 自报（运行开关，非协议）。</summary>
-    public bool LoadSkillReports { get; }
+    /// <summary>是否兑现回复里的 <c>[KN]</c> 自报（运行开关，非协议）。</summary>
+    public bool LoadKnowledgeReports { get; }
 
     /// <summary>
     /// 「不能不吭声」的话（口径与 R4/R5 的 <c>Warnings</c> 完全一致）：目前只有一条 ——
-    /// 模型点了地址表里没有的 L3 id（跳过，但要说出来；不卡轮、不抛错）。
+    /// 模型点了地址表里没有的知识 id（跳过，但要说出来；不卡轮、不抛错）。
     /// </summary>
     public IReadOnlyList<string> Warnings => _warnings;
 
@@ -97,7 +97,7 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     /// <summary>事件数（诊断用）。</summary>
     public int EventCount => Stream.Count;
 
-    /// <summary>**逐条加载**一份 L3 文档进流（并落盘）。返回新事件（含分配到的序号）。</summary>
+    /// <summary>**逐条加载**一份知识文档进流（并落盘）。返回新事件（含分配到的序号）。</summary>
     public SessionEvent AppendDocument(SessionEventKind kind, string text, string? source = null)
     {
         // **空正文不进流**（2026-10-15 真机教训，提到**唯一写入口**）：
@@ -143,7 +143,7 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
 
         if (context.IsRuntimeNotice)
         {
-            // **运行时提示**（2026-10-09 主人令）：催稿 / 语法提示是**运行时说的**，不是用户输入 ⇒ 记成 Hint。
+            // **运行时提示**（2026-10-09 用户令）：催稿 / 语法提示是**运行时说的**，不是用户输入 ⇒ 记成 Hint。
             // 形状上就分得开「谁说的」 —— 否则聚合器会把它数成新 task（真机：17 次派发被数成 42）。
             if (!string.IsNullOrWhiteSpace(userText))
             {
@@ -174,19 +174,19 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
             AppendDocument(SessionEventKind.FocusReport, report.Text);
         }
 
-        // V6：兑现 [L3] 自报 —— 模型点名的 L3 条**按 id** 经同一条 append 通道进流（§五 ③）。
+        // v74：兑现 [KN] 自报 —— 模型点名的知识节点**按 id** 经同一条 append 通道进流。
         // 同样「解析不到就不做」：id 不在地址表 ⇒ 记一条告警（不静默、也不中断本轮）。
-        if (LoadSkillReports && Skills is not null && SkillReport.TryParse(output, out var ids))
+        if (LoadKnowledgeReports && Knowledge is not null && KnReport.TryParse(output, out var ids))
         {
             foreach (var id in ids)
             {
-                if (!Skills.Index.TryGet(id, out _))
+                if (!Knowledge.Index.TryGet(id, out _))
                 {
-                    _warnings.Add($"模型点名的 L3 id 不在地址表里：{id}（未装载；地址表 {Skills.Index.Origin}，共 {Skills.Index.Count} 条）");
+                    _warnings.Add($"模型点名的知识 id 不在地址表里：{id}（未装载；地址表 {Knowledge.Index.Origin}，共 {Knowledge.Index.Count} 条）");
                 }
             }
 
-            Skills.LoadAll(ids);
+            Knowledge.LoadAll(ids);
         }
 
         return ValueTask.CompletedTask;

@@ -99,7 +99,7 @@ public sealed class CurrentTailModule : RuntimeModuleBase, ITailRegionModule
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>人工覆盖白板（<c>--tail "文本"</c>：保留给主人纠偏用）。</summary>
+    /// <summary>人工覆盖白板（<c>--tail "文本"</c>：保留给用户纠偏用）。</summary>
     public CurrentTailState Override(IEnumerable<string>? lines, int turn = 0)
     {
         if (CurrentTailService.IsOverLimit(CurrentTailService.Normalize(lines), _options))

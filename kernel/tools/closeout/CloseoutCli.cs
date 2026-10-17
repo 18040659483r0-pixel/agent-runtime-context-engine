@@ -29,7 +29,6 @@ public static class CloseoutCli
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
     public static readonly string Live = Path.Combine(Project, "whitebox", "workspace");
-    public static readonly string Archive = Path.GetFullPath(Path.Combine(Project, "..", "..", "whitebox-workspace"));
 
     private static readonly string Here = Path.Combine(Project, "tools");
     private static readonly string LedgerDir = Path.Combine(Here, "closeout");
@@ -39,25 +38,46 @@ public static class CloseoutCli
     private static readonly string PitfallsSrc = Path.Combine(Project, "docs", "PITFALLS.md");
     private static readonly string PitfallsIndex = Path.Combine(Project, "docs", "PITFALLS-INDEX.md");
     private static readonly string PitfallsPublic = Path.Combine(Project, "docs", "PITFALLS-public.md");
-    private static readonly string KnowledgeMd = Path.Combine(Archive, "knowledge", "knowledge.md");
-    private static readonly string WaterArchive = Path.Combine(Archive, "memory", "收尾水位.md");
+
+    /// <summary>
+    /// **收尾的扩展环节**（用户 2026-10-16 12:2x 定）：CORE 对 VCS 零引用，版本库那几件事全在实现里。
+    /// <para>`NoArchive` = 标准模式（不用任何 SVN/Git）；`SvnArchive` = 我们自己用的那个扩展选项。</para>
+    /// <para>⚠️ 第 1 批**保持与旧行为逐字节一致**（选择仍按本仓根 `.svn` 推断）；第 3 批改显式配置。</para>
+    /// </summary>
+    /// <summary>**模式由声明决定**（`tools/closeout/archive.xml`）；没声明才按 `.svn` 推断，且会把「这是推断」说出来。</summary>
+    internal static ArchiveSelection ArchiveSel => CloseoutArchiveFactory.Resolve();
+
+    internal static ICloseoutArchive Vcs => ArchiveSel.Impl;
+
+    /// <summary>**生效的模块集**（`tools/closeout/requirements/` 优先；没声明目录 ⇒ 内置默认）。
+    /// <para>进程内算一次 —— 收尾是「一次调用一个进程」⇒ **改声明，下一轮即生效**（不重编、不重启）。</para></summary>
+    internal static RequirementSet Modules { get; } = RequirementSet.Load();
+
+    /// <summary>判据 severity：**声明优先**，没声明 ⇒ 代码默认（C 批）。</summary>
+    internal static string SevOf(string checkId, string fallback) => Modules.SevOf(checkId) ?? fallback;
+
+    /// <summary>判据的数值参数：**声明优先**，没声明 ⇒ 代码默认（C 批）。</summary>
+    internal static double ParamOf(string checkId, string key, double fallback) =>
+        double.TryParse(Modules.ParamOf(checkId, key), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+    // **落点全部由扩展提供**：CORE 只知道自己写的**那份活版水位**；第二副本是扩展的事（`Sync()`）。
+    private static string KnowledgeRoot => Vcs.KnowledgeRoot;
+
+    private static string KnowledgeMd => Path.Combine(KnowledgeRoot, "knowledge.md");
+
+    private static string WaterLevel => Vcs.WatermarkPath;
+
+    /// <summary>CORE **自己写的**那一份水位（活版）。扩展要不要镜像出第二份，与 CORE 无关。</summary>
     private static readonly string WaterLive = Path.Combine(Live, "memory", "收尾水位.md");
-    private static readonly string WaterLevel = WaterArchive;
 
     public const string ConvergeMark = "- **收敛点（机器可判）**：";
-    private static readonly Regex ConvergeRe = new(@"- \*\*收敛点（机器可判）\*\*：存档 r(\d{3,})[^\n]*", RegexOptions.Compiled);
-
-    private static readonly HashSet<string> ParitySkipDirs = [".svn", "worker"];
-    private static readonly HashSet<string> ParitySkipFiles = [".DS_Store"];
+    private static readonly Regex ConvergeRe = new(@"- \*\*收敛点（机器可判）\*\*：存档 r(\d+)[^\n]*", RegexOptions.Compiled);
 
     private static readonly string SessionPointerPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".agentruntime", "session.xml");
 
     /// <summary>收敛点之后允许多少个提交仍算「正常」（收尾自己会再提交水位+账本 ≈2 个）。</summary>
     private const int WaterGapTolerance = 2;
-
-    private static double SvnTimeout =>
-        double.TryParse(Environment.GetEnvironmentVariable("CLOSEOUT_SVN_TIMEOUT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 45;
 
     private static double GateTimeout =>
         double.TryParse(Environment.GetEnvironmentVariable("CLOSEOUT_TIMEOUT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 900;
@@ -85,10 +105,10 @@ public static class CloseoutCli
     [
         new("坑集索引", "block", ["--pitfalls-index-check", PitfallsSrc], "源改 ⇒ 必须重跑索引（派生落后于源）"),
         new("公开坑集变体", "block", ["--pitfalls-public-check", PitfallsSrc], "公开变体必须与重算一致"),
-        new("L3 往返", "report", ["--knowledge-repo", Path.Combine(Archive, "knowledge"), "--knowledge-check"],
-            "知识库派生一致/往返/版本/下钻指针（**现已就地进程内**）；坑集/交接逐条索引层（l3-unify）已退役 ⇒ 本闸门不再要求它"),
-        new("冻结语料", "report", ["--frozen-corpus-check", Live],
-            "主人 2026-09-23 令：语料 bump 类属记账项、不阻断收尾（但仍上账）"),
+        new("知识树", "report", ["--kn-check", Live],
+            "知识树结构 + 派生层逐字节一致（只常驻 L1）；红 ⇒ 修活版并重建派生"),
+        new("冻结语料", "report", ["--frozen-corpus", Live, "--frozen-corpus-check"],
+            "用户 2026-09-23 令：语料 bump 类属记账项、不阻断收尾（但仍上账）"),
     ];
 
     // ================================================================ runner
@@ -96,9 +116,13 @@ public static class CloseoutCli
     /// <summary>**仅自证用**：替换子进程执行（罐头 svn 测试）；非 null 时 <see cref="Run"/> 直接走它。</summary>
     internal static Func<string, string[], string?, int, (int Rc, string Out)>? RunHook;
 
-    private static (int Rc, string Out) Run(string file, IEnumerable<string> args, string? cwd = null, double timeoutSec = -1, IDictionary<string, string>? env = null)
+
+    internal static (int Rc, string Out) Run(string file, IEnumerable<string> args, string? cwd = null, double timeoutSec = -1, IDictionary<string, string>? env = null)
     {
         var list = args.ToArray();
+
+        // 自证钩子优先：它替换的是**子进程执行**。
+        // 顺序反了会把依赖 RunHook 的负例全部短路（真机当场：两条罐头 svn 负例判假红）。
         if (RunHook is not null)
         {
             return RunHook(file, list, cwd ?? Project, (int)(timeoutSec < 0 ? GateTimeout : timeoutSec));
@@ -148,10 +172,10 @@ public static class CloseoutCli
 
     private static (int Rc, string Out) Cs(params string[] args) => Run("dotnet", [CsDll, .. args]);
 
-    private static List<string> TailLines(string text, int n = 4) =>
+    internal static List<string> TailLines(string text, int n = 4) =>
         [.. text.Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd()).Where(l => l.Trim().Length > 0).TakeLast(n)];
 
-    private static string Sha256File(string path)
+    internal static string Sha256File(string path)
     {
         using var fs = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(fs)).ToLowerInvariant();
@@ -181,264 +205,42 @@ public static class CloseoutCli
         return (ids.Length, ids.Length == 0 ? 0 : ids.Max());
     }
 
-    /// <summary>**只问远端**：该 URL 上的最新提交号；拿不到 ⇒ (null, 起因)。绝不回落本地读数。</summary>
-    private static (int? Rev, string Why) RemoteRev(string path)
-    {
-        var (rc, outText) = Run("svn", ["info", "--show-item", "url", path], timeoutSec: SvnTimeout);
-        var url = outText.Trim();
-        if (rc != 0 || !url.StartsWith("http", StringComparison.Ordinal))
-        {
-            return (null, $"取不到 URL（rc={rc}）：{(url.Length > 120 ? url[..120] : url)}");
-        }
-
-        var (rc2, out2) = Run("svn", ["log", "-l", "1", "-q", "-r", "HEAD:1", url], timeoutSec: SvnTimeout);
-        var m = Regex.Match(out2.Trim(), @"^r(\d+)", RegexOptions.Multiline);
-        if (rc2 != 0 || !m.Success)
-        {
-            var t = TailLines(out2, 1);
-            return (null, t.Count > 0 ? t[0] : "远端查询无输出");
-        }
-
-        return (int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture), "");
-    }
-
-    private static int? TreeRev(string path) => RemoteRev(path).Rev;
-    private static int? ArchiveRev() => TreeRev(Archive);
-
     // ================================================================ checks
-    private sealed record Res(string Name, string Sev, bool Ok, string Summary, List<string> Detail, string Why);
+    internal sealed record Res(string Name, string Sev, bool Ok, string Summary, List<string> Detail, string Why,
+        string Module = "", string Class = "");
 
-    private static Res R(string name, string sev, bool ok, string summary, IEnumerable<string>? detail = null, string why = "") =>
-        new(name, sev, ok, summary, detail?.ToList() ?? [], why);
-
-    private static List<Res> CheckGates()
+    internal static Res R(string name, string sev, bool ok, string summary, IEnumerable<string>? detail = null, string why = "")
     {
-        var res = new List<Res>();
-        foreach (var g in Gates)
-        {
-            var (rc, outText) = Cs(g.Cs);
-            res.Add(R(g.Name, g.Sev, rc == 0, rc == 0 ? "绿" : $"红（rc={rc}）", rc == 0 ? null : TailLines(outText), g.Why));
-        }
-
-        return res;
+        // ⚠️ 这里**没有**「按 check 名把红改成绿」的归一了（2026-10-16 第 2 批删除）—— 那是**用字符串当类型**。
+        // 「没有 VCS」应该表现为**那几项检查根本不存在**（`NoArchive.Checks()` 返空），
+        // 而不是让 CORE 事后把它们判绿。归一是症状，根因是 VCS 检查项被写死在 CORE 清单里（已搬进扩展）。
+        return new(name, sev, ok, summary, detail?.ToList() ?? [], why);
     }
-
-    private static Res CheckSvnDirty(string target, string name, string note, bool exclude = false)
-    {
-        var (rc, outText) = Run("svn", ["status", target]);
-        if (rc != 0)
-        {
-            return R(name, "block", false, $"svn status 失败 rc={rc}", TailLines(outText), note);
-        }
-
-        var skipPrefix = exclude ? Path.Combine(Project, "whitebox") + Path.DirectorySeparatorChar : null;
-        var dirty = new List<string>();
-        var unver = 0;
-        foreach (var ln in outText.Replace("\r\n", "\n").Split('\n'))
-        {
-            if (ln.Trim().Length == 0)
-            {
-                continue;
-            }
-
-            var path = ln.Length > 8 ? ln[8..].Trim() : ln.Trim();
-            if (path.Length == 0)
-            {
-                continue;
-            }
-
-            var absP = Path.IsPathRooted(path) ? path : Path.Combine(target, path);
-            if (skipPrefix != null && absP.StartsWith(skipPrefix, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (ln.StartsWith('?'))
-            {
-                unver++;
-            }
-            else
-            {
-                dirty.Add(Path.GetRelativePath(target, absP));
-            }
-        }
-
-        return R(name, "block", dirty.Count == 0,
-            dirty.Count == 0 ? "0 项" : $"{dirty.Count} 项：{string.Join(", ", dirty.Take(6))}",
-            null, note + $"；未版本化 {unver} 项");
-    }
-
-    private static List<Res> CheckSvnDirtyBoth() =>
-    [
-        CheckSvnDirty(Project, "未提交（代码仓）",
-            "代码仓（tools/ docs/ src/ tests/）不得留未提交项；活版目录走 wb-sync、不计入本项", exclude: true),
-        CheckSvnDirty(Archive, "未提交（存档区）", "存档区是跨机真相，活版改完必须 push 并提交（wb-sync.sh push）"),
-    ];
-
-    private const string DeletionsWhy =
-        "`!` = 本机缺失但没登记删除 ⇒ 一次 `svn update` 就把文件**恢复回来**（坑 #153）⇒ 跨副本删除必须 `svn delete --force` 再提交";
-
-    private static Res CheckRepoDeletions()
-    {
-        var offenders = new List<string>();
-        var unreadable = new List<string>();
-        foreach (var (label, root) in new[] { ("代码仓", Project), ("存档区", Archive) })
-        {
-            var (rc, outText) = Run("svn", ["status", root]);
-            if (rc != 0)
-            {
-                unreadable.Add($"{label} rc={rc}");
-                continue;
-            }
-
-            foreach (var line in outText.Replace("\r\n", "\n").Split('\n'))
-            {
-                if (line.StartsWith('!'))
-                {
-                    offenders.Add($"{label}: {line[8..].Trim()}");
-                }
-            }
-        }
-
-        if (unreadable.Count > 0)
-        {
-            return R("删除登记", "block", false, $"svn status 读不到：{string.Join("，", unreadable)}", null, DeletionsWhy);
-        }
-
-        return R("删除登记", "block", offenders.Count == 0,
-            offenders.Count == 0 ? "0 项" : $"{offenders.Count} 项：{string.Join(", ", offenders.Take(6))}", null, DeletionsWhy);
-    }
-
-    private const string UnverWhy =
-        "构建输入 / 知识件必须是**已纳版**的：整块新目录漏 `svn add`，在只认 M/D/A/`!` 的旧判据下**静默绿**（坑 #317 —— 整个 `tools/wb-cli` 工程漏库，本机全绿、别端 checkout 必挂）";
-
-    /// <summary>允许「未纳版」的子树（相对各自根）：运行产物 / 运行期目录，按设计不入库。</summary>
-    private static readonly string[] UnverAllowProject = ["benchmark/runs", "whitebox"];
-
-    private static readonly string[] UnverAllowArchive = ["worker"];
 
     /// <summary>
-    /// **未纳版件**闸门（坑 #317 的机器判据）：`svn status` 的 `?`（未纳入版本控制）**也要红** ——
-    /// 旧「未提交（代码仓）」只认 M/D/A/`!`，于是「整块新目录没 add」一路静默绿。
-    /// 产物子树（<see cref="UnverAllowProject"/> / <see cref="UnverAllowArchive"/>）按设计豁免。
-    /// 修法 = `svn add --parents` 后**回读提交路径清单**（`wb-cli commit` 内建）。
+    /// **存档声明**（第一项 · 第 3 批）：用哪个版本库扩展由**声明**决定（`tools/closeout/archive.xml`），
+    /// 不再从「有没有 `.svn`」猜；并且**「声明即自证」** ——
+    /// 声明了 `svn` 却证明不了（本仓不是工作副本 / 读不到仓库 URL）⇒ **响亮红**，**绝不静默降级**。
+    /// <para>没声明（老布局）⇒ 按 `.svn` 推断，但**把「这是推断」写在脸上**（不算 ✅）—— 今天那一族假红假绿
+    /// （家目录游离 `.svn` / 空壳存档区 / 只认 http）全是「推断式判据 + 静默降级」长出来的。</para>
     /// </summary>
-    private static Res CheckUnversioned()
+    internal static Res CheckArchiveDeclaration()
     {
-        var offenders = new List<string>();
-        var unreadable = new List<string>();
-        foreach (var (label, root, allow) in new[] { ("代码仓", Project, UnverAllowProject), ("存档区", Archive, UnverAllowArchive) })
-        {
-            var (rc, outText) = Run("svn", ["status", root]);
-            if (rc != 0)
-            {
-                unreadable.Add($"{label} rc={rc}");
-                continue;
-            }
-
-            foreach (var ln in outText.Replace("\r\n", "\n").Split('\n'))
-            {
-                if (!ln.StartsWith('?'))
-                {
-                    continue;
-                }
-
-                var path = ln.Length > 8 ? ln[8..].Trim() : ln.Trim();
-                if (path.Length == 0)
-                {
-                    continue;
-                }
-
-                var absP = Path.IsPathRooted(path) ? path : Path.Combine(root, path);
-                var rel = Path.GetRelativePath(root, absP).Replace('\\', '/');
-                if (allow.Any(al => rel == al || rel.StartsWith(al + "/", StringComparison.Ordinal)))
-                {
-                    continue;
-                }
-
-                offenders.Add($"{label}: {rel}");
-            }
-        }
-
-        if (unreadable.Count > 0)
-        {
-            return R("未纳版件", "block", false, $"svn status 读不到：{string.Join("，", unreadable)}", null, UnverWhy);
-        }
-
-        return R("未纳版件", "block", offenders.Count == 0,
-            offenders.Count == 0 ? "0 项" : $"{offenders.Count} 项未纳版：{string.Join(", ", offenders.Take(6))}",
-            offenders.Count == 0
-                ? null
-                : ["新建目录同样适用 —— `svn add --parents` 后必须**回读提交路径清单**（`wb-cli commit` 内建此步）",
-                   $"产物子树按设计豁免：{string.Join("、", UnverAllowProject)} / {string.Join("、", UnverAllowArchive)}"],
-            UnverWhy);
+        var sel = ArchiveSel;
+        var why = sel.Impl.Prove();
+        var proved = why is null;
+        var ok = proved && sel.Declared;
+        var sev = !proved && sel.Declared ? "block" : "report";
+        var summary = proved
+            ? $"{sel.Kind} · {sel.Note}"
+            : $"声明 {sel.Kind} 但**证明不了**：{why}";
+        return R("存档声明", sev, ok, summary,
+            ok ? null : [$"声明文件：{CloseoutArchiveFactory.DeclarationPath}",
+                         "「声明即自证」：声明的模式必须能当场证明 —— 不猜、不静默降级"],
+            ok ? "收尾用哪个版本库扩展，由**声明**决定（不是从 `.svn` 猜）" : "声明与事实不符 / 还没声明");
     }
 
-    private static HashSet<string> TreeFiles(string root)
-    {
-        var outSet = new HashSet<string>(StringComparer.Ordinal);
-        var stack = new Stack<string>();
-        stack.Push(root);
-        while (stack.Count > 0)
-        {
-            var dir = stack.Pop();
-            foreach (var d in Directory.EnumerateDirectories(dir))
-            {
-                if (!ParitySkipDirs.Contains(Path.GetFileName(d)))
-                {
-                    stack.Push(d);
-                }
-            }
 
-            foreach (var f in Directory.EnumerateFiles(dir))
-            {
-                if (ParitySkipFiles.Contains(Path.GetFileName(f)))
-                {
-                    continue;
-                }
-
-                outSet.Add(Path.GetRelativePath(root, f));
-            }
-        }
-
-        return outSet;
-    }
-
-    private static bool SameBytes(string a, string b)
-    {
-        var fa = new FileInfo(a);
-        var fb = new FileInfo(b);
-        if (fa.Length != fb.Length)
-        {
-            return false;
-        }
-
-        return Sha256File(a) == Sha256File(b);
-    }
-
-    private static Res CheckCopyParity()
-    {
-        var a = TreeFiles(Live);
-        var b = TreeFiles(Archive);
-        var diff = new List<string>();
-        foreach (var rel in a.Intersect(b).OrderBy(x => x, StringComparer.Ordinal))
-        {
-            if (!SameBytes(Path.Combine(Live, rel), Path.Combine(Archive, rel)))
-            {
-                diff.Add(rel + "（字节不同）");
-            }
-        }
-
-        diff.AddRange(a.Except(b).OrderBy(x => x, StringComparer.Ordinal).Select(rel => rel + "（活版有、存档区缺）"));
-        diff.AddRange(b.Except(a).OrderBy(x => x, StringComparer.Ordinal).Select(rel => rel + "（存档区有、活版缺）"));
-        var total = a.Union(b).Count();
-        return R("活版 ↔ 存档区", "block", diff.Count == 0,
-            diff.Count == 0 ? $"全部一致（{total} 个文件）" : $"{diff.Count} 处不一致（共 {total} 件）：{string.Join(", ", diff.Take(5))}",
-            diff.Count == 0 ? null : ["逐件比对（整树，非白名单）；哪一侧独有/更新都算欠账"],
-            "双向补录：活版 ⇄ 存档区只这一对，整树不得有任何一处不同");
-    }
-
-    /// <summary>本机会话是否**已收尾**（`session.xml` 指针的 `Closed`）。读数拿不到 ⇒ null（不猜）。</summary>
     private static bool? SessionClosed()
     {
         try
@@ -451,11 +253,14 @@ public static class CloseoutCli
         }
     }
 
-    private static Res CheckWaterLevel()
+    internal static Res CheckWaterLevel()
     {
+        var sev = SevOf("memory.watermark", "block");
+        var gapTolerance = (int)ParamOf("memory.watermark", "waterGapTolerance", WaterGapTolerance);
+        var tolerance = gapTolerance;
         if (!File.Exists(WaterLevel))
         {
-            return R("水位收敛点", "block", false, "水位文件不存在", [WaterLevel], "收尾的收敛点写在水位里");
+            return R("水位收敛点", sev, false, "水位文件不存在", [WaterLevel], "收尾的收敛点写在水位里");
         }
 
         var txt = File.ReadAllText(WaterLevel, Encoding.UTF8);
@@ -463,21 +268,22 @@ public static class CloseoutCli
         var n = Regex.Matches(txt, Regex.Escape(ConvergeMark)).Count;
         if (n == 0)
         {
-            return R("水位收敛点", "block", false, $"水位无「{ConvergeMark.Trim()}…rNNN」行",
+            return R("水位收敛点", sev, false, $"水位无「{ConvergeMark.Trim()}…rNNN」行",
                 ["--close 会写这一行；现在缺 ⇒ 机器对账无操作数"], "收尾铁则 step 0 的机器对账需要有 r 号可比");
         }
 
         var detail = new List<string>();
-        var revNow = ArchiveRev();
+        // **读数归扩展**：没有版本库读数（标准模式）⇒ **不比 r 号，只判形态**（有行 · 唯一）。
+        var revNow = Vcs.Read().ArchiveRev;
         if (hits.Count > 0 && revNow is int rn && int.Parse(hits[0], CultureInfo.InvariantCulture) < rn)
         {
             var gap = rn - int.Parse(hits[0], CultureInfo.InvariantCulture);
             var closed = SessionClosed();
-            if (closed == true && gap > WaterGapTolerance)
+            if (closed == true && gap > tolerance)
             {
-                return R("水位收敛点", "block", false,
+                return R("水位收敛点", sev, false,
                     $"会话**已收尾**，水位仍落后 {gap} 个提交（r{hits[0]} → r{rn}）⇒ 上一轮收尾**没走完**",
-                    [$"判据：closed=true **且** 落后 > {WaterGapTolerance} 个提交（{WaterGapTolerance} 是收尾自己的两个提交）",
+                    [$"判据：closed=true **且** 落后 > {tolerance} 个提交（声明可改 `memory.watermark.waterGapTolerance`；缺省 {WaterGapTolerance}）",
                      "修：补齐内容层 → --apply → 提交 → --close（绿才写收敛点）",
                      "为什么不能像旧版那样判「正常」：那等于替中断开脱（坑 #156）"],
                     "收尾不能在中途被打断后**静默**留欠账");
@@ -488,11 +294,15 @@ public static class CloseoutCli
 
         if (n > 1)
         {
-            return R("水位收敛点", "block", false, $"收敛点行重复（{n} 行）⇒ 必须唯一", null,
+            return R("水位收敛点", sev, false, $"收敛点行重复（{n} 行）⇒ 必须唯一", null,
                 "收敛点必须唯一，否则对账读哪一个都可能读错");
         }
 
-        return R("水位收敛点", "block", hits.Count > 0, $"存档 r{(hits.Count > 0 ? hits[0] : "?")}", detail,
+        return R("水位收敛点", sev, revNow is null || hits.Count > 0,
+            hits.Count > 0
+                ? $"存档 r{hits[0]}"
+                : revNow is null ? "已写（标准模式：无版本库读数 ⇒ 只判形态）" : "存档 r?（读不到 r 号）",
+            detail,
             "收尾铁则 step 0 的机器对账需要有 r 号可比");
     }
 
@@ -510,7 +320,7 @@ public static class CloseoutCli
         var hits = new List<string>();
         var present = 0;
         var missed = 0;
-        foreach (var root in roots ?? [Project, Archive, Live])
+        foreach (var root in roots ?? [Project, .. Vcs.Roots])
         {
             var cand = Path.Combine(root, path);
             if (!File.Exists(cand))
@@ -567,7 +377,7 @@ public static class CloseoutCli
         return cand;
     }
 
-    private static Res CheckRecurrence()
+    internal static Res CheckRecurrence()
     {
         var why = "记录「已记过却再犯」的错误，供以后查询抽象是否真的降低了复发";
         var tool = Path.Combine(Project, "tools", "experiments", "knowledge-loop", "bin", "Release", "net10.0", "VerifyLoop.dll");
@@ -593,11 +403,12 @@ public static class CloseoutCli
 
     private static readonly string[] PlacementKinds = ["gate", "resident", "human", "todo"];
 
-    private static Res CheckPitfallPlacements()
+    internal static Res CheckPitfallPlacements()
     {
+        var sev = SevOf("pitfalls.placements", "block");
         if (!File.Exists(PlacementFile))
         {
-            return R("坑集落点", "block", false, $"未建立 {Path.GetRelativePath(Project, PlacementFile)}",
+            return R("坑集落点", sev, false, $"未建立 {Path.GetRelativePath(Project, PlacementFile)}",
                 ["新坑必须声明落点类别：gate / resident / human / todo"],
                 "「写错那一刻模型看得见什么」要有机器判据");
         }
@@ -605,13 +416,13 @@ public static class CloseoutCli
         var gl = LoadGateLedger();
         if (gl is null)
         {
-            return R("坑集落点", "block", false, $"账本读不出：{Path.GetRelativePath(Project, PlacementFile)}",
+            return R("坑集落点", sev, false, $"账本读不出：{Path.GetRelativePath(Project, PlacementFile)}",
                 ["`gate-ledger` 应是强类型 XML（A4）；读不出 ⇒ 先修账本"],
                 "「写错那一刻模型看得见什么」要有机器判据");
         }
 
         var baseline = gl.BaselineMaxId;
-        var todosMax = gl.TodosMax;
+        var todosMax = (int)ParamOf("pitfalls.placements", "todoBaseline", gl.TodosMax);
 
         var ids = Regex.Matches(File.ReadAllText(PitfallsSrc, Encoding.UTF8), @"^##\s+(\d+)[a-z]?\.", RegexOptions.Multiline)
             .Select(m => long.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).Distinct().OrderBy(x => x).ToArray();
@@ -677,29 +488,12 @@ public static class CloseoutCli
         }
 
         var ok = problems.Count == 0;
-        return R("坑集落点", "block", ok,
+        return R("坑集落点", sev, ok,
             ok
                 ? $"声明 {decls.Count} 条（gate {gates} / resident {resident} / human {human} / todo {todos}，todo 基线 {todosMax}）· 新坑 0 条未声明"
                 : string.Join("；", problems),
             ok ? null : ["规则：新坑必须声明落点类别；确定性坑应做成闸门（gate）"],
             "「写错那一刻模型看得见什么」要有机器判据（坑 #130 / §十·51）");
-    }
-
-    private static string? LastActivityDate()
-    {
-        var (rc, outText) = Run("svn", ["info", "--show-item", "url", Project]);
-        var url = outText.Trim();
-        if (rc == 0 && url.StartsWith("http", StringComparison.Ordinal))
-        {
-            var (rc2, out2) = Run("svn", ["log", "-l", "1", "-q", "-r", "HEAD:1", url]);
-            var m = Regex.Match(out2, @"(\d{4}-\d{2}-\d{2})");
-            if (rc2 == 0 && m.Success)
-            {
-                return m.Groups[1].Value;
-            }
-        }
-
-        return LoadLedger()?.WaterLevelDate;
     }
 
     private static string MemIndexTimeline(string text)
@@ -714,40 +508,65 @@ public static class CloseoutCli
         return text[i..(j > 0 ? j : text.Length)];
     }
 
-    private static Res CheckSzonePresence()
+    /// <summary>
+    /// **自己的**读数（E 批·兜底层自锁）：最新一篇 <c>memory/YYYY-MM-DD.md</c> 是哪一天（没有 ⇒ null）。
+    /// <para>为什么要有它：`memory` 是**兜底模块** —— 别的收尾模块全坏时它仍要能自检 ⇒
+    /// 它的判据**先问自己的落点**；别人的读数只是补充，拿不到 **不许**变成“记忆坏了”。</para>
+    /// </summary>
+    private static string? LatestMemoryDay()
     {
-        var d = LastActivityDate();
+        var dir = Path.Combine(Live, "memory");
+        if (!Directory.Exists(dir))
+        {
+            return null;
+        }
+
+        return Directory.EnumerateFiles(dir, "*.md")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(n => n is { Length: 10 } && n[4] == '-' && n[7] == '-')
+            .OrderByDescending(n => n, StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
+
+    internal static Res CheckSzonePresence()
+    {
+        var sev = SevOf("memory.szone", "block");
+        var minBytes = (long)ParamOf("memory.szone", "minBytes", 300);
+        // **兜底层自锁**（E 批）：先问**自己**的落点 —— 最新一篇当日记忆是几号；
+        // 记忆系统不许“靠别人才会自检”。再退到扩展读数 / 账本（都拿不到 ⇒ 说清是**读数缺失**，不是“记忆坏了”）。
+        var d = LatestMemoryDay() ?? Vcs.Read().LastCommitDate ?? LoadLedger()?.WaterLevelDate;
         if (string.IsNullOrEmpty(d))
         {
-            return R("素材区存在性", "block", false, "拿不到「最后活动日」（SVN 与账本都读不到）",
-                ["判据需要它来比对应有的素材区三件"], "应有集合判据（METHODOLOGY §十·16）");
+            return R("素材区存在性", sev, false, "读不到「最后活动日」：自己的 memory/ 下没有 YYYY-MM-DD.md，扩展读数与账本也不可用",
+                [$"自己的落点：{Path.Combine(Live, "memory")}"], "应有集合判据（METHODOLOGY §十·16）");
         }
 
         var problems = new List<string>();
-        foreach (var (label, root) in new[] { ("存档区", Archive), ("活版", Live) })
+        (string Label, string Root)[] szoneRoots = Vcs.ArchiveRoot is { } ar ? [("存档区", ar), ("活版", Live)] : [("活版", Live)];
+        foreach (var (label, root) in szoneRoots)
         {
             var p = Path.Combine(root, "memory", d + ".md");
             if (!File.Exists(p))
             {
                 problems.Add($"{label}缺 memory/{d}.md");
             }
-            else if (new FileInfo(p).Length < 300)
+            else if (new FileInfo(p).Length < minBytes)
             {
                 problems.Add($"{label}的 memory/{d}.md 只有 {new FileInfo(p).Length} B（像占位）");
             }
         }
 
         var md = d[5..];
-        if (!File.Exists(WaterArchive))
+        if (!File.Exists(WaterLevel))
         {
             problems.Add("水位正文 不存在");
         }
-        else if (!Regex.IsMatch(File.ReadAllText(WaterArchive, Encoding.UTF8), $"^- \\*\\*{Regex.Escape(d)}", RegexOptions.Multiline))
+        else if (!Regex.IsMatch(File.ReadAllText(WaterLevel, Encoding.UTF8), $"^- \\*\\*{Regex.Escape(d)}", RegexOptions.Multiline))
         {
             problems.Add($"水位无 {d} 的当日段（`- **{d}…` 行）");
         }
 
-        var idx = Path.Combine(Archive, "MEMORYINDEX.md");
+        var idx = Path.Combine(Vcs.ArchiveRoot ?? Live, "MEMORYINDEX.md");
         if (!File.Exists(idx))
         {
             problems.Add("MEMORYINDEX 不存在");
@@ -758,13 +577,13 @@ public static class CloseoutCli
         }
 
         var ok = problems.Count == 0;
-        return R("素材区存在性", "block", ok,
+        return R("素材区存在性", sev, ok,
             ok ? $"{d} 的素材区三件齐全（日记 ×2 · 水位当日段 · 索引当日行）" : string.Join("；", problems),
             ok ? null : ["应有集合判据：闸门管「做了的对不对」，这一项管「该做的有没有做」"],
             "判据按**应有集合**算，不按已有集合算（METHODOLOGY §十·16 / 坑 #137）");
     }
 
-    private static Res CheckLedger()
+    internal static Res CheckLedger()
     {
         var led = LoadLedger();
         if (led is null)
@@ -810,100 +629,6 @@ public static class CloseoutCli
             .OrderBy(d => d, StringComparer.Ordinal)];
     }
 
-    private static Res CheckWorkerMemory()
-    {
-        var why = "读得出来才抽象得进去：worker 不自收尾，这一步是它那些坑/候选**唯一的收敛入口**";
-        var home = Path.Combine(Project, "whitebox", "workspace", "worker");
-        if (!Directory.Exists(home))
-        {
-            return R("worker 记忆", "report", true, "worker 还没跑过（无落点）", null,
-                "worker 不自收尾 ⇒ 它的白板/草稿/踩坑由 master 收尾时读；没跑过就没有可收敛的");
-        }
-
-        static int CountXml(string subdir)
-        {
-            try
-            {
-                return Directory.EnumerateFiles(subdir).Count(n => n.EndsWith(".xml", StringComparison.Ordinal));
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-
-        var runs = 0;
-        var boards = 0;
-        var drafts = 0;
-        string? latest = null;
-        var stack = new Stack<string>();
-        stack.Push(home);
-        while (stack.Count > 0)
-        {
-            var dir = stack.Pop();
-            foreach (var d in Directory.EnumerateDirectories(dir))
-            {
-                stack.Push(d);
-            }
-
-            if (File.Exists(Path.Combine(dir, "state.json")))
-            {
-                runs++;
-                latest = latest is null || string.CompareOrdinal(latest, dir) < 0 ? dir : latest;
-            }
-
-            if (Path.GetFileName(dir) == "memory")
-            {
-                boards += CountXml(Path.Combine(dir, "current-tail.xml"));
-                drafts += CountXml(Path.Combine(dir, "draft.xml"));
-            }
-        }
-
-        var inboxLines = 0;
-        foreach (var cand in new[] { Path.Combine(Project, "docs", "WORKER-PITFALLS.md"), Path.Combine(home, "pitfalls-inbox.md") })
-        {
-            if (File.Exists(cand))
-            {
-                inboxLines += File.ReadAllLines(cand, Encoding.UTF8).Count(ln => ln.Trim().Length > 0);
-            }
-        }
-
-        var detail = new List<string>();
-        if (latest is not null)
-        {
-            detail.Add($"最近一次派发：{Path.GetRelativePath(Project, latest)}");
-        }
-
-        if (inboxLines > 0)
-        {
-            detail.Add($"待收敛的 worker 踩坑/交接：{inboxLines} 条（docs/WORKER-PITFALLS.md 或 worker/pitfalls-inbox.md）");
-        }
-
-        if (boards > 0 || drafts > 0)
-        {
-            detail.Add($"白板 {boards} 项 / 草稿 {drafts} 项（<派发>/memory/）");
-        }
-
-        return R("worker 记忆", "report", true,
-            $"派发 {runs} 次 · 白板 {boards} 项 · 草稿 {drafts} 项 · 待收敛踩坑 {inboxLines} 条", detail, why);
-    }
-
-    private static Res CheckRepoReachable()
-    {
-        var (pr, e1) = RemoteRev(Project);
-        var (ar, e2) = RemoteRev(Archive);
-        var ok = pr is not null && ar is not null;
-        if (ok)
-        {
-            return R("可达性前置", "block", true, $"远端读数可用（代码仓 r{pr} · 存档区 r{ar}）", null,
-                "判据先要能拿到读数：远端查询拿不到数就不能声称收敛");
-        }
-
-        return R("可达性前置", "block", false, "拿不到远端读数（超时 / 不可达）⇒ 收尾不可收敛",
-            [$"代码仓：{(e1.Length > 0 ? e1 : "ok")}", $"存档区：{(e2.Length > 0 ? e2 : "ok")}",
-             "先修可达性（路由 / TUN / 仓库），再收尾；不要跳过本项、更不要改闸门让它跑起来"],
-            $"判据先要能拿到读数（超时上限 {SvnTimeout:0}s，`CLOSEOUT_SVN_TIMEOUT` 可调）");
-    }
 
     // ================================================================ ledger I/O
     private static CloseoutLedger? LoadLedger()
@@ -925,6 +650,7 @@ public static class CloseoutCli
 
     private static void SaveLedger(CloseoutLedger data)
     {
+        RequireWritable(LedgerPath, When.During);   // D 批：账本也过闸
         Directory.CreateDirectory(LedgerDir);
         DataContractXml.WriteFileAtomic(LedgerPath, data);
     }
@@ -946,32 +672,88 @@ public static class CloseoutCli
         }
     }
 
-    private static List<Res> AllChecks(bool includeLedger)
+    /// <summary>
+    /// **模块声明自证**（模块 `closeout`，**锁定件**）：生效模块集、指纹、以及声明里的问题。
+    /// <para>「声明即自证」：不认识的 id / 越界落点 / 必达落点缺失 / 锁定件被删或被降级 ⇒ **响亮红**，
+    /// 绝不静默降级。锁定件（`memory` 兜底 · `closeout` 自证）**删了声明也不消失**。</para>
+    /// </summary>
+    /// <summary>用户决策取向：三本齐 + 决策库四层齐 + 条目都有状态（**只上账 · report**，不阻断 —— 用户 2026-10-17 令）。</summary>
+    internal static Res CheckDecisionBooks()
     {
-        var res = new List<Res>();
-        res.AddRange(CheckGates());
-        res.AddRange(CheckSvnDirtyBoth());
-        res.Add(CheckRepoReachable());
-        res.Add(CheckRepoDeletions());
-        res.Add(CheckUnversioned());
-        res.Add(CheckCopyParity());
-        res.Add(CheckWaterLevel());
-        res.Add(CheckPitfallPlacements());
-        res.Add(CheckSzonePresence());
-        if (includeLedger)
+        var entries = Path.Combine(Live, "USER-DECISION-ENTRIES.md");
+        var library = Path.Combine(Live, "DECISION-LIBRARY.md");
+        var principles = Path.Combine(Live, "PROJECT-DESIGN-PRINCIPLES.md");
+
+        var missing = new[] { entries, library, principles }.Where(x => !File.Exists(x)).ToList();
+        if (missing.Count > 0)
         {
-            res.Add(CheckLedger());
+            return R("用户决策取向", "report", false, $"{missing.Count} 本缺文件", missing.Select(x => $"缺：{x}"));
         }
 
-        res.Add(CheckWorkerMemory());
-        res.Add(CheckRecurrence());
+        var lib = File.ReadAllText(library, Encoding.UTF8);
+        var layers = new[] { "## L1", "## L2", "## L3", "## L4" }
+            .Where(h => !lib.Contains(h, StringComparison.Ordinal)).ToList();
+
+        var ent = File.ReadAllText(entries, Encoding.UTF8);
+        var blocks = Regex.Split(ent, @"^- \*\*\[D-", RegexOptions.Multiline).Skip(1).ToList();
+        var noState = blocks.Count(b => !b.Contains("状态", StringComparison.Ordinal));
+
+        var ok = layers.Count == 0 && noState == 0 && blocks.Count > 0;
+        return R("用户决策取向", "report", ok,
+            ok ? $"三本齐 · 决策库四层齐 · 条目 {blocks.Count} 条全部有状态"
+               : $"决策库缺层 {layers.Count} · 条目缺状态 {noState} · 条目数 {blocks.Count}",
+            layers.Select(h => $"缺层：{h}").Concat(noState > 0 ? [$"缺状态条目：{noState} 条"] : []));
+    }
+
+    internal static Res CheckModuleDeclarations()
+    {
+        var m = Modules;
+        var head = m.Declared
+            ? $"声明 {m.Modules.Count} 个模块 · 指纹 {m.Fingerprint}"
+            : $"内置默认 {m.Modules.Count} 个模块（未声明）· 指纹 {m.Fingerprint}";
+        return R("模块声明", "block", m.Problems.Count == 0,
+            m.Problems.Count == 0 ? head : $"{m.Problems.Count} 处：{string.Join("；", m.Problems.Take(4))}",
+            m.Problems.Count == 0
+                ? [$"目录：{RequirementSet.Dir}"]
+                : [.. m.Problems, $"目录：{RequirementSet.Dir}"],
+            "声明即自证：模块集与落点要对得上；memory / closeout 是锁定件（删声明也不许消失、不许降级）");
+    }
+
+    /// <summary>跑一条**具名闸门**（模块自己声明它要哪几条 —— 闸门表仍只一处）。</summary>
+    internal static Res RunGate(string name)
+    {
+        var g = Gates.FirstOrDefault(x => x.Name == name)
+                ?? throw new InvalidDataException($"没有名为「{name}」的闸门（模块声明错 ⇒ 响亮报错，不静默跳过）");
+        var (rc, outText) = Cs(g.Cs);
+        return R(g.Name, g.Sev, rc == 0, rc == 0 ? "绿" : $"红（rc={rc}）", rc == 0 ? null : TailLines(outText), g.Why);
+    }
+
+    private static List<Res> AllChecks()
+    {
+        // **收尾流程 = 按模块跑它自己的判据**（模块清单 = `BuiltinRequirements`）。
+        // A 批只做分组：判据本体一个字节没改 ⇒ 「条目集合 + 逐项红绿 + 摘要」与改前一致；
+        // 变的只是**顺序**（按模块 Order 重排，属有意变更 —— 旧顺序里「坑集」的判据本就分居两头）。
+        var res = new List<Res>();
+        foreach (var req in Modules.Modules)
+        {
+            var cls = req.Class == ModuleClass.Core ? "core" : "extension";
+            foreach (var r in req.Checks())
+            {
+                res.Add(r with { Module = req.Id, Class = cls });
+            }
+        }
+
         return res;
     }
 
     // ================================================================ entry
     public static int Check(bool xml)
     {
-        var results = AllChecks(includeLedger: true);
+        // 「不适用」归一只有一处声明：**`R(...)`**（按 check 名判）。
+        // ⚠️ 这里**不许再抄一份**：2026-10-15 真机 —— `Check()` 抄了一份、`--close` 那条路没抄，
+        //     两条入口口径分叉（且抄的那份晚于枚举 ⇒ 根本拦不住 `CheckCopyParity` 的崩溃）。
+        var results = AllChecks();
+
         var blockRed = results.Count(r => r.Sev == "block" && !r.Ok);
         var reportRed = results.Count(r => r.Sev == "report" && !r.Ok);
 
@@ -979,7 +761,7 @@ public static class CloseoutCli
         {
             var report = new CheckReport
             {
-                Roots = new Roots { Project = Project, Live = Live, Archive = Archive },
+                Roots = new Roots { Project = Project, Live = Live, Archive = Vcs.ArchiveRoot ?? string.Empty },
                 Results =
                 [
                     .. results.Select(r => new CheckItem
@@ -990,6 +772,8 @@ public static class CloseoutCli
                         Summary = r.Summary,
                         Detail = [.. r.Detail],
                         Why = r.Why,
+                        Module = r.Module,
+                        Class = r.Class,
                     }),
                 ],
                 BlockRed = blockRed,
@@ -1000,7 +784,10 @@ public static class CloseoutCli
         }
 
         Console.WriteLine("[WB] 收尾流水线 --check（只读）");
-        Console.WriteLine($"  PROJECT={Project}\n  LIVE={Live}\n  ARCHIVE={Archive}\n");
+        Console.WriteLine($"  PROJECT={Project}\n  LIVE={Live}\n  ARCHIVE={Vcs.ArchiveRoot ?? "（无：标准模式）"}\n");
+        Console.WriteLine($"  模块 {Modules.Modules.Count} 个 · 指纹 {Modules.Fingerprint}（{(Modules.Declared ? "声明" : "内置默认")}）：" + string.Join(" · ", Modules.Modules
+            .Select(r => $"{r.Id}[{(r.Class == ModuleClass.Core ? "core" : "ext")}/{r.Access}]")));
+        Console.WriteLine();
         foreach (var r in results)
         {
             var mark = r.Ok ? "✅" : r.Sev == "block" ? "❌" : "⚠️ ";
@@ -1012,7 +799,10 @@ public static class CloseoutCli
         }
 
         Console.WriteLine();
-        Console.WriteLine($"汇总：block 红 {blockRed} 项 · report 红 {reportRed} 项 ⇒ {(blockRed > 0 ? "收尾未收敛（--close 会拒绝写水位）" : "阻塞项全绿（可 --close）")}");
+        // 拒绝判据**只看 Core（必达）**：扩展（如 archive：SVN/VCS）红了、甚至不可达，都只上账、**不阻断**。
+        var coreRed = results.Count(r => r.Sev == "block" && !r.Ok && r.Class == "core");
+        var extRed = results.Count(r => !r.Ok && r.Class == "extension");
+        Console.WriteLine($"汇总：block 红 {blockRed} 项（**Core {coreRed}** 项阻断 · 扩展 {extRed} 项仅上账）· report 红 {reportRed} 项 ⇒ {(coreRed > 0 ? $"未全绿（带 {coreRed} 条 Core block 红；--close **仍会写**，但会在水位行 + 账本记账）" : "阻塞项全绿（可 --close）")}");
         if (reportRed > 0)
         {
             Console.WriteLine("（report 项红色属**已知欠账/变化**，已上账；本轮不阻断，但不得悄悄变多）");
@@ -1024,7 +814,7 @@ public static class CloseoutCli
     public static int Where()
     {
         Console.WriteLine("[WB] 收尾流水线 · 根目录（**所有路径基准看这里**）");
-        foreach (var (k, v) in new[] { ("PROJECT  代码仓", Project), ("LIVE     本机活版", Live), ("ARCHIVE  WB 存档区", Archive) })
+        foreach (var (k, v) in new[] { ("PROJECT  代码仓", Project), ("LIVE     本机活版", Live), ("ARCHIVE  存档区（扩展）", Vcs.ArchiveRoot ?? "（无：标准模式）") })
         {
             Console.WriteLine($"  {k,-16} {v}");
         }
@@ -1054,7 +844,7 @@ public static class CloseoutCli
             ("坑集索引", ["--pitfalls-index", PitfallsSrc]),
             ("公开坑集变体", ["--pitfalls-public", PitfallsSrc]),
             ("水位/知识索引区", ["--doc-index", Live]),
-            // 主人 2026-10-14 令：改源码语料（USER.md 等）⇒ 收尾时**自动重生 + 漏账 auto-bump**，
+            // 用户 2026-10-14 令：改源码语料（USER.md 等）⇒ 收尾时**自动重生 + 漏账 auto-bump**，
             // 免得「改了源忘了重生」让 R1 停在旧副本（`--bump all` 只 bump 真变了的 key，无变化 = 幂等）。
             ("冻结语料重生", ["--frozen-corpus", Live, "--bump", "all"]),
         };
@@ -1118,65 +908,106 @@ public static class CloseoutCli
     }
 
     /// <summary>把「收敛点」行写进水位（**两份副本都写**），并保证恰好一行。</summary>
-    private static string WriteConvergeLine(string archiveRev, string projectRev, int src, int idx, int parityOk, int parityTotal, string fingerprint)
+    /// <summary>
+    /// **写守卫**（D 批）：写之前过闸 —— 不通过就**抛**（fail-closed、响亮）。
+    /// <para>口径：「只读」是**真的写不了**，不是靠纪律；没人声明的角落也不许写。</para>
+    /// </summary>
+    internal static void RequireWritable(string path, When when)
     {
-        var line = $"{ConvergeMark}存档 r{archiveRev} · 代码仓 r{projectRev} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}";
-        foreach (var path in new[] { WaterArchive, WaterLive })
+        if (Modules.GuardWritable(path, when) is { } why)
         {
-            var lines = File.ReadAllText(path, Encoding.UTF8).Replace("\r\n", "\n").Split('\n')
-                .Where(l => !l.StartsWith(ConvergeMark, StringComparison.Ordinal)).ToList();
-            var outp = new List<string>();
-            var done = false;
-            foreach (var ln in lines)
+            throw new InvalidDataException($"[写守卫] {why}");
+        }
+    }
+
+    /// <summary>把收敛点插进**指定那一份**水位（幂等：先删旧行）。—— **规矩只此一处**；
+    /// CORE 调它写自己那份（活版），扩展调它写自己的副本（存档区）。</summary>
+    internal static void InsertConvergeLine(string path, string line)
+    {
+        RequireWritable(path, When.During);   // D 批：写之前过闸（只读模块 ⇒ 抛）
+        // 旧红注**不再跨收尾存活**（2026-10-17 测试发现）：绿收尾后，上一条模型写的
+        // 「- **⚠️ 本收敛点带红**：…」必须清掉；带红收尾由新收敛点行自己的 `⚠️ block 红 N` 表达。
+        var raw = File.ReadAllText(path, Encoding.UTF8).Replace("\r\n", "\n").Split('\n');
+        var lines = new List<string>();
+        var skippingRedNote = false;
+        foreach (var ln in raw)
+        {
+            if (ln.StartsWith("- **⚠️ 本收敛点带红**", StringComparison.Ordinal))
             {
-                outp.Add(ln);
-                if (!done && ln.StartsWith("## 水位", StringComparison.Ordinal))
+                skippingRedNote = true;
+                continue;
+            }
+
+            if (skippingRedNote)
+            {
+                if (ln.Length == 0)
                 {
-                    outp.Add("");
-                    outp.Add(line);
-                    done = true;
+                    skippingRedNote = false;
                 }
+
+                continue;
             }
 
-            if (!done)
+            if (!ln.StartsWith(ConvergeMark, StringComparison.Ordinal))
             {
-                outp.Add("");
-                outp.Add(line);
+                lines.Add(ln);
             }
-
-            File.WriteAllText(path, string.Join('\n', outp).TrimEnd('\n') + "\n", new UTF8Encoding(false));
+        }
+        var outp = new List<string>();
+        var done = false;
+        foreach (var ln in lines)
+        {
+            outp.Add(ln);
+            if (!done && ln.StartsWith("## 水位", StringComparison.Ordinal))
+            {
+                outp.Add(string.Empty);
+                outp.Add(line);
+                done = true;
+            }
         }
 
+        if (!done)
+        {
+            outp.Add(string.Empty);
+            outp.Add(line);
+        }
+
+        File.WriteAllText(path, string.Join('\n', outp).TrimEnd('\n') + "\n", new UTF8Encoding(false));
+    }
+
+    private static string WriteConvergeLine(string archiveRev, string projectRev, int src, int idx, int parityOk, int parityTotal, string fingerprint, int blockRed = 0)
+    {
+        // block 红**不再拒写**，但必须留在收敛点行里（用户 2026-10-17 令「留一点牙」：真问题不许被淹没）。
+        var redMark = blockRed > 0 ? $" · ⚠️ block 红 {blockRed}（未收敛就收的尾）" : string.Empty;
+        var line = $"{ConvergeMark}存档 r{archiveRev} · 代码仓 r{projectRev} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}{redMark}";
+        InsertConvergeLine(WaterLive, line);   // CORE 只写**自己那份**；第二副本交给 `Vcs.Sync`。
         return line;
     }
 
-    /// <summary>顺序闸门：block 全绿 → 才写收敛点（水位 + 账本）。红 ⇒ 拒绝，不写任何东西。</summary>
+    /// <summary>顺序闸门（**留牙版** · 用户 2026-10-17 令）：block 全绿 ⇒ 照旧写收敛点；
+    /// 红 ⇒ **不再拒写**（只警告），但把欠账写进水位行 + 账本 —— 「只警告不阻断」与「真问题不许被淹没」两件同时成立。</summary>
     public static int Close(bool dry)
     {
         Console.WriteLine("[WB] 收尾流水线 --close（顺序闸门：先绿，再写收敛点）");
-        var results = new List<Res>();
-        results.AddRange(CheckGates());
-        results.AddRange(CheckSvnDirtyBoth());
-        results.Add(CheckRepoReachable());
-        results.Add(CheckUnversioned());
-        results.Add(CheckCopyParity());
-        results.Add(CheckWaterLevel());
-        results.Add(CheckPitfallPlacements());
-        results.Add(CheckSzonePresence());
-        results.Add(CheckWorkerMemory());
-        results.Add(CheckRecurrence());
+        // 清单与 `--check` **同一份**（`AllChecks`）：“一条口径只许一处声明” ——
+        // 两处各写一份必然分叉（2026-10-15 真机：`--close` 少抄清单 ⇒ 两入口判据不一致）。
+        var results = AllChecks();
 
-        var blockRed = results.Where(r => r.Sev == "block" && !r.Ok && r.Name != Owns[0]).ToList();
+        // 拒绝判据**只看 Core（必达）模块**的 block 红 —— 扩展模块（如 archive：SVN/VCS）红了、甚至不可达，
+        // 都只上账、**不阻断**（用户 2026-10-16 13:32：「允许扩展模块不正常的情况下也可以直接收尾」）。
+        var blockRed = results.Where(r => r.Sev == "block" && !r.Ok && r.Name != Owns[0] && r.Class == "core").ToList();
         if (blockRed.Count > 0)
         {
-            Console.WriteLine("❌ --close 拒绝：block 项还红，收尾未收敛。欠账：");
+            // 用户 2026-10-17 令（**留牙版**）：「运行时与闸门不许强制阻断，而是留下警告 —— 阻断之后很难推测根本原因」；
+            // 但同一句话的下半段是「**真问题不能被淹没**」⇒ 于是：**照样写收敛点**，同时把欠账**写进水位行 + 账本**。
+            // ⇒ 牙留在「记账」上：带着几条 block 红收的尾，水位那一行看得见。
+            Console.WriteLine($"⚠️  带着 {blockRed.Count} 条 block 红收尾（**不再拒写** —— 用户 2026-10-17 令：只警告不阻断）。欠账：");
             foreach (var r in blockRed)
             {
                 Console.WriteLine($"   · {r.Name} — {r.Summary}");
             }
 
-            Console.WriteLine("（先 --apply / 提交 / 双向补录，再 --close）");
-            return 1;
+            Console.WriteLine("（照旧写收敛点；上面的欠账同时记进水位行与账本，不许静默）");
         }
 
         var (src, maxid) = CountPitfalls();
@@ -1187,14 +1018,12 @@ public static class CloseoutCli
             idxLines = m.Success ? int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
         }
 
-        var parity = CheckCopyParity();
-        var pm = Regex.Match(parity.Summary, @"（(\d+) 个文件）");
-        var total = pm.Success ? int.Parse(pm.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
         var fp = FingerprintParts();
-        var archiveRev = TreeRev(Archive);
-        var projectRev = TreeRev(Project);
-        var aRev = archiveRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
-        var pRev = projectRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
+        // 版本库那几件事实整个来自**扩展读数**（CORE 不再自己问 svn）。
+        var readings = Vcs.Read();
+        var total = readings.ParityTotal ?? 0;
+        var aRev = readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
+        var pRev = readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
 
         if (dry)
         {
@@ -1202,23 +1031,32 @@ public static class CloseoutCli
             return 0;
         }
 
-        var line = WriteConvergeLine(aRev, pRev, src, idxLines, total, total, fp);
+        var line = WriteConvergeLine(aRev, pRev, src, idxLines, total, total, fp, blockRed.Count);
 
         var existing = LoadLedger();
         var debt = existing?.ReportDebt is { Count: > 0 } ex
             ? ex
             : new List<DebtItem>
             {
-                new() { Name = "L3 往返", Why = "派生落后于 md ⇒ 跑 `AgentRuntime.Cli --knowledge-repo <out> --derive-only`（C# 实现；python 原件已退役）一条命令即可修" },
-                new() { Name = "冻结语料", Why = "主人 2026-09-23 令：语料 bump 属记账项、不阻断收尾" },
+                new() { Name = "知识树", Why = "派生落后于活版 ⇒ 跑 `AgentRuntime.Cli --kn-build <workspace>` 一条命令即可修" },
+                new() { Name = "冻结语料", Why = "用户 2026-09-23 令：语料 bump 属记账项、不阻断收尾" },
             };
+
+        // 带着红的 block 项也记进账本（与水位行同一份事实的第二个落点 —— 不许只写一处）。
+        foreach (var r in blockRed)
+        {
+            if (debt.All(d => d.Name != r.Name))
+            {
+                debt.Add(new DebtItem { Name = r.Name, Why = $"block 红未清就收尾（用户 2026-10-17 令：只警告不阻断）：{r.Summary}" });
+            }
+        }
 
         SaveLedger(new CloseoutLedger
         {
             Schema = 1,
             Fingerprint = fp,
-            LastCloseoutRev = archiveRev,
-            LastCloseoutRevProject = projectRev,
+            LastCloseoutRev = readings.ArchiveRev,
+            LastCloseoutRevProject = readings.ProjectRev,
             MaxPitfallId = (int)maxid,
             PitfallsSrc = src,
             PitfallsIndex = idxLines,
@@ -1228,7 +1066,11 @@ public static class CloseoutCli
         });
 
         Console.WriteLine($"✅ 收敛点已写：{line}");
-        Console.WriteLine($"   水位（两份）：{WaterArchive} / {WaterLive}");
+        foreach (var m in Vcs.Sync(line))   // 扩展自己的地盘（第二副本 / 提交…）—— CORE 不知道它干了什么
+        {
+            Console.WriteLine($"   {m}");
+        }
+
         Console.WriteLine($"   账本：{LedgerPath}");
         Console.WriteLine(CloseOrder);
         return 0;
@@ -1295,7 +1137,10 @@ public static class CloseoutCli
         }
 
         CopyTree(Live, Path.Combine(pr, "whitebox", "workspace"));
-        CopyTree(Archive, ar);
+        // 判据按**应有形状**写（§十·57）：存档区只「存在」不算数 —— 空壳目录（只剩 knowledge/）
+        // 会把镜像拷成缺 memory/ 的半成品 ⇒ 夹具崩。认「有水位正文」才算真存档区。
+        if (File.Exists(Path.Combine(SvnArchive.ArchiveRootPath, "memory", "收尾水位.md"))) { CopyTree(SvnArchive.ArchiveRootPath, ar); } else { CopyTree(Live, ar); }
+        Directory.CreateDirectory(Path.Combine(pr, ".svn"));
 
         // 把 CLI 构建产物**按相对位置**复制过去 ⇒ 复制出来的 dll 自定位到镜像（与 py「把脚本拷进镜像」同义）。
         var dllDir = Path.GetDirectoryName(SelfDll)!;
@@ -1362,6 +1207,9 @@ public static class CloseoutCli
                 [(Path.Combine(pr, "whitebox", "workspace", "knowledge", ".ledger.xml"), t => t + "\n")]),
         };
 
+        // 自证：进程内罐头负例必须在「连 SVN」语义下跑 —— 否则 R() 的「不适用」过滤器
+        // 会按名字把它们强制成绿（本地模式下 SvnLinked=false），负例就成了空转（§十·57）。
+        CloseoutArchiveFactory.SvnLinkedOverride = true;
         var baseRes = RunCheck();
         Console.WriteLine($"[WB] closeout --selftest（负例自证，全部在副本上：{tmp}）");
         Console.WriteLine("   基线：" + string.Join("，", baseRes.Select(kv => $"{kv.Key}={(kv.Value ? "绿" : "红")}")));
@@ -1402,6 +1250,7 @@ public static class CloseoutCli
             env: new Dictionary<string, string>
             {
                 ["CLOSEOUT_SVN_TIMEOUT"] = "3",
+                ["CLOSEOUT_FORCE_SVN"] = "1",
                 ["PATH"] = shimDir + ":" + (Environment.GetEnvironmentVariable("PATH") ?? ""),
             });
         var elapsed = (Environment.TickCount64 - t0) / 1000.0;
@@ -1444,9 +1293,9 @@ public static class CloseoutCli
 
         // --- 单项：**删除登记**闸门有牙（罐头 svn 输出：有 `!` ⇒ 必须红；没有 ⇒ 必须绿）---
         RunHook = (_, _, _, _) => (0, "!       memory/test.md\nM       docs/PITFALLS.md\n");
-        var withBang = CheckRepoDeletions().Ok;
+        var withBang = SvnArchive.CheckRepoDeletions().Ok;
         RunHook = (_, _, _, _) => (0, "M       docs/PITFALLS.md\n");
-        var withoutBang = CheckRepoDeletions().Ok;
+        var withoutBang = SvnArchive.CheckRepoDeletions().Ok;
         RunHook = null;
         var delOk = withBang == false && withoutBang;
         Console.WriteLine($"  {(delOk ? "✅" : "❌")} {"删除登记（罐头 svn）",-24} 期望「有 `!` ⇒ 红 / 没有 ⇒ 绿」 → {(delOk ? "两个都对" : "负例没拦住 / 正例被误伤")}");
@@ -1460,11 +1309,11 @@ public static class CloseoutCli
         RunHook = (file, list, _, _) => file == "svn" && list.Length == 2
             ? (0, IsArchive(list[1]) ? "" : "?       tools/newdir/Program.cs\n?       benchmark/runs/20260101-x/meta.xml\n")
             : (0, "");
-        var unverRed = CheckUnversioned().Ok == false;
+        var unverRed = SvnArchive.CheckUnversioned().Ok == false;
         RunHook = (file, list, _, _) => file == "svn" && list.Length == 2
             ? (0, IsArchive(list[1]) ? "" : "?       benchmark/runs/20260101-x/meta.xml\n")
             : (0, "");
-        var unverGreen = CheckUnversioned().Ok;
+        var unverGreen = SvnArchive.CheckUnversioned().Ok;
         RunHook = null;
         var unverOk = unverRed && unverGreen;
         Console.WriteLine($"  {(unverOk ? "✅" : "❌")} {"未纳版件（罐头 svn）",-24} 期望「未纳版源码 ⇒ 红 / 只剩产物 ⇒ 绿」 → {(unverOk ? "两个都对" : "负例没拦住 / 正例被误伤")}");

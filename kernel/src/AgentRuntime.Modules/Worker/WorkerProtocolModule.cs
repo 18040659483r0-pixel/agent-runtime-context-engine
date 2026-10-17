@@ -8,7 +8,7 @@ namespace AgentRuntime.Modules.Worker;
 /// <summary>
 /// **Worker 的契约模块** —— 把 <see cref="WorkerProtocolText"/> 注入为 Worker 引擎稳定前缀的第一段。
 /// <para>
-/// 与 <c>ProtocolModule</c> <b>同结构、不同内容</b>（这就是主人说的「本质一样、内容不同」）：
+/// 与 <c>ProtocolModule</c> <b>同结构、不同内容</b>（这就是用户说的「本质一样、内容不同」）：
 /// 两者都实现 <see cref="IFrozenZoneModule"/>、都占 <see cref="FrozenZone.Protocol"/>、都**零参数构造**
 /// （内容只来自代码常量 ⇒ 类型上就没有别的入口）；差别只在那份常量是**主协议**还是**Worker worker 协议区**。
 /// </para>

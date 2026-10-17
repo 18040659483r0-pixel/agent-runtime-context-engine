@@ -35,7 +35,7 @@ public static class FrozenZoneTopology
     /// 规范序列化次序（唯一排序依据）：**协议最先**（R1-P），其后是铁则，再后是并列内容层内部固定次序。
     /// </summary>
     public static readonly IReadOnlyList<FrozenZone> Ordered =
-        [FrozenZone.Protocol, FrozenZone.Rules, FrozenZone.Knowledge, FrozenZone.MemoryIndex];
+        [FrozenZone.Protocol, FrozenZone.Rules, FrozenZone.Knowledge, FrozenZone.Decision, FrozenZone.MemoryIndex];
 
     /// <summary>该区属于哪一层。</summary>
     public static FrozenZoneTier TierOf(FrozenZone zone) => zone switch

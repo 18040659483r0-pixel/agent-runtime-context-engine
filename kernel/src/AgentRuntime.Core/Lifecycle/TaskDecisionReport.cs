@@ -4,7 +4,7 @@ using System.Text;
 namespace AgentRuntime.Core.Lifecycle;
 
 /// <summary>
-/// **报告的形态**（主人 2026-10-07 令）：<b>人读</b>（master 那篇散文）与 <b>机器读</b>（worker 的收窄形式）——
+/// **报告的形态**（用户 2026-10-07 令）：<b>人读</b>（master 那篇散文）与 <b>机器读</b>（worker 的收窄形式）——
 /// 两者**同一条流程**（终局三态任一 ⇒ 出一份决策报告），只是形状不同。
 /// </summary>
 public enum ReportForm
@@ -17,7 +17,7 @@ public enum ReportForm
 }
 
 /// <summary>
-/// **决策报告的公共虚拟类型**（主人 2026-10-07 令：「这个也是一样派生自 master 和 worker 的公共虚拟类型，
+/// **决策报告的公共虚拟类型**（用户 2026-10-07 令：「这个也是一样派生自 master 和 worker 的公共虚拟类型，
 /// 这样确保都是走的一样的流程」）。
 ///
 /// <para><b>流程（两侧同一份）</b>：终局三态（<b>得解</b> / <b>无解</b> / <b>需要人类裁决</b>）**任一种**都要出一份决策报告 ——

@@ -4,7 +4,7 @@ using AgentRuntime.Core.Protocol;
 namespace AgentRuntime.Hosting.Lifecycle;
 
 /// <summary>
-/// **任务生命周期的抽象基类**（主人 2026-10-07 令 · 铁则 8「全面面向对象」）。
+/// **任务生命周期的抽象基类**（用户 2026-10-07 令 · 铁则 8「全面面向对象」）。
 ///
 /// <para><b>一句话</b>：master 与 worker 是**同一基类的两台发动机** ——
 /// 「一次任务从开工 → 每轮推进 → 结算（+报告）」的**流程在基类**；

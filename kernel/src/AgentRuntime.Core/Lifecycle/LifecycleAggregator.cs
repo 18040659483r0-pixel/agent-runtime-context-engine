@@ -16,7 +16,7 @@ namespace AgentRuntime.Core.Lifecycle;
 /// <b>纯</b>的判据：同一条流喂两次，结果逐字段相同；不读文件、不看钟、不写盘、不调模型。
 /// 唯一的外部输入是**用量**（<see cref="LifecycleTurnUsage"/>）—— 它刻意不在流里（账本不是正文）。
 /// </para>
-/// <para><b>边界规则</b>（设计 §四·1，唯一声明处；主人 2026-09-21 定「需要分清楚」）：
+/// <para><b>边界规则</b>（设计 §四·1，唯一声明处；用户 2026-09-21 定「需要分清楚」）：
 /// <list type="bullet">
 /// <item><b>每条 <c>UserInput</c> 都开自己的生命周期</b> —— 「答复决策」与「另问一事」用<b>指针</b>分开，不并卡；</item>
 /// <item>上一张卡末个终局块是 <c>[NEED-USER]</c> ⇒ 新卡的 <see cref="TaskLifecycle.AnswersId"/> **指回它**</item>
@@ -158,7 +158,7 @@ public static class LifecycleAggregator
         private long _firstSeq;
         private long _lastSeq;
 
-        // —— 卡上「五段叙事」的原料（主人 2026-09-22 23:0x 定）——
+        // —— 卡上「五段叙事」的原料（用户 2026-09-22 23:0x 定）——
         private string _intent = string.Empty;
         private string _step = string.Empty;
         private readonly List<LifecycleFinding> _findings = [];
@@ -222,7 +222,7 @@ public static class LifecycleAggregator
                 if (!_reportAccepted)
                 {
                     // 已经认领过一篇**真报告**（终局轮自带的那种）就不要用这一轮的原料盖掉它 ——
-                    // 盖了屏上就从「报告」变成「未提交」（主人 2026-09-24 21:3x 真机：卡 #11 就是这么丢的）。
+                    // 盖了屏上就从「报告」变成「未提交」（用户 2026-09-24 21:3x 真机：卡 #11 就是这么丢的）。
                     _reportText = @event.Text;
                     _reportAccepted = DecisionReportParser.Parse(@event.Text).Accepted;
                 }
@@ -253,7 +253,7 @@ public static class LifecycleAggregator
                         _terminal = report.State;
                         _result = report.Detail;
 
-                        // **终局轮自带报告** ⇒ 当场认领（主人 2026-09-24 21:3x 真机：卡 #11/#12 得解、屏上却写
+                        // **终局轮自带报告** ⇒ 当场认领（用户 2026-09-24 21:3x 真机：卡 #11/#12 得解、屏上却写
                         // 「未提交决策报告」——报告其实写在同一轮里，只是没人接）。判据用现成的解析器，不新造形状。
                         if (report.IsSettled && !_reportAccepted)
                         {
@@ -483,7 +483,7 @@ public static class LifecycleAggregator
             }
 
             _lastSeq = @event.Seq;
-            _appendedChars += @event.Text.Length;   // 本次 task 的「增加部分」（与继承来的前缀无关；主人 2026-09-22 03:4x 定）
+            _appendedChars += @event.Text.Length;   // 本次 task 的「增加部分」（与继承来的前缀无关；用户 2026-09-22 03:4x 定）
             _trace.Add(new LifecycleTraceEntry(@event.Tag, @event.Kind, @event.Text, @event.Source));
         }
     }

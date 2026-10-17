@@ -12,7 +12,7 @@ namespace AgentRuntime.Tests;
 /// ① 权重表是**流上的可重算纯函数**（同流两次 ⇒ 逐条相同，含落盘重放）；
 /// ② 渲染**逐字节稳定**（同状态 ⇒ 同 band；空焦点 ⇒ 空串）；
 /// ③ <see cref="FocusState"/> **没有修改入口**（反射断言：无 setter / Remove / Insert）；
-/// ④ 默认值 = K=16 / **minWeight=0.95**（规格书 §六 初值 1.0，主人 2026-09-15 下调）/ 半衰期=40 / band 一行封顶。
+/// ④ 默认值 = K=16 / **minWeight=0.95**（规格书 §六 初值 1.0，用户 2026-09-15 下调）/ 半衰期=40 / band 一行封顶。
 /// </summary>
 public sealed class FocusServiceTests
 {

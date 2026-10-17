@@ -3,13 +3,13 @@ using AgentRuntime.Core.Lifecycle;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **机器决策报告（MachineDecisionReport）** —— 决策报告的**机器可读形式**（唯一名称 · 主人 2026-10-07 令）。
+/// **机器决策报告（MachineDecisionReport）** —— 决策报告的**机器可读形式**（唯一名称 · 用户 2026-10-07 令）。
 ///
 /// <para><b>它是什么</b>：把 master 那篇**宽泛散文**的决策报告（<see cref="DecisionReport"/>，人读）
 /// **收窄**到机器可**锁死、无歧义**的字段；并**把回执系统塞在里面** ——
 /// 回执 <c>kind</c> 六类 + 回执契约闸门 + 该意图交付键。</para>
 ///
-/// <para><b>两份内容同在一份报告里 </b>（主人 2026-10-07 令）：</para>
+/// <para><b>两份内容同在一份报告里 </b>（用户 2026-10-07 令）：</para>
 /// <list type="number">
 /// <item><b>机器组合</b>（<see cref="Receipt"/>）：照 master 派发的 <c>intent:</c> 组合做**逐轴对账**
 /// （收窄意图的方式）—— master 一眼把「要什么 / 给到什么程度 / 动了什么 / 动了哪里」对上；</item>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：铁则区（含 rules-changeOrder.md）（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>rules</Id>
+  <Title>铁则区（含 rules-changeOrder.md）</Title>
+  <Order>20</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>order</Role><Path>whitebox/workspace/rules-changeOrder.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

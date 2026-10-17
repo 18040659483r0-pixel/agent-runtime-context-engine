@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：知识库（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>knowledge</Id>
+  <Title>知识库</Title>
+  <Order>40</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/knowledge/knowledge.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

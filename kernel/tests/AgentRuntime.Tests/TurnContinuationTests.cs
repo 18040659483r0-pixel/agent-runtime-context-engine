@@ -24,7 +24,7 @@ public sealed class TurnContinuationTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // 主人 2026-09-29 20:0x 令：master 面已剥到只剩只读（`[Index, Scope]`）⇒ 「工具是否被拒」不再看那一个需批工具，
+    // 用户 2026-09-29 20:0x 令：master 面已剥到只剩只读（`[Index, Scope]`）⇒ 「工具是否被拒」不再看那一个需批工具，
     // 而看「一条**不允许**的动作」（MasterDeniedCall = **未登记的工具名** —— fail-closed 拒）。
     // 判据不变：它仍是一条会**落结果的调用**（ToolDenied 也算结果 ⇒ 续跑判据只看流）。
     private static readonly string ToolAsk = ToolFaceProbe.MasterDeniedCall();
@@ -131,7 +131,7 @@ public sealed class TurnContinuationTests
             step: token => b.Host.ContinueTurnAsync(cancellationToken: token),
             trace: trace.Add, cancellationToken: Ct);
 
-        // 2 轮续跑 + **收口轮** + **边界报告轮**（主人 2026-09-24 21:4x/21:5x：到边界不许静默停 ——
+        // 2 轮续跑 + **收口轮** + **边界报告轮**（用户 2026-09-24 21:4x/21:5x：到边界不许静默停 ——
         // 先给它几轮说终局，没终局也要那篇报告）。
         Assert.Equal(2 + TurnContinuation.CapCloseoutRounds + 1, ran);
         Assert.Equal(1 + 2 + TurnContinuation.CapCloseoutRounds + 1, b.Client.CallCount);

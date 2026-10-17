@@ -2,7 +2,7 @@ namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
 /// **审批结局**（v13 起**四档**：一次点头 / 明确不许 / 判不出 / **留档**）。
-/// <para>v13（主人 2026-09-21 定「放弃 runtime 的硬闸门」）后，<see cref="Approved"/> / <see cref="Denied"/> / <see cref="Unknown"/>
+/// <para>v13（用户 2026-09-21 定「放弃 runtime 的硬闸门」）后，<see cref="Approved"/> / <see cref="Denied"/> / <see cref="Unknown"/>
 /// 不再由任务内部的闸门产出（那只闸门已撤），但作为**账本词汇**保留：历史账本与手工留档仍会用它们。</para>
 /// </summary>
 public enum ApprovalDecision

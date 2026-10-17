@@ -32,7 +32,7 @@ public sealed class DraftStoreTests : IDisposable
         Assert.Empty(store.Load(null).Draft);                       // 缺文件 = 空默认（不是错误）
         Assert.Equal(DraftSources.Empty, store.Load(null).Source);
 
-        // 写坏成「不是合法 JSON」⇒ 读取必报（绝不「当没有」把主人的草稿悄悄清空）。
+        // 写坏成「不是合法 JSON」⇒ 读取必报（绝不「当没有」把用户的草稿悄悄清空）。
         System.IO.Directory.CreateDirectory(Directory);
         File.WriteAllText(path, "{ 这不是合法 JSON ", Encoding.UTF8);
 
@@ -110,7 +110,7 @@ public sealed class DraftStoreTests : IDisposable
         Assert.EndsWith("s1.xml", store.PathFor("s1"), StringComparison.Ordinal);
     }
 
-    /// <summary>**白板/草稿跨会话承接**（主人 2026-10-14 20:40 令）：本会话还没有 ⇒ 从同目录**最近**一份 copy 过来；
+    /// <summary>**白板/草稿跨会话承接**（用户 2026-10-14 20:40 令）：本会话还没有 ⇒ 从同目录**最近**一份 copy 过来；
     /// 本会话已有 ⇒ 不动；**旧件永远不动**（旧会话那份留着，可回溯）。</summary>
     [Fact]
     public void 工作台面跨会话承接_本会话空则从最近一份拷来_旧件不动()

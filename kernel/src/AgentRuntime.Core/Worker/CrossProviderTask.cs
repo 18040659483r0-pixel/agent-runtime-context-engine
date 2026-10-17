@@ -5,7 +5,7 @@ namespace AgentRuntime.Core.Worker;
 
 /// <summary>
 /// 跨 provider 任务：派发物从「一行文本」升级为「对象」（2026-09-27）。
-/// <para><b>2026-10-06（主人令）</b>：<b>知识不再随派发物走</b> —— worker 自带 R1（铁则区 + L1+L2，
+/// <para><b>2026-10-06（用户令）</b>：<b>知识不再随派发物走</b> —— worker 自带 R1（铁则区 + L1+L2，
 /// 与 master **逐字节同一份**）与自持语料（L3/L4 按 id 自己下探）。事由：提前预判「该带哪几条知识」
 /// 很难准，来回反复传反而增加消耗。本对象现在只装配：任务 / provider / 窗口 / 基准 / 应有集合 /
 /// 要什么结论 / **退回修正语（NOTE）**。</para>
@@ -35,21 +35,21 @@ public sealed record CrossProviderTask
     public string Must { get; init; } = string.Empty;
 
     /// <summary>
-    /// **要什么结论**（主人 2026-09-29 19:14 令）：master 写 <c>ask:</c>，运行时原样带进 <c>ASK:</c> 段。
+    /// **要什么结论**（用户 2026-09-29 19:14 令）：master 写 <c>ask:</c>，运行时原样带进 <c>ASK:</c> 段。
     /// <para>与 <see cref="Must"/> 的分工：<c>ask:</c> = 交什么（结论），<c>must:</c> = 交到什么程度算够（应有集合）。
     /// 两者都不许写「怎么做」—— 用什么工具、走几步由 Worker 自己决定。</para>
     /// </summary>
     public string Ask { get; init; } = string.Empty;
 
-    /// <summary>**信封**（主人 2026-10-07 令）：这一条派发的 <c>[ENVELOPE]</c> 行（模式 / id / at / from / to）。
+    /// <summary>**信封**（用户 2026-10-07 令）：这一条派发的 <c>[ENVELOPE]</c> 行（模式 / id / at / from / to）。
     /// <para>让收方知道「这是哪一条、谁发的、什么时候」—— 回执据此带 <c>re=</c> 对号。</para></summary>
     public string Envelope { get; init; } = string.Empty;
 
-    /// <summary>**裁定回信**（主人 2026-10-07 令）：master 对 worker 临时回执的裁定（<c>[RULING-ANSWER]</c> 块原文）。
+    /// <summary>**裁定回信**（用户 2026-10-07 令）：master 对 worker 临时回执的裁定（<c>[RULING-ANSWER]</c> 块原文）。
     /// <para>worker 上一轮卡在需人裁、链停住；下一次派发把裁定带过去 ⇒ 它接着干（默认续）。</para></summary>
     public string Ruling { get; init; } = string.Empty;
 
-    /// <summary>**本意图的交付键**（主人 2026-10-07 令 · ⑤）：写成**动手前的目标** ——
+    /// <summary>**本意图的交付键**（用户 2026-10-07 令 · ⑤）：写成**动手前的目标** ——
     /// worker 在开工前就知道这次要交哪几个**成员**（而不是等被退回才知道）。空 = 用通用那句。</summary>
     public string ContractText { get; init; } = string.Empty;
 

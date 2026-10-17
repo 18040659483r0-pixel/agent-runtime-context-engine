@@ -5,7 +5,7 @@ namespace AgentRuntime.Core.Security;
 /// <summary>
 /// **授权集合**（两类，来源不同、性质不同）：
 /// <list type="number">
-/// <item><b>会话 Grant</b>（主人 2026-09-16 19:14）—— 人**当场点头**之后记下来的，<b>易失</b>：
+/// <item><b>会话 Grant</b>（用户 2026-09-16 19:14）—— 人**当场点头**之后记下来的，<b>易失</b>：
 /// 只在内存、进程结束即失效；恢复 / 重启 / <c>--fork</c> ⇒ 重新问人。</item>
 /// <item><b>预授权</b>（<see cref="PreAuthorization"/>）—— 人**事先带外**签的字，<b>有范围 + 有到期</b>，
 /// 用来支撑 CI / 夜间 / 无人长任务（<c>DESIGN-SECURITY-GATEWAY.md</c> §十.1）。</item>

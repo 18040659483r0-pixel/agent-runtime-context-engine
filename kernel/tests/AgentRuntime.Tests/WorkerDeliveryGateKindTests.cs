@@ -57,7 +57,7 @@ public sealed class WorkerDeliveryGateKindTests
     {
         var r = WorkerDeliveryGate_Apply(Receipt(ReceiptKind.Done));
 
-        Assert.False(r.Ok);                                  // 「一个都没声明 ⇒ 才退」（主人 2026-10-07 令）
+        Assert.False(r.Ok);                                  // 「一个都没声明 ⇒ 才退」（用户 2026-10-07 令）
         Assert.Equal(WorkerFailureReason.ContractUnsatisfied, r.Reason);
         Assert.True(r.Retryable);
     }
@@ -76,7 +76,7 @@ public sealed class WorkerDeliveryGateKindTests
     {
         var r = WorkerDeliveryGate_Apply(Receipt(ReceiptKind.Done, "basis"));
 
-        Assert.True(r.Ok);                                    // 部分声明 ⇒ 放行（主人 2026-10-07 令）
+        Assert.True(r.Ok);                                    // 部分声明 ⇒ 放行（用户 2026-10-07 令）
         Assert.False(string.IsNullOrWhiteSpace(r.ShapeNote));  // 但**不许静默**
     }
 

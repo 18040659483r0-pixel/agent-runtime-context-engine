@@ -50,7 +50,7 @@ public sealed class ChatRequest
     /// <summary>
     /// **推理档位**（OpenAI 兼容的 <c>reasoning_effort</c>：<c>minimal</c> / <c>low</c> / <c>medium</c> / <c>high</c>）。
     /// <para><c>null</c> / 空 ⇒ **不发该字段**（端点用自己的默认档 —— 主 provider 不设时请求体逐字节与从前一致）。
-    /// 与 [OC] 侧 think 级别对齐用（2026-10-11 主人令：M1 量级差的追查）。</para>
+    /// 与 [OC] 侧 think 级别对齐用（2026-10-11 用户令：M1 量级差的追查）。</para>
     /// </summary>
     [JsonPropertyName("reasoning_effort")]
     public string? ReasoningEffort { get; set; }

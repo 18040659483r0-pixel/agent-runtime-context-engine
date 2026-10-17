@@ -59,34 +59,18 @@ public sealed class CloseoutChecklistTests
             return this;
         }
 
-        /// <summary>造知识库：<paramref name="inSync"/> = md 与账本指纹一致（无未收集改动）。</summary>
-        public Work WithKnowledge(bool inSync, int versions = 3)
+        /// <summary>造知识树：<paramref name="broken"/> = L2 没有 next（制造一条红）。</summary>
+        public Work WithKnowledge(bool broken = false)
         {
-            var md = Path("knowledge/knowledge.md");
-            Write("knowledge/knowledge.md", "# 知识库 v3\n");
-            Directory.CreateDirectory(Path("knowledge/versions"));
-            for (var i = 1; i <= versions; i++)
-            {
-                Write($"knowledge/versions/knowledge-v{i:0000}.md", $"v{i}\n");
-            }
-
-            var sha = Sha256(File.ReadAllBytes(md));
-            Write("knowledge/.ledger.xml", AgentRuntime.Core.Persistence.DataContractXml.ToDocument(new AgentRuntime.Core.Knowledge.LedgerDoc
-            {
-                Schema = "knowledge-repo/ledger/1",
-                Current = new AgentRuntime.Core.Knowledge.LedgerVersion
-                {
-                    Version = versions,
-                    File = $"versions/knowledge-v{versions:0000}.md",
-                    Sha256 = sha,
-                },
-            }));
-
-            if (!inSync)
-            {
-                File.AppendAllText(md, "又改了一行\n");
-            }
-
+            var l2 = broken
+                ? "<!--kn: L2-tst-001-->\n**测试问题？**\n"
+                : "<!--kn: L2-tst-001 next=L3-tst-001-->\n**测试问题？**\n";
+            Write("knowledge/knowledge.md",
+                "# 知识库（测试）\n\n"
+                + "## L1 · 法则（常驻）\n\n<!--kn: L1-tst-001 next=L2-tst-001-->\n**测试法则**：最小树。\n\n"
+                + "## L2 · 问题形状\n\n" + l2 + "\n"
+                + "## L3 · 处理单元\n\n<!--kn: L3-tst-001 next=L4-tst-001-->\n**做法**：一步。\n\n"
+                + "## L4 · 重型知识\n\n<!--kn: L4-tst-001-->\n**证据**：一条。\n");
             return this;
         }
 
@@ -282,26 +266,25 @@ public sealed class CloseoutChecklistTests
         Assert.Equal(CloseoutItemStatus.Unconfigured, Assert.Single(unconfigured.Items, i => i.Id == "pitfalls").Status);
     }
 
-    // ---------------- ④ 知识库：只报事实 ----------------
+    // ---------------- ④ 知识树：只报结构事实 ----------------
 
     [Fact]
-    public void 知识库_只报指纹事实_不等于可晋级_相等则_Ok()
+    public void 知识树_结构绿则_Ok_结构红则_Pending()
     {
-        using var work = new Work().WithMemory("2026-09-20").WithKnowledge(inSync: true);
+        using var work = new Work().WithMemory("2026-09-20").WithKnowledge();
 
         var ok = CloseoutChecklist.Inspect(Config(work.Root), Now);
         var item = Assert.Single(ok.Items, i => i.Id == "knowledge");
         Assert.Equal(CloseoutItemStatus.Ok, item.Status);
-        Assert.Contains("相等", item.Detail, StringComparison.Ordinal);
-        Assert.Contains("3 个", item.Detail, StringComparison.Ordinal);
-        Assert.Contains("knowledge-repo", item.Detail, StringComparison.Ordinal);   // 判定/晋级归工具（单一来源）
+        Assert.Contains("L1 1", item.Detail, StringComparison.Ordinal);
+        Assert.Contains("红 0", item.Detail, StringComparison.Ordinal);
+        Assert.Contains("knowledge-tree", item.Detail, StringComparison.Ordinal);
 
-        // md 改了但没晋级（或已改未收）⇒ 指纹不等 ⇒ 待处理。
-        work.WithKnowledge(inSync: false);
+        work.WithKnowledge(broken: true);
         var pending = CloseoutChecklist.Inspect(Config(work.Root), Now);
         var changed = Assert.Single(pending.Items, i => i.Id == "knowledge");
         Assert.Equal(CloseoutItemStatus.Pending, changed.Status);
-        Assert.Contains("不等", changed.Detail, StringComparison.Ordinal);
+        Assert.Contains("红 1", changed.Detail, StringComparison.Ordinal);
     }
 
     // ---------------- ⑤ 三层 / 八类源：数据化 ----------------
@@ -314,7 +297,7 @@ public sealed class CloseoutChecklistTests
         Assert.Contains("L1/L2", CloseoutLayers.Session.Duty, StringComparison.Ordinal);
         Assert.Contains("自持", CloseoutLayers.Reset.Duty, StringComparison.Ordinal);
 
-        // 八类源：前三条是常识项，后五条是最容易漏的（主人 2026-09-20 提醒）。
+        // 八类源：前三条是常识项，后五条是最容易漏的（用户 2026-09-20 提醒）。
         Assert.Equal(8, KnowledgeSources.All.Count);
         foreach (var id in new[] { "pitfalls", "memory", "handoff", "docs", "glossary", "skills", "draft", "external" })
         {

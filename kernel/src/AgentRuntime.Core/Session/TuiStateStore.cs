@@ -4,7 +4,7 @@ using AgentRuntime.Core.Persistence;
 namespace AgentRuntime.Core.Session;
 
 /// <summary>
-/// **TUI 的人类设置**（v12，主人 2026-09-20 15:3x 要的「记住设置」）。
+/// **TUI 的人类设置**（v12，用户 2026-09-20 15:3x 要的「记住设置」）。
 /// <para>目前只有一项：**就地展开的区**（右栏目录里哪几行把正文摊在自己那一行下面）。</para>
 /// </summary>
 /// <param name="InlineExpanded">就地展开的区名（如 <c>R4</c> / <c>R5</c> / <c>R3</c>；次序由读取方规范化）。</param>

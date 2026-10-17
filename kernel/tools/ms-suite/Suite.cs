@@ -141,7 +141,7 @@ internal static class Suite
         Set(r, "Focus/Path", Path.Combine(state, "focus.xml"));
         Set(r, "CurrentTail/StorePath", Path.Combine(state, "tail"));
         Set(r, "DynamicDraft/StorePath", Path.Combine(state, "draft"));
-        Set(r, "L3/Repo", Path.Combine(proj, "whitebox/workspace/knowledge/.derived/l3.xml"));
+        Set(r, "Knowledge/Repo", Path.Combine(proj, "whitebox/workspace/knowledge/.derived/nodes.xml"));
         File.WriteAllText(dest, new XDocument(new XDeclaration("1.0", "utf-8", null), doc.Root!).ToString() + "\n",
             new UTF8Encoding(false));
     }

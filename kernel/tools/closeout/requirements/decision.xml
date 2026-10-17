@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：用户决策取向（用户决策条目集 / 决策库 / 项目级设计原则书）。
+     加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编。
+     判据：三本都在（Must），且收尾窗口允许写它们（During=rw）。 -->
+<Requirement>
+  <Id>decision</Id>
+  <Title>用户决策取向</Title>
+  <Order>95</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/USER-DECISION-ENTRIES.md</Path><Must>true</Must></Artifact>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/DECISION-LIBRARY.md</Path><Must>true</Must></Artifact>
+    <Artifact><Role>src</Role><Path>whitebox/workspace/PROJECT-DESIGN-PRINCIPLES.md</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

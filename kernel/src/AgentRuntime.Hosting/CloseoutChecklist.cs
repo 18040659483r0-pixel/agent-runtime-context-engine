@@ -94,13 +94,13 @@ public static class CloseoutChecklist
         }
 
         var memoryItem = MemoryItem(config, workspace, now);
-        // 2026-10-06（主人令）：worker 自持 R1 之后，它遇到的新问题必须**回流公共层** ——
+        // 2026-10-06（用户令）：worker 自持 R1 之后，它遇到的新问题必须**回流公共层** ——
         // 收尾时读它的坑集收件箱 + memory（此前只写在注释里，**没有一处真的去读**）。
         var findings = AgentRuntime.Core.Worker.WorkerFindings.Read(
             config.Worker.PitfallsInbox,
             Worker.MinimalWorker.RootOf(config.Worker));
 
-        // **工具面拒绝汇流**（主人 2026-10-15 令）：「任何工具面被拒…还要立刻触发踩坑集，这样下一个 session
+        // **工具面拒绝汇流**（用户 2026-10-15 令）：「任何工具面被拒…还要立刻触发踩坑集，这样下一个 session
         // 可以由顶层知识库再限制一次远端 AI 的行为」。收件箱由 ToolRunner 在**拒绝那一刻**写；这里只读它、
         // 把它变成**欠着的账**（不收敛就红）。读法与 worker 同一把尺子。
         var toolface = AgentRuntime.Core.Worker.WorkerFindings.Read(config.Lifecycle.PitfallsInbox, workerRoot: null);
@@ -457,7 +457,7 @@ public static class CloseoutChecklist
     }
 
     /// <summary>
-    /// **工具面拒绝汇流**（主人 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底 ——
+    /// **工具面拒绝汇流**（用户 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底 ——
     /// 任何工具面拒绝都要**立刻**落进收件箱，收尾必须把它**收敛进顶层知识**（下一个 session 再限制一次它的行为）。
     /// <para>三态同 <see cref="WorkerFindingsItem"/>：没配 ⇒ <c>Unconfigured</c>；有未收敛条 ⇒ <c>Pending</c>；
     /// 收敛完（<c>WorkerFindings.MarkAbsorbed</c> 记过账）⇒ <c>Ok</c>。</para>
@@ -517,34 +517,41 @@ public static class CloseoutChecklist
     }
 
     /// <summary>
-    /// 知识库：**只报事实**（版本 / md 指纹 / 账本指纹 / 是否相等）+ 该跑的命令。
-    /// <para>态与晋级的判定归知识库实现（C# <c>KnowledgeRepoCli</c>）（单一来源）—— 这里不复制它。</para>
+    /// 知识树：**只报事实**（四层节点数 / 边 / 孤儿 / 红与警告）+ 该跑的命令。
+    /// <para>结构判定归 <see cref="AgentRuntime.Core.Knowledge.KnowledgeTree"/>（单一来源），这里不复制它。</para>
     /// </summary>
     private static CloseoutItem KnowledgeItem(string workspace)
     {
-        var knowledge = Path.Combine(workspace, "knowledge");
-        var md = Path.Combine(knowledge, "knowledge.md");
+        var md = Path.Combine(workspace, "knowledge", "knowledge.md");
         if (!File.Exists(md))
         {
-            return new CloseoutItem("knowledge", "知识库晋级", CloseoutItemStatus.Unknown, $"找不到 {md}");
+            return new CloseoutItem("knowledge", "知识树", CloseoutItemStatus.Unknown, $"找不到 {md}");
         }
 
-        var versions = Directory.Exists(Path.Combine(knowledge, "versions"))
-            ? Directory.EnumerateFiles(Path.Combine(knowledge, "versions"), "knowledge-v*.md").Count()
-            : 0;
+        AgentRuntime.Core.Knowledge.KnowledgeTree tree;
+        try
+        {
+            tree = AgentRuntime.Core.Knowledge.KnowledgeTree.Load(workspace);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
+        {
+            return new CloseoutItem("knowledge", "知识树", CloseoutItemStatus.Pending, $"活版解析失败：{ex.Message}");
+        }
 
-        var mdSha = Sha256Prefix(md);
-        var ledgerSha = ReadLedgerSha(Path.Combine(knowledge, ".ledger.xml"));
+        var issues = tree.Validate();
+        var red = issues.Count(i => i.IsRed);
+        var warn = issues.Count - red;
+        var orphans = tree.Nodes.Count(n => n.Layer > 1 && tree.Parents(n.Id).Count == 0);
 
-        var detail = ledgerSha is null
-            ? $"版本快照 {versions} 个 · md 指纹 {mdSha} · **账本缺**（无法比对）⇒ 判定与晋级归工具"
-            : $"版本快照 {versions} 个 · md 指纹 {mdSha} · 账本指纹 {ledgerSha}（{(mdSha == ledgerSha ? "相等 ⇒ 已收集，晋级会产生新版本" : "不等 ⇒ **有未收集的改动**")}）";
+        var detail = $"L1 {tree.Nodes.Count(n => n.Layer == 1)} · L2 {tree.Nodes.Count(n => n.Layer == 2)} · "
+                   + $"L3 {tree.Nodes.Count(n => n.Layer == 3)} · L4 {tree.Nodes.Count(n => n.Layer == 4)} · "
+                   + $"边 {tree.Edges.Count} · 孤儿 {orphans} · 红 {red} / 警告 {warn}";
 
         return new CloseoutItem(
             "knowledge",
-            "知识库晋级",
-            mdSha == ledgerSha ? CloseoutItemStatus.Ok : CloseoutItemStatus.Pending,
-            detail + "；判定/晋级：`AgentRuntime.Cli --knowledge-repo <knowledge> --closeout|--promote`（C# 实现；python 原件已退役）");
+            "知识树",
+            red > 0 ? CloseoutItemStatus.Pending : CloseoutItemStatus.Ok,
+            detail + "；复核：`knowledge-tree --check <workspace>`");
     }
 
     /// <summary>水位文件里第一个 <c>YYYY-MM-DD</c>（"当前水位：截至 2026-09-17" 这类写法都认）。</summary>
@@ -578,31 +585,6 @@ public static class CloseoutChecklist
         }
 
         return null;
-    }
-
-    private static string Sha256Prefix(string path)
-    {
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream))[..12].ToLowerInvariant();
-    }
-
-    private static string? ReadLedgerSha(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        try
-        {
-            var doc = AgentRuntime.Core.Persistence.DataContractXml.ReadFile<AgentRuntime.Core.Knowledge.LedgerDoc>(path);
-            var value = doc.Current?.Sha256;
-            return string.IsNullOrWhiteSpace(value) ? null : value[..12].ToLowerInvariant();
-        }
-        catch (InvalidDataException)
-        {
-            return null;
-        }
     }
 
     private static string Head(IReadOnlyList<string> names, int count) =>

@@ -1,12 +1,14 @@
 using AgentRuntime.Core.Configuration;
 
+using AgentRuntime.Core.Closeout;
+
 namespace AgentRuntime.Core.Security;
 
 /// <summary>收尾窗口里要静默放行的一项（能力 + 代表目标；范围由 <see cref="GrantScopes.OfferFor"/> 推出来）。</summary>
 public sealed record CloseoutWindowItem(Capability Capability, string Target, string Why);
 
 /// <summary>
-/// **收尾窗口**（主人 2026-09-20 14:5x 定）：「这部分在收尾阶段默认放行 —— 这已经是用户明确授权的一个 tasklife 收尾动作…
+/// **收尾窗口**（用户 2026-09-20 14:5x 定）：「这部分在收尾阶段默认放行 —— 这已经是用户明确授权的一个 tasklife 收尾动作…
 /// **整个收尾都应该是一气呵成，用户授权一次，就全部自动静默走完**」。
 /// <para>
 /// 做法：收尾开始时，把「收尾**必须**动的那些东西」按既有**范围授权**机制一次性记下（会话级、易失）——
@@ -24,21 +26,24 @@ public static class CloseoutWindow
         ArgumentNullException.ThrowIfNull(config);
 
         var items = new List<CloseoutWindowItem>();
-        var workspace = config.Lifecycle.Workspace;
 
-        if (!string.IsNullOrWhiteSpace(workspace) && Directory.Exists(workspace))
+        // **收尾要写的落点 = 要件声明里「收尾中可写」的那些** ——
+        // **唯一一处声明**：以前这里手写一份、收尾工具那边再判一次 ⇒ 两处必然分叉（正是 D 批要拆的）。
+        var decls = CloseoutDeclarations.Load(out var problems);
+        foreach (var d in decls.Where(x => x.Enabled && CloseoutDeclarations.Writable(x.During)))
         {
-            // 收尾要写的语料（**代表文件**：范围由它们的所在目录推出 —— 写目录比写根更小、更可审计）。
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, Path.Combine(workspace, "KNOWLEDGE.md"), "抽象 L1/L2 进知识库正文"));
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, Path.Combine(workspace, "memory", "当日记忆.md"), "写当日记忆"));
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, Path.Combine(workspace, "handoff", "交接件.md"), "交 task 的 handoff 条目"));
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, Path.Combine(workspace, "knowledge", "knowledge.md"), "晋级知识库（版本 +1）"));
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, Path.Combine(workspace, "BULLETIN.md"), "公告板条目"));
-        }
+            foreach (var a in d.Artifacts ?? [])
+            {
+                var rel = a.Path ?? string.Empty;
+                if (rel.Length == 0)
+                {
+                    continue;
+                }
 
-        if (!string.IsNullOrWhiteSpace(config.Lifecycle.Pitfalls))
-        {
-            items.Add(new CloseoutWindowItem(Capability.FsWrite, config.Lifecycle.Pitfalls, "交坑条目（L3 归位）"));
+                var full = Path.GetFullPath(Path.Combine(CloseoutDeclarations.RepoRoot, rel));
+                items.Add(new CloseoutWindowItem(Capability.FsWrite, full,
+                    $"要件 {d.Id}（声明：收尾中可写 · {a.Role}）"));
+            }
         }
 
         // 流水线命令：只在**配置里声明过**的那些命令形状上放行。
@@ -55,10 +60,20 @@ public static class CloseoutWindow
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        // 声明有问题 ⇒ **响亮**（不静默放行）—— 与 `Items()` 读同一份声明。
+        CloseoutDeclarations.Load(out var problems);
+
         var items = Items(config);
         if (items.Count == 0)
         {
-            return ["[收尾窗口] 未配 lifecycle（工作区 / 坑集 / 流水线）⇒ **没有可放行的东西**（收尾仍可做，但每一步都会照常问）。"];
+            return ["[收尾窗口] **没有读到要件声明**（`tools/closeout/requirements/`）⇒ 没有可放行的东西（收尾仍可做，但每一步都会照常问）。",
+                    .. problems.Select(p => $"[收尾窗口] ⚠️ 声明问题：{p}")];
+        }
+
+        if (problems.Count > 0)
+        {
+            return [.. problems.Select(p => $"[收尾窗口] ⚠️ 声明问题：{p}"),
+                    "[收尾窗口] 声明有问题 ⇒ **先修声明**（不静默放行）。"];
         }
 
         if (gateway is null)
@@ -76,7 +91,7 @@ public static class CloseoutWindow
                 continue;
             }
 
-            gateway.OnHumanApprovedScope(scope);   // ← 「用户授权一次」就是这里：授权来自主人的明确指示
+            gateway.OnHumanApprovedScope(scope);   // ← 「用户授权一次」就是这里：授权来自用户的明确指示
             opened++;
             lines.Add($"[收尾窗口] ✅ {GrantScopes.Describe(scope)}（{item.Why}）");
         }

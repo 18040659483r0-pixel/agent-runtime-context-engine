@@ -5,7 +5,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **派发物形状**（2026-10-06 主人令：知识不再随派发物走）。
+/// **派发物形状**（2026-10-06 用户令：知识不再随派发物走）。
 /// <para>worker 自带 R1（铁则区 + L1+L2，与 master 逐字节同一份），L3/L4 由它按 id 自下探 ⇒
 /// 派发物里**不许**再有 <c>KNOWLEDGE:</c> 段，只剩一条 <c>NOTE:</c>（上一次失败的退回修正语）。</para>
 /// </summary>

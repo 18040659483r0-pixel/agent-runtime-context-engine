@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：冻结语料（加/删/改本文件 = 加/删/改收尾里的这一个要件；不需重编） -->
+<Requirement>
+  <Id>frozen</Id>
+  <Title>冻结语料</Title>
+  <Order>50</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>corpus</Role><Path>frozen-private</Path><Must>false</Must></Artifact>
+  </Artifacts>
+</Requirement>

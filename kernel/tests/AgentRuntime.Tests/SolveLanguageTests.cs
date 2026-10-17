@@ -73,7 +73,7 @@ public sealed class SolveLanguageTests
     [Fact]
     public void 终局三态_块式写法_正文在下面几行也认_不再未写正文()
     {
-        // 2026-09-22 主人真机现场（流里的 E110）：块头**独占一行**、问题在**下面几行** ——
+        // 2026-09-22 用户真机现场（流里的 E110）：块头**独占一行**、问题在**下面几行** ——
         // 与 [TAIL] / [DRAFT] 同一形状。旧口径只读同一行 ⇒ 正文为空 ⇒ 屏上「[NEED-USER]（未写正文）」
         // + 卡上空的问题位（「待你决定：• 」）：**人被告知要回话却看不到问题**。
         var text =
@@ -113,18 +113,19 @@ public sealed class SolveLanguageTests
     // ---------------- ② 预算与「该收尾了」 ----------------
 
     [Fact]
-    public void 收尾判据_任务了结且上下文达窗口两成_才提议()
+    public void 收尾判据_上下文达窗口八成即提议_不再要求任务了结()
     {
         var done = TerminalReport.Parse("[DONE] 做完了");
         var needUser = TerminalReport.Parse("[NEED-USER] 要你定");
         var none = TerminalReport.None;
 
-        Assert.True(ContextBudget.ShouldPropose(done, 20_000, 100_000));      // 恰好 20%
-        Assert.True(ContextBudget.ShouldPropose(done, 25_000, 100_000));
-        Assert.False(ContextBudget.ShouldPropose(done, 19_999, 100_000));    // 差一点就不提
+        Assert.True(ContextBudget.ShouldPropose(done, 80_000, 100_000));      // 恰好 80%
+        Assert.True(ContextBudget.ShouldPropose(done, 95_000, 100_000));
+        Assert.False(ContextBudget.ShouldPropose(done, 79_999, 100_000));    // 差一点就继续做下一个
 
-        Assert.False(ContextBudget.ShouldPropose(needUser, 90_000, 100_000)); // 还没了结
-        Assert.False(ContextBudget.ShouldPropose(none, 90_000, 100_000));
+        // v72（用户 2026-10-17）：**80% 是唯一停手点** —— 不再要求任务已了结。
+        Assert.True(ContextBudget.ShouldPropose(needUser, 90_000, 100_000));
+        Assert.True(ContextBudget.ShouldPropose(none, 90_000, 100_000));
         Assert.False(ContextBudget.ShouldPropose(done, 90_000, 0));           // 窗口未知 ⇒ 不拍脑袋
         Assert.False(ContextBudget.ShouldPropose(done, 0, 100_000));          // 用量未知 ⇒ 不提
     }
@@ -136,7 +137,7 @@ public sealed class SolveLanguageTests
         Assert.Contains("30", text, StringComparison.Ordinal);
         Assert.Contains("000", text, StringComparison.Ordinal);
         Assert.Contains("30.0%", text, StringComparison.Ordinal);
-        Assert.Contains("20%", text, StringComparison.Ordinal);
+        Assert.Contains("80%", text, StringComparison.Ordinal);
         Assert.Contains("/closeout", text, StringComparison.Ordinal);
         Assert.Contains("/reset", text, StringComparison.Ordinal);
         Assert.Contains("得解", text, StringComparison.Ordinal);
@@ -177,33 +178,30 @@ public sealed class SolveLanguageTests
     // ---------------- 收尾窗口（静默放行 / 会话级易失） ----------------
 
     [Fact]
-    public void 收尾窗口_按配置算出放行项_没配就没有()
+    public void 收尾窗口_放行项由要件声明算出_只读模块不许出现()
     {
-        var bare = CloseoutWindow.Items(new RuntimeConfiguration { BaseUrl = "x", Model = "m" });
-        Assert.Empty(bare);
+        // **唯一一处声明**：`tools/closeout/requirements/*.xml`（运行时与收尾工具读**同一份**）。
+        // D 批：以前这里手写一份白名单、收尾工具那边再判一次 ⇒ 两处必然分叉。
+        var items = CloseoutWindow.Items(new RuntimeConfiguration { BaseUrl = "x", Model = "m" });
 
-        using var work = new SnapshotTestWorkspace("closeout-window");
-        var config = new RuntimeConfiguration
+        // 声明在 ⇒ 「收尾中可写」的落点都在（含**收尾自己的账**：水位 / 账本）
+        Assert.Contains(items, i => i.Capability == Capability.FsWrite && i.Target.EndsWith("收尾水位.md", StringComparison.Ordinal));
+        Assert.Contains(items, i => i.Capability == Capability.FsWrite && i.Target.EndsWith("ledger.xml", StringComparison.Ordinal));
+        Assert.All(items, i => Assert.True(GrantScopes.OfferFor(i.Capability, i.Target) is not null, $"放行项算不出范围：{i.Target}"));
+
+        // **只读模块的落点绝不出现在放行项里**（memory 系统全只读 ⇒ 没有放行路径）
+        Assert.DoesNotContain(items, i => i.Target.EndsWith("MEMORYINDEX.md", StringComparison.Ordinal));
+
+        // 流水线命令仍由**配置**给（那是 config，不是要件）
+        var configured = new RuntimeConfiguration
         {
             BaseUrl = "x",
             Model = "m",
-            Lifecycle = new LifecycleConfiguration
-            {
-                Workspace = work.Root,
-                Pitfalls = work.File("docs/PITFALLS.md"),
-                Pipeline = ["python3 tool.py --closeout", "python3 tool.py --promote"],
-            },
+            Lifecycle = new LifecycleConfiguration { Pipeline = ["python3 tool.py --closeout"] },
         };
-
-        var items = CloseoutWindow.Items(config);
-        Assert.Contains(items, i => i.Capability == Capability.FsWrite && i.Why.Contains("知识库", StringComparison.Ordinal));
-        Assert.Contains(items, i => i.Capability == Capability.ProcExec && i.Target.StartsWith("python3", StringComparison.Ordinal));
-        Assert.All(items, i => Assert.True(GrantScopes.OfferFor(i.Capability, i.Target) is not null, $"放行项算不出范围：{i.Target}"));
-
-        // 没配 lifecycle ⇒ 一条也不放行（**不假装授权**）。
         Assert.Contains(
-            CloseoutWindow.Open(gateway: null, new RuntimeConfiguration { BaseUrl = "x", Model = "m" }),
-            l => l.Contains("没有可放行的东西", StringComparison.Ordinal));
+            CloseoutWindow.Items(configured),
+            i => i.Capability == Capability.ProcExec && i.Target.StartsWith("python3", StringComparison.Ordinal));
     }
 
     // ---------------- ④ 与 ⑤：宿主级（终局即停 / 收尾 + 重开） ----------------
@@ -288,28 +286,28 @@ public sealed class SolveLanguageTests
 
         Assert.Equal(TerminalState.Done, b.Host.LastTerminal.State);
         Assert.Contains(outcome.StderrBeforeResponse, l => l.StartsWith("[终局]", StringComparison.Ordinal));
-        Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾提议]", StringComparison.Ordinal));
+        Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾要求]", StringComparison.Ordinal));
         Assert.False(b.Host.LastBudget.Unknown);
     }
 
     [Fact]
-    public async Task 宿主_达窗口两成且任务了结_提一次议并进流给模型看()
+    public async Task 宿主_达窗口八成_发一次收尾要求并进流给模型看()
     {
-        using var b = new Bench(contextWindow: 100, promptTokens: 25);   // 25% ≥ 20%
+        using var b = new Bench(contextWindow: 100, promptTokens: 85);   // 85% ≥ 80%
 
         b.Reply = "做完了。\n[DONE] 甲";
         var outcome = await b.Host.RunTurnAsync("开始", cancellationToken: Ct);
 
-        // 2026-10-14 主人令：**「预算行」不再铺进正文**（灰色字之下不出现运行时行）⇒ 改判「正文里没有它」。
-        Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾提议]", StringComparison.Ordinal));
+        // 2026-10-14 用户令：**「预算行」不再铺进正文**（灰色字之下不出现运行时行）⇒ 改判「正文里没有它」。
+        Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾要求]", StringComparison.Ordinal));
 
         // 提议同时进流成 Hint 事件（协议第 7 条写的是「当运行时说……」—— 宿主不说，模型就不可能照做）。
-        Assert.Contains(b.Stream.Stream.Events, e => e.Kind == SessionEventKind.Hint && e.Text.Contains("收尾提议", StringComparison.Ordinal));
+        Assert.Contains(b.Stream.Stream.Events, e => e.Kind == SessionEventKind.Hint && e.Text.Contains("收尾要求", StringComparison.Ordinal));
 
         // 同一档只提一次（不然每轮刷屏）。
         b.Reply = "又做完了。\n[DONE] 乙";
         var second = await b.Host.RunTurnAsync("再来", cancellationToken: Ct);
-        Assert.DoesNotContain(second.StderrBeforeResponse, l => l.StartsWith("[收尾提议]", StringComparison.Ordinal));
+        Assert.DoesNotContain(second.StderrBeforeResponse, l => l.StartsWith("[收尾要求]", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -454,7 +452,7 @@ public sealed class SolveLanguageTests
         Assert.EndsWith(".xml", start.NewStream!, StringComparison.Ordinal);
         Assert.NotEqual(b.StreamPath, b.Config.Stream.Path);
         // 新流**不含旧对话**（旧事件留在归档卷里）；若有接续线索，首条是**运行时那条 Hint**（不是历史正文）。
-        // 主人 2026-09-22 23:1x 定：跟 reset 的接续必须把「上一会话最后一条用户消息」交给模型。
+        // 用户 2026-09-22 23:1x 定：跟 reset 的接续必须把「上一会话最后一条用户消息」交给模型。
         // 2 条：① 接续线索（source=runtime）② **无 worker 的可用性告知**（§6.3 判据 2，2026-09-26）
         // 2026-10-10：③ **路径基准**（source=path-base，修 E4/D2）
         // 2026-10-11：④ **工具块形状** Hint 试过又撤了（模型照旧走原生 DSML，无收益）⇒ 仍旧三条。
@@ -508,12 +506,12 @@ public sealed class SolveLanguageTests
         Assert.Contains(report.Lines(b.Config.Frozen.Watermark), l => l.Contains("水位线已推进", StringComparison.Ordinal));
     }
 
-    // ---------------- 中断 / 接续线索（主人 2026-09-22 23:1x 真机现场） ----------------
+    // ---------------- 中断 / 接续线索（用户 2026-09-22 23:1x 真机现场） ----------------
 
     [Fact]
     public async Task 中断会进流_下一轮看得见那句接续提示()
     {
-        // 现场：主人按 Ctrl-C 暂停，紧接着发的那句是**被打断那一轮的接续**，
+        // 现场：用户按 Ctrl-C 暂停，紧接着发的那句是**被打断那一轮的接续**，
         // 但旧实现只往**屏幕**写一行（`⏹ 本轮已中断`），事件流**一条不写** ⇒ 模型以为「上一轮无事发生」，
         // 于是把接续句当全新问题，满仓库去猜题意。修法：同一条消息**同时进流**（既有 Hint 通道）。
         using var b = new Bench();

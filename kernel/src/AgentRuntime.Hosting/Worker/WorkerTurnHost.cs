@@ -7,7 +7,7 @@ using AgentRuntime.Hosting.Lifecycle;
 namespace AgentRuntime.Hosting.Worker;
 
 /// <summary>
-/// **worker 的接续宿主**（`ITurnHost` 的实现，2026-09-29 主人 OOD 口径的落地）：
+/// **worker 的接续宿主**（`ITurnHost` 的实现，2026-09-29 用户 OOD 口径的落地）：
 /// master 与 worker 是同一基类的两台发动机，**基础生命周期必须同源** ——
 /// 所以 worker 不再在 <see cref="MinimalWorker"/> 里自写一套「工具结果 ⇒ 续跑 / 边界 ⇒ 收口 / 终局自验 ⇒ 补轮」，
 /// 而是把这个接口交给**共用的** <see cref="TurnContinuation"/> 驱动；差异只由配置表达（模块集 / 预算 / provider / 落点）。

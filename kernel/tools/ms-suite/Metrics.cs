@@ -1,7 +1,7 @@
 // 切片 1：`shadow2/metrics.py` → C#。
-// 口径（主人 2026-10-11 14:0x 定）：任务轮数/模型时/completion = 走到**最后一个「干活」turn 出结果**为止；
+// 口径（用户 2026-10-11 14:0x 定）：任务轮数/模型时/completion = 走到**最后一个「干活」turn 出结果**为止；
 // 若本轮出过 `report-request` Hint ⇒ 最后那个 turn 是**报告轮**，单列、不计入任务口径。
-// 判据：对同一对 (stream, usage) 与 metrics.py **逐字节等价**（skill `script-port-to-runtime`）。
+// 判据：对同一对 (stream, usage) 与 metrics.py **逐字节等价**（纪律：判据与盘上产物逐字节等价）。
 namespace MsSuite;
 
 internal static class Metrics

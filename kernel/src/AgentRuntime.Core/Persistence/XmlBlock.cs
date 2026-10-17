@@ -5,7 +5,7 @@ using System.Xml.Linq;
 namespace AgentRuntime.Core.Persistence;
 
 /// <summary>
-/// **XML 块的取块原语**（主人 2026-10-07 令：解析不手写行扫描）。
+/// **XML 块的取块原语**（用户 2026-10-07 令：解析不手写行扫描）。
 ///
 /// <para><b>它做什么</b>：在文本里找到块头（<c>[TOOL]</c> / <c>[INTENT]</c> / <c>[RESULT]</c> …），
 /// 按**结构**取出紧随其后的**那一个 XML 元素**（连同子元素，逐字）。</para>
@@ -176,7 +176,7 @@ public static class XmlBlock
     /// **逐块「严格→归一」，并把「取不出的块」数出来**（2026-10-10 真机修 E1）。
     /// <para><b>为什么必须能数</b>：旧路只在**一个块都取不到**时才退到归一 ⇒ 一条回复里
     /// 只要**有一块**能严格取到（如 read），**另一块**坏（如命令里带裸 `<`：`wc -c < /path`）
-    /// 就会被 <see cref="TakeAll"/> 的「探针语义」**静默跳过** —— 从主人的视角就是「点了 2 个、只回了 1 个、
+    /// 就会被 <see cref="TakeAll"/> 的「探针语义」**静默跳过** —— 从用户的视角就是「点了 2 个、只回了 1 个、
     /// 无声无痕」（真机 M6/M9/M10 三处）。⇒ 调用方拿 <c>Missed &gt; 0</c> 去**响亮拒**（不许静默丢）。</para>
     /// </summary>
     /// <param name="Elements">取到的元素（按出现次序）。</param>
@@ -258,7 +258,7 @@ public static class XmlBlock
     }
 
     /// <summary>取**一个成员**的文本（没有 ⇒ <c>null</c>）。顺序无关。
-    /// <para><b>同名成员归一</b>（主人 2026-10-07 令）：模板桩 + 真值并存是**自然写法** ⇒ 取**末个非空**值
+    /// <para><b>同名成员归一</b>（用户 2026-10-07 令）：模板桩 + 真值并存是**自然写法** ⇒ 取**末个非空**值
     /// （桩通常是 `none`/空 ⇒ 真值胜出），**不拒**（归一优先，拒绝是最后手段）。</para></summary>
     public static string? Member(XElement root, string name)
     {

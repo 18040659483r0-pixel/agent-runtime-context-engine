@@ -19,9 +19,9 @@ internal static class Scan
         "tools/pre-publish-patterns\\.txt|tools/build-public-pitfalls\\.py|RuntimeConfigurationTests\\.cs|" +
         "OpenAICompatibleClientTests\\.cs";
 
-    /// <summary>knowledge.md 的**技能标记行**（整行严格匹配）里的 `src:` 字段是归档定位 ⇒ 豁免整行。</summary>
+    /// <summary>knowledge.md 的**条目标记行**（整行严格匹配）里的 `src:` 字段是归档定位 ⇒ 豁免整行。</summary>
     private const string KnowledgeMarkerRe =
-        @"^[^:]+:[0-9]+:<!-- skill: [^|]* \| src: <path>[^|]* \| ends_with_newline: (true|false) \| mode: (indexed|hybrid) -->$";
+        @"^[^:]+:[0-9]+:<!--l4: [^|]* \| src: /" + @"Users/[^|]* \| ends_with_newline: (true|false) \| mode: (indexed|hybrid) -->$";
 
     public static int Run(string[] a)
     {

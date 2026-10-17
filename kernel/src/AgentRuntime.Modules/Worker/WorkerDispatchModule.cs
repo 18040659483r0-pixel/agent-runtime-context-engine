@@ -95,7 +95,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
     public override string Name => ModuleName;
 
     /// <summary>
-    /// **此刻的节拍预算**（L2 · 主人 2026-10-09 定）：账本**近期档速度** ⇒ `T_gate = clamp(C/v, 100, 300)`，`C = 12250`（56.7 tok/s ⇒ 216s）。
+    /// **此刻的节拍预算**（L2 · 用户 2026-10-09 定）：账本**近期档速度** ⇒ `T_gate = clamp(C/v, 100, 300)`，`C = 12250`（56.7 tok/s ⇒ 216s）。
     /// <para>没开 / 没账 / 没速度 ⇒ <see cref="PaceBudget.Unknown"/>（**不掐表**，缺省行为逐字不变）。</para>
     /// </summary>
     private PaceBudget PaceBudgetNow()
@@ -115,7 +115,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         var mode = string.IsNullOrWhiteSpace(_ceilingOverride) ? _pace.CeilingMode : _ceilingOverride;
         var ceiling = mode switch
         {
-            "off" => double.MaxValue,          // 硬抗（主人授权时用）
+            "off" => double.MaxValue,          // 硬抗（用户授权时用）
             "600" => 600.0,
             _ => _pace.MaxSeconds,
         };
@@ -205,11 +205,11 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
     public IReadOnlyList<string> Warnings => _warnings;
 
     /// <summary>**零注入**：派发块不进 prompt（与 ToolModule 同一纪律）。</summary>
-    /// <para>路径基准**不再主动推送**（2026-10-06 主人口径）：改成**按需核实** ——
+    /// <para>路径基准**不再主动推送**（2026-10-06 用户口径）：改成**按需核实** ——
     /// 远端第一次发文件地址时自己发 <c>[BASE]</c>，运行时在 <see cref="ObserveAsync"/> 里应答并记录。</para>
     public override ValueTask ContributeAsync(RuntimeContext context, IList<ChatMessage> messages, CancellationToken cancellationToken)
     {
-        // 缺口 #5（主人 2026-10-07 令）：**池的状态对 master 可见** —— 谁闲着 / 谁在忙 / 能不能接活，
+        // 缺口 #5（用户 2026-10-07 令）：**池的状态对 master 可见** —— 谁闲着 / 谁在忙 / 能不能接活，
         // 让「复用空闲 worker（它还记着上部活）」从“池里有、看不见”变成可判定。
         // **空池 ⇒ 一个字节都不加**（消融等价：无 worker 时逐字不变，W12）。
         if (_pool.Describe() is { } workers)
@@ -249,7 +249,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
 
     public override async ValueTask ObserveAsync(RuntimeContext context, ChatRequest request, ChatResponse response, CancellationToken cancellationToken)
     {
-        // **按需核实路径基准**（主人 2026-10-06 令）：`[BASE]` —— 远端**第一次**要发文件地址时问一次。
+        // **按需核实路径基准**（用户 2026-10-06 令）：`[BASE]` —— 远端**第一次**要发文件地址时问一次。
         // 运行时**负责记录**：核实过就**不再核实**，只回一条 hint（"你已有这条记录，直接采信"）。
         // 挂在这里而不是终局路径：这一步**每轮都跑**（终局路径只在带终局块时才跑 —— 真机因此漏答过）。
         if ((response.FirstText() ?? string.Empty).Contains(ProtocolText.BasePrefix, StringComparison.Ordinal))
@@ -272,7 +272,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
 
         var parsed = DispatchParser.Parse(response.FirstText());
 
-        // —— **master 请求改节拍上限**（主人 2026-10-09）：本会话生效，白名单外**响亮拒绝**。
+        // —— **master 请求改节拍上限**（用户 2026-10-09）：本会话生效，白名单外**响亮拒绝**。
         var (paceReq, paceRefusal) = PaceRequest.Parse(response.FirstText());
         if (paceRefusal is not null)
         {
@@ -295,7 +295,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
                  + $"现在**生效闸门 = {effective.GateSeconds:0}s**（{effective.Note}）。");
         }
 
-        // —— 裁定回信（master → worker · 主人 2026-10-07 令）：解析出来就**存起来**，下一次派发带过去。
+        // —— 裁定回信（master → worker · 用户 2026-10-07 令）：解析出来就**存起来**，下一次派发带过去。
         //    （worker 上一轮卡在“需人裁”、链已停；下一次派发把裁定带进 RULING-ANSWER: 段 ⇒ 它接着干。）
         if (RulingReply.Parse(response.FirstText()) is { } ruling)
         {
@@ -329,7 +329,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             Note($"派发已归一：{n.What}（原文：{Trim(n.Line)}）");
         }
 
-        // ① **形状/语法提示**（清空到**语法层** · 主人 2026-10-06：「运行时可以做语法检测，并且要提示远端 AI」）：
+        // ① **形状/语法提示**（清空到**语法层** · 用户 2026-10-06：「运行时可以做语法检测，并且要提示远端 AI」）：
         // 块形 / 封闭集 / 合法组合 / 绝对地址 —— 在**解析那一刻**提示，0 缓存代价，且出现在写错的那一刻；
         // 每条提示都走 **SyntaxFeedback**（语法/格式类 = 协议区的补充 ⇒ 只给规范，**不提踩坑集**）。
         foreach (var w in parsed.Warnings)
@@ -343,7 +343,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
                  "**只执行前几个**，其余请下一条回复再发。");
         }
 
-        // ①·五 **节拍提示**（主人 2026-10-08 23:0x 定：`T_est > 3 × 中位` ⇒ 提示拆分 + 合并下限）——
+        // ①·五 **节拍提示**（用户 2026-10-08 23:0x 定：`T_est > 3 × 中位` ⇒ 提示拆分 + 合并下限）——
         //   机械判据（帧/材料/意图类都是运行时手里的事实），**零模型参与、零缓存代价**（走 Hint）。
         if (_pace is { Enabled: true })
         {
@@ -365,7 +365,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         }
 
         // ② **意图组合解析**（只服务后面的交付核）：新形状自带组合；没声明组合 ⇒ 放 null。
-        //    ⚠️ 旧的「**意图审计 / residue**」（词表判目的句像哪一类）**已撤**（主人 2026-10-06：「运行时不做任何语义判断，直接拿掉」）。
+        //    ⚠️ 旧的「**意图审计 / residue**」（词表判目的句像哪一类）**已撤**（用户 2026-10-06：「运行时不做任何语义判断，直接拿掉」）。
         var intents = new List<DispatchIntent?>();   // 与下面 dispatches 同序；**没声明组合 = null** —— 核只对声明过的意图生效（不替它推 = 不兜底）
         foreach (var d in parsed.Dispatches.Take(ProtocolText.DispatchMaxPerReply))
         {
@@ -400,7 +400,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             // 相对路径在两侧解析成不同位置 ⇒ 它跑 3 轮才说得出，12 轮白烧；而**派发前就能判出来**。
             var audited = new List<string>();
             string? addressRefusal = null;
-            // **跨树守卫只对写侧**（2026-10-09 主人令「B」）：WRITE/EDIT 的写目标靠 base 解析 ⇒ 仍拒；
+            // **跨树守卫只对写侧**（2026-10-09 用户令「B」）：WRITE/EDIT 的写目标靠 base 解析 ⇒ 仍拒；
             // 读类 / EXEC 的 window 跨树无害（真机：读 /tmp 里刚落的临时件、读父目录）⇒ 放行 + 注记。
             var guardBase = d.Kind is not { } k2 || DispatchIntents.WindowMustStayInBase(k2);
             foreach (var w in d.Window)
@@ -412,7 +412,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
                     break;
                 }
 
-                // 2026-10-06（主人令 · 问题二/三）：**读类意图的窗口必须真的存在** ——
+                // 2026-10-06（用户令 · 问题二/三）：**读类意图的窗口必须真的存在** ——
                 // "父层存在"那把尺是为**写目标**留的（新建文件合法）；对 READ/VERIFY/LOCATE/DERIVE 这类
                 // **读源**，目标不存在 = 指向了**错树**（真机：master 把 `.stage1/acc/…` 拼到活版
                 // `whitebox/workspace/` 之下 ⇒ 父层存在、文件不存在 ⇒ 旧判据放行 ⇒ worker 空手而归）。
@@ -500,7 +500,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
                 continue;
             }
 
-            // —— 信封（v48 · 主人 2026-10-07 令）：每条派发一个 id（指纹 + 时刻算 hash）——
+            // —— 信封（v48 · 用户 2026-10-07 令）：每条派发一个 id（指纹 + 时刻算 hash）——
             //    进事件行（master 可见）+ 进派发物（worker 可见）⇒ 回执据此带 re= 对号。
             var envelope = MessageEnvelope.Compose(
                 MessageMode.MasterDispatch,
@@ -528,7 +528,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             WorkerResult result;
             var contractSha = string.Empty;   // 本次派发物的真身份（帧字节 sha256）
 
-            // **节拍闸门**（L2 · 主人 2026-10-09）：「到 T_gate 还没回 ⇒ **停 worker + 告诉 master 该拆**」——
+            // **节拍闸门**（L2 · 用户 2026-10-09）：「到 T_gate 还没回 ⇒ **停 worker + 告诉 master 该拆**」——
             // **不等 300s timeout**。停掉的这一块**不重试**（重试=重复派发；该做的是切小）。
             var pace = PaceBudgetNow();
             using var paceCts = pace.GateSeconds > 0
@@ -542,11 +542,11 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
                 // D4：走对象装配（段名由 ComposePrompt 一处决定）；note = 上一次的退回修正语。
                 var built = BuildDispatch(d, _note, envelope);
                 contractSha = built.Request.ContractSha;
-                // **闸门到点真停**（2026-10-10 主人令 · 治水位待办 ③「闸门真缺口」）：
+                // **闸门到点真停**（2026-10-10 用户令 · 治水位待办 ③「闸门真缺口」）：
                 // 真机曾出现 **850s > 600s 闸门却正常结算** —— 根因：`CancelAfter` 只是把 CTS 标了取消，
                 // 那一刻的 await 会不会真被打断，取决于**引擎吃不吃这个 token**。这里**不赌引擎**：
                 // 把 await 与闸门 token 赛跑（`WaitAsync`）⇒ 到点必抛 ⇒ 落进 catch ⇒ `paceStopped()` 成立 ⇒ 走「停」。
-                // **闸门到点真停**（2026-10-10 主人令 · 治水位待办 ③「闸门真缺口」）：
+                // **闸门到点真停**（2026-10-10 用户令 · 治水位待办 ③「闸门真缺口」）：
                 // 真机曾出现 **850s > 600s 闸门却正常结算** —— 根因：`CancelAfter` 只是把 CTS 标了取消，
                 // 那一刻的 await 会不会真被打断，取决于**引擎吃不吃这个 token**。这里**不赌引擎**：
                 // 把 await 与闸门 token 赛跑（`WaitAsync`）⇒ 到点必抛 ⇒ 落进 catch ⇒ `paceStopped()` 成立 ⇒ 走「停」。
@@ -684,7 +684,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             }
         }
 
-        // —— 零协议代价的「该派了」提醒（主人 2026-09-25 15:5x 定：先做这个，观察遵从率再改协议）——
+        // —— 零协议代价的「该派了」提醒（用户 2026-09-25 15:5x 定：先做这个，观察遵从率再改协议）——
         MaybeHintBulk(request);
     }
 
@@ -851,7 +851,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
     /// </summary>
     private (WorkerRequest Request, string Prompt) BuildDispatch(DispatchParser.Dispatch d, string note, MessageEnvelope envelope)
     {
-        // **弃单回流**（2026-10-10 主人令 · 治水位待办 ⑤）：worker 上一条作废、且**还没还清** ⇒ 这一次派发必须带上它。
+        // **弃单回流**（2026-10-10 用户令 · 治水位待办 ⑤）：worker 上一条作废、且**还没还清** ⇒ 这一次派发必须带上它。
         // 注入点是**唯一装配处**（首发 / 补发 / async 三条路径都从这里走 —— §十·58 一条规矩只许一处声明）。
         note = WithAbandonNote(note, _runner.OutstandingAbandonNote());
         var window = WindowResolver.ResolveMany(d.Window);
@@ -863,7 +863,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             Task = d.Task,
             Envelope = envelope.Line,   // v48：信封行（模式/id/at/from/to）
             Ruling = ruling,            // v48：上一次“需人裁”的裁定（有就带，没有就 (none)）
-            // ② 知识**不再随派发物走**（2026-10-06 主人令）：worker 自带 R1（铁则区 + L1+L2，与 master 逐字节同一份），
+            // ② 知识**不再随派发物走**（2026-10-06 用户令）：worker 自带 R1（铁则区 + L1+L2，与 master 逐字节同一份），
             //    L3/L4 由它按 id 自己下探。本段只带**上一次失败的修正语**（自愈回路）。
             Note = note,
             // WINDOW 段带**读数**（行数 / 字节数）⇒ worker 才能如实报 `covered:`（v8 必填字段的参照量）。
@@ -965,7 +965,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
     /// 判据全在 <see cref="DispatchMust"/>（自由文本 / 空 ⇒ 不核，旧行为逐字不变）。</para>
     /// </summary>
     /// <summary>
-    /// **交付形状核**（主人 2026-09-30 16:47 口径 · **运行时只按纯净规则走，不兜底**）：
+    /// **交付形状核**（用户 2026-09-30 16:47 口径 · **运行时只按纯净规则走，不兜底**）：
     /// 派发时**已知意图** ⇒ 回执必须给出**该意图的交付键**（<see cref="DispatchIntents.DeliveryKeys"/>，唯一声明处）；
     /// 缺 ⇒ **不合格**（Ok=false · ContractUnsatisfied · Retryable），退回话术**只给唯一正确写法**。
     /// <para>为什么不兜底：放宽读法 / 补默认值 / 猜它想说什么 —— 每一种都要"再看一眼上下文"，
@@ -979,7 +979,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             return r;   // 没意图（旧形状）或本来就失败 ⇒ 不在这一格判
         }
 
-        // **主人 2026-10-07 令**（定稿口径）：
+        // **用户 2026-10-07 令**（定稿口径）：
         //  ① 值必须由 worker **精确声明**在回执元素里（那是它的"决策报告"）——**只核「成员名」**；
         //  ② **不去原料里翻找**（conclusion/evidence/stdout 里可能有一堆"看起来像结果"的東西 ⇒ 翻找必瞎）；
         //  ③ 容错：**部分声明** ⇒ 放行（由 master 按语义补完）但**必留痕**；**一个都没声明** ⇒ 才退。
@@ -990,7 +990,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         // 的**错修正**补发 ×2；LOCATE 与 WRITE 各空转两轮。没声明 kind ⇒ 按 done 核（fail-closed，与旧行为一致）。
         var requiredKeys = ReceiptKinds.RequiredFields(r.Kind ?? ReceiptKind.Done, intent)
             .Select(k => k.TrimEnd('=')).ToArray();
-        // **A（主人 2026-10-07 令）**：**新旧两种形状一视同仁** —— 新形状看**成员名**；
+        // **A（用户 2026-10-07 令）**：**新旧两种形状一视同仁** —— 新形状看**成员名**；
         // 旧行式（成员袋为空）退回**键名扫描**（`k=`/`k:`）。该档 worker 会在两种形状间摇摆（见 PITFALLS #281）。
         var declared = r.Members.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (declared.Count == 0)
@@ -1013,7 +1013,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
             return r;   // 齐 —— 最好的情况
         }
 
-        // **主人 2026-10-07 令（高容错 + 必留痕）**：
+        // **用户 2026-10-07 令（高容错 + 必留痕）**：
         //  · **一个键都没有** ⇒ 才是形状缺项，退（无法补）；
         //  · **部分缺** ⇒ 放行：master 按**散文语义自行补完**，但**必须留痕**（遵从率靠它算）。
         var present = requiredKeys.Except(miss).ToArray();
@@ -1077,7 +1077,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         // 每类有**自己的**必需字段 ⇒ 这一行**永远**给出该类要求的那几格（空则 none，不许因空而消失）。
         // 真机 2026-09-30：❌ 回执在 `changes`/`open` 为空时**不渲染那两格**，而终局自验要「四字段齐」
         // ⇒ 任何失败派发都不能作终局证据 ⇒ 链条在「重派→再红」里打转（write/exec/edit 三条料全被它拦）。
-        // ⚠️ **不替 worker 写类别**（主人 2026-10-06 口径：实质层由远端自证，运行时只管形状层）。
+        // ⚠️ **不替 worker 写类别**（用户 2026-10-06 口径：实质层由远端自证，运行时只管形状层）。
         // 旧行为：没声明 `kind=` 时按 Ok/notDone **代它选** done/partial/blocked —— 那是运行时**伪造**一条
         // 实质声明（`kind=done` 就等于替它担保「做成了」）。现在没声明就渲染一个**非类别**记号，
         // 让下游如实看到「没声明 kind=」这个**形状缺项**。
@@ -1115,7 +1115,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         // 过渡别名：`conclusion=` 是**状态词**（旧形状），与 `kind=` 同源导出；协议定稿（批 4）后只留 `kind=`。
         var conclusionField = $" conclusion={(r.Ok ? (notDone ? "partial" : "done") : "failed")}";
         var body = r.Ok ? Trim(r.Conclusion) + undone : Trim(r.Failure ?? "未结算");
-        // #220（主人 2026-09-29 19:24 令）：**回执正文必须回流到 master 侧可见处** ——
+        // #220（用户 2026-09-29 19:24 令）：**回执正文必须回流到 master 侧可见处** ——
         // 此前这一行只渲染 conclusion + covered，于是 master 侧只看到 `covered=36/36` 这种读数，
         // worker 的结论/证据**全部丢失**（模型只能再派一次去「要逐字原文」，那正是派发被写成工具级的根因）。
         // 次序照口径：answer（结论正文）在前，evidence（锚）在后，changes 收尾。
@@ -1133,7 +1133,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
         var open = r.Ok
             ? $" open={Quote(r.Open.Count > 0 ? string.Join(" | ", r.Open.Select(Trim)) : "none", r.LogPath)}"
             : (r.Open.Count > 0 ? $" open={Quote(string.Join(" | ", r.Open.Select(Trim)), r.LogPath)}" : string.Empty);
-        // 主人 2026-09-29 19:56 令（缺口 A①）：回执里的「即时踩坑」与「交接项」也必须进**master 侧可见的这一行**——
+        // 用户 2026-09-29 19:56 令（缺口 A①）：回执里的「即时踩坑」与「交接项」也必须进**master 侧可见的这一行**——
         // 此前只渲 answer/evidence/changes ⇒ 判定表看不到这两列（worker 交了也等于没交）。
         // 同形：引号包裹 · 单字段 ReceiptFieldMax 上限 · 超限明说并给落点。
         var pitfalls = r.Ok && r.Pitfalls.Count > 0 ? $" pitfalls={Quote(string.Join(" | ", r.Pitfalls))}" : string.Empty;
@@ -1211,7 +1211,7 @@ public sealed class WorkerDispatchModule : RuntimeModuleBase
     /// **把一次派发的用量记进档位账本**（§13.1 口径同义：<c>非缓存新增 = (prompt − cached) + completion</c>）。
     /// <para>每一次真跑了的派发都记（含补发）—— 它们花的钱一样真。失败/异常路径拿不到 usage ⇒ 记 0（不编数）。</para>
     /// </summary>
-    /// <summary>把 worker 的**机器决策报告**压成卡里那几行（人读 · 2026-10-09 主人令）：
+    /// <summary>把 worker 的**机器决策报告**压成卡里那几行（人读 · 2026-10-09 用户令）：
     /// 终局态 + 回执组合 + answer + evidence。null ⇒ null（不占字节）。</summary>
     private static string? RenderDecision(AgentRuntime.Core.Worker.MachineDecisionReport? d)
     {

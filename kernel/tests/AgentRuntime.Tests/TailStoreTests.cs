@@ -32,7 +32,7 @@ public sealed class TailStoreTests : IDisposable
         Assert.Empty(store.Load(null).Tail);                       // 缺文件 = 空默认（不是错误）
         Assert.Equal(CurrentTailSources.Empty, store.Load(null).Source);
 
-        // 写坏成「不是合法 JSON」⇒ 读取必报（绝不「当没有」把主人的白板悄悄清空）。
+        // 写坏成「不是合法 JSON」⇒ 读取必报（绝不「当没有」把用户的白板悄悄清空）。
         System.IO.Directory.CreateDirectory(Directory);
         File.WriteAllText(path, "{ 这不是合法 JSON ", Encoding.UTF8);
 

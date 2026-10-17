@@ -66,7 +66,7 @@ public sealed class CorpusConfiguration
     [XmlArrayItem("Tier")]
     public List<CorpusTierSpec> Tiers { get; set; } = [];
 
-    /// <summary>**实验语料锁**（主人 2026-09-14 定死）：测试工程只允许用仓库内的 10K 切片。</summary>
+    /// <summary>**实验语料锁**（用户 2026-09-14 定死）：测试工程只允许用仓库内的 10K 切片。</summary>
     [XmlElement(Order = 2)]
     public CorpusLockSpec Lock { get; set; } = new();
 

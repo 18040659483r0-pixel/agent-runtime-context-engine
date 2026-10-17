@@ -4,7 +4,7 @@ using AgentRuntime.Core.Protocol;
 namespace AgentRuntime.Hosting;
 
 /// <summary>
-/// **一次「接续链」需要宿主告诉策略的最小面**（2026-09-29 抽取，主人口径：master 与 worker 是同一基类的两台发动机，
+/// **一次「接续链」需要宿主告诉策略的最小面**（2026-09-29 抽取，用户口径：master 与 worker 是同一基类的两台发动机，
 /// 「是发动机就得能跑完发动机的基础生命周期流程」）。
 /// <para>
 /// 抽取前：<see cref="TurnContinuation.RunAsync"/> 直接吃 <see cref="RuntimeHost"/> ⇒ 续跑 / 终局自验 / 补轮

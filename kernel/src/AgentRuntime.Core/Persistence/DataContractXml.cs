@@ -7,7 +7,7 @@ namespace AgentRuntime.Core.Persistence;
 /// <summary>
 /// 内核**唯一**的序列化通道：0 依赖的确定性 XML（<see cref="DataContractSerializer"/>）。
 /// <para>
-/// 口径（主人 2026-09-29 定案）：core 内**不许出现 Python / JSON**，只许强类型编译型语言；
+/// 口径（用户 2026-09-29 定案）：core 内**不许出现 Python / JSON**，只许强类型编译型语言；
 /// 序列化用**在箱内** <see cref="DataContractSerializer"/>，**0 NuGet 依赖**（内核硬约束）。
 /// </para>
 /// <para><b>三条硬纪律</b>：</para>
