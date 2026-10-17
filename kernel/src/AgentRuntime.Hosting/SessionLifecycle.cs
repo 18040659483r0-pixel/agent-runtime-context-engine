@@ -730,8 +730,8 @@ public static class SessionLifecycle
             sources.Add(new PitfallsSource(config.Lifecycle.Pitfalls));
         }
 
-        // **落点**（运行时写）：知识库 `KNOWLEDGE.md` + **铁则区**（源文件 `AGENTS.md`，按「铁则 N」编号直达）。
-        ICloseoutSink[] sinks = [new RulesSink(workspace)];
+        // **落点**（运行时写）：**知识树**（L4→L3→L2→L1 上行）+ **铁则区**。
+        ICloseoutSink[] sinks = [new KnowledgeSink(workspace), new RulesSink(workspace)];
 
         var context = new CloseoutContext(
             workspace,

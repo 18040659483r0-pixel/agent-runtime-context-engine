@@ -93,7 +93,7 @@ T	src/AgentRuntime.Core/Focus/FocusWeights.cs	7	record	AgentRuntime.Core.Focus.F
 T	src/AgentRuntime.Core/Focus/FocusWeights.cs	20	record	AgentRuntime.Core.Focus.FocusWeights
 F	src/AgentRuntime.Core/Focus/IFocusRegionModule.cs	667	dd6200d74020	1
 T	src/AgentRuntime.Core/Focus/IFocusRegionModule.cs	14	interface	AgentRuntime.Core.Focus.IFocusRegionModule
-F	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	21906	2181b10828e1	11
+F	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	23054	9b38c39f0f7d	11
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	18	record	AgentRuntime.Core.Frozen.CloseoutContext
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	30	interface	AgentRuntime.Core.Frozen.ICloseoutSource
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	41	interface	AgentRuntime.Core.Frozen.ICloseoutSink
@@ -101,10 +101,10 @@ T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	60	interface	AgentRuntime.Core.Fro
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	74	record	AgentRuntime.Core.Frozen.CloseoutSlice
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	87	record	AgentRuntime.Core.Frozen.CloseoutRun
 T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	92	class	AgentRuntime.Core.Frozen.CloseoutJob
-T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	318	class	AgentRuntime.Core.Frozen.MemorySource
-T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	359	class	AgentRuntime.Core.Frozen.PitfallsSource
-T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	395	class	AgentRuntime.Core.Frozen.HandoffSource
-T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	424	class	AgentRuntime.Core.Frozen.RulesSink
+T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	324	class	AgentRuntime.Core.Frozen.MemorySource
+T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	371	class	AgentRuntime.Core.Frozen.PitfallsSource
+T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	407	class	AgentRuntime.Core.Frozen.HandoffSource
+T	src/AgentRuntime.Core/Frozen/CloseoutJob.cs	441	class	AgentRuntime.Core.Frozen.RulesSink
 F	src/AgentRuntime.Core/Frozen/CloseoutService.cs	5274	ff4cdcb13f39	2
 T	src/AgentRuntime.Core/Frozen/CloseoutService.cs	4	record	AgentRuntime.Core.Frozen.CloseoutStatus
 T	src/AgentRuntime.Core/Frozen/CloseoutService.cs	23	class	AgentRuntime.Core.Frozen.CloseoutService
@@ -146,6 +146,9 @@ F	src/AgentRuntime.Core/Frozen/IFrozenZoneModule.cs	644	2ce99cfb3998	1
 T	src/AgentRuntime.Core/Frozen/IFrozenZoneModule.cs	10	interface	AgentRuntime.Core.Frozen.IFrozenZoneModule
 F	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	2010	de6a9a85b086	1
 T	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	12	class	AgentRuntime.Core.Frozen.KnowledgeRepoStep
+F	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	8115	f05c1c2c22aa	2
+T	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	14	class	AgentRuntime.Core.Frozen.KnowledgeSink
+T	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	20	record	AgentRuntime.Core.Frozen.Raw
 F	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	9371	11b151a38aa3	2
 T	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	13	class	AgentRuntime.Core.Frozen.PitfallsIndex
 T	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	190	class	AgentRuntime.Core.Frozen.PitfallsIndexStep
@@ -638,7 +641,7 @@ T	src/AgentRuntime.Hosting/RuntimeHost.cs	95	class	AgentRuntime.Hosting.RuntimeH
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	1502	record	AgentRuntime.Hosting.TurnOutcome
 F	src/AgentRuntime.Hosting/RuntimePaths.cs	7844	6f8989472f5e	1
 T	src/AgentRuntime.Hosting/RuntimePaths.cs	13	class	AgentRuntime.Hosting.RuntimePaths
-F	src/AgentRuntime.Hosting/SessionLifecycle.cs	40574	738726417d98	4
+F	src/AgentRuntime.Hosting/SessionLifecycle.cs	40563	a6626eb4ab6b	4
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	19	record	AgentRuntime.Hosting.CloseoutReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	89	record	AgentRuntime.Hosting.ResetReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	134	record	AgentRuntime.Hosting.StartReport
@@ -878,6 +881,8 @@ E	Contains	src/AgentRuntime.Core/Frozen/HandoverSnapshot.cs	AgentRuntime.Core.Fr
 E	Contains	src/AgentRuntime.Core/Frozen/HandoverSnapshot.cs	AgentRuntime.Core.Frozen.HandoverStore
 E	Contains	src/AgentRuntime.Core/Frozen/IFrozenZoneModule.cs	AgentRuntime.Core.Frozen.IFrozenZoneModule
 E	Contains	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	AgentRuntime.Core.Frozen.KnowledgeRepoStep
+E	Contains	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	AgentRuntime.Core.Frozen.KnowledgeSink
+E	Contains	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	AgentRuntime.Core.Frozen.Raw
 E	Contains	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	AgentRuntime.Core.Frozen.PitfallsIndex
 E	Contains	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	AgentRuntime.Core.Frozen.PitfallsIndexStep
 E	Contains	src/AgentRuntime.Core/Frozen/PublicPitfallsStep.cs	AgentRuntime.Core.Frozen.PublicPitfalls
@@ -1419,6 +1424,7 @@ E	DependsOn	src/AgentRuntime.Cli/WorkerCli.cs	AgentRuntime.Modules.ModuleRegistr
 E	DependsOn	src/AgentRuntime.Cli/WorkerCli.cs	AgentRuntime.Modules.Worker.WorkerDispatchModule
 E	DependsOn	src/AgentRuntime.Core/Abstractions.cs	AgentRuntime.Models.ChatRequest
 E	DependsOn	src/AgentRuntime.Core/Abstractions.cs	AgentRuntime.Models.ChatResponse
+E	DependsOn	src/AgentRuntime.Core/AgentRuntimeEngine.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/AgentRuntimeEngine.cs	AgentRuntime.Core.IModelClient
 E	DependsOn	src/AgentRuntime.Core/AgentRuntimeEngine.cs	AgentRuntime.Core.IRuntimeModule
 E	DependsOn	src/AgentRuntime.Core/AgentRuntimeEngine.cs	AgentRuntime.Core.RequestAssembler
@@ -1556,6 +1562,8 @@ E	DependsOn	src/AgentRuntime.Core/Frozen/IFrozenZoneModule.cs	AgentRuntime.Core.
 E	DependsOn	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	AgentRuntime.Core.Frozen.CloseoutContext
 E	DependsOn	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	AgentRuntime.Core.Frozen.ICloseoutStep
 E	DependsOn	src/AgentRuntime.Core/Frozen/KnowledgeRepoStep.cs	AgentRuntime.Core.Knowledge.KnowledgeTree
+E	DependsOn	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	AgentRuntime.Core.Frozen.ICloseoutSink
+E	DependsOn	src/AgentRuntime.Core/Frozen/KnowledgeSink.cs	AgentRuntime.Core.Knowledge.KnowledgeTree
 E	DependsOn	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	AgentRuntime.Core.Frozen.CloseoutContext
 E	DependsOn	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	AgentRuntime.Core.Frozen.ICloseoutStep
 E	DependsOn	src/AgentRuntime.Core/Frozen/PublicPitfallsStep.cs	AgentRuntime.Core.Frozen.CloseoutContext
@@ -1698,6 +1706,7 @@ E	DependsOn	src/AgentRuntime.Core/RequestAssembler.cs	AgentRuntime.Models.ChatRe
 E	DependsOn	src/AgentRuntime.Core/RuntimeModules.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Core/RuntimeModules.cs	AgentRuntime.Models.ChatRequest
 E	DependsOn	src/AgentRuntime.Core/RuntimeModules.cs	AgentRuntime.Models.ChatResponse
+E	DependsOn	src/AgentRuntime.Core/RuntimeResult.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/RuntimeResult.cs	AgentRuntime.Core.Persistence.Cache
 E	DependsOn	src/AgentRuntime.Core/RuntimeResult.cs	AgentRuntime.Models.ChatRequest
 E	DependsOn	src/AgentRuntime.Core/RuntimeResult.cs	AgentRuntime.Models.ChatResponse
@@ -1948,6 +1957,7 @@ E	DependsOn	src/AgentRuntime.Core/Tooling/IndexTool.cs	AgentRuntime.Core.Tooling
 E	DependsOn	src/AgentRuntime.Core/Tooling/IndexTool.cs	AgentRuntime.Core.Worker.WindowResolver
 E	DependsOn	src/AgentRuntime.Core/Tooling/LineDiff.cs	AgentRuntime.Core.Tooling.ApprovalFace
 E	DependsOn	src/AgentRuntime.Core/Tooling/PendingToolQueue.cs	AgentRuntime.Core.Draft.DraftStore
+E	DependsOn	src/AgentRuntime.Core/Tooling/PendingToolQueue.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Tooling/PendingToolQueue.cs	AgentRuntime.Core.Persistence.DataContractXml
 E	DependsOn	src/AgentRuntime.Core/Tooling/PendingToolQueue.cs	AgentRuntime.Core.Tail.CurrentTailStore
 E	DependsOn	src/AgentRuntime.Core/Tooling/PendingToolQueue.cs	AgentRuntime.Core.Tooling.ToolCall
@@ -1960,6 +1970,7 @@ E	DependsOn	src/AgentRuntime.Core/Tooling/ScopeTool.cs	AgentRuntime.Core.Tooling
 E	DependsOn	src/AgentRuntime.Core/Tooling/ScopeTool.cs	AgentRuntime.Core.Tooling.ToolOutcome
 E	DependsOn	src/AgentRuntime.Core/Tooling/ScopeTool.cs	AgentRuntime.Core.Worker.EvidenceVerifier
 E	DependsOn	src/AgentRuntime.Core/Tooling/ScopeTool.cs	AgentRuntime.Core.Worker.WindowResolver
+E	DependsOn	src/AgentRuntime.Core/Tooling/ToolArgs.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolArgs.cs	AgentRuntime.Core.Tooling.ToolCallXml
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolArgs.cs	AgentRuntime.Core.Tooling.ToolNames
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolArgs.cs	AgentRuntime.Core.Tooling.ToolReport
@@ -1980,6 +1991,7 @@ E	DependsOn	src/AgentRuntime.Core/Tooling/ToolNames.cs	AgentRuntime.Core.Tooling
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolPaths.cs	AgentRuntime.Core.Tooling.ToolArgs
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolPaths.cs	AgentRuntime.Core.Tooling.ToolUsageException
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolPaths.cs	AgentRuntime.Hosting.RuntimeHost
+E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Persistence.XmlBlock
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Protocol.ProtocolText
@@ -1990,6 +2002,7 @@ E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Toolin
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Tooling.ToolRunner
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolReport.cs	AgentRuntime.Core.Worker.Malformed
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolRunner.cs	AgentRuntime.Core.Configuration.WorkerConfiguration
+E	DependsOn	src/AgentRuntime.Core/Tooling/ToolRunner.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolRunner.cs	AgentRuntime.Core.Protocol.ProtocolText
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolRunner.cs	AgentRuntime.Core.Security.ApprovalClaim
 E	DependsOn	src/AgentRuntime.Core/Tooling/ToolRunner.cs	AgentRuntime.Core.Security.Capability
@@ -2058,6 +2071,7 @@ E	DependsOn	src/AgentRuntime.Core/Worker/DispatchAbort.cs	AgentRuntime.Core.Work
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchAbort.cs	AgentRuntime.Core.Worker.MessageMode
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchAbort.cs	AgentRuntime.Core.Worker.MessageModes
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchFrame.cs	AgentRuntime.Models.ChatMessage
+E	DependsOn	src/AgentRuntime.Core/Worker/DispatchMust.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchParser.cs	AgentRuntime.Core.Persistence.XmlBlock
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchParser.cs	AgentRuntime.Core.Worker.DispatchIntent
 E	DependsOn	src/AgentRuntime.Core/Worker/DispatchParser.cs	AgentRuntime.Core.Worker.DispatchIntentKind
@@ -2148,6 +2162,7 @@ E	DependsOn	src/AgentRuntime.Core/Worker/SplitRecipe.cs	AgentRuntime.Core.Worker
 E	DependsOn	src/AgentRuntime.Core/Worker/SplitRecipe.cs	AgentRuntime.Core.Worker.WorkerResult
 E	DependsOn	src/AgentRuntime.Core/Worker/ToolFactLines.cs	AgentRuntime.Core.Lifecycle.TaskTerminalAssertions
 E	DependsOn	src/AgentRuntime.Core/Worker/ToolFactLines.cs	AgentRuntime.Core.Tooling.ExecTool
+E	DependsOn	src/AgentRuntime.Core/Worker/WindowMaterial.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Core/Worker/WindowMaterial.cs	AgentRuntime.Core.Tooling.ToolLimits
 E	DependsOn	src/AgentRuntime.Core/Worker/WindowMaterial.cs	AgentRuntime.Core.Worker.Entry
 E	DependsOn	src/AgentRuntime.Core/Worker/WindowResolver.cs	AgentRuntime.Core.Index.SourceIndex
@@ -2352,6 +2367,7 @@ E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Focus.Focu
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.CloseoutService
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.FrozenPrefix
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.HandoverSnapshot
+E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.Raw
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.SessionPointer
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Frozen.SessionPointerStore
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.IModelClient
@@ -2431,6 +2447,7 @@ E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Froze
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.ICloseoutSource
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.ICloseoutStep
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.KnowledgeRepoStep
+E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.KnowledgeSink
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.MemorySource
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.PitfallsIndexStep
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Frozen.PitfallsSource

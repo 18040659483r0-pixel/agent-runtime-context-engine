@@ -18,7 +18,7 @@ namespace AgentRuntime.Tests;
 /// </summary>
 public sealed class ServiceTierTests
 {
-    private const string FakeKey = "sk" + "-test-FAKE-KEY";
+    private const string FakeKey = "sk" + "-test-DO-NOT-LEAK-1234567890";
 
     private const string OkBody = """
     {"id":"c1","model":"m","choices":[{"index":0,"message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":3,"completion_tokens":1}}

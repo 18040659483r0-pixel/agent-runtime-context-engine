@@ -40,9 +40,9 @@ public sealed class CloseoutJobTests
 
         Assert.All(material, s => Assert.True(s.Watermark == "2026-10-10"));
         var memory = material.Single(s => s.Id == "memory");
-        Assert.Equal(["2026-10-11.md"], memory.Pending);              // 水位线之后的才有
+        Assert.Contains(memory.Pending, l => l.Contains("2026-10-11.md"));              // 水位线之后的才有
         var handoff = material.Single(s => s.Id == "handoff");
-        Assert.Contains("55-co-2026-10-11.md", handoff.Pending);
+        Assert.Contains(handoff.Pending, l => l.Contains("55-co-2026-10-11.md"));
     }
 
     [Fact]
@@ -50,13 +50,13 @@ public sealed class CloseoutJobTests
     {
         // 2026-10-11 用户令：「截断时不推进水位比较保险」。上限之外的部分会被静默跳过 ⇒ 推进 = 假干净。
         var (ws, _, roots) = Scene();
-        for (var d = 1; d <= 45; d++)
+        for (var d = 1; d <= 250; d++)
         {
-            File.WriteAllText(Path.Combine(ws, "memory", $"2026-11-{d:00}.md"), "x");
+            File.WriteAllText(Path.Combine(ws, "memory", $"2026-11-{(d - 1) % 28 + 1:00}-{d:0000}.md"), "x");
         }
 
         var wl = Path.Combine(ws, "memory", "收尾水位.md");
-        var ctx = new CloseoutContext(ws, Path.Combine(ws, "docs", "PITFALLS.md"), DateTimeOffset.Now, wl, "## 水位");
+        var ctx = new CloseoutContext(ws, Path.Combine(ws, "docs", "PITFALLS.md"), DateTimeOffset.Now, wl, "## 水位") { Watermark = "2026-10-10" };
         var run = await CloseoutJob.RunAsync(
             FakeModelClient.Returning("[CLOSEOUT] knowledge\nL1 · x\n[/CLOSEOUT]"),
             [new MemorySource(ws)], [new RulesSink(ws)], ctx, roots);
@@ -79,7 +79,7 @@ public sealed class CloseoutJobTests
         var slice = new MemorySource(ws).Gather(ctx);
 
         Assert.Equal("（读不出）", slice.Watermark);
-        Assert.Equal(["2026-10-11.md"], slice.Pending);   // 全取，不是空
+        Assert.Contains(slice.Pending, l => l.Contains("2026-10-11.md"));   // 全取，不是空
     }
 
     [Fact]
@@ -91,7 +91,9 @@ public sealed class CloseoutJobTests
             [new RulesSink(ws), new RulesSink(ws)]);
 
         Assert.Contains("铁则要新增或改动", ask, StringComparison.Ordinal);
-        Assert.Contains("知识树不在这里生长", ask, StringComparison.Ordinal);
+        Assert.Contains("知识树", ask, StringComparison.Ordinal);
+        Assert.Contains("layer=\"4\"", ask, StringComparison.Ordinal);
+        Assert.Contains("layer=\"1\"", ask, StringComparison.Ordinal);
         Assert.Contains(CloseoutJob.WriteHeader + " rules", ask, StringComparison.Ordinal);
         Assert.Contains("不要回写材料", ask, StringComparison.Ordinal);
     }

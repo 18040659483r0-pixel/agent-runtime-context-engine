@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- 封版信息：全解决方案统一版本（0.1.0 = V0/V1 内核封版） -->
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Product>Agent Runtime</Product>
     <Authors>Agent Runtime Contributors</Authors>
     <Description>从零自研的 Agent Runtime / Context Engine 内核：可插拔模块 + 可度量的上下文效率。</Description>

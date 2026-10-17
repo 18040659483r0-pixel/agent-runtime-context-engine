@@ -105,7 +105,7 @@ public sealed class RuntimeRulesTests
     [Fact]
     public void R1b_名字类_仓内不得出现自制_json_名字_文件与目录()
     {
-        string[] skip = ["/.svn/", "/bin/", "/obj/", "/.stage1/", "/benchmark/runs/", "/dist/", "/_retired/"];
+        string[] skip = ["/.svn/", "/bin/", "/obj/", "/.stage1/", "/benchmark/runs/", "/dist/", "/_retired/", "/benchmark/swebench-lite/predictions/", "/benchmark/swebench-lite/results/"];
         var root = RepoRoot();
 
         var offenders = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)

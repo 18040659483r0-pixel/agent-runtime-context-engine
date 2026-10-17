@@ -1,5 +1,7 @@
 # Agent Runtime / Context Engine · Alpha 0.1
 
+> [中文版](README.zh-CN.md)
+
 > A deployable, measurable, fully customizable agent runtime.
 > This document describes the **stable design of Alpha 0.1**; it intentionally omits the project's evolution history.
 
@@ -11,6 +13,13 @@ Agent Runtime turns model collaboration into two engineering problems:
 2. **Knowledge and decisions = two isomorphic four-layer trees.** Only L1 is resident; L2–L4 are fetched by id; within a session, a node's body is assembled at most once.
 
 The runtime performs **mechanical work only** — assembly, validation, accounting, fetching, closeout. Semantic judgement belongs to the model. Every reading is reproducible.
+
+## 0. Highlights (Alpha 0.1)
+
+- **Extreme token efficiency**: only L1 is resident (787 B); L2–L4 are fetched by id; within a session a node's body is assembled once and later fetches return a pointer. Frozen corpus: **8.1 KB ≈ 2,428 tokens**.
+- **Transparency**: append-only events, tags as identity; every fetch, prune, closeout, and release is recorded; readings come from structured sources and are byte-reproducible.
+- **Extensibility**: pluggable modules, declarative closeout requirements, a knowledge tree that grows by edges; rules, persona, user profile, knowledge, decisions, and principles are all plain text — changing text changes the world.
+- **Decision library + autonomous continuous work**: the decision library mirrors the knowledge tree with L1 resident; the bypass module may decide for the user only when both the library and the principles agree; at 80% it closes out, resets, and continues the same task, stopping only for a genuine gap.
 
 ## 1. Goals
 

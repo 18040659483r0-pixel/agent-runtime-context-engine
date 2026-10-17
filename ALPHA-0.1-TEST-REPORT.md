@@ -193,3 +193,17 @@
 
 **3/3 resolved**；官方 gold patch sanity 也 resolved（环境可用）。这是实跑子集，不是全量 300 的通过率。
 证据：`benchmark/swebench-lite/results/*.json`；套件说明见 `benchmark/swebench-lite/README.md`。
+
+---
+
+## 八、0.1.1 修正：收尾知识上行（坑集/记忆 → L4→L3→L2→L1）
+
+**实现**：收尾一次模型调用，材料改为**正文**（memory / 坑集 / handoff 有界摘录）；模型按链输出 L4 证据 → L3 单元 → L2 问题 → L1 法则；运行时临时 id 映射、去重、链校验、只追加、重建派生。
+
+**真机证据**（官方 DeepSeek）：
+- 第 1 次：`原料 2 份` → `新增 8 节点（L1 2 / L2 2 / L3 2 / L4 2）· 结构校验无问题`；知识树 5→7。
+- 第 2 次：`原料 2 份` → `新增 4 节点（L1 1 / L2 1 / L3 1 / L4 1）`；知识树 7→9，边 27，结构绿。
+- 单测：`KnowledgeSinkTests` 3/3（链映射 / 去重 / 断链不写）；全量 **1342/1342**。
+- 收尾套件：`--check` **Core 0** → `--close` 收敛点 → 终检 **Core 0 / report 0**。
+
+**注意**：上述 8+4 节点来自测试材料；发布包仍使用 20 节点初始种子（`knowledge.initial`）。

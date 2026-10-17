@@ -9,7 +9,7 @@ namespace AgentRuntime.Tests;
 
 public sealed class OpenAICompatibleClientTests
 {
-    private const string FakeKey = "sk" + "-test-FAKE-KEY";
+    private const string FakeKey = "sk-test-DO-NOT-LEAK-1234567890";
 
     private static readonly string OkJson = """
     {

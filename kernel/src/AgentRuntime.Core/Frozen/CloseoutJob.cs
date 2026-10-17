@@ -92,7 +92,7 @@ public sealed record CloseoutRun(int MaterialSources, int ModelCalls, IReadOnlyL
 public static class CloseoutJob
 {
     /// <summary>单份原料进载荷的行上限（防载荷爆；超了如实标 <c>Truncated</c>）。</summary>
-    public const int MaxPendingLinesPerTarget = 40;
+    public const int MaxPendingLinesPerTarget = 400;
 
     /// <summary>回写块的块头 / 块尾（解析边界；唯一声明处）。</summary>
     public const string WriteHeader = "[CLOSEOUT]";
@@ -162,8 +162,14 @@ public static class CloseoutJob
         var text = new System.Text.StringBuilder();
         text.AppendLine("收尾。下面是**你上次收尾之后新出现**的全部材料（只读给你看，不要回写材料）。");
         text.AppendLine("只回你要给的**新条目**，别复述材料：");
-        text.AppendLine("  **有没有铁则要新增或改动？** 有 ⇒ 直接写出**那一条铁则**（用「铁则 <编号> · <标题>」起头，正文紧随）。");
-        text.AppendLine("  （知识树不在这里生长：`knowledge/knowledge.md` 是活版，收尾只重建派生并校验。）");
+        text.AppendLine("  **① 知识树**：从材料里提炼**新增**知识，按一条链一组：");
+        text.AppendLine("     先写 L4 证据，再向上抽象 L3 处理单元 → L2 问题形状 → L1 法则：");
+        text.AppendLine("     `<T1 layer=\"4\" src=\"来源路径\">证据要点</T1>`");
+        text.AppendLine("     `<T2 layer=\"3\" next=\"T1\">处理单元</T2>`");
+        text.AppendLine("     `<T3 layer=\"2\" next=\"T2\">问题形状</T3>`");
+        text.AppendLine("     `<T4 layer=\"1\" next=\"T3\">一句法则</T4>`");
+        text.AppendLine("     临时 id 全批唯一（T1..Tn 不重复）；只给新增；不要重复已有 L1~L4；没有就写「本批无新增」。");
+        text.AppendLine("  **② 铁则**：有没有铁则要新增或改动？有 ⇒ 直接写出**那一条铁则**（用「铁则 <编号> · <标题>」起头，正文紧随）。");
         text.AppendLine("没有就明说「本批无新增」——**不要为了交差硬凑**。");
         text.AppendLine();
         text.AppendLine("回写格式（每类一个块）：");
@@ -330,9 +336,15 @@ public sealed class MemorySource(string workspace) : ICloseoutSource
         {
             // **fail-closed（2026-10-11）**：水位**读不出**时**全取**（宁可多做）——
             // 旧口径是「读不出 ⇒ 空 ⇒ 没有新材料 ⇒ 不调模型」，再自己写一条「已收敛至今天」⇒ **假干净**。
-            pending.AddRange(string.IsNullOrWhiteSpace(context.Watermark)
-                ? Newer(dir, "0000-00-00")
-                : Newer(dir, context.Watermark));
+            var files = string.IsNullOrWhiteSpace(context.Watermark)
+                ? Newer(dir, "0000-00-00").TakeLast(5).ToList()
+                : Newer(dir, context.Watermark);
+            foreach (var name in files)
+            {
+                pending.Add($"### {name}");
+                var text = File.ReadAllText(Path.Combine(dir, name));
+                pending.AddRange(text.Replace("\r\n", "\n").Split('\n').Take(100));
+            }
         }
 
         return Slice(Id, Title, dir, context, pending);
@@ -380,8 +392,8 @@ public sealed class PitfallsSource(string path) : ICloseoutSource
                     var dates = Regex.Matches(block, @"\d{4}-\d{2}-\d{2}").Select(x => x.Value);
                     if (dates.Any(d => string.CompareOrdinal(d, wm) > 0))
                     {
-                        var head = block.Split('\n')[0];
-                        pending.Add(head);
+                        pending.AddRange(block.Replace("\r\n", "\n").Split('\n').Take(60));
+                        pending.Add(string.Empty);
                     }
                 }
             }
@@ -403,11 +415,16 @@ public sealed class HandoffSource(string workspace) : ICloseoutSource
         var pending = new List<string>();
         if (context.Watermark is { Length: > 0 } wm && Directory.Exists(dir))
         {
-            pending.AddRange(Directory.EnumerateFiles(dir)
+            var files = Directory.EnumerateFiles(dir)
                 .Select(Path.GetFileName)
                 .Where(n => n is not null && n.Contains('-') && !n.StartsWith('.'))
                 .Where(n => Regex.Matches(n!, @"\d{4}-\d{2}-\d{2}").Any(x => string.CompareOrdinal(x.Value, wm) > 0))
-                .OrderBy(n => n, StringComparer.Ordinal)!);
+                .OrderBy(n => n, StringComparer.Ordinal)!;
+            foreach (var name in files)
+            {
+                pending.Add($"### {name}");
+                pending.AddRange(File.ReadAllText(Path.Combine(dir, name)).Replace("\r\n", "\n").Split('\n').Take(80));
+            }
         }
 
         return MemorySource.Slice(Id, Title, dir, context, pending);
