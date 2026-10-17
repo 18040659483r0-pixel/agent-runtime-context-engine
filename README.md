@@ -1,9 +1,9 @@
-# Agent Runtime / Context Engine · Alpha 0.1
+# Agent Runtime / Context Engine · Alpha 0.1.1
 
 > [中文版](README.zh-CN.md)
 
 > A deployable, measurable, fully customizable agent runtime.
-> This document describes the **stable design of Alpha 0.1**; it intentionally omits the project's evolution history.
+> This document describes the **stable design of Alpha 0.1.1**; it intentionally omits the project's evolution history.
 
 ## Abstract
 
@@ -14,12 +14,13 @@ Agent Runtime turns model collaboration into two engineering problems:
 
 The runtime performs **mechanical work only** — assembly, validation, accounting, fetching, closeout. Semantic judgement belongs to the model. Every reading is reproducible.
 
-## 0. Highlights (Alpha 0.1)
+## 0. Highlights (Alpha 0.1.1)
 
 - **Extreme token efficiency**: only L1 is resident (787 B); L2–L4 are fetched by id; within a session a node's body is assembled once and later fetches return a pointer. Frozen corpus: **8.1 KB ≈ 2,428 tokens**.
 - **Transparency**: append-only events, tags as identity; every fetch, prune, closeout, and release is recorded; readings come from structured sources and are byte-reproducible.
 - **Extensibility**: pluggable modules, declarative closeout requirements, a knowledge tree that grows by edges; rules, persona, user profile, knowledge, decisions, and principles are all plain text — changing text changes the world.
 - **Decision library + autonomous continuous work**: the decision library mirrors the knowledge tree with L1 resident; the bypass module may decide for the user only when both the library and the principles agree; at 80% it closes out, resets, and continues the same task, stopping only for a genuine gap.
+- **Automatic knowledge uplink (0.1.1)**: at closeout a remote model converges memory + pitfalls + handoff into chains of `L4 evidence → L3 unit → L2 question shape → L1 law`; the runtime maps temporary ids, skips duplicates, rejects broken chains, validates structure, and appends only.
 
 ## 1. Goals
 
@@ -55,6 +56,16 @@ L1 law → L2 question shape → L3 unit → L4 evidence
 - **Only L1 is resident**; L2–L4 are fetched by the model with `[KN] <id>`.
 - **Session dedupe**: first fetch assembles the body; a second fetch returns only a `kn-ref` pointer (first event tag + sequence).
 - Derived files (`l1.xml` / `nodes.xml` / `summary.xml`) are recomputed from the live document and byte-deterministic; structural checks (edges, orphans, seq) are re-runnable.
+
+### 2.2.1 Uplink growth at closeout (0.1.1)
+
+Pitfalls and memory no longer stop at L4: a remote model converges them along edges to L1 during closeout.
+
+- **Material**: the day's memory body + the project's pitfalls body + handoff (bounded excerpts, not just file names).
+- **One model call** yields chains: `L4 evidence → L3 unit → L2 question shape → L1 law`; temporary ids are mapped to official ids by the runtime.
+- **The runtime only validates mechanically**: duplicate chains are skipped, blank `src=` / broken links are not written, edges/orphans/seq are checked, writes are append-only, and `.derived` is rebuilt.
+- **Live readings**: first run, 2 materials → **8 new nodes** (2 per layer); second run → **+4 nodes** (1 chain); tree 5→9; a clean state with no new material does **not** call the model.
+- Result: the next session only needs L1 resident and fetches detail by id — experience becomes cacheable law.
 
 ### 2.3 Decision library
 
@@ -126,6 +137,7 @@ Coverage: verbatim read, locate/list, precise edit, create artifact, run command
 
 - Mechanical A1: `--check` (Core 0) → `--close` writes convergence → final **Core 0 / report 0**.
 - Real-machine three stages: `/closeout` backlog → `/reset --start` → `/closeout` clean; knowledge tree rebuilt (20 nodes / 15 edges); no tool rejects, no silent exit.
+- Knowledge uplink on live model: one `--close` call added 8 nodes / 2 chains; a second added +4 nodes / 1 chain; structure green; a clean state does not call the model.
 
 ### 4.4 Deployment suite
 
@@ -148,14 +160,15 @@ This is a **live subset**, not the pass rate of the full 300 instances.
 
 ## 5. Reproducibility
 
-- Package: `agentruntime-alpha-0.1-macos-arm64.zip`
-- sha256: `6ad972dfadb49ca5151072dcf6f3abcedf000da8bd5dc5bbc68cef713cfd1981`
+- Package: `agentruntime-alpha-0.1.1-macos-arm64.zip`
+- sha256: `3bd28cc42d52d549832b29457f272903ecf2a7d15f4b5203936f0f989bcf01c4`
 - Environment: macOS arm64 · .NET 10 · official DeepSeek (`deepseek-v4-flash`)
 - Pre-publish scan: **0 hard red lines**
 
 ## 6. Alpha boundaries
 
-- The **uplink curation line** (L4→L3→L2→L1) is not automatic yet; during alpha the tree is maintained by hand.
+- The knowledge uplink uses **bounded excerpts** of its material; overly long material is truncated (the result says so). It converges, it does not rewrite everything.
+- Network tools (`web_fetch` / `web_search` / `http_request` / `web_download` / `web_search_extract`) are a next-version capability, not part of 0.1.1.
 - The 80% auto-closeout uses `ContextWindow = 128,000` as an assumption; adjust it to the model.
 - SWE-bench is a small live subset, not the full 300-instance run.
 - Only a macOS arm64 build is published; other platforms require `dotnet publish`.
