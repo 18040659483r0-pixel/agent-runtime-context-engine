@@ -1,130 +1,157 @@
-# Agent Runtime / Context Engine 架构设计 V3
+# Agent Runtime / Context Engine · Alpha 0.1
 
-## 第三版论文 · **增量件**（承接 V2 / v4.0-v5.0，只写这一版新增了什么、凭什么）
+> A deployable, measurable, fully customizable agent runtime.
+> This document describes the **stable design of Alpha 0.1**; it intentionally omits the project's evolution history.
 
-> **读法**：V2 立的是「分开」——Knowledge / Rules / Memory / Context / Frozen Snapshot / Session Append Stream /
-> Semantic Focus / Deterministic Recovery / Runtime-Model 解耦。**V3 立的是「收敛」**：
-> 把 V2 那张网里多余的分叉剪掉，让**契约只有一处**、**失败只作提示**、**被拒必留痕**。
-> 与 V2 冲突处，**以 V3 为准**（V2 仍是完整背景）。
+## Abstract
 
----
+Agent Runtime turns model collaboration into two engineering problems:
 
-## 0. 这一版回答四个问题
+1. **Context = a stable prefix + an append-only event stream.** The prefix is byte-stable and cacheable; history is append-only and never rewritten.
+2. **Knowledge and decisions = two isomorphic four-layer trees.** Only L1 is resident; L2–L4 are fetched by id; within a session, a node's body is assembled at most once.
 
-1. **要不要 worker？** —— 不要了：**单 master**（V2 的 master/worker 分层的收益已被 context 侧的收敛吃掉）。
-2. **同一个形状为什么一处认、三处教？** —— 归一成**一份**：契约文本是唯一来源，拒因不得自己再教一遍。
-3. **慢，是失败吗？** —— 不是：**「等得久」只看不砍**（提示 ≠ 中断，更 ≠ 退出）。
-4. **模型老犯同一个错怎么办？** —— **被拒即留痕**：当场落收件箱，收尾**强制**收敛进顶层知识。
+The runtime performs **mechanical work only** — assembly, validation, accounting, fetching, closeout. Semantic judgement belongs to the model. Every reading is reproducible.
 
----
+## 1. Goals
 
-## 1. 收敛一：单 master
+- **Cacheable**: no time, randomness, or environment in the stable prefix; one changed byte is a version event.
+- **Auditable**: append-only events; tags are identity, positions live only in the ledger.
+- **Explainable**: knowledge and decisions are trees with ids, layers, and edges; fetches and prunes are reviewable.
+- **Deployable**: bare baseline + CLI; customization is plain text, no code changes.
+- **Reproducible**: same input ⇒ same bytes; same command ⇒ same reading.
 
-- **背景（V2 的假设）**：master 只指挥、worker 干重活（读原料 / 跑命令），以压 master 的上下文成本。
-- **实测推翻**：worker 一装上，"能派"就变成"该派"，档位目标（master ≤10%）**靠提示到不了**；
-  而 context 侧的收敛（R1 稳定前缀 + 只追加流 + 按需取）已把 master 的单轮成本压到可接受区间。
-- **V3 口径**：**单 master**。工具面全交回 master（`ToolNames.MasterFace = All`）；协议区删掉派发条与 worker 句；
-  运行时不装 worker ⇒ **无 DISPATCH、无回执、无派发闸门**。
-- **代价与兜底**：worker 的部分**逐字备份**在同仓文档里（可回插）；`worker` 仍是配置开关，需要时能开回来。
+## 2. Architecture
 
-**判据**：文档仓与代码仓"活版↔存档区"逐字节一致；协议区不含派发条；`dotnet test` 全绿（§6）。
+### 2.1 Context layers
 
----
-
-## 2. 收敛二：工具面**形状归一**（一处声明）
-
-- **现场（真机）**：远端模型写 `[TOOL] read {"path": /abs}`（**值没引号**）⇒ 整篇拒。
-  而它的**拒因话术**教的是「行式键值」（**2026-09-29 的旧形状**），**协议区**教的是「一个 XML 元素」，
-  协议区正文自己还留着 `{...}` / `key: <<` 的半句 ⇒ **模型一次看到三种形状**，只能逐个试。
-- **V3 口径（三条）**：
-  1. **契约文本是唯一来源**（`ToolFaceClause.Shape`）：所有"教怎么写"的地方都引用它，不得手写第二份；
-  2. **拒因只报事实 + 指向契约**：说清"哪一块、什么形状、怎么改"，**不再自己教一遍形状**；
-  3. **协议正文清掉退役形状的残句**：长正文一律「放进元素里逐字 / 写文件传路径」。
-- **同步纪律**：协议区是有账本的活物 —— 改正文 ⇒ **版本 bump + 指纹登记 + 逐字副本 + 元数据 + 预算** 四道闸门随动。
-
-**判据**：`ToolFaceClause.Shape` 的字符串在任何"教形状"的位置**只出现一次**；负例（旧 JSON 形状）拒因里**不含第二种形状**。
-
----
-
-## 3. 收敛三：**「等得久」只看不砍**
-
-- **现场（真机）**：TUI 反复自退，每次同一句 `请求超时（60s）⇒ 退出（退出码 3）`。
-- **真因两条**：① 墙由**账本中位×k**导出 ⇒ 中位 9.1s 把墙压到**地板 60s**，而账本尾部有 **62.5s** 的轮
-  （正常但慢的一轮被打断）；② **可恢复的单轮错误被当致命** —— split 入口没人接住异常 ⇒ 冒到 `Main` ⇒ 退出。
-- **V3 口径**：
-  - **硬墙 = 声明的上界**（`TimeoutSeconds`），**不再按账本收窄**；
-  - **到了提示点（默认 5 分钟）只出一行提示**：`本轮已在上游等待 N 分钟 —— 继续等，不中断`；
-  - **真失败**（非 2xx / 网络错 / 撞声明上界）也不杀进程：**作废这一轮、会话继续**，并**进流留痕**。
-- **级别必须说清**：那个墙是 **turn 级（单次请求）**；**task（一次请求 + 全部续跑轮）与 session（整条流）不受影响**。
-
-**判据**：真账本上的生效墙与声明上界一致；提示点是"只看不砍"（边界由纯函数夹具钉住，不用真等 5 分钟）。
-
----
-
-## 4. 收敛四：**被拒即留痕**（失败知识化）
-
-- **问题**：协议区写了、模型仍犯 ⇒ 若"被拒"只留在**本场事件流**里，下一个 session 从零开始。
-- **V3 口径**：**任何工具面拒绝，除记录外，立刻落进收件箱**（`lifecycle.pitfallsInbox`，一行一条：时刻 · 拒因 · 原文）；
-  **收尾把它变成欠着的账**（未收敛 ⇒ 红）⇒ 收敛进顶层知识 ⇒ **下一个 session 由契约再限制一次**。
-- **纪律**：落盘失败**响亮**（不静默丢知识）；没配收件箱 ⇒ 不写（不猜路径）。
-
-**判据**：负例（任意一次拒绝）⇒ 收件箱多一行；收尾读它 ⇒ `Pending`；记过账 ⇒ `Ok`。
-
----
-
-## 5. 退役：一次"概念退役"的完整挂载清单
-
-V3 退役了**专家（Expert / 专业领域）**这一层 —— 原设计想按 L2 域映射做**运行时动态装卸**以省 L2 装载量，
-但 L1+L2 本来就不多 ⇒ 收益不成立。
-
-退役不是删语料，而是**退它的全部挂载**（少一处就是"永远红的孤儿"）：
-
-| 挂载面 | 例（本仓实做） |
-|---|---|
-| 层模型 | `FrozenLayer.Expert`（保留 `Project` 的**数值不挪号**，防账本错位） |
-| 数据 | `FrozenSlot` / `FrozenSection` / 清单条目的 `DomainId`；`SectionId` 的 expert 分支 |
-| 类型 | `KnowledgeDomain(s)` 整档删除 |
-| 配置 / CLI | `frozen.domains` · `--domains` / `--list-domains` / `--list-misc` · 覆盖项 |
-| 服务 | 收尾的 misc 桶写入、文件来源的 expert 路径、快照的域排序 |
-| 夹具 | 14 个测试文件（含**助手层**：`Slot()` / `Key()` / `With()` / 域助手）+ 域测试整条删 |
-
-**教训（写进论文）**：退役的**难点不在签名，在夹具的助手层** —— 只数符号（grep 计数）会低估工作量；
-开工前必须先扫"助手形状"，否则会在最后一公里被判据绊住（本版实测：两次回滚后才看清）。
-
----
-
-## 6. 判据与读数（可复现）
-
-| 项 | 读数 |
-|---|---|
-| 测试 | `dotnet test -c Release` ⇒ **1387/1388**（唯一红 = 知识库体量基线，属**设计内的自持待办**） |
-| 构建 | Debug / Release **双档 0 错** |
-| 协议区 | **v68**（指纹 / 逐字副本 / 元数据 / 预算四道闸门同绿） |
-| 残留扫描 | `FrozenLayer.Expert` / `KnowledgeDomain` / `DomainId` / `PendingMisc` / `.expert.` ⇒ **代码 0 处** |
-| 发布切片 | `pre-publish-scan` **0 硬红线** · 切片内可编译 · 切片内测试全绿 |
-
----
-
-## 7. 与 V2 / v5.0 的差异（一表读完）
-
-| 维度 | V2 / v5.0 | **V3（本版）** |
+| Zone | Content | Nature |
 |---|---|---|
-| 执行体 | master 指挥 + worker 干重活 | **单 master**（worker 退役，可配置开回） |
-| 工具形状 | 契约 + 拒因 + 正文**各说一套** | **一处声明**：唯一来源 + 拒因只指路 |
-| 慢 | 墙按账本收窄，撞墙即失败（曾直接退出） | **只看不砍**：到点提示、真失败也不杀会话 |
-| 拒绝 | 记进本场事件流 | **+ 立刻落收件箱 + 收尾强制收敛**（跨 session 生效） |
-| 专业领域 | 层 + 域映射 + 动态装卸 | **整层退役**（挂载清单全清） |
-| 观测台 | 双栏 / 边框版式 | **去边框 + 按宽重绘 + 顶带五段**（会话/区栈/白板/草稿/焦点） |
+| **R1-P** | Protocol (v74: 15 lines / 10,701 chars / 2,676 tokens) | Kernel constant, Rank 0 |
+| **R1** | Rules · knowledge L1 · decision L1 · memory index | Stable prefix, byte-reproducible |
+| **R2** | Event stream (`E###`, append-only) | History and tool results |
+| **R3** | Focus (event ids relevant to this turn) | Dynamic |
+| **R4** | Whiteboard (current solution/step) | Dynamic |
+| **R5** | Draft (open items) | Dynamic |
 
----
+Assembly order: **R1-P → R1 → R2 → R4 → R5 → R3**. Focus comes last so dynamic content never front-loads the prefix.
 
-## 8. 怎么验证它
+### 2.2 Knowledge tree (L1–L4)
 
-同仓 `DEPLOY.md`：**五分钟**（填 provider → `dotnet build -c Release` → 起 TUI），
-`frozen/` 是**公开语料切片（A 档口径）**，够跑起来并复现本文读数。
-给 AI 的六步快速通道也写在那份手册里 —— 目标是**人看会、AI 也一看就会**。
+```
+L1 law → L2 question shape → L3 unit → L4 evidence
+```
 
----
+- Single marker: `<!--kn: <id> [next=<id,id>] [src=<path>]-->`
+- id: `L<layer>-<short>-<nnn>`; the layer is encoded in the id.
+- **Only L1 is resident**; L2–L4 are fetched by the model with `[KN] <id>`.
+- **Session dedupe**: first fetch assembles the body; a second fetch returns only a `kn-ref` pointer (first event tag + sequence).
+- Derived files (`l1.xml` / `nodes.xml` / `summary.xml`) are recomputed from the live document and byte-deterministic; structural checks (edges, orphans, seq) are re-runnable.
 
-> **一句话**：V2 把系统的部件**分开**；V3 把**契约、失败、知识**三件各自**收敛成一处** ——
-> 形状只有一份、慢只是提示、被拒必有留痕。
+### 2.3 Decision library
+
+Isomorphic to knowledge: `L1 orientation → L2 decision shape → L3 decision unit → L4 verbatim evidence`.
+
+- Decision L1 enters frozen R1, ordered after knowledge L1.
+- `USER-DECISION-ENTRIES.md` collects raw decisions; closeout converges them into `DECISION-LIBRARY.md`.
+- `PROJECT-DESIGN-PRINCIPLES.md` is a live project document, read on demand, never resident.
+- The optional bypass module may decide for the user only when **both** the decision library and the principles are satisfied; otherwise it stops and asks.
+
+### 2.4 Tool face
+
+One call = **one XML element**:
+
+```text
+[TOOL] <call><name>read</name><path>/abs/file</path></call>
+```
+
+- Members are taken by name, order-independent; multi-line bodies go verbatim inside the element, without escaping.
+- Each call may carry a `risk:` claim; the runtime classifies, records, and executes — it does not ask inside a task.
+- Calls beyond the per-reply pace are **queued**, never rejected or lost.
+- Shape normalization first: `<TOOL>`, bare `<call>`, and native-marker residue are normalized to the protocol shape; examples inside fenced blocks are not calls.
+
+### 2.5 Closeout
+
+Closeout is an **extensible module**: one declaration per requirement, split into Core and Extension.
+
+- Core red = record and warn, **do not block** by default; Extension red is accounted only.
+- The convergence point records archive revision, code revision, pitfall counts, live↔archive parity, and a fingerprint.
+- A green closeout removes the previous red note; a red closeout leaves its name both in the convergence line and in the ledger.
+
+## 3. Deployment
+
+The deployment version is a **bare baseline**: 20 knowledge seeds (5 per layer) and 3 decision seeds.
+
+```bash
+./deploy.sh init ~/MyAgent
+./deploy.sh provider --target ~/MyAgent --base-url https://api.deepseek.com \
+  --model deepseek-v4-flash --api-key-env DEEPSEEK_API_KEY
+./deploy.sh doctor  --target ~/MyAgent
+./deploy.sh check   --target ~/MyAgent
+./deploy.sh reset   --target ~/MyAgent --all
+./deploy.sh run     --target ~/MyAgent [--cli]
+```
+
+- **Paths**: the package root is found by walking up to `config.xml`; the internal layout is fixed; relative paths in the config resolve against the config directory; the whole directory can be moved.
+- **Provider**: only `BaseUrl` / `Model` / `ApiKeyEnv` / `ApiKeyFile` / `ContextWindow`; secrets live in env vars or key files only.
+- **Customization**: rules `AGENTS.md`, persona `SOUL.md`/`IDENTITY.md`, user `USER.md`, knowledge `knowledge.md`, decisions, project principles — six plain-text files; changing them changes the world.
+
+## 4. Evaluation
+
+### 4.1 Regression
+
+- Unit/integration tests: **1339 / 1339**.
+
+### 4.2 Single-master performance suite (M1–M10)
+
+| Metric | Reading |
+|---|---|
+| Tasks | **10 / 10 solved** |
+| Dispatches | **0** |
+| Rounds / tools | **81 / 46** |
+| Total wall time | **267.6 s** |
+| Tool-shape rejects | **4** (four distinct shapes, all self-corrected; no shape repeated) |
+
+Coverage: verbatim read, locate/list, precise edit, create artifact, run command, reading recomputation, bug fix, decision report, size-aware scheduling, closeout artifacts.
+
+### 4.3 Closeout suite
+
+- Mechanical A1: `--check` (Core 0) → `--close` writes convergence → final **Core 0 / report 0**.
+- Real-machine three stages: `/closeout` backlog → `/reset --start` → `/closeout` clean; knowledge tree rebuilt (20 nodes / 15 edges); no tool rejects, no silent exit.
+
+### 4.4 Deployment suite
+
+8 / 8: package integrity, `init`, official DeepSeek provider, `doctor` + `check`, real TUI, fetch dedupe, `reset`, whole-directory relocation.
+
+- Real-machine stage: **2 rounds / 1 tool / 0 rejects / 5 s**, output contains `L1-…` and `[DONE]`.
+
+### 4.5 SWE-bench Lite
+
+Three real instances, run with the official harness + Docker and the official DeepSeek `deepseek-v4-flash`:
+
+| Instance | Result |
+|---|---|
+| `psf__requests-1963` (preserve method across redirects) | **resolved 1/1** |
+| `pallets__flask-4045` (reject dotted blueprint/endpoint names) | **resolved 1/1** |
+| `pytest-dev__pytest-11143` (numeric literal is not a docstring) | **resolved 1/1** |
+
+**3 / 3 resolved.** A gold-patch sanity run is also resolved, confirming the container environment works.
+This is a **live subset**, not the pass rate of the full 300 instances.
+
+## 5. Reproducibility
+
+- Package: `agentruntime-alpha-0.1-macos-arm64.zip`
+- sha256: `6ad972dfadb49ca5151072dcf6f3abcedf000da8bd5dc5bbc68cef713cfd1981`
+- Environment: macOS arm64 · .NET 10 · official DeepSeek (`deepseek-v4-flash`)
+- Pre-publish scan: **0 hard red lines**
+
+## 6. Alpha boundaries
+
+- The **uplink curation line** (L4→L3→L2→L1) is not automatic yet; during alpha the tree is maintained by hand.
+- The 80% auto-closeout uses `ContextWindow = 128,000` as an assumption; adjust it to the model.
+- SWE-bench is a small live subset, not the full 300-instance run.
+- Only a macOS arm64 build is published; other platforms require `dotnet publish`.
+
+## License
+
+- Code and runtime: **MIT**.
+- Knowledge/decision seeds: **data, not covered by MIT**; running, reproducing, and evaluating with the repository is allowed; redistribution, commercial use, and training require contacting the author.
