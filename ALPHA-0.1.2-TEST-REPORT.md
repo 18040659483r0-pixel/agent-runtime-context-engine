@@ -8,11 +8,10 @@
 
 ## 2. 测试
 
-- `dotnet test kernel/tests/AgentRuntime.Tests -c Release`：**1406 / 1410 通过**。
-- 4 条失败全部为**内部专属**（公开切片没有可满足的路径，按口径如实报红，不改源码变绿）：
+- `dotnet test kernel/tests/AgentRuntime.Tests -c Release`：**1407 / 1410 通过**（全新克隆复跑；切片构建目录内为 1406/1410，差异来自一条依赖构建目录的配置用例）。
+- 3 条失败全部为**内部专属**（公开切片没有可满足的路径，按口径如实报红，不改源码变绿）：
   1. `PitfallsDerivedTests` ×2 —— 需要内部坑集索引与公开变体派生件；
-  2. `NetworkToolTests` ×1 —— 需要内部实验配置段；
-  3. `WorkerZoneTests` ×1 —— 需要内部 L3/L4 地址文件。
+  2. `NetworkToolTests` ×1 —— 需要内部实验配置段。
 
 ## 3. 发布扫描
 
