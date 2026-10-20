@@ -297,7 +297,7 @@ public sealed class CloseoutChecklistTests
         Assert.Contains("L1/L2", CloseoutLayers.Session.Duty, StringComparison.Ordinal);
         Assert.Contains("自持", CloseoutLayers.Reset.Duty, StringComparison.Ordinal);
 
-        // 八类源：前三条是常识项，后五条是最容易漏的（用户 2026-09-20 提醒）。
+        // 八类源：前三条是常识项，后五条是最容易漏的（主人 2026-09-20 提醒）。
         Assert.Equal(8, KnowledgeSources.All.Count);
         foreach (var id in new[] { "pitfalls", "memory", "handoff", "docs", "glossary", "skills", "draft", "external" })
         {
@@ -306,7 +306,8 @@ public sealed class CloseoutChecklistTests
 
         // 协议正文必须点到这三层与「晋级」（否则数据与契约各说一套）。
         Assert.Contains("Closeout has three layers", ProtocolText.Text, StringComparison.Ordinal);
-        Assert.Contains("promote the knowledge base", ProtocolText.Text, StringComparison.Ordinal);
+        Assert.Contains("grow BOTH libraries", ProtocolText.Text, StringComparison.Ordinal);
+        Assert.Contains("DECISION-LIBRARY", ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains("handoff", ProtocolText.Text, StringComparison.Ordinal);
     }
 }

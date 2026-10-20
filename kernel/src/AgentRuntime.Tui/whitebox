@@ -1,0 +1,54 @@
+#!/bin/sh
+# whitebox —— 一句话进 [WB]（主人 2026-09-20 14:3x：「进入终端后输入 whitebox 就可以进入我们的 whitebox tui」）
+#
+# 用法：
+#   whitebox                      # 进 TUI2（默认；真机日常配置：真模型 + 真语料 + 工具面 + 审批）
+#   whitebox --tui1               # 回滚：进现 TUI（旧入口）
+#   whitebox --verbose            # 追加开关原样传给 TUI
+#   whitebox --config <别的配置>   # 换配置
+#
+# 三条保证（「cd + sh」那件事一次做对，别处不用记）：
+#   ① **cwd 无关**：本来就在家目录 / 仓库根敲都成立；
+#   ② **dll 过期就自动编译**（WB 会自己改自己的代码 ⇒ 不重编就会跑旧二进制；编译失败不挡路，但说清楚）；
+#   ③ **Ctrl-C 两下退出**（一下 = 中断当前轮），退出时终端自动恢复。
+#
+# 启动口径**不在本脚本重复**：交给 `wb-cli tui`（= 原 Tui/run.sh 的 C# 替身，2026-10-14 迁移）。
+set -eu
+
+# 通过 PATH 里的**符号链接**调用时，$0 是链接本身 ⇒ 先解到真身（否则会把 /opt/homebrew/bin 当仓库）。
+target=$0
+while [ -L "$target" ]; do
+  dir=$(cd "$(dirname "$target")" && pwd)
+  target=$(readlink "$target")
+  case $target in
+    /*) ;;
+    *) target="$dir/$target" ;;
+  esac
+done
+here=$(cd "$(dirname "$target")" && pwd)
+root=$(cd "$here/../.." && pwd)   # = whitebox 仓根（2026-10-18 迁入主 SVN 后的 canonical）
+cd "$here"
+
+# ② 代码比 dll 新（或 dll 不存在）⇒ 先编译一次。
+dll=bin/Debug/net10.0/AgentRuntime.Tui.dll
+if [ ! -f "$dll" ] || [ -n "$(find . -name '*.cs' -newer "$dll" -not -path './obj/*' -not -path './bin/*' -print -quit)" ]; then
+  printf '[whitebox] 代码比 dll 新（或 dll 缺失）⇒ 先编译…\n' >&2
+  dotnet build -v q --nologo >&2 || printf '[whitebox] ⚠️ 编译失败：改用现有 dll 启动（改了代码但没编上 ⇒ 行为会是旧的）\n' >&2
+fi
+
+# 启动交给 wb-cli tui（原 run.sh 的 C# 替身）。工程没编过就先编一次。
+# 走 muxer（`dotnet <dll>`）而非原生 apphost —— 本机 SDK 在 ~/.dotnet（DOTNET_ROOT 未设），apphost 找不到运行时。
+clidll="$root/tools/wb-cli/bin/Release/net10.0/wb-cli.dll"
+if [ ! -f "$clidll" ]; then
+  printf '[whitebox] 编译 wb-cli…\n' >&2
+  dotnet build -c Release -v q --nologo "$root/tools/wb-cli/WbCli.csproj" >&2
+fi
+
+# 退出码留痕（2026-10-15 加 · 主人令）：任何死法都不再无声 ——
+#   137=被 SIGKILL 强杀 · 130=取消/Ctrl-C×2 · 129/143=挂断/被 kill · 0=正常退出；
+#   与之配套的「为什么退 / 会话在不在 / 怎么接」在 ~/.agentruntime/last-exit.txt。
+# ⚠️ **不能再 `exec`**：exec 会把本脚本自己替换掉 ⇒ 下面这几行永远跑不到（只有非 exec 布置能记下退出码）。
+dotnet "$clidll" tui "$@"
+rc=$?
+printf 'EXIT=%s @ %s\n' "$rc" "$(date '+%F %T')" >> "$HOME/.agentruntime/tui-exit.log"
+exit "$rc"

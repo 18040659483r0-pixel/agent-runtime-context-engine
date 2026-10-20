@@ -90,7 +90,7 @@ public sealed class ToolRunner
     public IReadOnlyList<ITool> Tools { get; }
 
     /// <summary>
-    /// **本次装配的角色**（2026-09-29 用户令「逐层剥离 master 的兜底工具面」）。
+    /// **本次装配的角色**（2026-09-29 主人令「逐层剥离 master 的兜底工具面」）。
     /// <para>判据是「**名字 + 角色**」这一对：同一把 <c>read</c>，Worker 用是本职，Master 用是自干。
     /// 面本身声明在 <see cref="ToolNames.MasterFace"/> / <see cref="ToolNames.WorkerFace"/>（单声明处），
     /// 这里只**照它判**、并按 <see cref="ToolNames.MasterStrippedNote"/> 说清「这是 Worker 的活」。</para>
@@ -108,7 +108,7 @@ public sealed class ToolRunner
     /// <para>不为 null 时，闸门之前多一步判定：</para>
     /// <list type="number">
     /// <item><b>DENY</b>（受保护目标 / 提权 / 凭据）⇒ 直接拒绝，**不进入审批**；</item>
-    /// <item><b>ALLOW</b>（本会话授权过的同类动作）⇒ **不打扰人**（用户 19:14：「授权过一次的确实不需要再次授权」）；</item>
+    /// <item><b>ALLOW</b>（本会话授权过的同类动作）⇒ **不打扰人**（主人 19:14：「授权过一次的确实不需要再次授权」）；</item>
     /// <item><b>ASK</b>（首次 / must-ask / 宽能力 / 可疑可执行）⇒ v13：**留档 + 放行**（不再问人）。</item>
     /// </list>
     /// </summary>
@@ -180,7 +180,7 @@ public sealed class ToolRunner
 
                 // 批 3：**归一必留痕** —— 让模型/人看得见“刚才那一次是**运行时兜下来的**”（不是静默改动）。
                 // 只说事实与计数，**不改协议、不额外交待**（治模型行为不靠话术）。
-                if (normalized.Traces.Count > 0)
+                if (normalized.Traces.Count > 0 && ToolSyntaxNormalizer.ShouldAnnounceNormalization())
                 {
                     events.Add(Sink.Append(
                         SessionEventKind.Hint,
@@ -292,7 +292,7 @@ public sealed class ToolRunner
         // 会升级成整次派生失败，调用方只看到一句 "The given key 'exec' was not present"。
         if (!_tools.TryGetValue(call.Name.Trim(), out var tool))
         {
-            // **按角色说对话**（2026-09-29 用户令「逐层剥离 master 的兜底工具面」）：
+            // **按角色说对话**（2026-09-29 主人令「逐层剥离 master 的兜底工具面」）：
             // 同一条「没拿到」有两种截然不同的含义 ——
             //   ① Master 侧缺的、而 Worker 面里有的 ⇒ **这是 Worker 的活**，可执行的动作是**去派发**；
             //   ② 其余（Worker 侧缺 / 名字根本不在任何面里）⇒ 照旧说「本次没拿到」。
@@ -335,19 +335,19 @@ public sealed class ToolRunner
             var verdict = Security.Decide(securityAction, risk, call.RiskClaim);
 
             // 声明被处理过（自主放行 / 声明与事实不符）⇒ 记**审计事件**：
-            // 用户随时可核「本轮哪些动作是模型自判放行的」，也看得见「声明撞红线」的账。
+            // 主人随时可核「本轮哪些动作是模型自判放行的」，也看得见「声明撞红线」的账。
             // P1-2 §12.3 减法 2：**同批同形状**的「自主放行」共用一条代表；撞硬线**逐条记**（不许合并）。
             var representative = batch.IsRepresentative(callIndex, out var groupSize);
             RecordRiskClaim(verdict, call, args, representative, groupSize);
 
-            // v13 **二版**（用户 2026-09-21 23:1x：「凭据和私钥，暂时也放行，不要有任何硬约束」）：
+            // v13 **二版**（主人 2026-09-21 23:1x：「凭据和私钥，暂时也放行，不要有任何硬约束」）：
             // 判定层**不再有阻断档** —— Deny 也只降为**留档**：分类与理由照记进留档，动作照跑。
             // 敏感数据将来由一套**拦在 runtime 内**的专门框架处理，不靠这里硬拦。
             requiresHuman = verdict.Verdict is SecurityVerdict.Ask or SecurityVerdict.Deny;
             securityNote = verdict.Reason;
         }
 
-        // ④·v13 **留档 + 放行**（用户 2026-09-21 定：「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」）。
+        // ④·v13 **留档 + 放行**（主人 2026-09-21 定：「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」）。
         //     判定层判 Ask 的动作**不再问人**：先把它**留档**（事件一行 + 账本一条带完整审批面），然后照常执行。
         //     为什么不再问：在 tasklifecycle 内部，问人只有两种形状 —— 假动作（模型自判就放行了）或死结
         //     （人不点，整条任务停在那儿）。安全改由**远端 AI 的纪律**承担（协议 v13 第 5/6 条：
@@ -553,13 +553,13 @@ public sealed class ToolRunner
         // （v13 二版后本方法只服务**协议/语法**类拒绝：判不出 / 多调用 / 未登记工具 / 参数不合 ——
         //  "判定层不同意" 已经不再走这条路。）
         //
-        // 为什么每条拒绝都**附上完整工具面**（2026-09-22 用户真机实测后加）：拒绝话术原先**一次只暴露一个约束**
+        // 为什么每条拒绝都**附上完整工具面**（2026-09-22 主人真机实测后加）：拒绝话术原先**一次只暴露一个约束**
         // —— 先猜错名字、再猜错键、最后才暴露「risk 写在 JSON 外」，一场简单提问为此白烧 3 轮（≈5k new token）。
         // fail-closed 不变：不认识的动作仍然拒；变的只是「拒的时候把话说全」。
         var text = $"{callText} → 拒绝：{reason} {ToolFaceContract()}";
         var @event = Sink.Append(SessionEventKind.ToolDenied, text, "tool-face");
 
-        // **拒绝 ⇒ 立刻落进踩坑收件箱**（用户 2026-10-15 令）：「任何工具面被拒应该都要记录之外，还要立刻触发踩坑集，
+        // **拒绝 ⇒ 立刻落进踩坑收件箱**（主人 2026-10-15 令）：「任何工具面被拒应该都要记录之外，还要立刻触发踩坑集，
         // 这样下一个 session 可以由顶层知识库再限制一次远端 AI 的行为」。
         // 事件流里的那条只是**这一场的痕**；落进收件箱才是**跨场**的（收尾收敛进 L1/L2 ⇒ 下一个 session 进 prompt）。
         PersistRejection(reason, callText);
@@ -616,7 +616,7 @@ public sealed class ToolRunner
         "【工具面】可用："
         + ToolNames.FaceText(_tools.Values)
         // 形状口径 = **唯一来源**（`ToolFaceClause.Shape`）：worker worker 协议区教的是同一份
-        // （用户 2026-09-29 令：两边口径必须对齐 —— 同一形状一处认、一处不认就是分叉）。
+        // （主人 2026-09-29 令：两边口径必须对齐 —— 同一形状一处认、一处不认就是分叉）。
         + "；" + ToolFaceClause.Shape;
 
     private static string Describe(ITool tool, ToolArgs args, ToolCall call)

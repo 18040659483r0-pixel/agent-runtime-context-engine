@@ -258,4 +258,64 @@ public static class TerminalText
             || (c >= 0xFF00 && c <= 0xFF60)
             || (c >= 0xFFE0 && c <= 0xFFE6);
     }
+
+    /// <summary>光标左移一格（**按一个用户可见字符**，不是 UTF-16 码元）：
+    /// 代理对（emoji 等）整体跨过；组合附加符（<c>é</c> 的声调、变体选择符）跟着基字符一起跨过。
+    /// <para>2026-10-18 真机：Backspace 按 <c>string.Remove(caret-1,1)</c> 删 UTF-16 码元 ⇒
+    /// 删 emoji 只掉低代理 ⇒ 留下**看不见、退格也“像没反应”**的孤立代理对半。</para></summary>
+    public static int PrevIndex(string? text, int caret)
+    {
+        if (string.IsNullOrEmpty(text) || caret <= 0)
+        {
+            return 0;
+        }
+
+        var i = Math.Min(caret, text.Length);
+        i--;
+
+        if (i > 0 && char.IsLowSurrogate(text[i]) && char.IsHighSurrogate(text[i - 1]))
+        {
+            i--;
+        }
+
+        // 组合附加符（NonSpacingMark / SpacingCombiningMark / EnclosingMark）与前面的基字符同删。
+        while (i > 0 && IsCombining(text[i]))
+        {
+            i--;
+        }
+
+        return i;
+    }
+
+    /// <summary>光标右移一格（与 <see cref="PrevIndex"/> 同一口径：代理对 / 组合序列整体跨过）。</summary>
+    public static int NextIndex(string? text, int caret)
+    {
+        if (string.IsNullOrEmpty(text) || caret >= text.Length)
+        {
+            return text?.Length ?? 0;
+        }
+
+        var i = Math.Max(0, caret);
+        i = char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]) ? i + 2 : i + 1;
+
+        while (i < text.Length && IsCombining(text[i]))
+        {
+            i++;
+        }
+
+        return i;
+    }
+
+    /// <summary>组合附加符判定（只用于光标算术；不做完整 grapheme cluster 表）。</summary>
+    private static bool IsCombining(char ch)
+    {
+        if (ch == '\uFE0F' || ch == '\uFE0E')
+        {
+            return true; // 变体选择符（emoji 呈现方式）
+        }
+
+        return CharUnicodeInfo.GetUnicodeCategory(ch) is
+            UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark;
+    }
+
 }

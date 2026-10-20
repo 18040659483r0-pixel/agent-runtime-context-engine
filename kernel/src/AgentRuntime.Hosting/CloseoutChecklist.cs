@@ -94,13 +94,13 @@ public static class CloseoutChecklist
         }
 
         var memoryItem = MemoryItem(config, workspace, now);
-        // 2026-10-06（用户令）：worker 自持 R1 之后，它遇到的新问题必须**回流公共层** ——
+        // 2026-10-06（主人令）：worker 自持 R1 之后，它遇到的新问题必须**回流公共层** ——
         // 收尾时读它的坑集收件箱 + memory（此前只写在注释里，**没有一处真的去读**）。
         var findings = AgentRuntime.Core.Worker.WorkerFindings.Read(
             config.Worker.PitfallsInbox,
             Worker.MinimalWorker.RootOf(config.Worker));
 
-        // **工具面拒绝汇流**（用户 2026-10-15 令）：「任何工具面被拒…还要立刻触发踩坑集，这样下一个 session
+        // **工具面拒绝汇流**（主人 2026-10-15 令）：「任何工具面被拒…还要立刻触发踩坑集，这样下一个 session
         // 可以由顶层知识库再限制一次远端 AI 的行为」。收件箱由 ToolRunner 在**拒绝那一刻**写；这里只读它、
         // 把它变成**欠着的账**（不收敛就红）。读法与 worker 同一把尺子。
         var toolface = AgentRuntime.Core.Worker.WorkerFindings.Read(config.Lifecycle.PitfallsInbox, workerRoot: null);
@@ -457,7 +457,7 @@ public static class CloseoutChecklist
     }
 
     /// <summary>
-    /// **工具面拒绝汇流**（用户 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底 ——
+    /// **工具面拒绝汇流**（主人 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底 ——
     /// 任何工具面拒绝都要**立刻**落进收件箱，收尾必须把它**收敛进顶层知识**（下一个 session 再限制一次它的行为）。
     /// <para>三态同 <see cref="WorkerFindingsItem"/>：没配 ⇒ <c>Unconfigured</c>；有未收敛条 ⇒ <c>Pending</c>；
     /// 收敛完（<c>WorkerFindings.MarkAbsorbed</c> 记过账）⇒ <c>Ok</c>。</para>

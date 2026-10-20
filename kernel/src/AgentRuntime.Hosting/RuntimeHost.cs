@@ -159,7 +159,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <summary>最近一次档位读数（右栏 / 收尾报告可读；未累积过 ⇒ 0）。</summary>
     public MasterBudgetGate Gear => _gear;
 
-    /// <summary>报告请求本任务只要一次（协议 v21 第 12 条 · 用户 2026-09-24 定「终局后宿主**请求一次**」）。</summary>
+    /// <summary>报告请求本任务只要一次（协议 v21 第 12 条 · 主人 2026-09-24 定「终局后宿主**请求一次**」）。</summary>
     private bool _reportRequested;
 
     /// <summary>
@@ -201,7 +201,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <summary>
     /// **收尾面窗口是否此刻生效**：本会话**已经进了收尾**（<see cref="EnterCloseoutFace"/> 由**收尾命令**强制打开）
     /// **且还没被 reset / start 换过**。
-    /// <para><b>语义（用户 2026-09-30 12:47 定）</b>：<b>收尾命令里强制使用 master 全量工具授权</b>；
+    /// <para><b>语义（主人 2026-09-30 12:47 定）</b>：<b>收尾命令里强制使用 master 全量工具授权</b>；
     /// <b>非收尾阶段工具面一律从 master 手中收走</b>（只剩 <c>index</c>/<c>scope</c> 两把地图）。
     /// 所以它**不是启动开关**、也不由操作者记得传 —— 由收尾命令本身强制打开（操作者忘了传开关不该让收尾做不到）。</para>
     /// <para>为什么 reset / start 要关掉：<c>/start</c> 开的新会话必须回到默认模式（master 指挥、worker 干活），
@@ -378,6 +378,9 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
 
         config.Lifecycle.Workspace = RuntimePaths.ResolveLifecycleWorkspace(configPath, config.Lifecycle.Workspace);
         config.Lifecycle.Pitfalls = RuntimePaths.ResolveLifecyclePitfalls(configPath, config.Lifecycle.Pitfalls);
+        // 工具面拒绝收件箱也必须按**配置文件目录**解析；否则相对路径会落到 TUI 的 cwd
+        // （真机：`docs/TOOLFACE-PITFALLS.md` 写到了 `src/AgentRuntime.Tui/docs/`，收尾永远看不到 —— 2026-10-18 审计）。
+        config.Lifecycle.PitfallsInbox = RuntimePaths.ResolveLifecyclePitfalls(configPath, config.Lifecycle.PitfallsInbox);
 
         // L3 技能仓库（V6）：地址表路径同规解析；--skill-repo 是宿主侧覆盖。
         config.Knowledge.Repo = RuntimePaths.ResolveKnowledgeRepo(configPath, overrides.KnowledgeRepo ?? config.Knowledge.Repo);
@@ -400,20 +403,28 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         // 放在真入口专用的 Boot（不是 BootWith）⇒ 测试路径不受影响；不配工作区时是 no-op（不猜）。
         RuntimePaths.PinToolBase(config.Lifecycle.Workspace);
 
-        // **硬墙 = 声明的上界**（用户 2026-10-15 令：「我没让你放弃这一轮…照常执行下去，只提示…任务要继续做完」）。
+        // **硬墙 = 声明的上界**（主人 2026-10-15 令：「我没让你放弃这一轮…照常执行下去，只提示…任务要继续做完」）。
         // 前一版按**账本中位 × k** 收窄（PaceWall）⇒ 真机会话中位 9.1s 导出 **60s** 墙，把正常但慢的一轮（62.5s）砍断。
         // 现在**不再收窄**：只有声明的 `timeoutSeconds` 封顶；「一轮等得太久」改为**只看不砍**的 5 分钟提示
         // （`Tui/SplitSession.TurnWaitNoticeMs`）。PaceWall 自此**不再驱动主 provider 的硬墙**（助手保留，去留待收尾评估）。
         // （更早那处硬缺陷仍记着：这里曾建默认 HttpClient（100s），而客户端只在 http 是「无限」时才套配置 ⇒ 声明的墙从未生效，
         //   而超时话术报的是声明值 ⇒ 归因必错。现在两处同值同源。）
         var wallSeconds = config.TimeoutSeconds > 0 ? config.TimeoutSeconds : AgentRuntime.Core.Worker.PaceWall.MinWallSeconds;
+        var connectSeconds = config.ConnectTimeoutSeconds > 0 ? config.ConnectTimeoutSeconds : 15;
 
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(wallSeconds) };
+        // **连接阶段 15s 上限**（主人 2026-10-18 令）：TCP/TLS 连不上不要拖到整轮 1200s。
+        // 总请求仍由 HttpClient.Timeout = wallSeconds 封顶（模型长回答不被误砍）。
+        var handler = new SocketsHttpHandler
+        {
+            ConnectTimeout = TimeSpan.FromSeconds(connectSeconds),
+        };
+        var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(wallSeconds) };
         var client = new OpenAICompatibleClient(http, new OpenAICompatibleOptions
         {
             BaseUrl = config.BaseUrl,
             ApiKey = apiKey,
             TimeoutSeconds = wallSeconds,
+            ConnectTimeoutSeconds = connectSeconds,
             ReasoningEffort = config.ReasoningEffort,
             Model = config.Model,
         });
@@ -737,7 +748,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// **§6.3 判据 2：零浪费的告知**（2026-09-26）—— 无 worker 时在**流首**插一条 Hint，说清
     /// 「第 13 条不适用，请自己干（不要发 [DISPATCH]）」。
     /// <para>
-    /// 为什么不改协议：可用性随配置而变，而协议区**不随配置变**（<c>P1</c>「来源只能是代码」，用户 2026-09-26 00:2x 定）。
+    /// 为什么不改协议：可用性随配置而变，而协议区**不随配置变**（<c>P1</c>「来源只能是代码」，主人 2026-09-26 00:2x 定）。
     /// 走既有的 <see cref="SessionEventKind.Hint"/> 通道 ⇒ **appended event、零缓存代价**（<c>§十·13</c>）；
     /// 这条 Hint **不进**模块贡献 ⇒ **不碰前缀字节**（§6.3 判据 1：三态下 R1-P 逐字节不变）。
     /// </para>
@@ -864,7 +875,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         before.AddRange(L3WarningLines(Modules));
         before.AddRange(TerminalLines(result));
         // `[task 收尾]` 清单提示**已退役**（2026-10-15 00:20 令）—— 坑 / handoff 改成**当轮说**、报告里也有；见下方退役说明。
-        // 用户 2026-10-14 20:40 令：**灰色字是愿意接受的极限；灰色字下面出现的都收起来。**
+        // 主人 2026-10-14 20:40 令：**灰色字是愿意接受的极限；灰色字下面出现的都收起来。**
         //   · 「预算/档位」行（每轮都算、内容几乎不变）⇒ 不再进正文（事实仍在流里的 Hint 与账本）；
         //   · 「没有 worker 可派」降级行 ⇒ 不再进正文，改在**页脚那行灰色字内插一小段**「单 master」。
         _ = BudgetLines(result);
@@ -942,7 +953,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
             }
         }
 
-        // **新账**（用户 2026-09-24 21:3x 真机：同一个进程里，第 2 个任务起就**再也拿不到报告与收尾提示**）——
+        // **新账**（主人 2026-09-24 21:3x 真机：同一个进程里，第 2 个任务起就**再也拿不到报告与收尾提示**）——
         // 「每个终局只提示一次」的两个一次性标志过去只在**换会话面**（<see cref="ReplaceModules"/>）时清零
         // ⇒ 实测一个进程只发过一次（报告请求落在卡 #1/#7/#11，全靠重启进程才又发出一次；卡 #8/#12 得解却什么都没有）。
         // 判据：**非终局的一轮 = 任务又开工了** ⇒ 此刻清账，下一次终局重新各要一次。
@@ -950,10 +961,10 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         {
             _reportRequested = false;
             }
-        else if (LastTerminal.IsSettled && DecisionReportParser.Parse(result.Response).Accepted)
+        else if ((LastTerminal.IsSettled || LastTerminal.State == TerminalState.NeedUser)
+                 && DecisionReportParser.Parse(result.Response).Accepted)
         {
-            // 终局轮**自带**报告（模型提前交，与终局块写在同一轮）⇒ 不必再问一次：
-            // 问了它只会去干别的，白烧一轮（卡 #11/#12 的现场就是如此）。
+            // 终局轮（含 [NEED-USER]）**自带**报告（模型提前交，与终局块写在同一轮）⇒ 不必再问一次。
             _reportRequested = true;
         }
 
@@ -963,7 +974,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
 
         if (!LastTerminal.IsTerminal)
         {
-            // **报告块无主**（2026-09-24 用户问「生命周期 #7 为何没有决策报告」当场抓出）：
+            // **报告块无主**（2026-09-24 主人问「生命周期 #7 为何没有决策报告」当场抓出）：
             // 写了 `[REPORT]`、却没有终局块，而这一轮**也不是**我在要报告 ⇒ 报告没有归属 ——
             // 宿主不认终局 ⇒ 卡永远停在「进行中」，报告也没处挂（屏上看起来像卡死，同族 PITFALLS #120）。
             // 判据落在**错的当刻**（零缓存代价）；「记进坑集」防不住它（`§十·51`）。
@@ -1000,8 +1011,8 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         return lines;
     }
 
-    // **已退役（用户 2026-10-15 00:20 令）**：从前这里在**终局之后**发一条 `[task 收尾]` 清单
-    // （缺哪些收尾件 + 一串「收尾·锤」产物读值），并进流成 Hint。用户：「不要每次在终局的时候发出来，
+    // **已退役（主人 2026-10-15 00:20 令）**：从前这里在**终局之后**发一条 `[task 收尾]` 清单
+    // （缺哪些收尾件 + 一串「收尾·锤」产物读值），并进流成 Hint。主人：「不要每次在终局的时候发出来，
     // ……会阻挠用户查阅信息」、「有决策报告的话，报告里会写这两个东西」。
     //   · 坑 / handoff ⇒ **遇到就在当轮的结果里说**（协议 §7 话术已改）；
     //   · 报告里本来就有 found / next（协议 §12）；
@@ -1105,7 +1116,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     }
 
     /// <summary>
-    /// **请它交决策报告**（协议 v21 第 12 条 · 用户 2026-09-24 定：终局后宿主**请求一次**）。
+    /// **请它交决策报告**（协议 v21 第 12 条 · 主人 2026-09-24 定：终局后宿主**请求一次**）。
     /// <para>只在「了结（得解 / 无解）+ 本任务还没要过 + 会话没收尾」时要一次；请求本身进流
     /// （<c>Hint</c> · <c>source=report-request</c>）—— **零新事件 KIND、零协议改动**（协议正文里已经写明运行时会要）。</para>
     /// <para>返回 true = 请求已经送进流（调用方据此**再跑一轮**）；false = 不该要（没终局 / 要过了 / 已收尾）。</para>
@@ -1113,10 +1124,26 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// </summary>
     public bool RequestDecisionReport(bool interrupted = false)
     {
+        // **等待用户裁决也是「要出决策报告」的时点**（主人 2026-10-18 令）：
+        // 报告里必须写清“裁决什么 / 建议怎么处理 / 各自后果”，否则卡上只有一段 [NEED-USER] 正文，用户看不懂。
+        if (LastTerminal.State == TerminalState.NeedUser)
+        {
+            if (_reportRequested || SessionClosed)
+            {
+                return false;
+            }
+
+            _reportRequested = true;
+            _awaitingReport = true;
+            _lastRoundFact = StopCauseFact.ReportRound;
+            AppendHint(MasterTaskLifecycle.NeedUserReportRequestText, DecisionReport.RequestSource);
+            return true;
+        }
+
         if (!LastTerminal.IsSettled)
         {
             // **被边界打断**（到上限 / 到预算）⇒ 即使**没有终局块**也要那篇报告：
-            // 人正在此刻最需要知道「这个方法行不行、还剩多少」（用户 2026-09-24 21:5x：
+            // 人正在此刻最需要知道「这个方法行不行、还剩多少」（主人 2026-09-24 21:5x：
             // 「30 分钟没给终局的，也直接出决策报告」）。
             if (!interrupted || _reportRequested || SessionClosed)
             {
@@ -1155,7 +1182,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     }
 
     /// <summary>
-    /// **用户中断了上一轮** —— 把这件事交给模型（用户 2026-09-22 23:1x 报：中断之后那句“接续”被当成全新问题，
+    /// **用户中断了上一轮** —— 把这件事交给模型（主人 2026-09-22 23:1x 报：中断之后那句“接续”被当成全新问题，
     /// 模型只能满仓库去猜题意）。
     /// <para>
     /// 为什么必须进流：屏上那行 <c>⏹ 本轮已中断</c> **只有人看得见**；模型看不到，就会以为「上一轮无事发生」。
@@ -1172,7 +1199,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     }
 
     /// <summary>
-    /// **一轮因上游失败 / 超时被放弃**（用户 2026-10-15 令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
+    /// **一轮因上游失败 / 超时被放弃**（主人 2026-10-15 令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
     /// 提示即可，不需要退出」）—— 与 <see cref="NoteTurnInterrupted"/> **同一通道**（既有 <see cref="SessionEventKind.Hint"/>，
     /// 零新 KIND / 零协议改动）、**同一理由**：屏上那行只有人看得见，模型看不到就会把下一句当全新任务去满仓库猜题意。
     /// <para>与中断分开写而不是复用：中断是「人叫停」，这里是「上游没回 / 超时」—— 两种世界不能报成同一种病。</para>
@@ -1188,7 +1215,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     }
 
     /// <summary>
-    /// **到上限 / 到预算时的收口提示**（用户 2026-09-24 21:4x 定）—— 与 <see cref="NoteTurnInterrupted"/> 同一通道。
+    /// **到上限 / 到预算时的收口提示**（主人 2026-09-24 21:4x 定）—— 与 <see cref="NoteTurnInterrupted"/> 同一通道。
     /// <para>过去这一步**静默停**（痕只给 <c>--verbose</c>、**不进流**）⇒ 卡停在「● 进行中」，人看不出为什么，
     /// 也永远不会有终局与决策报告 —— 一个已在原地烧轮的方法就那样无声地烧下去，没人被问到「还要不要继续」。</para>
     /// <para>现在：进流说清「到边界了、现在就收口」，并要求它在随后那篇决策报告里**如实写**
@@ -1204,7 +1231,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// </summary>
     public void NoteStopCause(int rounds, bool stoppedByLimit, bool stoppedByBudget)
     {
-        // 停因**按事实分类**（2026-09-29 用户令）：过去一律说「还没有终局块」，
+        // 停因**按事实分类**（2026-09-29 主人令）：过去一律说「还没有终局块」，
         // 把「派发轮 / 报告轮 / 真没话说」三种世界报成同一种病。
         var fact = _lastRoundFact;
         _lastRoundFact = StopCauseFact.None;

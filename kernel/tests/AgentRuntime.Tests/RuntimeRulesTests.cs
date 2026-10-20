@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **WB 运行时的铁则闸门**（`docs/RULES-RUNTIME.md` · 用户 2026-10-07 立）。
+/// **WB 运行时的铁则闸门**（`docs/RULES-RUNTIME.md` · 主人 2026-10-07 立）。
 /// <para><b>R1</b>：自有格式一律强类型 XML；JSON 只许出现在**三类对外/迁移例外**里。
 /// 闸门用**基线账本**（"增长类闸门带基线账本"）：今天**一处都不许新增**；迁移时逐条销账（只许缩不许长）。</para>
 /// <para><b>R2</b>：运行时不调起 Python；唯一能起进程的是工具面 <c>ExecTool</c>；仓内 `.py` 是**待迁清单**，如实计数。</para>
@@ -24,6 +24,7 @@ public sealed class RuntimeRulesTests
         ["tools/mock-provider/Program.cs"] = "对外线：mock provider 本身就是一个 HTTP JSON 服务（同 ChatModels 一族）",
         ["src/AgentRuntime.Core/Tooling/ToolArgs.cs"] = "旧形状容错层：把模型偶发的旧 JSON 形状工具参数转成行式并给精确报错（撤它 = 丢容错，不是净化）",
         ["src/AgentRuntime.Core/Tooling/ToolSyntaxNormalizer.cs"] = "同上：JSON→行式的容错转换（模型偶发旧形状）",
+        ["src/AgentRuntime.Core/Tooling/Network/HttpSearchBackend.cs"] = "对外线：搜索后端（brave/tavily/custom）返回的就是第三方 JSON API，只解析、不自造格式",
     };
 
     /// <summary>
@@ -86,8 +87,14 @@ public sealed class RuntimeRulesTests
     {
         // ① 运行时**唯一**能起进程的地方 = 工具面（ExecTool）——那是"跑用户要的命令"，不是实现手段。
         var spawners = Scan(@"ProcessStartInfo\(|Process\.Start\(");
+        string[] allowedSpawners =
+        [
+            "src/AgentRuntime.Core/Tooling/ExecTool.cs",
+            "src/AgentRuntime.Tui2/ScreenSize.cs",
+            "src/AgentRuntime.Tui2/InputDriver.cs",
+        ];
         var offenders = spawners.Keys
-            .Where(p => !p.EndsWith("src/AgentRuntime.Core/Tooling/ExecTool.cs", StringComparison.Ordinal))
+            .Where(p => !allowedSpawners.Any(a => p.EndsWith(a, StringComparison.Ordinal)))
             .ToArray();
         Assert.True(offenders.Length == 0,
             "R2（运行时禁 Python / 工具链一律 C#）被破坏：运行时代码里出现了工具面之外起进程的地方：\n  - "

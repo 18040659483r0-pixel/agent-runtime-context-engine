@@ -24,7 +24,7 @@ path	local-corpus	corpus	私有快照目录（benchmark 产物，绝不发布）
 path	runs	output	实验原始记录目录（切片里不许带；配置引用自己的输出目录合法）
 path	records.jsonl	output	实验原始记录文件（同上）
 path	records.xml	output	实验原始记录文件（XML 形态；同上）
-content	/Users/	safety	macOS 本机路径
+content	/home/user/	safety	macOS 本机路径
 content	C:\\Users	safety	Windows 本机路径
 content	F:\\AgentWorkFlow	safety	内网工作副本路径
 content	192\.168\.	safety	内网地址
@@ -33,7 +33,7 @@ content	(^|[^A-Za-z0-9])ghp_[A-Za-z0-9]{8,}	safety	GitHub PAT（经典）
 content	(^|[^A-Za-z0-9])github_pat_	safety	GitHub PAT（细粒度）
 content	pan\.baidu\.com	safety	网盘地址
 soft	徐总	judgement	人名 / 称谓
-soft	用户	judgement	称谓
-soft	助手	judgement	昵称
+soft	主人	judgement	称谓
+soft	樱桃	judgement	昵称
 soft	\bwazi\b	judgement	本机用户名
 soft	18040659483r0-pixel	judgement	GitHub 用户名

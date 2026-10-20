@@ -14,6 +14,12 @@ public sealed class OpenAICompatibleOptions
     public int TimeoutSeconds { get; init; } = 60;
 
     /// <summary>
+    /// **连接阶段超时**（秒）：TCP/TLS 建连最多等这么久（默认 15s）；与总请求超时 <see cref="TimeoutSeconds"/> 分开。
+    /// <para>2026-10-18 主人令：网络波动时不能等 5 分钟才说「连不上 provider」；15s 内连不上就明确报「provider 连不上」并问是否重试。</para>
+    /// </summary>
+    public int ConnectTimeoutSeconds { get; init; } = 15;
+
+    /// <summary>
     /// 默认模型名。
     /// <para>请求**没带** model 时由 <see cref="OpenAICompatibleClient"/> 在**唯一注入点**补上（显式 &gt; 配置）；
     /// 引擎那条路会自己带 model ⇒ 行为不变。<b>来历（2026-10-11）</b>：收尾直接调客户端（不过引擎）

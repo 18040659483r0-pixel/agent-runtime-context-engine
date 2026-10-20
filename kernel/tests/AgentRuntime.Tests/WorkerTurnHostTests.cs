@@ -6,7 +6,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker 的接续宿主（`ITurnHost` 实现）** —— 用户 2026-09-29 口径：master 与 worker 共用同一份生命周期，
+/// **worker 的接续宿主（`ITurnHost` 实现）** —— 主人 2026-09-29 口径：master 与 worker 共用同一份生命周期，
 /// worker 只提供「事实的观察者」；**2026-10-07 收窄**：结算只认自己声明的 `kind=`（终局三态）。这里钉四件事：
 /// ① 没交 `[WORKER]` 块 ⇒ 非终局、闸门不评；
 /// ② 交了**并声明了终局类**且 `open:` 干净 ⇒ 终局（Done）、闸门放过；

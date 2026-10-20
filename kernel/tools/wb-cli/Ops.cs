@@ -21,7 +21,7 @@ internal static class Scan
 
     /// <summary>knowledge.md 的**条目标记行**（整行严格匹配）里的 `src:` 字段是归档定位 ⇒ 豁免整行。</summary>
     private const string KnowledgeMarkerRe =
-        @"^[^:]+:[0-9]+:<!--l4: [^|]* \| src: /" + @"Users/[^|]* \| ends_with_newline: (true|false) \| mode: (indexed|hybrid) -->$";
+        @"^[^:]+:[0-9]+:<!--l4: [^|]* \| src: /home/user/[^|]* \| ends_with_newline: (true|false) \| mode: (indexed|hybrid) -->$";
 
     public static int Run(string[] a)
     {
@@ -241,10 +241,10 @@ internal static class Pack
 
 internal static class Sync
 {
-    private const string Target = "whitebox-workspace";
+    private const string Target = "whitebox/whitebox/workspace";
     private static readonly string[] Cert = { "--trust-server-cert-failures=unknown-ca,cn-mismatch,expired,not-yet-valid,other", "--non-interactive" };
 
-    private static string WcRoot => Path.GetFullPath(Path.Combine(Repo.Root(), "..", ".."));
+    private static string WcRoot => Path.GetFullPath(Path.Combine(Repo.Root(), "..")); // 仓库根（整仓检出）
     private static string Local => Path.Combine(Repo.Root(), "whitebox", "workspace");
     private static string SvnDir => Path.Combine(WcRoot, Target);
 
@@ -282,9 +282,16 @@ internal static class Sync
     private static int Push()
     {
         Need();
-        Console.WriteLine("== [1/4] mirror local -> SVN archive (rsync --delete，worker/ 只增不删) ==");
-        Repo.Run("rsync", new[] { "-a", "--exclude=.svn", "--exclude=.DS_Store", Local + "/", SvnDir + "/" }, cwd: WcRoot);
-        Repo.Run("rsync", new[] { "-a", "--delete", "--exclude=.svn", "--exclude=.DS_Store", "--exclude=worker/", Local + "/", SvnDir + "/" }, cwd: WcRoot);
+        Console.WriteLine("== [1/4] mirror local -> SVN archive ==");
+        if (!string.Equals(Path.GetFullPath(Local), Path.GetFullPath(SvnDir), StringComparison.Ordinal))
+        {
+            Repo.Run("rsync", new[] { "-a", "--exclude=.svn", "--exclude=.DS_Store", Local + "/", SvnDir + "/" }, cwd: WcRoot);
+            Repo.Run("rsync", new[] { "-a", "--delete", "--exclude=.svn", "--exclude=.DS_Store", "--exclude=worker/", Local + "/", SvnDir + "/" }, cwd: WcRoot);
+        }
+        else
+        {
+            Console.WriteLine("live == archive（活版本身已在公共 SVN 中）⇒ 跳过镜像，直接提交。");
+        }
         Console.WriteLine("== [2/4] svn add（输出不吞）==");
         var (rcAdd, outAdd) = Svn(["add", "--force", "--parents", Target]);
         Console.Write(outAdd);
@@ -295,7 +302,7 @@ internal static class Sync
         if (st.Trim().Length == 0) { Console.WriteLine("no change, skip commit."); return 0; }
         Console.WriteLine("== [4/4] commit ==");
         var msg = Path.GetTempFileName();
-        File.WriteAllText(msg, $"WB workspace sync\nlocal: {Local}\nsvn:   ^/software-company/{Target}\n", new UTF8Encoding(false));
+        File.WriteAllText(msg, $"WB workspace sync\nlocal: {Local}\nsvn:   ^/{Target}\n", new UTF8Encoding(false));
         Svn3(["commit", Target, "-F", msg]);
         File.Delete(msg);
         Console.WriteLine("== verify: status should be empty, update should reach HEAD ==");

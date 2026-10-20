@@ -81,5 +81,5 @@ public static class Corpus
     public static string Salt(string runNonce, string variant) => $"[salt:{runNonce}/{variant}]\n";
 
     public const string SessionRules =
-        "你是助手，一位严谨高效的老师。回答必须简短、直给结论，不寒暄、不铺陈。";
+        "你是樱桃，一位严谨高效的老师。回答必须简短、直给结论，不寒暄、不铺陈。";
 }

@@ -69,7 +69,7 @@ internal static class Program
         var benchConfigDir = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
         var bench = BenchmarkConfiguration.Load(configPath);
 
-        // 实验语料锁（用户 2026-09-14 定死）：违规就**拒绝执行**，且在取密钥/发请求之前退出。
+        // 实验语料锁（主人 2026-09-14 定死）：违规就**拒绝执行**，且在取密钥/发请求之前退出。
         var lockViolations = CorpusLock.Verify(bench.Corpus, benchConfigDir);
         if (lockViolations.Count > 0)
         {

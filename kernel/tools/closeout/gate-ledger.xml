@@ -1,0 +1,1473 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GateLedger xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <Schema>1</Schema>
+  <BaselineMaxId>235</BaselineMaxId>
+  <TodosMax>10</TodosMax>
+  <Note>落点类别：gate=有闸门（pointer=闸门路径[::必须出现的子串]）· resident=已进模型每轮读得到的常驻层（同 pointer 规则）· human=只给人看（必须 why）· todo=应为闸门但还没做（必须 why，计入 todos_max 基线；涨了就要么补闸门、要么显式抬基线）。新坑（id &gt; baseline_max_id）必须在此声明。 | 2026-10-09 手动收尾：补 #255~#272 落点（14 gate / 4 human）+ 修 #237 指针</Note>
+  <TodosMaxNote>2026-09-29 显式抬基线 5→8：新增 239/240/241 三条 todo（exec 多行只跑首行 / 块头必须顶层逐字 / svn log 默认锚 base）——均为真教训、闸门未做；按规则显式抬基线而非静默挂账。下轮要么补闸门、要么再显式抬。</TodosMaxNote>
+  <Declarations>
+    <Decl>
+      <Id>130</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::51. **「记下来」≠「防得住」</Pointer>
+      <Why>「写进坑集防不了复发」已抽象进常驻 §十·51（模型每轮读得到）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>135</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::注射后_exec_子进程看到活版基准与三个根</Pointer>
+      <Why>工具基准 = 进程 cwd ⇒ 入口注射 cwd + WB_ROOT/WB_LIVE/WB_ARCHIVE（已落地 + 端到端 exec 测试）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>136</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>确定性坑，应配闸门；闸门未做 ⇒ 计入 todos_max，不得静默长期挂账</Why>
+      <GatePlanned>AgentRuntime.Cli --doc-index 对未知参数 fail-closed（原 whitebox/workspace/scripts/knowledge-index.py 已于 2026-10-12 退役）</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>137</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolWriteEvidenceTests.cs::写_共享临时区_给警告</Pointer>
+      <Why>写入必须回显绝对落点/字节数/前后哈希；共享临时区必须警告；失败必须点明基准目录</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>138</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::WB_ARCHIVE 必须指向真实存在</Pointer>
+      <Why>闸门期望值不得复述实现的算式（自洽≠正确）+ 路径类必须校验存在性；已真跑（3/3 绿）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>139</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::cwd 必须落在活版</Pointer>
+      <Why>路径别比字符串（macOS /var→/private/var 同一目录两种拼法）⇒ 改语义判据：按相对名读标记</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>140</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::55. **闸门全绿 ≠ 收尾完成</Pointer>
+      <Why>「闸门管已做对不对 / 编排管该做没做」已进常驻 §十·55（模型每轮读得到）；另 `--check` 第 11 项 `素材区存在性`（block）已覆盖『该做的有没有做』的结构半边；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>141</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutArchive.cs::CheckRepoReachable</Pointer>
+      <Why>可达性前置：远端查询带超时 + 拿不到读数响亮红（rc=124），不再挂死、不再回落陈旧 base；`--selftest` 用假 svn 证明限时返回且红</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>142</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutArchive.cs::CheckCopyParity</Pointer>
+      <Why>整树逐件 parity（529 件）治白名单盲点；同族收紧 `check_szone_presence`（水位当日段行 + 索引时间线段内当日行）；三条决定性负例已入 `--selftest`</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>143</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/DecisionReportFlowTests.cs::DecisionReportFlowTests</Pointer>
+      <Why>「了结即固化」的定格判据必须用「还欠着」（自动接续开 &amp;&amp; 报告文为空），不能用「已请求」；三条流程闸门 + 三轮卡闸门钉住「许可轮数 3 而模型调用 4」</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>144</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/DecisionReportTests.cs::DecisionReportTests</Pointer>
+      <Why>协议措辞与解析器形状必须同一真源；带括号/省括号两种真机写法都要认（限定词归一 + 小写），真机回复原样钉成夹具</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>145</Id>
+      <Kind>human</Kind>
+      <Pointer>tests/AgentRuntime.Tests/L3LoadingTests.cs::L3LoadingTests</Pointer>
+      <Why>扫描窗口按常量表达式 = 各段上限之和 + 余量（不写死数字）；不变量「窗口 ≥ 各段上限之和」+ 满额三段同现夹具，防静默不装载；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>146</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::CheckSzonePresence</Pointer>
+      <Why>口径改名必须扫「文档 + 代码 + 账本 + 测试」四处，否则旧义留在闸门名里每轮反向重教；判据 = grep 旧名四处皆空 + --selftest 负例跟改后仍变红（13/13）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>147</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::Run</Pointer>
+      <Why>判成败不许接管道（`cmd | tail` 的 $? 恒为 0 ⇒ 假绿）：常驻落点 = AGENTS.md 铁则 7 + KNOWLEDGE.md §十·58（模型每轮读得到）；此处锚 `run()` —— 引擎侧直取返回码、**是对的**，错的只在命令行那一层。判据 = `bash -c 'set -o pipefail; false | tail -1; echo $?'` → 1（无 pipefail → 0）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>148</Id>
+      <Kind>human</Kind>
+      <Pointer>whitebox/workspace/KNOWLEDGE.md::59. **换架构</Pointer>
+      <Why>换架构/迁知识/改口径类任务的完成判据 = **覆盖率 N/M**，不是「机制已存在」；已进常驻 §十·59。实证：L4 覆盖 2/44 却被报 ✅；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>149</Id>
+      <Kind>human</Kind>
+      <Pointer>whitebox/workspace/KNOWLEDGE.md::60. **量法错</Pointer>
+      <Why>两种量法给出相反结论时先怀疑量法；已进常驻 §十·60。实证：正则 `\s*$` 对多行段恒不匹配 ⇒ 读数全 0 差点成结论；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>150</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>随机能层拆分工具一起退役（旧概念退役 2026-10-09）：空隙也是内容、Σ(所有条)==源 这条不变量随工具归档；只做人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>151</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>id 全局计数器唯一性随随机能层拆分工具一起退役（2026-10-09）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>152</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>空提交 rc=0（edit 没落地也照样「提交成功」）⇒ 提交前校验前置 + 提交后 `Last Changed Rev == 本次 revision` 自证。**属操作纪律，暂无机器闸门**（同族 §十·47），故标 human 并显式记账</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>153</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::CheckRepoDeletions</Pointer>
+      <Why>`svn update` 会把「本机删了但没登记」的文件**原样恢复**（`!` ≠ `D`，且不报错）⇒ 删除必须 `svn delete --force`。闸门＝`删除登记`（两仓 `!` 计数必须为 0；`svn status PROJECT` 已覆盖本机活版 —— 活版在「未提交（代码仓）」里被 whitebox/ 前缀排除，正需要这项兜住）。罐头 svn 负例自证：有 `!` ⇒ 红 / 没有 ⇒ 绿</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>154</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>「原料 vs 成品」两问判据已立（坑 #154），但**机器闸门还没做** —— 本轮按主人令「暂时不动协议区」，替代走终局块正文（零缓存）。登记在 `whitebox/workspace/handoff/25-决策报告缺成品正文位-2026-09-24.md` + `docs/DESIGN-LIFECYCLE-BRIEF.md` §十三 裁决行 4</Why>
+      <GatePlanned>协议区第 12 条补「成品正文单独成节、允许逐字」+ 解析器白名单加 `body` + `DecisionReport.Body` + `Brief` 加一节 + 预算重算；随内核版本一次做净</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>155</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/DecisionReportFlowTests.cs::报告块无主_非请求轮写了REPORT却没终局块_当场纠正</Pointer>
+      <Why>「报告块无主」（有 [REPORT] 无终局块、且非宿主请求轮）⇒ 宿主当场纠正（`Hint` · `source=report-unowned`）。闸门 = 负例（非请求轮 ⇒ 当场纠正且不与 report-request 混淆）+ **正例**（报告请求轮不判无主 —— 合法报告轮本来就没有终局块，漏了这条会误杀正确行为）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>156</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::WaterGapTolerance</Pointer>
+      <Why>收尾中断自查：判据改成**两个信号** —— ① 收敛点落后 且 ② 会话**已收尾**（`~/.agentruntime/session.json` 的 `closed`）⇒ 红；只有① ⇒ 正常推进。旧版把「13 个提交落后 + 会话早已收尾」判成 ✅「正常」（替中断开脱）⇒ 欠账静默存活一整个会话。读数拿不到 ⇒ None（不猜）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>157</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolArgsJsonHintTests.cs::解析_JSON串里的非法转义_必须指名那一条并给修法</Pointer>
+      <Why>JSON 串里的非法转义（反斜杠 + `|` / `(` ⇒ 真机 E095/E280 整批拒）必须被**点名那一个字符** + 给可执行修法（负例真跑过；拔牙自证变红；全量 685/685）。常驻半边 = KNOWLEDGE §十·51（已记错因 ≠ 复发错因）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>158</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ProtocolZoneTests.cs::Gate_Protocol_VersionTracksTextBytes</Pointer>
+      <Why>账本字段（版本号）必须与它描述的事实（正文字节）对得上：`ProtocolText.Text` 的 sha256 × `Version` 必须命中 `KnownTextFingerprints`。来历：r958 改了正文（第 12 条补 `body:`）却没升版本号，r955~r963 一律 `"21"`，而提交信息/注释/水位都写 v22 ⇒ 三处互斥且**无闸门会喊**（旧副本闸门只管「文档 == 代码」这个搬运一致性，不管「版本 == 正文」这个身份正确性）。常驻半边 = KNOWLEDGE §十·65</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>159</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/SecurityGatewayTests.cs::本会话写出来的可执行文件_分类器标为可疑</Pointer>
+      <Why>归一化必须做全：写入侧与比对侧同一口径，否则集合**静默不命中**（macOS `/var` ↔ `/private/var`）—— 后果是**安全判定降级**（污染集不命中 ⇒ 刚写出的可执行文件不判可疑 ⇒ 洞 W2；预授权不命中 ⇒ 人签过的字被降级成「再问一次」）。修法 = `ToolPaths.NormalizeOrSelf`（安全版：判不出 ⇒ 原样返回，不抛）。配套测试侧闸门：`ToolReportTests.路径_不做围栏_任意绝对路径都算出真身`（期望值不许用 `Path.GetFullPath` 这套**另一套算法**）。常驻半边 = KNOWLEDGE §十·66</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>160</Id>
+      <Kind>human</Kind>
+      <Pointer>whitebox/workspace/KNOWLEDGE.md::67. **派生产物必须从正确配置构建</Pointer>
+      <Why>派生产物必须从**正确配置**构建：重生成 rc=0 ≠ 产物是新的（`demo.sh` 跑 `bin/Debug/...dll`，只编 Release ⇒ 产物仍是 v21/6534 字节）。判据 = 读产物里的内容/版本，不读退出码；并配独立校验器同场次跑。已进常驻 §十·67（模型每轮读得到）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>161</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/MinimalWorkerTests.cs::空回复不进流_也不炸整轮</Pointer>
+      <Why>空回复不许把整轮炸掉：流的不变量是「正文非空」，而空 content 是**上游模型行为**（偶发），不是数据错误 —— 正确处置是**跳过**而不是抛错（修前实测：最小 Worker 首跑即撞；Master 侧同样会中）。拔牙自证：把跳过改回无条件 append ⇒ 该闸门当场变红。同族 §十·20（按形状报事实）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>162</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::60. **量法错会伪装成结论</Pointer>
+      <Why>「两把尺子口径不同 ⇒ 读数不可比」属常驻 §十·60（模型每轮读得到）；本条只是把它落到一次具体现场；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>163</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::68. **非 ASCII 路径一律不进命令行</Pointer>
+      <Why>非 ASCII 路径穿 shell 会被重新编码 ⇒ 命令拿到的是另一个字节串。判据与修法已进常驻 §十·68；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>164</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::69. **镜像一致 ≠ 版本库完整</Pointer>
+      <Why>parity 绿不等于入库了（rsync 不认版本控制）。判据已进常驻 §十·69；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>165</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「只读是自述不是判据」已进常驻 §十·70；closeout.py 的具体写盘点本轮未修（要连带决定 recurrence 账本落哪一侧）⇒ 仍归人工事项</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>166</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **闸门锚「最后活动日」</Pointer>
+      <Why>跨零点收尾的当日义务已进常驻 §十·71：跨零点作业一开工就落当日文件；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>167</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::51. **「记下来」≠「防得住」</Pointer>
+      <Why>本条是 §十·51 的复发证据（同族不同病：正则里的反斜杠星号也属 JSON 非法转义）⇒ 常驻层已覆盖，无需新条目；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>168</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>「待发」不产生事件 ⇒ 在续跑判据上不存在 ⇒ 队列非空 + 回复无工具块时会静默停（无声停第 4 形）。确定性坑，应配闸门；闸门未做 ⇒ 计入 todos_max（2→3），不得静默长期挂账</Why>
+      <GatePlanned>src/AgentRuntime.Hosting/TurnContinuation.cs::队列非空也算续跑触发源（与 HasToolOutcomeSince 并列）</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>169</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「进程自己退出」未复现：last-crash.txt 渠道可证伪「托管异常崩」，但 kill -9 与干净退出形状相同、现有证据不可分 ⇒ 归人工事项（已留 4 条区分判据：真 PTY 抓退出码/信号 · wrapper 记最后写盘间隔 · tmux 接管 · 退出路径审计）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>170</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>emit 路径（knowledge-repo.py 的 emit_md + indexed/hybrid 两态 + --strategy/阈值）随旧概念退役（2026-10-09） → 死代码清理（2026-10-10）：emit_md 已删、--repo 已删、knowledge.md 为唯一源；本条原指针 tools/knowledge-repo/knowledge-repo.py::def emit_md 已无对应物 ⇒ 只留人读留痕（内联型 L4 概念亦随 L3/L4 重编排作废）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>171</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::68. **派发物是「对象」不是「一行文本」</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>172</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::70. **分流/派发判据必须同源</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>173</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::57. **判据按「应有集合 + 应有形状」写**</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>174</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::47. **退出码 0 ≠ 做成了</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>175</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::69. **回执必须 fail-closed</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>176</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::69. **回执必须 fail-closed</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>177</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::68. **派发物是「对象」不是「一行文本」</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>178</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::69. **回执必须 fail-closed</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>179</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>180</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>181</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>182</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::49. **面向命令行与工具面的长文本一律走文件</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>183</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::cwd 必须落在活版</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>184</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>185</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::49. **面向命令行与工具面的长文本一律走文件</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>186</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::50. **相对路径只在某一个基准下成立</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>187</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>188</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>189</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::50. **相对路径只在某一个基准下成立</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>190</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::69. **回执必须 fail-closed</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>191</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>192</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::72. **接新判据前先问</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>193</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>194</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::49. **面向命令行与工具面的长文本一律走文件</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>195</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::15. **只追加事件流（Append Stream）</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>196</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>调试入口 --worker-run 绕过生产装配 ⇒ 「open 为空」不能用它验；做法靠纪律</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>197</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::72. **接新判据前先问</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>198</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::70. **分流/派发判据必须同源</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>199</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::73. **闸门的「适用范围」也是判据的一部分</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>200</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::71. **回执的证据必须能被复算</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>201</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::74. **判据要量「运行值」，不量源码窗口</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>202</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>编辑纪律：替换含结构行（} / catch）时必须回读整段；edit 工具未做该校验 ⇒ 应配闸门</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>203</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerReceiptGateDispatchTests.cs::Red_自称产物而盘上不存在</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>204</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::73. **闸门的「适用范围」也是判据的一部分</Pointer>
+      <Why>2026-09-27 大轮 A 收尾：按落点归类；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>205</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>「✅ 判据漏 Open」应为闸门：结算记号必须消费回执全部未决字段；闸门未做 ⇒ 计入 todos_max（本轮只记不动架构；先决条件是先证 Open 真被填充，否则是哑门）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>206</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>架构级事故（一次 provider 网络失败 ⇒ 整个进程消失）：本轮只记、不改架构；未配闸门</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>207</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>夹具坑（被测符号落在结果上限之外 ⇒ 假红）：属测试写法纪律，暂由人读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>208</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerBaseTests.cs</Pointer>
+      <Why>worker 工具基准 = 代码根优先（找根先撞 .svn ⇒ 提前命中）由 WorkerBaseTests 钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>209</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「提到 svn commit ≠ 提交过」由终局闸门 + 其夹具钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>210</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>worker 工具块 JSON 未配平 ⇒ ToolDenied（与「长文本走文件」同族）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>211</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/GearRulesTests.cs</Pointer>
+      <Why>新增模块的插位由装配闸门管（GearRulesTests 钉住）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>212</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>自伤：把长正文塞进单行 JSON ⇒ 撞上同一条</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>213</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolReportTests.cs</Pointer>
+      <Why>工具块只认模型自己发出的顶层块 —— ToolReportTests 钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>214</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>自伤：write 整份覆盖未纳版控旧稿 ⇒ 不可回滚；属操作纪律，靠人读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>215</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>override 漏拷配置段（#14 同族）⇒ 静默回默认值</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>216</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>自动补默认与显式清单相冲 ⇒ 摘除被静默撤销</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>217</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>改默认开关的连带红 = 闸门在喊，不是噪声</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>218</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/TurnContinuationTests.cs</Pointer>
+      <Why>自动接续的静默停与三个停因由 TurnContinuationTests 钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>219</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>配置里的相对路径没走唯一解析家 ⇒ 按进程 cwd 解析</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>220</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerReceiptGateDispatchTests.cs</Pointer>
+      <Why>回执到 master 侧断头（Evidence 丢弃 / open 没进对象）由收据闸门夹具钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>221</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>接手半成品先看能否编译：属协作纪律，靠人读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>222</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>归一器整块归一旧 JSON ⇒ 老闸门语义悄悄变（迁移期一次性教训）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>223</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>旧形状里「空行落在未闭合字符串内」是正文（迁移期一次性教训）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>224</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>XML 1.0 承载不了 C0 控制符 —— 换格式时的硬边界</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>225</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>文档模式别把 StringBuilder/StringWriter 交给 XmlWriter</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>226</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>落盘 DTO 的集合成员必须是数组（序列化形状约束）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>227</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>序列化器不跑构造函数 ⇒ 缺元素读回 null</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>228</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>worker 与 master 的生命周期必须同源（主人 OOD 口径）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>229</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>迁移配方口径要窄；枚举外取值不许臆造</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>230</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerSettleGateReceiptTests.cs</Pointer>
+      <Why>派发物段名是手写行协议（值里带 | 会被归一并回任务）由解析器夹具钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>231</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerReceiptGateDispatchTests.cs</Pointer>
+      <Why>回执 changes: 那一格必须被闸门看（假绿 ⇒ 复核）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>232</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>计量不接线 = 读数恒 0（接线上线时的一次性教训）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>233</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>轮数预算不对称（master 做得了、worker 做不完）—— 属预算设计教训</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>234</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>契约卡只教了 read ⇒ 便宜路没人走（契约卡措辞教训）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>235</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>两套口径共存 = 一处认、一处不认（口径统一教训）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>236</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::81. **判据的「病人名」必须与真病一致</Pointer>
+      <Why>一个 bool 兼两义（四字段缺 / open 未清）⇒ 判词把人指到错的方向；已抽象进 §十·81（模型每轮读得到）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>237</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerTurnHostTests.cs::交了块但结不出东西_不算结算_闸门拒</Pointer>
+      <Why>空账（四字段齐、open 清、结论为空）两侧同源拒；渲染改 ⚠️ + 专属催稿话术</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>238</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/MinimalWorkerTests.cs::W2_用量与流都落在worker自己的目录_不混进Master</Pointer>
+      <Why>回执自带 LogPath（本次派发落点），不再按约定反推 —— 持续流改版后反推必失效</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>239</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>exec 多行只跑首行 ⇒ 假成功（本轮提交没发生却像成功）；尚无闸门，靠回读抓到</Why>
+      <GatePlanned>工具面对多行 exec 命令给警告或拒绝（长命令一律走脚本文件）</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>240</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>块头必须顶层逐字；缺一条夹具把它钉住</Why>
+      <GatePlanned>夹具断言：块内出现的 [DISPATCH] 只算正文并告警（宿主已如实告警）</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>241</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>svn log/info 默认锚工作副本根 base ⇒ 假读数（坑 #72 同族）</Why>
+      <GatePlanned>收尾/提交判据一律用逐文件 last-changed-revision（本轮脚本已改）</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>242</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerMemoryRecordTests.cs::跑过一次派发_memory家里有那一行记录</Pointer>
+      <Why>记录必须恰好一行；真因是同一条工具调用被重放三次（工具侧重放），断言将强化为行数=1</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>243</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/WorkerReceiptShape.cs::public static class WorkerReceiptShape</Pointer>
+      <Why>四字段清单的唯一声明处（判据侧与呈现侧共用）⇒ 「判据与呈现两套形状」不可能再分叉</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>244</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>空值不许因空而消失：`open=` / `changes=` 空则写 none，在 worker 回执渲染路径已落地 —— 尚无独立夹具钉住 ⇒ 只给人看（下次补夹具即转 gate）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>245</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Tooling/ToolNames.cs::ZeroArgCallable</Pointer>
+      <Why>「这把工具允许零参吗」的唯一判据，解析层与 ToolArgs.Parse 共用（一处放宽、两层放行）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>246</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolReportTests.cs::解析_围栏里的块头只是示例_只有顶层块被执行</Pointer>
+      <Why>解析边界：正文/围栏里的块头只是示例，只有顶层逐字块才算调用（含反向自检）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>247</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/MinimalWorkerTests.cs::Worker面_需批动作_留档后照跑_且真的写了</Pointer>
+      <Why>面被剥掉时**换面**而不是删断言：master 面无动作可测 ⇒ 不变量迁到 Worker 面（该面闸门在）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>248</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>C# 静态字段按声明次序初始化（cctor）⇒ 使用者必须先于被使用者声明；一次性修法，无判据可钉 ⇒ 只给人看</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>249</Id>
+      <Kind>human</Kind>
+      <Pointer>src/AgentRuntime.Core/Knowledge/KnowledgeRepoCli.cs::层级前缀不限</Pointer>
+      <Why>条头/指针唯一 ID 正则（层级前缀不限）三处共用 ⇒ 不再写死类型前缀而静默丢条（python 原件已退役 → C# 实现）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>250</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>往返判据的参照物要选**唯一的记录**而非派生视图（正文写的 `--truth repo` 在现行工具里尚无对应开关，不挂假指针）⇒ 只给人看，等落成参数再转 gate</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>251</Id>
+      <Kind>human</Kind>
+      <Pointer>src/AgentRuntime.Core/Knowledge/KnowledgeRepoCli.cs::source_missing</Pointer>
+      <Why>三态往返 equal / source_missing / mismatch：「源不在」是状态不是错误，只有 mismatch 算红（python 原件已退役 → C# 实现）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>252</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>截断之前先问「取回路径存在吗」：回执可见上限 600，取回指针要给真落点 —— 尚无独立夹具 ⇒ 只给人看</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>253</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/WindowResolver.cs::LooksLikePath</Pointer>
+      <Why>形状判据（末段带扩展名 / 尾 / / 显式 ./ 起头；认不出就不报）⇒ 宁可漏报不刷噪声</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>254</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/DispatchParser.cs::public static class DispatchParser</Pointer>
+      <Why>告警粒度按「一次派发」合成一条（string.Join），不按判据个数逐条 Add</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>255</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/DispatchParser.cs::public static class DispatchParser</Pointer>
+      <Why>派发行段清单要与协议教的一致；解析器是唯一判据处</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>256</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Modules/Worker/WorkerDispatchModule.cs::WorkerDispatchRefused</Pointer>
+      <Why>通道的失败必须算本轮结果（IsTurnOutcome）⇒ 拒绝信息能到 master</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>257</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>设计口径「会自指的开关不进身份层」：冻结前缀只装教义正文、模式声明走动态段 ⇒ 无机器判据，人读设计文档/本节</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>258</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Configuration/WorkerConfiguration.cs::ServiceTier</Pointer>
+      <Why>删键≠去默认值；默认值是 flex ⇒ 显式写空串才回标准档</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>259</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>流程纪律「编了要问编的是哪一套产物」（Debug vs Release、cp -p 保 mtime 假红）—— 靠人读，非自动判据</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>260</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Hosting/RuntimeHost.cs::session.xml</Pointer>
+      <Why>会话指针优先于 --stream；换卷要走 closeout→reset→start</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>261</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Modules/Worker/WorkerDispatchModule.cs::ApplyReceiptGate</Pointer>
+      <Why>重放/补发下的幂等纪律；副作用步骤必须可重入（本跑只追加⇒三次真追加）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>262</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>认知口径「读数有时点」：别拿现在的盘判当时的读数 —— 靠人读；时点差本身无法用单帧闸门证伪</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>263</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/ArtifactMeasurer.cs::ArtifactMeasurer</Pointer>
+      <Why>复算闸门要按盘实测派生读数，不许只验存在、也不许抽错 token 造成假红</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>264</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/WindowResolver.cs::ResolveBase</Pointer>
+      <Why>复核相对路径必须按 base 解析，不许按进程 cwd</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>265</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Tooling/ToolArgs.cs::OptionalInt</Pointer>
+      <Why>可选字段不合形取首个数字串归一，不判死整个调用（§十·47）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>266</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Core/Worker/WorkerProtocolText.cs::DENIED</Pointer>
+      <Why>契约「A DENIED CALL IS NOT A DONE STATE」+ 运行时收紧</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>267</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>用料纪律：常规检测料必须带一次性 nonce（只有真跑才拿得到）—— 靠用料文件本身 + 人读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>268</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Hosting/Worker/WorkerReportParser.cs::Canonical</Pointer>
+      <Why>字段名中文/全角冒号由运行时归一（§十·47），不判「没交回结果块」</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>269</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ProtocolZoneTests.cs::Gate_协议示例只用本面工具_不得演示worker专属工具</Pointer>
+      <Why>协议正文的形状示例只能用本角色面的工具（示例就是教形状）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>270</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Modules/AppendStreamModule.cs::IsRuntimeNotice</Pointer>
+      <Why>运行时自己的话不得冒充 UserInput（形状上分得开）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>271</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Modules/ModuleRegistry.cs::不许加渲染窗口</Pointer>
+      <Why>append-only 流不许窗口化（窗口化 ⇒ 稳定前缀不再稳定 ⇒ 缓存必失）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>272</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/PaceBudgetTests.cs::可换档位_将上界设成600_闸门跟着放宽</Pointer>
+      <Why>「上限」≠「目标」：抬闸门要改基数 C，不是改 hi</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>273</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>退役纪律：退一个概念要把它挂载的每一处列全再退（闸门/索引/流水线/配置键/校验名单）；本次为旧概念退役，无机器判据，靠人读坑集与公告板</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>274</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/PaceGateWiringTests.cs::事前判定该拆_没做完_下一同形大块被退</Pointer>
+      <Why>事前判定该拆+没做完 ⇒ 开义务；同形不更小的重发被退（提示→义务）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>275</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/WorkerFailureFactsTests.cs::自报partial_必须退回_带接着读的修正</Pointer>
+      <Why>协议说 partial 会退回，运行时当时放过（口径分叉）；现 PartialNotCovered ⇒ 带「接着读」的修正退回</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>276</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/PaceGateWiringTests.cs::事前判定该拆_没做完_下一同形大块被退</Pointer>
+      <Why>重发循环的旧守卫 `!result.Ok` 把 partial 判据短路 ⇒ 接线级夹具断言 [补发 1/ 真的出现</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>277</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Cli/PacerCli.cs::private static int Master</Pointer>
+      <Why>master 侧速率可查（pacer master：每轮 tok/s + 超墙计数）；顶层超时 180→600 与端点时长分布对齐</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>278</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>交付物超单条结果上限 ⇒ 逐窗读回原样铺出（生成规则只作核验、绝不代替交付）—— 这是**模型的作业实践**（主人点验 M9/big.txt 时真机长出）；本轮先人读留痕，待收尾抽象进常驻层（KNOWLEDGE/协议第 2 条的「结果带指针」已含同族口径）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>279</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「成品必须逐字进（body:）」与「报告块 ≤30 行」在**大交付物**上互斥 ⇒ 只能交锚不能交正文 —— master 测试 M9/M10 点验当场长出；先人读留痕，待收尾裁决（是放宽报告行数，还是给「大成品」定一个独立的交付通道）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>280</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>读数不可信时先怀疑量法（半行 / 截断 / 通配）——作业纪律；同族已进常驻 §十·31，此处只留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>281</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>目录 rev / status 干净 / 单根读数 都不是事实（同 #241）——无专项闸门，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>282</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>给模型看的形状示例里占位符会被当实参——协议措辞级，待收尾抽象进协议区</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>283</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>同名夹具跨场次重生成：锚必须带「场次根」——夹具设计纪律，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>284</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>收尾件可能已在盘上：先列真名再定号，编号不是身份——收尾纪律，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>285</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>已记录的坑被下一会话原样重犯：先列真名 + 按主题查候选（复现 #284）——与 #284 同族，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>286</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>收尾判据 = 已提交、跨机读得到（写到盘 ≠ 交了）——收尾纪律，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>287</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>照抄形状缩写当调用 ⇒ 解析层被拒；正文不许自指块头——协议措辞级，待抽象</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>288</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「写明不执行」拦不住工具块（块发出即执行）；长文件追写用 edit 不用 write——本轮当场自伤，人读留痕（同族 #137 / #214 已有闸门）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>289</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>终局块被 markdown 加粗包住 ⇒ 按「行首裸方括号」判不算终局（同族 #43/#155；协议措辞级）——无专项闸门，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>290</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「下一个 X」是**有时点的读数**：只写可复算命令、不写结论数字（#284 的执行体自己复发 · 同族 #262）——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>291</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「换面」会重装模块 ⇒ 想跨面取的状态必须在 EnterCloseoutFace **之前**取（G1 当场；修在 SessionLifecycle，无独立闸门钉顺序）——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>292</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「写进配置」≠「真的生效」：默认 HttpClient 的 100s 墙吞掉声明的 600s，且话术报的是声明值（甲 当场；worker 侧由 WorkerTimeoutSourceTests 盯源，master 侧无闸门）——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>293</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>跨语言移植对证：len(str)（码点）≠ string.Length（UTF-16 单元）⇒ 按码点数、字节另算（B4-a 当场；同族 #296/#297 移植纪律）——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>294</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>移植对证的「假红」= 两边**输入不同**（相对路径按 cwd 解析）⇒ 对证脚本两边都用绝对路径，先断言读的是同一份输入——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>295</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>移植/对证要换输入：单 id 行的 md 走不出「按行 vs 按 (行×id)」的口径差——人读留痕（同族 #293）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>296</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>promote 前置漏传 md_text ⇒ 谓词恒红：一条口径散在多个入口，漏一处整条路失效——已两侧同改，人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>297</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「显示」≠「原始字节」：移植正则别照读取工具显示抄（用 repr / 脚本生成目标语言字面量）——人读留痕</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>298</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/PitfallsDerivedTests.cs::坑集索引_与python派生物逐字节一致</Pointer>
+      <Why>改了正典源没重跑派生 ⇒ PitfallsDerivedTests 拿仓里真产物对证、立刻红</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>299</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>闸门要求的派生物可能已被退役令删除；切实现（相对→绝对）后静默跳过的检查第一次真跑才暴露 ⇒ 先审「期望是否仍成立」再动手——人读留痕（同族 #298/#241）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>300</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>收尾直接调客户端（不过引擎）⇒ 请求没带 model ⇒ 上游 400；失败行又只印状态码（响应体丢掉）——两条都是「字段归属」与「归因带事实」，无专项闸门，人读留痕（同族 #292）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>301</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>落点写成整份覆盖（累积型落点必须追加+去重）——本期已就地修 + 测试（知识库落点_只追加不覆盖）；本条留痕（同族 #214）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>302</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>材料截断仍推进水位 ⇒ 超上限部分隐默跳过——已就地修 + 测试（材料被截断_绝不推进水位）；本条留痕（同族 #303）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>303</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>水位读不出时 fail-open（空 ⇒ 没有新材料）⇒ 假收尾——已就地修（fail-closed + 单源 + 插而不覆）+ 测试；本条留痕（同族 #302）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>304</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/RuntimeConfigurationXmlGateTests.cs::配置模型每个公开可写属性都必须标_DataMember_否则XML会静默丢字段</Pointer>
+      <Why>配置模型 XML 序列化的「属性要么是配置字段([DataMember])要么显式 [XmlIgnore]」由该闸门钉住；序列化选型（跑构造函数+容忍乱序）上升为 §十</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>305</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>换格式要扫全部声明面（默认值/配置路径/脚本/夹具）；本轮已扫并改名，抽象进 §十（传播面）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>306</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::Selftest</Pointer>
+      <Why>「先让基线绿再证负例红」由 closeout --selftest 的自证骨架承载（镜像已补全 ⇒ 负例不再空转）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>307</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Cli/FrozenCorpusCli.cs::IsSelfProduced</Pointer>
+      <Why>自产目录（.stage1/bin/obj/.demo/dist）在枚举处排除 + 负例测试「踩坑集索引_跳过自产目录里的残留」</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>308</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/XmlSanitizeTests.cs::合法代理对_emoji_逐字保留</Pointer>
+      <Why>XML 承载字符按码点判（合法代理对整对保留）；判据 4 条含片段往返</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>309</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/BenchRecordsXmlTests.cs::写盘是_records_xml_一份一行_且逐字段可读回</Pointer>
+      <Why>名字类口径成批同改；records.jsonl→records.xml 有新判据盯着（名字 + 行数 + 逐字段）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>310</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>提交信息一律走 -F 文件（shell 会先展开反引号/$()）—— 纪律类，无闸门；已记入 KNOWLEDGE §十 同族条目</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>311</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>语料面 = l1/l2 + 索引；改 L3/L4 正文不动语料（省 bump + 冷启）—— 事实类，供人判读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>312</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>设计经验：读数盯结构源（事件流 Kind 计数），别盯人读文案；[WB] 十节抽象候选，下轮</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>313</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>过渡码「用毕即撤」要当场退役，否则永久占一条白名单/豁免</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>314</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>改名的传播面含「读者/指针处」；读者一律走强类型</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>315</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/ms-suite/Selftest.cs::ExpectedM4</Pointer>
+      <Why>判据固化进工程：参考输入 + 金标入库，随 selftest 跑</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>316</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>工具链小坑（csproj 注释禁 --；svn move 先 update；svn add --force 会连带 bin/obj）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>317</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::未纳版件</Pointer>
+      <Why>交付前回读提交路径清单（svn log -v）+ 「未纳版件」闸门（`?` 也算红），add 输出不吞</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>318</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>不可逆/对外命令的验证一律用沙箱或无害目标（无 dry-run 先读源码确认副作用面）—— 用真路径验证 wb-cli commit ⇒ 真提交成 r1628</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>319</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>`svn add --parents` 会静默建缺失父目录（拼错即造空目录）；单文件/整目录都不需要它</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>320</Id>
+      <Kind>human</Kind>
+      <Pointer>src/AgentRuntime.Core/Knowledge/KnowledgeRepoCli.cs::往返</Pointer>
+      <Why>改语料 L4 ⇒ 同批改 L4 逐字件；「往返（md→派生→L4）」闸门钉逐字节相等；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>321</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>退役一个入口要枚举到「用户面挂载」（PATH 启动器及其目标是否存在 + 活指令文档 + PATH 暴露本身），并在真机同一 shell 形态下真跑一次；本次 whitebox 仍指已退役 run.sh、wb-cli 从未上 PATH（apphost 另缺 DOTNET_ROOT）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>322</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/TuiSplitTests.cs::Split_T1_多轮工具链_逐轮预览与实发不破线</Pointer>
+      <Why>一轮只组装一次：宿主把预览出的 ChatRequest 交给引擎发（Assert.Same 钉「显示的就是发出去的」，引用相等）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>323</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/demo-doc/Program.cs::FindBlock(lines, section, 0, Path.GetFileName(product))</Pointer>
+      <Why>抽块谓词必须是结构量（节标题 + 块序号），不得是生成物里的首行文案；改帧即静默 0 块。另：改名要扫演示脚本/清理清单等活件，演示须可重复。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>324</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/TableReflowTests.cs::宿主框线表_按宽度重排_每行都不超宽</Pointer>
+      <Why>识别面必须穷举形状（Markdown 管表 + 宿主 TextTable 的框线表 + 卡里带 markup/缩进），夹具用真产物；不变量按最终落点量每行 ≤ W</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>325</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/OpenAICompatibleClientTests.cs::真Provider的档位注入_不得改变请求字节</Pointer>
+      <Why>「同一个对象」≠「同一份字节」：Provider 发送前就地注入档位会让预览哈希 ≠ 实发字节；夹具必须用真 Provider，FakeModelClient 不注入 ⇒ 看不见</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>326</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/OpenAICompatibleClientTests.cs::真Provider的档位注入_不得改变请求字节</Pointer>
+      <Why>闸门必须喂真实入口（真组装器→真 Provider→真字节），自造输入=空转；脚本化编辑必须写盘后当场回读</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>327</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/DraftStoreTests.cs::工作台面跨会话承接_本会话空则从最近一份拷来_旧件不动</Pointer>
+      <Why>台面按 sessionId 落盘 ⇒ 新会话空白；补 CarryFromNewest（同目录最近一份 copy，旧件不动）</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>328</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ContinuityTests.cs::空台面零注入_不产生空段</Pointer>
+      <Why>判据按字面 grep 会被协议区正文里的块头撞红（假红）⇒ 判据按段形状写（整段以段头开头）+ 补来源断言；该修正已由本闸门钉住</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>329</Id>
+      <Kind>human</Kind>
+      <Pointer>KNOWLEDGE.md::75. **判「某功能有没有做」之前</Pointer>
+      <Why>落点由配置驱动的相对路径决定时，拿一个硬编码目录当唯一候选 ⇒ find 空被误报成「功能没做」；已抽象进常驻 §十·75（模型每轮读得到）；旧知识库已退役（2026-10-17 换血）⇒ 只留人读留痕，指针不再校验</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>330</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/PaceWallTests.cs::无样本取声明上界_不早砍</Pointer>
+      <Why>报「墙」必须报生效值而不是声明的上界（差 20 倍 ⇒ 归因必错）；硬墙=声明上界、等得久只提示不砍、单轮真失败不杀会话（TuiSplitTests 钉住不退进程）；同族 §十·72 声明≠生效</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>331</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ProtocolZoneTests.cs::Gate_协议正文里的工具面_与代码同一份渲染</Pointer>
+      <Why>同一件「[TOOL] 怎么写」曾在协议正文 / 拒因话术 / 嵌它的子协议里各写一套（三种形状）⇒ 模型逐个试、一拒就断活。修法 = 形状只留一份（协议区），拒因只报事实 + 指向契约。本闸门钉住「协议正文明里的工具面 = 代码真值」这一份，逐字副本 / 元数据 / 预算三条随动；同族 §十·51（记下来≠防得住）/ §十·77</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>332</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「把无害提示当根因」是人的判断病，不是可机械判定的形状 ⇒ 只给人看（已写入 docs/PITFALLS.md #332 与决策报告口径）。判据：一条反复出现的信息，只有「去掉它/加回它」会改变结果时才算根因；读数同时支持「别人的问题」与「我的问题」时先证伪后者。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>333</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>「现象不冒称机制」已抽象进 L1 常驻法则（L1-clm-001，模型每轮读得到）：读数只能证明相关，机制名必须指得出排除了什么。同日自我更正补记在 docs/PITFALLS.md #333。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>334</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ExecEnvironmentTests.cs::exec_子进程真的看到UTF8_locale</Pointer>
+      <Why>exec 子进程没钉 UTF-8 locale ⇒ svn 对任何非 ASCII 正文/提交信息报 E000022（客户端转换失败，还没出网），真机被判成「服务端写坏了」、绕了几十轮。闸门 = 真起子进程读 $LC_ALL；另三例钉「没设就钉」「已 UTF-8 不动」「非 UTF-8 纠正」。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>335</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/AGENTS.md::跨目录一律用这三个变量拼</Pointer>
+      <Why>`svn commit --targets` 的目标文件里，每一行是**给进程当命令行参数的路径**，解析基准 = 进程 cwd，不是 targets 文件位置、也不是 WC 根。cwd 不是 WC 根时相对路径被拼成「WC根/相对路径/相对路径」⇒ E155010「路径不存在」，而 ls 明明看得见；失败外观极具欺骗性（像内容没写对，其实内容对、只是没提交上）。修法 = targets 里一律写绝对路径、提交前先 pwd。已抽象进 AGENTS.md 启动铁则 1「跨目录一律用这三个变量拼绝对路径」（模型每轮读得到）；无独立闸门（提交类命令不做自动回放验证）⇒ 声明为 resident 而非硬造假 gate。同族 #134/#135/#264。原文 docs/PITFALLS.md #335。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>336</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>script 段内拼 URL 时写了 ampersand-amp 字面量 ⇒ 浏览器原样发出、query 参数丢失；而失败提示用推测性措辞（「可能绑定早于功能上线」）把「参数丢了」说成「数据没有」，把排查指错方向（当日因此误判、让主人做了无谓重绑）。应为闸门：扫 cshtml 里 script 段的 fetch/URL 拼装是否含该字面量；未做 ⇒ todo。原文 docs/PITFALLS.md #336。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>337</Id>
+      <Kind>todo</Kind>
+      <Pointer i:nil="true" />
+      <Why>只手敲 ALTER TABLE、没注册进 AddColumnIfMissing 白名单 ⇒ 本机能跑、换数据根/新部署即 500（no such column）。应为闸门：比对 EnsureDatabase 声明的列集合与真实库 pragma、或「空数据根起一次能自动建列」的冒烟；未做 ⇒ todo。同族 #53/#54/#219。原文 docs/PITFALLS.md #337。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>338</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>把「读不到」当成「没存」，据此让主人做了无谓重绑 —— 「数据不存在」是结论不是前提，说它之前必须有一条指向「不存在」的读数。该口径已由常驻法则 L1-clm-001「现象不冒称机制」覆盖（模型每轮读得到），故声明 resident；同族 #333/#286/#262。原文 docs/PITFALLS.md #338。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>339</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-side-001</Pointer>
+      <Why>用真实密钥做连通性探测，带了假机器指纹 => 密钥被绑到假机器；主人若在发现前激活会误判「已绑定其他电脑」。常驻法则 L1-side-001「探测会写」：判定探测安不安全不能看意图，只能看被探测系统会为它写什么。同族 #318/#86。原文 docs/PITFALLS.md #339。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>340</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-evd-001</Pointer>
+      <Why>dotnet run 的 -- 参数没传到程序，释放逻辑被静默跳过；退出码 0 且输出里没有目标行 => 那段没执行。常驻法则 L1-evd-001「证据优先」：副作用型脚本必须打印我执行了什么。同族 #27/#136。原文 docs/PITFALLS.md #340。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>341</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>strings 取不到 Mach-O 里的中文字面量，把量法失效误判成代码缺陷。常驻法则 L1-clm-001「现象不冒称机制」：读数工具对被测介质有适用范围。同族 #149/#173/#280。原文 docs/PITFALLS.md #341。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>342</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-evd-001</Pointer>
+      <Why>正文含裸尖括号/与号的工具块被整篇拒且不落盘；三次以为已写入。常驻法则 L1-evd-001「证据优先」：我发了与它写了是两件事，凡后续判断依赖文件存在处必须有读数。同族 #157/#210/#133。原文 docs/PITFALLS.md #342。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+  </Declarations>
+</GateLedger>

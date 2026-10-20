@@ -63,7 +63,7 @@ public sealed class ToolFaceTests
         /// <summary>测试用的「工作区」（临时目录）。</summary>
         public string Work { get; }
 
-        /// <summary>裸文件名 ⇒ **绝对路径**。工具面已**不做路径围栏**（用户 2026-09-16 03:00 定），
+        /// <summary>裸文件名 ⇒ **绝对路径**。工具面已**不做路径围栏**（主人 2026-09-16 03:00 定），
         /// 相对路径会按进程 cwd 解析 ⇒ 测试必须给绝对路径。</summary>
         public string Abs(string name) => Path.Combine(Work, name);
 
@@ -248,7 +248,7 @@ public sealed class ToolFaceTests
     [Fact]
     public async Task F4_master点需批工具_留档且照跑()
     {
-        // 2026-10-10（用户令「把工具交回 master」）：master 持**全量**面 ⇒ v13 的老不变量
+        // 2026-10-10（主人令「把工具交回 master」）：master 持**全量**面 ⇒ v13 的老不变量
         // 「**留档 + 照跑**」在 master 侧**重新成立**（剥离期它退化成「没有动作可留档」——见 git 史）。
         // 审批闸门本台未接硬拦 ⇒ 只留档、不拦；文件**真的**被写。
         using var b = new Bench("ok");
@@ -402,7 +402,7 @@ public sealed class ToolFaceTests
         Assert.False(ToolNames.RequiresApproval("list"));
         Assert.True(ToolNames.RequiresApproval("write"));
         Assert.True(ToolNames.RequiresApproval("edit"));
-        // exec 现在**在册**（用户 2026-09-16 12:58 定：自持所需）；它改本机状态 ⇒ 需批。
+        // exec 现在**在册**（主人 2026-09-16 12:58 定：自持所需）；它改本机状态 ⇒ 需批。
         // 而「未登记的怪名字」仍然归对外类 must-ask ⇒ 默认拒（fail-closed），这条没变。
         Assert.True(ToolNames.IsKnown("exec"));
         Assert.Equal(ToolRisk.Mutating, ToolNames.RiskOf("exec"));
@@ -428,7 +428,7 @@ public sealed class ToolFaceTests
     [Fact]
     public async Task 拒绝时_工具面一次说全_不用一轮猜一个约束()
     {
-        // 2026-09-22 用户真机实测：一场简单提问烧了 **9 轮**，其中 **3 轮纯协议对抗**
+        // 2026-09-22 主人真机实测：一场简单提问烧了 **9 轮**，其中 **3 轮纯协议对抗**
         // （先猜错名字 `bash` ⇒ 再猜错键 `cmd` ⇒ 最后才暴露「risk 在 JSON 外」）——
         // 因为每条拒绝**一次只暴露一个约束**。闸门：**任何一条**拒绝都要自带完整工具面
         // （名字清单 + 每个工具的键 + 完整形状），下一轮就能写对。
@@ -460,7 +460,7 @@ public sealed class ToolFaceTests
     }
 
     /// <summary>
-    /// **拒绝 ⇒ 立刻落进踩坑收件箱**（用户 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底。
+    /// **拒绝 ⇒ 立刻落进踩坑收件箱**（主人 2026-10-15 令）：协议区写了形状、远端 AI 遵奉率还是低 ⇒ 由知识库兜底。
     /// 记在事件流里只是**这一场**的痕；收件箱才是**跨场**的（收尾收敛进 L1/L2 ⇒ 下一个 session 进 prompt）。
     /// 出牙：没配收件箱 ⇒ 不写（不猜路径）；配了 ⇒ 每条拒绝一行，带时刻 + 拒因 + 原文。
     /// </summary>
@@ -513,12 +513,12 @@ public sealed class ToolFaceTests
         }
     }
 
-    // ---------------- 角色分工：master 侧不出「Worker 的活」（2026-09-29 用户令 · 逐层剥离）----------------
+    // ---------------- 角色分工：master 侧不出「Worker 的活」（2026-09-29 主人令 · 逐层剥离）----------------
 
     [Fact]
     public async Task master面含read_照跑_回归保护()
     {
-        // 2026-10-10（用户令「把工具交回 master」）：read/list/write/edit/exec 全部回到 master 面 ⇒ 不再被拒。
+        // 2026-10-10（主人令「把工具交回 master」）：read/list/write/edit/exec 全部回到 master 面 ⇒ 不再被拒。
         // （旧测试名为「剥掉的工具_master侧被拒_且指名这是Worker的活」—— 那个契约已退场。）
         var sink = new MemorySink();
         var master = new ToolRunner(
@@ -569,7 +569,7 @@ public sealed class ToolFaceTests
 
         // 判据④：装配 = 声明（单声明处 ⇒ 清单一眼可读，不是散在各处拼出来的）。
         Assert.Equal(declared, installed);
-        // 2026-10-10（用户令「把工具交回 master」）：全量面 —— 读/写/跑都回到 master（worker 已拔）。
+        // 2026-10-10（主人令「把工具交回 master」）：全量面 —— 读/写/跑都回到 master（worker 已拔）。
         Assert.Contains(ToolNames.Read, installed);
         Assert.Contains(ToolNames.Write, installed);
         Assert.Contains(ToolNames.Exec, installed);
@@ -592,12 +592,12 @@ public sealed class ToolFaceTests
     [Fact]
     public void 工具面_按角色渲染_且面里的工具都声明了键()
     {
-        // 2026-09-29（用户令「改 master 协议区」）：正文此前手写 7 把，而 master 的真实面只剩 index/scope
+        // 2026-09-29（主人令「改 master 协议区」）：正文此前手写 7 把，而 master 的真实面只剩 index/scope
         // ⇒ 正文与实现口径分裂（模型照正文点名 read/exec 一律被拒、白烧轮次）。
         // 判据：面由 ToolNames 唯一声明 → 键清单由 ToolFaceClause.ToolKeys 唯一声明 → 渲染出各面自己的那一份。
-        // 2026-10-10（用户令「把工具交回 master」）：master 面 = 全量 ⇒ 键清单 = 全量（同一处渲染）。
+        // 2026-10-10（主人令「把工具交回 master」）：master 面 = 全量 ⇒ 键清单 = 全量（同一处渲染）。
         Assert.Equal(ToolFaceClause.KeysText(ToolNames.MasterFace), ToolFaceClause.MasterKeys);
-        Assert.Equal("read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds} index{symbol} scope{task}", ToolFaceClause.MasterKeys);
+        Assert.Equal("read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds} index{symbol} scope{task} web_fetch{url,maxChars,offset,format} web_search{query,count,recency} http_request{method,url,headers,query,body,contentType,authRef,timeoutSeconds} web_download{url,path,maxBytes,conflict} web_search_extract{urls,maxCharsPerPage,concurrency}", ToolFaceClause.MasterKeys);
         Assert.Equal(
             "read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds}",
             ToolFaceClause.KeysText(ToolNames.WorkerFace));

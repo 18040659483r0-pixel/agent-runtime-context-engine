@@ -19,7 +19,7 @@ namespace AgentRuntime.Tui;
 /// <para>
 /// 三条纪律：① **只读流，不写流**（崩溃现场一个字都不改）；② 本类**自己绝不抛**
 /// （落盘失败只往 stderr 说一句 —— 诊断器不能变成第二个崩溃源）；③ 覆盖写 <c>last-crash.txt</c>（只留最近一次，既有工具按它读），
-/// **另追加** <c>crash-log.txt</c>（用户 2026-10-17 令：「收集所有退出报错」—— 覆盖式根本收不全）。
+/// **另追加** <c>crash-log.txt</c>（主人 2026-10-17 令：「收集所有退出报错」—— 覆盖式根本收不全）。
 /// </para>
 /// </summary>
 public static class CrashDump
@@ -30,7 +30,7 @@ public static class CrashDump
         ".agentruntime",
         "last-crash.txt");
 
-    /// <summary>**追加式**崩溃日志（唯一声明处）：<c>~/.agentruntime/crash-log.txt</c>（用户 2026-10-17 令）。</summary>
+    /// <summary>**追加式**崩溃日志（唯一声明处）：<c>~/.agentruntime/crash-log.txt</c>（主人 2026-10-17 令）。</summary>
     public static string AppendLogPath => System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         ".agentruntime",

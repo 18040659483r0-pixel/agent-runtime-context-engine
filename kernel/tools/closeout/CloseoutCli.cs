@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using AgentRuntime.Core.Configuration;
 using AgentRuntime.Core.Knowledge;
 using AgentRuntime.Core.Persistence;
@@ -40,12 +41,12 @@ public static class CloseoutCli
     private static readonly string PitfallsPublic = Path.Combine(Project, "docs", "PITFALLS-public.md");
 
     /// <summary>
-    /// **收尾的扩展环节**（用户 2026-10-16 12:2x 定）：CORE 对 VCS 零引用，版本库那几件事全在实现里。
+    /// **收尾的扩展环节**（主人 2026-10-16 12:2x 定）：CORE 对 VCS 零引用，版本库那几件事全在实现里。
     /// <para>`NoArchive` = 标准模式（不用任何 SVN/Git）；`SvnArchive` = 我们自己用的那个扩展选项。</para>
     /// <para>⚠️ 第 1 批**保持与旧行为逐字节一致**（选择仍按本仓根 `.svn` 推断）；第 3 批改显式配置。</para>
     /// </summary>
     /// <summary>**模式由声明决定**（`tools/closeout/archive.xml`）；没声明才按 `.svn` 推断，且会把「这是推断」说出来。</summary>
-    internal static ArchiveSelection ArchiveSel => CloseoutArchiveFactory.Resolve();
+    internal static ArchiveSelection ArchiveSel => CloseoutArchiveFactory.ResolveWithFallback();
 
     internal static ICloseoutArchive Vcs => ArchiveSel.Impl;
 
@@ -71,7 +72,7 @@ public static class CloseoutCli
     private static readonly string WaterLive = Path.Combine(Live, "memory", "收尾水位.md");
 
     public const string ConvergeMark = "- **收敛点（机器可判）**：";
-    private static readonly Regex ConvergeRe = new(@"- \*\*收敛点（机器可判）\*\*：存档 r(\d+)[^\n]*", RegexOptions.Compiled);
+    private static readonly Regex ConvergeRe = new(@"- \*\*收敛点（机器可判）\*\*：存档 r(\d+|none|\?)[^\n]*", RegexOptions.Compiled);
 
     private static readonly string SessionPointerPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".agentruntime", "session.xml");
@@ -108,7 +109,7 @@ public static class CloseoutCli
         new("知识树", "report", ["--kn-check", Live],
             "知识树结构 + 派生层逐字节一致（只常驻 L1）；红 ⇒ 修活版并重建派生"),
         new("冻结语料", "report", ["--frozen-corpus", Live, "--frozen-corpus-check"],
-            "用户 2026-09-23 令：语料 bump 类属记账项、不阻断收尾（但仍上账）"),
+            "主人 2026-09-23 令：语料 bump 类属记账项、不阻断收尾（但仍上账）"),
     ];
 
     // ================================================================ runner
@@ -231,6 +232,16 @@ public static class CloseoutCli
         var proved = why is null;
         var ok = proved && sel.Declared;
         var sev = !proved && sel.Declared ? "block" : "report";
+
+        // 自动退化（2026-10-18 主人令）：SVN 不可达 ⇒ 本进程已改走 NoArchive。
+        // 这里**不判 block**：收尾不应该因为没 SVN 就无法完成；但要留下一条可见的 report 红。
+        if (sel.Kind == "none" && sel.Declared && sel.Note.Contains("自动降级", StringComparison.Ordinal))
+        {
+            return R("存档声明", "report", false, sel.Note,
+                ["按「连不上一次 SVN 就立即退化为不用 SVN」执行；本次收尾不写存档区、不提交 SVN",
+                 "要恢复 SVN 收尾：服务器恢复后重新跑一次即可（探针成功就不再降级）"],
+                "收尾不被版本库不可达阻断；降级必须可见");
+        }
         var summary = proved
             ? $"{sel.Kind} · {sel.Note}"
             : $"声明 {sel.Kind} 但**证明不了**：{why}";
@@ -275,9 +286,11 @@ public static class CloseoutCli
         var detail = new List<string>();
         // **读数归扩展**：没有版本库读数（标准模式）⇒ **不比 r 号，只判形态**（有行 · 唯一）。
         var revNow = Vcs.Read().ArchiveRev;
-        if (hits.Count > 0 && revNow is int rn && int.Parse(hits[0], CultureInfo.InvariantCulture) < rn)
+        if (hits.Count > 0 && revNow is int rn
+            && int.TryParse(hits[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var hitRev)
+            && hitRev < rn)
         {
-            var gap = rn - int.Parse(hits[0], CultureInfo.InvariantCulture);
+            var gap = rn - hitRev;
             var closed = SessionClosed();
             if (closed == true && gap > tolerance)
             {
@@ -677,7 +690,7 @@ public static class CloseoutCli
     /// <para>「声明即自证」：不认识的 id / 越界落点 / 必达落点缺失 / 锁定件被删或被降级 ⇒ **响亮红**，
     /// 绝不静默降级。锁定件（`memory` 兜底 · `closeout` 自证）**删了声明也不消失**。</para>
     /// </summary>
-    /// <summary>用户决策取向：三本齐 + 决策库四层齐 + 条目都有状态（**只上账 · report**，不阻断 —— 用户 2026-10-17 令）。</summary>
+    /// <summary>用户决策取向：三本齐 + 决策库四层齐 + 条目都有状态（**只上账 · report**，不阻断 —— 主人 2026-10-17 令）。</summary>
     internal static Res CheckDecisionBooks()
     {
         var entries = Path.Combine(Live, "USER-DECISION-ENTRIES.md");
@@ -703,6 +716,203 @@ public static class CloseoutCli
             ok ? $"三本齐 · 决策库四层齐 · 条目 {blocks.Count} 条全部有状态"
                : $"决策库缺层 {layers.Count} · 条目缺状态 {noState} · 条目数 {blocks.Count}",
             layers.Select(h => $"缺层：{h}").Concat(noState > 0 ? [$"缺状态条目：{noState} 条"] : []));
+    }
+
+    // ================================================================ 双库生长 + 回执（v86）
+
+    internal static readonly string ReceiptPath = Path.Combine(Project, "tools", "closeout", "receipt.xml");
+
+    internal sealed record KnowledgeFacts(
+        int Version, string File, string Sha, long Bytes, string LiveSha,
+        int L1, int L2, int L3, int L4, int Orphans, int Unmarked, bool FileOk);
+
+    private static int CountKn(string text, string layer) =>
+        Regex.Matches(text, @"<!--kn:\s*" + layer + "-").Count;
+
+    /// <summary>L4 区里**没有节点标记**的正文块数 —— 派生树看不见它们（summary 的 Orphans 会假绿）。</summary>
+    internal static int UnmarkedL4Blocks(string text)
+    {
+        var start = text.IndexOf("## L4", StringComparison.Ordinal);
+        if (start < 0) return 0;
+        var nl = text.IndexOf('\n', start);
+        if (nl < 0) return 0;
+        var body = text[(nl + 1)..];
+        var end = body.IndexOf("\n## ", StringComparison.Ordinal);
+        if (end >= 0) body = body[..end];
+        var blocks = Regex.Split(body, @"\r?\n\s*\r?\n")
+            .Select(b => b.Trim())
+            .Where(b => b.Length > 0
+                        && !b.StartsWith(">", StringComparison.Ordinal)
+                        && !b.StartsWith("#", StringComparison.Ordinal))
+            .ToList();
+        return blocks.Count(b => !b.Contains("<!--kn:", StringComparison.Ordinal));
+    }
+
+    internal static KnowledgeFacts ReadKnowledge()
+    {
+        var ledger = Path.Combine(KnowledgeRoot, ".ledger.xml");
+        if (!File.Exists(ledger) || !File.Exists(KnowledgeMd))
+        {
+            return new KnowledgeFacts(0, string.Empty, string.Empty, 0, string.Empty, 0, 0, 0, 0, 0, 0, false);
+        }
+
+        var cur = XDocument.Load(ledger).Root?.Element("Current");
+        var version = int.TryParse(cur?.Element("Version")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+        var file = cur?.Element("File")?.Value ?? string.Empty;
+        var sha = cur?.Element("Sha256")?.Value ?? string.Empty;
+        var bytes = long.TryParse(cur?.Element("Bytes")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0;
+        var path = file.Length == 0 ? string.Empty : Path.Combine(KnowledgeRoot, file);
+        var fileOk = path.Length > 0 && File.Exists(path) && string.Equals(Sha256File(path), sha, StringComparison.OrdinalIgnoreCase);
+
+        var text = File.ReadAllText(KnowledgeMd, Encoding.UTF8);
+        var orphan = 0;
+        var summary = Path.Combine(KnowledgeRoot, ".derived", "summary.xml");
+        if (File.Exists(summary))
+        {
+            int.TryParse(XDocument.Load(summary).Root?.Element("Orphans")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out orphan);
+        }
+
+        return new KnowledgeFacts(
+            version, file, sha, bytes, Sha256File(KnowledgeMd),
+            CountKn(text, "L1"), CountKn(text, "L2"), CountKn(text, "L3"), CountKn(text, "L4"),
+            orphan, UnmarkedL4Blocks(text), fileOk);
+    }
+
+    /// <summary>知识库生长：版本文件对得上 + 四层齐 + L4 无未标记正文 + 内容变了必须晋级。</summary>
+    internal static Res CheckKnowledgeGrowth()
+    {
+        var k = ReadKnowledge();
+        var problems = new List<string>();
+        if (k.Version <= 0) problems.Add("账本缺 Current.Version");
+        if (!k.FileOk) problems.Add($"当前版本文件缺失或 sha 对不上（v{k.Version} / {k.File}）");
+        if (k.Unmarked > 0) problems.Add($"L4 区有 {k.Unmarked} 段无节点标记（孤儿正文，派生树看不见）");
+        if (k.Orphans > 0) problems.Add($"派生树 Orphans={k.Orphans}");
+        if (k.L1 == 0 || k.L2 == 0 || k.L3 == 0 || k.L4 == 0) problems.Add("四层不齐");
+
+        int? prevVersion = null;
+        string? prevLiveSha = null;
+        if (File.Exists(ReceiptPath))
+        {
+            var kn = XDocument.Load(ReceiptPath).Root?.Element("Knowledge");
+            if (int.TryParse(kn?.Attribute("version")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pv)) prevVersion = pv;
+            prevLiveSha = kn?.Attribute("liveSha")?.Value;
+        }
+
+        if (prevVersion is int previous && prevLiveSha is not null
+            && !string.Equals(k.LiveSha, prevLiveSha, StringComparison.OrdinalIgnoreCase)
+            && k.Version <= previous)
+        {
+            problems.Add($"活版内容变了但版本仍 v{k.Version}（上次回执 v{previous}）⇒ 本次收尾没有晋级");
+        }
+
+        var ok = problems.Count == 0;
+        return R("知识库生长", "block", ok,
+            ok
+                ? $"v{k.Version} · L1 {k.L1}/L2 {k.L2}/L3 {k.L3}/L4 {k.L4} · 未标记 L4 {k.Unmarked} · Orphans {k.Orphans}"
+                : string.Join("；", problems),
+            problems,
+            "收尾必须两库生长：知识版本晋级 + L4 全部有节点标记；内容变了不晋级 = 没生长");
+    }
+
+    /// <summary>决策库收敛：条目全部有 L4 归属、无孤儿、上行可达。</summary>
+    internal static Res CheckDecisionGrowth()
+    {
+        DecisionConverge.Analysis a;
+        try
+        {
+            a = DecisionConverge.Analyze(Live);
+        }
+        catch (Exception ex)
+        {
+            return R("决策库收敛", "block", false, ex.Message, [ex.Message], "决策库必须可解析、条目全部收敛");
+        }
+
+        var ok = a.Entries > 0 && a.Gaps == 0 && a.Orphans == 0
+                 && a.L1 > 0 && a.L2 > 0 && a.L3 > 0 && a.L4 > 0;
+        var detail = new List<string>();
+        if (a.Gaps > 0) detail.Add("空档：" + string.Join(", ", a.GapIds));
+        if (a.Orphans > 0) detail.Add("孤儿：" + string.Join(", ", a.OrphanIds));
+        return R("决策库收敛", "block", ok,
+            $"{a.Converged}/{a.Entries} 已收敛 · 空档 {a.Gaps} · 孤儿 {a.Orphans} · L1={a.L1} L2={a.L2} L3={a.L3} L4={a.L4}",
+            detail,
+            "水位推进不等于收敛：每条 D 都必须走到 L4→L3→L2→L1");
+    }
+
+    /// <summary>收尾回执（4 组事实 + 与上次的增量）—— OC 只核这几个字段，不重读全文。</summary>
+    internal static XElement BuildReceipt()
+    {
+        var k = ReadKnowledge();
+        var a = DecisionConverge.Analyze(Live);
+        var readings = Vcs.Read();
+
+        string? prevAt = null;
+        string? prevLiveSha = null;
+        int? prevVersion = null;
+        var prevL1 = 0;
+        var prevGaps = 0;
+        if (File.Exists(ReceiptPath))
+        {
+            var root = XDocument.Load(ReceiptPath).Root;
+            var kn = root?.Element("Knowledge");
+            var de = root?.Element("Decision");
+            prevAt = root?.Attribute("at")?.Value;
+            prevLiveSha = kn?.Attribute("liveSha")?.Value;
+            if (int.TryParse(kn?.Attribute("version")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pv)) prevVersion = pv;
+            int.TryParse(kn?.Attribute("l1")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out prevL1);
+            int.TryParse(de?.Attribute("gaps")?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out prevGaps);
+        }
+
+        return new XElement("CloseoutReceipt",
+            new XAttribute("schema", "1"),
+            new XAttribute("at", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+            new XElement("Convergence",
+                new XAttribute("archive", readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
+                new XAttribute("project", readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
+                new XAttribute("fingerprint", FingerprintParts()[..12])),
+            new XElement("Knowledge",
+                new XAttribute("version", k.Version),
+                new XAttribute("file", k.File),
+                new XAttribute("bytes", k.Bytes),
+                new XAttribute("sha256", k.Sha),
+                new XAttribute("liveSha", k.LiveSha),
+                new XAttribute("l1", k.L1),
+                new XAttribute("l2", k.L2),
+                new XAttribute("l3", k.L3),
+                new XAttribute("l4", k.L4),
+                new XAttribute("orphans", k.Orphans),
+                new XAttribute("unmarkedL4", k.Unmarked),
+                new XAttribute("promoted", k.FileOk)),
+            new XElement("Decision",
+                new XAttribute("entries", a.Entries),
+                new XAttribute("converged", a.Converged),
+                new XAttribute("gaps", a.Gaps),
+                new XAttribute("orphans", a.Orphans),
+                new XAttribute("l1", a.L1),
+                new XAttribute("l2", a.L2),
+                new XAttribute("l3", a.L3),
+                new XAttribute("l4", a.L4)),
+            new XElement("Vcs",
+                new XAttribute("archiveRev", readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
+                new XAttribute("projectRev", readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none")),
+            new XElement("Growth",
+                new XAttribute("sinceReceipt", prevAt ?? "none"),
+                new XAttribute("knowledgeVersionDelta", prevVersion is int before ? k.Version - before : k.Version),
+                new XAttribute("l1Delta", k.L1 - prevL1),
+                new XAttribute("decisionGapDelta", a.Gaps - prevGaps)));
+    }
+
+    /// <summary>`--receipt`：打印回执；`--write` 同时落 `tools/closeout/receipt.xml`（收尾基线）。</summary>
+    internal static int Receipt(bool write)
+    {
+        var receipt = BuildReceipt();
+        Console.WriteLine(receipt.ToString());
+        if (write)
+        {
+            receipt.Save(ReceiptPath);
+            Console.WriteLine("[回执] 已写 " + ReceiptPath);
+        }
+
+        return 0;
     }
 
     internal static Res CheckModuleDeclarations()
@@ -742,6 +952,10 @@ public static class CloseoutCli
                 res.Add(r with { Module = req.Id, Class = cls });
             }
         }
+
+        // v86：两库生长是**收尾完成度**的一部分（不是可选报告）。
+        res.Add(CheckKnowledgeGrowth() with { Module = "knowledge", Class = "core" });
+        res.Add(CheckDecisionGrowth() with { Module = "decision", Class = "core" });
 
         return res;
     }
@@ -844,7 +1058,7 @@ public static class CloseoutCli
             ("坑集索引", ["--pitfalls-index", PitfallsSrc]),
             ("公开坑集变体", ["--pitfalls-public", PitfallsSrc]),
             ("水位/知识索引区", ["--doc-index", Live]),
-            // 用户 2026-10-14 令：改源码语料（USER.md 等）⇒ 收尾时**自动重生 + 漏账 auto-bump**，
+            // 主人 2026-10-14 令：改源码语料（USER.md 等）⇒ 收尾时**自动重生 + 漏账 auto-bump**，
             // 免得「改了源忘了重生」让 R1 停在旧副本（`--bump all` 只 bump 真变了的 key，无变化 = 幂等）。
             ("冻结语料重生", ["--frozen-corpus", Live, "--bump", "all"]),
         };
@@ -975,16 +1189,23 @@ public static class CloseoutCli
         File.WriteAllText(path, string.Join('\n', outp).TrimEnd('\n') + "\n", new UTF8Encoding(false));
     }
 
-    private static string WriteConvergeLine(string archiveRev, string projectRev, int src, int idx, int parityOk, int parityTotal, string fingerprint, int blockRed = 0)
+    private static string RevLabel(string value) =>
+        value is "none" or "?" || string.IsNullOrWhiteSpace(value) ? "none" : $"r{value}";
+
+    private static string WriteConvergeLine(string archiveRev, string projectRev, int src, int idx, int parityOk, int parityTotal, string fingerprint, int blockRed = 0,
+        int knowledgeVersion = 0, int knowledgeL1 = 0, int knowledgeL4 = 0, int decisionConverged = 0, int decisionEntries = 0)
     {
-        // block 红**不再拒写**，但必须留在收敛点行里（用户 2026-10-17 令「留一点牙」：真问题不许被淹没）。
+        // block 红**不再拒写**，但必须留在收敛点行里（主人 2026-10-17 令「留一点牙」：真问题不许被淹没）。
         var redMark = blockRed > 0 ? $" · ⚠️ block 红 {blockRed}（未收敛就收的尾）" : string.Empty;
-        var line = $"{ConvergeMark}存档 r{archiveRev} · 代码仓 r{projectRev} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}{redMark}";
+        var libs = knowledgeVersion > 0
+            ? $" · 知识 v{knowledgeVersion}（L1 {knowledgeL1}/L4 {knowledgeL4}）· 决策 {decisionConverged}/{decisionEntries}"
+            : string.Empty;
+        var line = $"{ConvergeMark}存档 {RevLabel(archiveRev)} · 代码仓 {RevLabel(projectRev)} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}{libs}{redMark}";
         InsertConvergeLine(WaterLive, line);   // CORE 只写**自己那份**；第二副本交给 `Vcs.Sync`。
         return line;
     }
 
-    /// <summary>顺序闸门（**留牙版** · 用户 2026-10-17 令）：block 全绿 ⇒ 照旧写收敛点；
+    /// <summary>顺序闸门（**留牙版** · 主人 2026-10-17 令）：block 全绿 ⇒ 照旧写收敛点；
     /// 红 ⇒ **不再拒写**（只警告），但把欠账写进水位行 + 账本 —— 「只警告不阻断」与「真问题不许被淹没」两件同时成立。</summary>
     public static int Close(bool dry)
     {
@@ -994,14 +1215,14 @@ public static class CloseoutCli
         var results = AllChecks();
 
         // 拒绝判据**只看 Core（必达）模块**的 block 红 —— 扩展模块（如 archive：SVN/VCS）红了、甚至不可达，
-        // 都只上账、**不阻断**（用户 2026-10-16 13:32：「允许扩展模块不正常的情况下也可以直接收尾」）。
+        // 都只上账、**不阻断**（主人 2026-10-16 13:32：「允许扩展模块不正常的情况下也可以直接收尾」）。
         var blockRed = results.Where(r => r.Sev == "block" && !r.Ok && r.Name != Owns[0] && r.Class == "core").ToList();
         if (blockRed.Count > 0)
         {
-            // 用户 2026-10-17 令（**留牙版**）：「运行时与闸门不许强制阻断，而是留下警告 —— 阻断之后很难推测根本原因」；
+            // 主人 2026-10-17 令（**留牙版**）：「运行时与闸门不许强制阻断，而是留下警告 —— 阻断之后很难推测根本原因」；
             // 但同一句话的下半段是「**真问题不能被淹没**」⇒ 于是：**照样写收敛点**，同时把欠账**写进水位行 + 账本**。
             // ⇒ 牙留在「记账」上：带着几条 block 红收的尾，水位那一行看得见。
-            Console.WriteLine($"⚠️  带着 {blockRed.Count} 条 block 红收尾（**不再拒写** —— 用户 2026-10-17 令：只警告不阻断）。欠账：");
+            Console.WriteLine($"⚠️  带着 {blockRed.Count} 条 block 红收尾（**不再拒写** —— 主人 2026-10-17 令：只警告不阻断）。欠账：");
             foreach (var r in blockRed)
             {
                 Console.WriteLine($"   · {r.Name} — {r.Summary}");
@@ -1019,19 +1240,28 @@ public static class CloseoutCli
         }
 
         var fp = FingerprintParts();
+        // 两库读数（v86）：既进回执，也进收敛点行 —— 水位推进时必须能看出两库长到哪。
+        var know = ReadKnowledge();
+        var dec = DecisionConverge.Analyze(Live);
         // 版本库那几件事实整个来自**扩展读数**（CORE 不再自己问 svn）。
         var readings = Vcs.Read();
         var total = readings.ParityTotal ?? 0;
-        var aRev = readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
-        var pRev = readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "?";
+        var aRev = readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        var pRev = readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
 
         if (dry)
         {
-            Console.WriteLine($"[dry-run] 将写入收敛点：存档 r{aRev} · 代码仓 r{pRev} · 坑集 {src}/{idxLines} · 活版↔存档区 {total}/{total} · 指纹 {fp[..12]}");
+            Console.WriteLine($"[dry-run] 将写入收敛点：存档 {RevLabel(aRev)} · 代码仓 {RevLabel(pRev)} · 坑集 {src}/{idxLines} · 活版↔存档区 {total}/{total} · 指纹 {fp[..12]} · 知识 v{know.Version}（L1 {know.L1}/L4 {know.L4}）· 决策 {dec.Converged}/{dec.Entries}");
             return 0;
         }
 
-        var line = WriteConvergeLine(aRev, pRev, src, idxLines, total, total, fp, blockRed.Count);
+        // v86 收尾回执：4 组事实 + 与上次的增量；OC 只核这几行。
+        var receipt = BuildReceipt();
+        receipt.Save(ReceiptPath);
+        Console.WriteLine($"   回执：{ReceiptPath}（知识 v{know.Version} · 决策 {dec.Converged}/{dec.Entries} · 空档 {dec.Gaps}）");
+
+        var line = WriteConvergeLine(aRev, pRev, src, idxLines, total, total, fp, blockRed.Count,
+            know.Version, know.L1, know.L4, dec.Converged, dec.Entries);
 
         var existing = LoadLedger();
         var debt = existing?.ReportDebt is { Count: > 0 } ex
@@ -1039,7 +1269,7 @@ public static class CloseoutCli
             : new List<DebtItem>
             {
                 new() { Name = "知识树", Why = "派生落后于活版 ⇒ 跑 `AgentRuntime.Cli --kn-build <workspace>` 一条命令即可修" },
-                new() { Name = "冻结语料", Why = "用户 2026-09-23 令：语料 bump 属记账项、不阻断收尾" },
+                new() { Name = "冻结语料", Why = "主人 2026-09-23 令：语料 bump 属记账项、不阻断收尾" },
             };
 
         // 带着红的 block 项也记进账本（与水位行同一份事实的第二个落点 —— 不许只写一处）。
@@ -1047,7 +1277,7 @@ public static class CloseoutCli
         {
             if (debt.All(d => d.Name != r.Name))
             {
-                debt.Add(new DebtItem { Name = r.Name, Why = $"block 红未清就收尾（用户 2026-10-17 令：只警告不阻断）：{r.Summary}" });
+                debt.Add(new DebtItem { Name = r.Name, Why = $"block 红未清就收尾（主人 2026-10-17 令：只警告不阻断）：{r.Summary}" });
             }
         }
 
@@ -1167,12 +1397,13 @@ public static class CloseoutCli
             return map;
         }
 
-        var wl = Path.Combine(ar, "memory", "收尾水位.md");
+        var liveWs = Path.Combine(pr, "whitebox", "workspace");
+        var wl = Path.Combine(liveWs, "memory", "收尾水位.md");
         var gl = Path.Combine(pr, "tools", "closeout", "gate-ledger.xml");
         var led = Path.Combine(pr, "tools", "closeout", "ledger.xml");
         var pf = Path.Combine(pr, "docs", "PITFALLS.md");
         var la = Path.Combine(pr, "whitebox", "workspace", "AGENTS.md");
-        var memindex = Path.Combine(ar, "MEMORYINDEX.md");
+        var memindex = Path.Combine(liveWs, "MEMORYINDEX.md");
         var wd = LoadLedger()?.WaterLevelDate is { Length: > 0 } w ? w : "1970-01-01";
 
         static List<string> Lines(string t) => [.. t.Replace("\r\n", "\n").Split('\n')];
@@ -1195,10 +1426,10 @@ public static class CloseoutCli
             ("水位收敛点行重复", "水位收敛点", [(wl, DupConverge)]),
             ("活版与存档区不一致", "活版 ↔ 存档区", [(la, t => t + "\n<!-- 负例 -->\n")]),
             ("新坑未声明落点", "坑集落点", [(pf, t => t + "\n## 999. 负例新坑\n- 负例正文\n")]),
-            ("声明的指针悬空", "坑集落点", [(gl, t => t.Replace("KNOWLEDGE.md::51.", "KNOWLEDGE.md::§十·999（不存在）"))]),
+            ("声明的指针悬空", "坑集落点", [(gl, t => t.Replace("tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::注射后_exec_子进程看到活版基准与三个根", "tests/AgentRuntime.Tests/ToolBaseInjectionTests.cs::不存在的锚"))]),
             ("todo 计数超基线", "坑集落点", [(gl, t => Regex.Replace(t, "<TodosMax>\\d+</TodosMax>", "<TodosMax>1</TodosMax>"))]),
             ("账本指纹过期", "账本对账", [(led, StaleFingerprint)]),
-            ("当日日记被清空", "素材区存在性", [(Path.Combine(ar, "memory", wd + ".md"), _ => "")]),
+            ("当日日记被清空", "素材区存在性", [(Path.Combine(liveWs, "memory", wd + ".md"), _ => "")]),
             ("MEMORYINDEX 只有版本号、漏时间线行", "素材区存在性",
                 [(memindex, t => Regex.Replace(t, $@"^\|\s*\**{Regex.Escape(wd[5..])}\**\s*\|.*$", "", RegexOptions.Multiline))]),
             ("水位无当日段（日期只出现在正文别处）", "素材区存在性",
@@ -1210,12 +1441,21 @@ public static class CloseoutCli
         // 自证：进程内罐头负例必须在「连 SVN」语义下跑 —— 否则 R() 的「不适用」过滤器
         // 会按名字把它们强制成绿（本地模式下 SvnLinked=false），负例就成了空转（§十·57）。
         CloseoutArchiveFactory.SvnLinkedOverride = true;
+        // 负例要在「声明 svn」语义下逐项变红；自动降级只在真实收尾时生效。
+        Environment.SetEnvironmentVariable("CLOSEOUT_NO_SVN_FALLBACK", "1");
         var baseRes = RunCheck();
         Console.WriteLine($"[WB] closeout --selftest（负例自证，全部在副本上：{tmp}）");
         Console.WriteLine("   基线：" + string.Join("，", baseRes.Select(kv => $"{kv.Key}={(kv.Value ? "绿" : "红")}")));
         var passed = 0;
+        var parityApplicable = !string.Equals(SvnArchive.ArchiveRootPath, Live, StringComparison.Ordinal);
+        bool Applicable(string expect) => parityApplicable || !string.Equals(expect, "活版 ↔ 存档区", StringComparison.Ordinal);
         foreach (var (name, expect, muts) in cases)
         {
+            if (!Applicable(expect))
+            {
+                Console.WriteLine($"  ⚪ {name,-24} 不适用：存档区 = 活版（同一棵 WC，无第二副本）");
+                continue;
+            }
             var saved = new List<(string Path, string Text)>();
             foreach (var (path, fn) in muts)
             {
@@ -1239,7 +1479,8 @@ public static class CloseoutCli
             }
         }
 
-        // --- 单项：**超时**是否生效（假 svn 永远不返回）—— 唯一在真仓只读上执行的一步 ---
+        Environment.SetEnvironmentVariable("CLOSEOUT_NO_SVN_FALLBACK", null);   // 假 svn 负例要验证「自动降级」
+        // --- 单项：**超时/降级**是否生效（假 svn 永远不返回）—— 唯一在真仓只读上执行的一步 ---
         var shimDir = Path.Combine(tmp, "shim");
         Directory.CreateDirectory(shimDir);
         var shim = Path.Combine(shimDir, "svn");
@@ -1257,16 +1498,18 @@ public static class CloseoutCli
         var fakeOk = false;
         try
         {
-            var reach = DataContractXml.FromDocument<CheckReport>(outFake).Results
-                .FirstOrDefault(x => x.Name == "可达性前置");
-            fakeOk = reach?.Ok == false && elapsed < 240;
+            var declaration = DataContractXml.FromDocument<CheckReport>(outFake).Results
+                .FirstOrDefault(x => x.Name == "存档声明");
+            fakeOk = declaration is { Ok: false }
+                     && declaration.Summary.Contains("自动降级", StringComparison.Ordinal)
+                     && elapsed < 60;
         }
         catch
         {
             fakeOk = false;
         }
 
-        Console.WriteLine($"  {(fakeOk ? "✅" : "❌")} {"假 svn 挂起（远端问不到）",-24} 期望「可达性前置」变红且**限时返回** → {(fakeOk ? "红（没挂死）" : "没拦住 / 被挂死")}（{elapsed:0.0}s）");
+        Console.WriteLine($"  {(fakeOk ? "✅" : "❌")} {"假 svn 挂起（远端问不到）",-24} 期望「存档声明」自动降级且**限时返回** → {(fakeOk ? "已降级 none（没挂死）" : "没降级 / 被挂死")}（{elapsed:0.0}s）");
         if (fakeOk)
         {
             passed++;
@@ -1305,14 +1548,15 @@ public static class CloseoutCli
         }
 
         // --- 单项：**未纳版件**闸门有牙（罐头 svn：未纳版源码 ⇒ 红；只剩产物 ⇒ 绿）---
-        static bool IsArchive(string root) => root.EndsWith("whitebox-workspace", StringComparison.Ordinal);
-        RunHook = (file, list, _, _) => file == "svn" && list.Length == 2
-            ? (0, IsArchive(list[1]) ? "" : "?       tools/newdir/Program.cs\n?       benchmark/runs/20260101-x/meta.xml\n")
+        // 用可切换的罐头输出，不再猜「存档区目录名」（存档区=活版后目录名判据已失效）。
+        var unverOut = "?       tools/newdir/Program.cs\n?       benchmark/runs/20260101-x/meta.xml\n";
+        // 罐头按**根**返回：`svn status <root>` 只列该根下的文件；ArchiveRoot(=Live) 不在代码仓根外，
+        // 不能把代码仓的 `benchmark/runs` 也算到存档区头上（否则正例被误伤）。
+        RunHook = (file, list, _, _) => file == "svn" && list.Length >= 2 && list[0] == "status"
+            ? (0, string.Equals(list[1], CloseoutCli.Project, StringComparison.Ordinal) ? unverOut : "")
             : (0, "");
         var unverRed = SvnArchive.CheckUnversioned().Ok == false;
-        RunHook = (file, list, _, _) => file == "svn" && list.Length == 2
-            ? (0, IsArchive(list[1]) ? "" : "?       benchmark/runs/20260101-x/meta.xml\n")
-            : (0, "");
+        unverOut = "?       benchmark/runs/20260101-x/meta.xml\n";
         var unverGreen = SvnArchive.CheckUnversioned().Ok;
         RunHook = null;
         var unverOk = unverRed && unverGreen;
@@ -1322,7 +1566,7 @@ public static class CloseoutCli
             passed++;
         }
 
-        var total = cases.Length + 4;
+        var total = cases.Count(c => Applicable(c.Expect)) + 4;
         Console.WriteLine($"汇总：{passed}/{total} 负例按预期变红{(passed == total ? "" : "  ← 有负例没拦住")}");
         if (Environment.GetEnvironmentVariable("KEEP_SELFTEST") == "1")
         {

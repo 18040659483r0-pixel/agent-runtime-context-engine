@@ -63,11 +63,17 @@ public interface IServiceTierProbe
 /// </summary>
 public sealed class ModelClientException : Exception
 {
-    public ModelClientException(string message, int? statusCode = null, string? responseBody = null, Exception? innerException = null)
+    public ModelClientException(
+        string message,
+        int? statusCode = null,
+        string? responseBody = null,
+        Exception? innerException = null,
+        bool providerUnreachable = false)
         : base(message, innerException)
     {
         StatusCode = statusCode;
         ResponseBody = responseBody;
+        ProviderUnreachable = providerUnreachable;
     }
 
     /// <summary>HTTP 状态码；非 HTTP 失败（如超时/网络）为 null。</summary>
@@ -75,4 +81,7 @@ public sealed class ModelClientException : Exception
 
     /// <summary>截断后的上游响应体（仅用于排障）。</summary>
     public string? ResponseBody { get; }
+
+    /// <summary>**provider 连不上**（连接阶段失败 / 连接超时）—— 与「回包非 2xx / 总超时」分开，UI 据此给「是否重试」。</summary>
+    public bool ProviderUnreachable { get; }
 }

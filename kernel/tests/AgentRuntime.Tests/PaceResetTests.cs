@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **`pacer reset` 的语义**（用户 2026-10-09：换 worker / 换 provider 后要能重置）：
+/// **`pacer reset` 的语义**（主人 2026-10-09：换 worker / 换 provider 后要能重置）：
 /// 写一条**带时刻与理由**的标记 ⇒ 扫描只认**它之后**的样本。**非破坏**（老样本一个字节没删）。
 /// </summary>
 public sealed class PaceResetTests

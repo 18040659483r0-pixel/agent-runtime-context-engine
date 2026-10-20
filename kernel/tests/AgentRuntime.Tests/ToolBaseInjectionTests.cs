@@ -26,9 +26,10 @@ public sealed class ToolBaseInjectionTests
     public void 注射_把_cwd_与三个根钉到工作区()
     {
         using var work = new SnapshotTestWorkspace("tool-base");
-        var live = Path.Combine(work.Root, "software-company", "projects", "AgentRuntime", "whitebox", "workspace");
+        // 新库布局（2026-10-18 起）：活版 = whitebox/whitebox/workspace，且**活版本身已在公共 SVN 中**
+        // ⇒ 不再有独立的 software-company/whitebox-workspace 存档区（2026-10-19 主人令删除重复副本）。
+        var live = Path.Combine(work.Root, "whitebox", "whitebox", "workspace");
         Directory.CreateDirectory(live);
-        Directory.CreateDirectory(Path.Combine(work.Root, "software-company", "whitebox-workspace"));
 
         var before = Directory.GetCurrentDirectory();
         try
@@ -48,8 +49,8 @@ public sealed class ToolBaseInjectionTests
                 Path.GetFullPath(Path.Combine(live, "..", "..")),
                 Environment.GetEnvironmentVariable("WB_ROOT"));                            // 代码仓
             Assert.Equal(
-                Path.GetFullPath(Path.Combine(work.Root, "software-company", "whitebox-workspace")),
-                Environment.GetEnvironmentVariable("WB_ARCHIVE"));                         // WB 存档区
+                Path.GetFullPath(live),
+                Environment.GetEnvironmentVariable("WB_ARCHIVE"));                         // 存档区 = 活版本身
         }
         finally
         {

@@ -4,18 +4,18 @@ using AgentRuntime.Tui;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **输入判定闸门**（用户 2026-09-22 22:2x 真机报）：粘一个绝对路径进输入区，整条被当成斜杠命令**吃掉**。
+/// **输入判定闸门**（主人 2026-09-22 22:2x 真机报）：粘一个绝对路径进输入区，整条被当成斜杠命令**吃掉**。
 /// <para>
 /// 修法：判定看**名字**不看首字符 —— 只有首个词命中 <see cref="PanelRouter.Commands"/> 才算命令；
-/// 其余（含 <c>/home/…</c> 这种路径）一律当文本。要强制当文本写 <c>//…</c>。
+/// 其余（含 <c>/home/user/…</c> 这种路径）一律当文本。要强制当文本写 <c>//…</c>。
 /// </para>
 /// </summary>
 public sealed class InputCommandRuleTests
 {
     [Theory]
     // 真实现场：绝对路径 = 文本（修前会被吃掉）
-    [InlineData("/home/user/Documents/AgentWorkFlow/software-company/whitebox-workspace", false)]
-    [InlineData("/home/user/My Documents/a.docx", false)]
+    [InlineData("/home/user/wazi/Documents/AgentWorkFlow/software-company/whitebox-workspace", false)]
+    [InlineData("/home/user/wazi/My Documents/a.docx", false)]
     [InlineData("/Applications/Microsoft Word.app", false)]
     // 名单内 = 命令（大小写不敏感；允许前导空白；带参数照旧）
     [InlineData("/help", true)]
@@ -25,7 +25,7 @@ public sealed class InputCommandRuleTests
     [InlineData("/decide 2", true)]
     // 转义 / 未登记 / 非命令
     [InlineData("//help", false)]
-    [InlineData("//home/user/x", false)]
+    [InlineData("//home/user/wazi/x", false)]
     [InlineData("/hepl", false)]
     [InlineData("/", false)]
     [InlineData("普通文本 / 带斜杠", false)]
@@ -35,9 +35,9 @@ public sealed class InputCommandRuleTests
 
     [Theory]
     [InlineData("//help", "/help")]
-    [InlineData("  //home/user/x", "/home/user/x")]
+    [InlineData("  //home/user/wazi/x", "/home/user/wazi/x")]
     [InlineData("/help", "/help")]                    // 非转义：原样返回（文本路径不会带它）
-    [InlineData("/home/user/x", "/home/user/x")]
+    [InlineData("/home/user/wazi/x", "/home/user/wazi/x")]
     public void 双斜杠转义只脱一层(string line, string expected) =>
         Assert.Equal(expected, PanelRouter.Unescape(line));
 
@@ -53,7 +53,7 @@ public sealed class InputCommandRuleTests
     [InlineData("  /stack", true)]
     [InlineData("//result", false)]
     [InlineData("继续完成上次的任务", false)]
-    [InlineData("/home/user/x", false)]
+    [InlineData("/home/user/wazi/x", false)]
     public void 工作期间插话_命令按命令走_其余当文本(string steer, bool expected) =>
         Assert.Equal(expected, SplitSession.SteerIsCommand(steer));
 

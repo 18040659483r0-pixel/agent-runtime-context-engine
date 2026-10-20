@@ -15,7 +15,7 @@ public sealed class XmlSanitizeTests
     [Fact]
     public void 合法代理对_emoji_逐字保留()
     {
-        const string s = "🍒 助手 🚀 끝";
+        const string s = "🍒 樱桃 🚀 끝";
         Assert.Equal(s, DataContractXml.Sanitize(s));
     }
 

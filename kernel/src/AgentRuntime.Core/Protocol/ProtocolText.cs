@@ -34,8 +34,8 @@ public static class ProtocolText
     /// <para>字符串 "6" = 报告 §三 的英文协议文本 **v6**（补 <c>[L3]</c> 自报块：模型按 id 点条，Runtime 按 id 装载，
     /// 依据 <c>docs/DESIGN-SKILL-LAYERS.md</c> §五；v6 的前置 = 「按 id 装载 L3」已在 Runtime 落地）。
     /// 历史："5" = v5（协议区扩容：L1/L2/L3 用法 + 铁则 + memory-index + 各区契约并入）；
-    /// "4" = v4（读序加入 <c>[DRAFT]</c> 段 + 自报条补 <c>[DRAFT]</c> 块格式/上限，用户 2026-09-15 23:2x 定稿）；
-    /// "3" = v3（自报由 optional 改为**条件强制**，用户 2026-09-15 22:22 按方案 A 定；起因：v2 写 optional ⇒ 真机 4 轮 0 次自报，白板恒空）；
+    /// "4" = v4（读序加入 <c>[DRAFT]</c> 段 + 自报条补 <c>[DRAFT]</c> 块格式/上限，主人 2026-09-15 23:2x 定稿）；
+    /// "3" = v3（自报由 optional 改为**条件强制**，主人 2026-09-15 22:22 按方案 A 定；起因：v2 写 optional ⇒ 真机 4 轮 0 次自报，白板恒空）；
     /// "2" = v2（自报写 optional）；"1" = 中文草案。</para>
     /// </summary>
     /// <para><b>v13 → v14 → v15（2026-09-22）</b>：① <b>v14</b> 第 5 条放开「一次回复最多 4 次 [TOOL]」、第 2 条 bulk 边界写清、risk 写进「在 JSON 外面」；② <b>v15</b> 因 v14 实测变差而**收正第 2 条措辞**：一次要齐「你需要的窗口」，但**绝不整份倒**（工具结果上限 8,000 → 2,000 字符，且每条截断自带指针：read 给 offset、其余给 /trace）。</para>
@@ -45,13 +45,13 @@ public static class ProtocolText
     /// 现改成：先给形状 <c>[TOOL] name {"key":"value"} risk: none</c> + 一个完整示例
     /// <c>[TOOL] read {"path":"src/Program.cs","maxLines":80} risk: none</c>，再把键清单标注为
     /// 「key names per tool」当**附录**（是**名字**，不是 JSON）—— **键清单不能替代形状**。</para>
-    /// <para><b>v18 → v19（2026-09-22 16:4x，用户令「这次动完基本不用再动」）</b>：第 5 条把 <c>read</c> 的键补上 <c>symbol</c>，
+    /// <para><b>v18 → v19（2026-09-22 16:4x，主人令「这次动完基本不用再动」）</b>：第 5 条把 <c>read</c> 的键补上 <c>symbol</c>，
     /// 并教一句「要看清一个东西的定义，就**按名字一次取整段**（<c>read {"path":"src/X.cs","symbol":"Name"}</c>），
     /// 别用小窗口一页一页翻大文件」。依据：同题六跑的 A/B（见 <c>benchmark/runs/20260922-1619-cap-ab-token-efficiency/</c>）——
     /// 上限调小（1,000）页数翻倍、token <b>+50%</b>；调大（4,000）体量 +43%、token +27%；在结果里附
     /// 「已读图 / 未读段 / 一次要齐」又**全部更差**（附待办清单 ⇒ 它去读满）⇒ 病不在窗口大小，
     /// 而在「**要几次才够**」：<c>SessionLifecycle.cs</c>（582 行）被 read 3~9 次，正因为它没有「取整段」这个读法。</para>
-    /// <para><b>v19 → v20（2026-09-22 17:0x，用户定「这是交互体验的重要方面，不能由用户知识库去兜底」）</b>：第 6 条补**两条负向/正向口径** ——
+    /// <para><b>v19 → v20（2026-09-22 17:0x，主人定「这是交互体验的重要方面，不能由用户知识库去兜底」）</b>：第 6 条补**两条负向/正向口径** ——
     /// ① <b>「没结束就不发终局块」</b>（继续干就用 <c>[TAIL]</c>/<c>[DRAFT]</c>/<c>[FOCUS]</c>/<c>[TOOL]</c>），
     /// 且 <c>[NO-SOLUTION]</c> 只表示**已证此路不通**、不是「本轮没做完」；同轮还在点工具就不算终局。
     /// 依据：真机现场 <c>.stage1/stream-20260922-164509.jsonl</c> E011 —— 模型想表达「本轮不终局」却写了
@@ -61,38 +61,38 @@ public static class ProtocolText
     /// 用自然语言问一句而**不发终局块** ⇒ 卡永停 <c>● 进行中</c>、人看着像卡死。
     /// 依据：真机 <c>.stage1/stream-20260922-170759.jsonl</c> E248 —— 它问「L3 切条现在重建吗？请给 API key 路径」
     /// 却无终局块 ⇒ 卡 <c>#3 ● 进行中</c> 悬住（坑 #120）。
-    /// <b>两次编辑之间无真机跑过 ⇒ 只付一次冷启</b>（用户 2026-09-22 21:5x 令）。
+    /// <b>两次编辑之间无真机跑过 ⇒ 只付一次冷启</b>（主人 2026-09-22 21:5x 令）。
     /// 改协议 = 缓存整体归零（实测冷启税 ≈50k token），先量后定。</para>
-    /// <summary><b>版本标记（带日期时间）</b>（用户 2026-10-06 令：加载某个版本时**一眼确认是不是最新**）。
+    /// <summary><b>版本标记（带日期时间）</b>（主人 2026-10-06 令：加载某个版本时**一眼确认是不是最新**）。
     /// <para>形状 <c>v{版}（yyyy-MM-dd HH:mm）</c>，有闸门钉住。<see cref="Version"/> 保持短（TUI 标签列是几何定长，日期时间另立一行/另立字段）。</para></summary>
-    /// <para><b>v58 → v59（2026-10-10 13:40，用户令「按顺序都办了」· 待办 1）</b>：口径统一 —— 第 2 条
+    /// <para><b>v58 → v59（2026-10-10 13:40，主人令「按顺序都办了」· 待办 1）</b>：口径统一 —— 第 2 条
     /// 「L1/L2/L3 only」→ <b>L1/L2/L3/L4</b>，并点明 <b>L3 = 分类总目 + 路由</b>（id <c>S-...</c>）/ <b>L4 = 原 SKILL 逐字</b>（id <c>L4-...</c>）；
     /// 第 5 条 <c>[L3]</c> 块示例由失效的 <c>S-xxx-007</c> 改为「分类 id / 技能 id」两种。
     /// <b>先量后定</b>：实测 105 行 / <b>6,289 token</b> ⇒ 预算按余量纪律（~9%）由 ≤6,300 上移为 <b>≤6,900</b>。</para>
-    /// <para><b>v59 → v60（2026-10-10 13:55，用户令「3b：按体量排工」· 待办 3b）</b>：新增第 <b>14</b> 条 ——
+    /// <para><b>v59 → v60（2026-10-10 13:55，主人令「3b：按体量排工」· 待办 3b）</b>：新增第 <b>14</b> 条 ——
     /// <b>按体量排工</b>：零散小活先做（便宜、且把地图定下来），一眼就大的活<b>先放下</b>，等它是剩下的那件时<b>先切成步骤再一片片发</b>；
     /// 运行时<b>事前</b>给的 <c>[PACE] 建议拆成 N 块…切轴：…</c> = <b>切了再发的指令</b>，不是警告。
     /// 依据 <c>docs/DESIGN-WORK-ORDER-BY-SIZE.md</c>（老顺序：协议区 → 真机 → 闸门 → 运行时）。
     /// <b>先量后定</b>：实测 106 行 / <b>6,414 token</b> ⇒ 预算按余量纪律（~10%）由 ≤6,900 上移为 <b>≤7,100</b>。</para>
-    /// <para><b>v60 → v61（2026-10-10 19:5x，用户令「把 worker 从协议区拔干净，worker 部分单独备份」）</b>：
+    /// <para><b>v60 → v61（2026-10-10 19:5x，主人令「把 worker 从协议区拔干净，worker 部分单独备份」）</b>：
     /// <b>拔掉 worker</b>：① 删**第 13 条**（派发给 Worker）；② 第 2 条去掉「Source and files are the Worker's half…」整句（改回「源你自己读」）；
     /// ③ 第 5 条删「reading, writing and running belong to the Worker (see 13)，所以别自己点」半句；
     /// ④ **不再拼** <c>[MASTER-WORKER]</c> 共用段（<c>MasterWorkerProtocol.Text</c> 逐字保留在它自己的件里）。
     /// 逐字留档 + 回插步骤见 <c>docs/BACKUP-WORKER-PROTOCOL.md</c>。
     /// 同步：<c>ToolNames.MasterFace = All</c>（工具交回 master，单声明处 ⇒ 本区工具面渲染自动跟随）。
     /// <b>先量后定</b>：见下方 <c>Gate_ProtocolBudget</c> 实测。</para>
-    /// <para><b>v62 → v63（2026-10-11 22:38，用户令「退役该层 + 一并修改好 WB 协议区」）</b>：
+    /// <para><b>v62 → v63（2026-10-11 22:38，主人令「退役该层 + 一并修改好 WB 协议区」）</b>：
     /// 第 7 条「会话收敛来源」去掉 <c>skills</c> —— 「技能」概念已于 2026-10-09 退役
     /// （<c>skill-repo/</c>・<c>skills/</c> 已 <c>svn delete</c>）⇒ 会话不再产出技能，收敛清单不应再列它。
     /// 同轮退役「坑集/交接逐条索引层」（l3-unify）+ 收尾闸门不再要求 <c>knowledge/.derived/pitfalls.jsonl</c>。
     /// <b>先量后定</b>：见下方 <c>Gate_ProtocolBudget</c> 实测。</para>
-    /// <para><b>v63 → v64（2026-10-14 22:05，用户令「过程中每一轮都刷」）</b>：第 5 条**回转** v62 的 B 刀 ——
+    /// <para><b>v63 → v64（2026-10-14 22:05，主人令「过程中每一轮都刷」）</b>：第 5 条**回转** v62 的 B 刀 ——
     /// 取消「<c>[TAIL]</c>/<c>[DRAFT]</c> 只在决策报告那一轮写一次」，改为**每条回复都带当前工作状态**（每轮刷新）。
     /// <b>动机（真机现场）</b>：协议承诺「the runtime will ask」，而宿主的报告请求原文只点 <c>[REPORT]</c> ⇒
     /// 台面（白板 R4 / 草稿 R5）整场不刷新（实测：某会话跑了任务，<c>.stage1/tail|draft/default.xml</c> 的 mtime
     /// 一直停在会话起始那一刻）。<b>代价可接受</b>：R4/R5 排在事件流（R2）之后，每轮刷新只动尾部、不吃前缀缓存。
     /// <b>先量后定</b>：见下方 <c>Gate_ProtocolBudget</c> 实测。</para>
-    /// <para><b>v64 → v65（2026-10-14 23:50，用户令「b 也要做，协议区更新话术配合」）</b>：第 5 条给 <c>[TOOL]</c>
+    /// <para><b>v64 → v65（2026-10-14 23:50，主人令「b 也要做，协议区更新话术配合」）</b>：第 5 条给 <c>[TOOL]</c>
     /// 的取值补一条**长正文纪律** —— 整篇文档 / 脚本 / 带一堆引号的命令**不许塞进 <c>{...}</c>**，要用
     /// <c>key: &lt;&lt;</c> 自起一块、逐字写、单独一行 <c>key</c> 收；并点明「塞进 <c>{...}</c> 的裸多行值」
     /// 是解析器**唯一救不回来**的那一种形状。
@@ -100,13 +100,37 @@ public static class ProtocolText
     /// <c>[TOOL] write{…content: "…裸换行…"}</c> —— 运行时已能自动救（<c>ToolSyntaxNormalizer</c> 的
     /// 跨行对象修复），但**从源头说清楚**能省掉那一次白烧。
     /// <b>先量后定</b>：见下方 <c>Gate_ProtocolBudget</c> 实测。</para>
-    /// <para><b>v65 → v66（2026-10-15 00:25，用户令「不要等到任务终局再提」）</b>：第 7 条 task closeout 的
+    /// <para><b>v65 → v66（2026-10-15 00:25，主人令「不要等到任务终局再提」）</b>：第 7 条 task closeout 的
     /// 括号话术改写 —— **不许攒到终局**：哪一轮遇到坑就在**那一轮的回复里**说清（是什么 / 怎么修 / 已记坑集），
     /// 写了 handoff 也在**写那一轮**里公告。（配套：运行时那条「终局后发收尾清单」的 Hint 已退役 ——
     /// 它把「查阅信息」挡住了，而报告里本来就有 found / next。）
     /// <b>先量后定</b>：见下方 <c>Gate_ProtocolBudget</c> 实测。</para>
-    public const string VersionStamp = "v74（2026-10-17 17:05）";
-    public const string Version = "74";
+    /// <para><b>v74 → v75（2026-10-18 01:23，网络工具第一批）</b>：工具面新增 5 个网络工具
+    /// （<c>web_fetch</c> / <c>web_search</c> / <c>http_request</c> / <c>web_download</c> / <c>web_search_extract</c>），
+    /// 键由各工具 <c>ArgumentNames</c> 自动渲染；公共 SSRF / 限额 / 凭据 / 审计由运行时统一提供
+    /// （<c>docs/DESIGN-NETWORK-TOOLS.md</c>）。工具面字节变化 ⇒ 协议版本 +1。</para>
+    /// <para><b>v81 → v82（2026-10-19 02:4x，主人令「做归一 / 优化处理能力」）</b>：两条**运行时兜底**转正 ——
+    /// ① 工具面：DSML 闭合残形（<c>&lt;/｜｜DSML｜｜ calls&gt;</c>）与块外重复 <c>&lt;/call&gt;</c> 由归一器剥除，
+    /// 不再整篇拒；② 焦点：模型漏写 <c>[FOCUS]</c> 时，运行时用本轮最近 1~5 条 <c>ToolResult</c> 的 tag
+    /// **自动补 FocusReport**（不再每轮发 250 字提示）。协议正文不变；版本 +1 只为让「跑的是哪一版」可对拍。</para>
+    /// <para><b>v82 → v83（2026-10-19 14:0x，主人令「provider 不传 tools + 协议区要求只用 XML 工具面」）</b>：
+    /// 新增第 <b>18</b> 条 —— **XML 是唯一工具面**：provider 请求体从不携带 <c>tools</c>/<c>functions</c>，
+    /// 原生工具调用无法被兑现；本地 7 把工具与全部网络工具（含以后新增）都必须写成
+    /// <c>[TOOL] &lt;call&gt;…&lt;/call&gt;</c>。原生 function-call 语法 / JSON 工具对象 / 口头请求都不算动作。
+    /// 依据：<c>ChatModels.ChatRequest</c> 没有 <c>tools</c> 字段（序列化忽略 null ⇒ 请求体无该键），
+    /// 需有回归夹具钉住；WB 侧配合把「工具面被拒」从源头降下来。</para>
+    /// <para><b>v83 → v84（2026-10-19 14:3x，主人令「再次修改协议区补完这个事」）</b>：第 12 条末句改写 ——
+    /// **终局块在前、[REPORT] 紧随其后、同一轮**（拆分只在运行时点名要报告时允许，且报告轮不再带第二个终局块）。
+    /// 依据：真机 M4 模型先写 [REPORT] 后补 [DONE] ⇒ 白烧一轮；旧措辞「next reply」本身在邀请拆分。
+    /// 安全边界不变：**报告无主（无终局块）仍不认终局**（DecisionReportFlowTests 钉住）。</para>
+    /// <para><b>v85 → v86（2026-10-20 22:30，主人令「可以 你改」）</b>：新增第 <b>20</b> 条 ——
+    /// **收尾的回执（receipt）与两库生长硬闸门**：<c>--close</c> 落 <c>tools/closeout/receipt.xml</c>
+    /// （收敛点 + 知识版本/四层计数/孤儿/未标记 L4 + 决策条目/空档/孤儿 + 与上次的增量）；
+    /// **活版内容变了但版本没晋级**、**L4 有未标记正文**、**决策有空档/孤儿** ⇒ 收尾算未完成。
+    /// 依据：2026-10-20 真机 —— 所有闸门绿，收敛点已推进到 r113，而知识库仍 v0013（2 段孤儿 L4）、
+    /// 决策库 3/7（空档 4）；缺的不是「人盯」，是这一项闸门。</para>
+    public const string VersionStamp = "v86（2026-10-20 22:30）";
+    public const string Version = "86";
 
     /// <summary>正文指纹（SHA256 前 12 位小写）—— **信封的 <c>from</c>/<c>to</c> 用它**（与全仓指纹同一口径）。
     /// <para>计算式属性（非静态字段初始化）：<see cref="Text"/> 在下方声明，静态字段按声明次序初始化 ⇒ 早引用会拿到 null。</para></summary>
@@ -127,7 +151,7 @@ public static class ProtocolText
     /// <para><b>v7 → v8</b>：① 第 2 条去掉 SKILL 口径（**本系统只有 L1/L2/L3**；外部 skill 靠**吸收收敛**汇入）；
     /// ② 第 4 条块名 <c>[SKILL]</c> → <c>[L3]</c>（块头常量 <see cref="L3Prefix"/>）；
     /// ③ 第 4 条补「**怎么请求能力**」：<c>[TOOL]</c> 一次一个，runtime 会分级（可拒 / 可问人），被拒也是结果。</para>
-    /// <para><b>v8 → v9（本次；用户 2026-09-20 12:3x 定：命名 <c>Solve Step</c> · 终局用**独立块** · 预算 ≤10 行 / ≤600 token）</b>
+    /// <para><b>v8 → v9（本次；主人 2026-09-20 12:3x 定：命名 <c>Solve Step</c> · 终局用**独立块** · 预算 ≤10 行 / ≤600 token）</b>
     /// —— 接入**求解语言**与**会话生命周期**，一次做完（改前缀 = 缓存整体归零，挤两次牙膏 = 归零两次）：
     /// ① 新增第 4 条「求解语言」：Equation / Known Conditions / Solution / <b>Solve Step（求解步）</b> / Solution Set / Intervention
     /// （<c>docs/DESIGN-SOLVE-LANGUAGE.md</c>；**协议与 UI 永远写全 "Solve Step"，绝不单写 "Step"** —— 与 <c>Turn</c> 同一手法，防与「步骤」混淆）；
@@ -140,7 +164,7 @@ public static class ProtocolText
     /// 上下文达窗口 <b>80%</b> ⇒ **该收尾**（不必等任务终局）：收尾 → reset → start → 接着做同一任务
     /// （阈值唯一声明处 = <see cref="ContextBudget.ProposeRatio"/>）。
     /// 实测 **9 行 / 2,390 字符 / 598 token** ⇒ **先量后定**：行 ≤10、token ≤600。</para>
-    /// <para><b>v9 → v10（本次；用户 2026-09-20 13:3x 定「现在就改，不必攒着」）</b>：补**收尾三层**（第 7 条重写，第 8 条拆出 reset 语义）——
+    /// <para><b>v9 → v10（本次；主人 2026-09-20 13:3x 定「现在就改，不必攒着」）</b>：补**收尾三层**（第 7 条重写，第 8 条拆出 reset 语义）——
     /// ① <b>task 收尾</b>（每个终局块之后）：交该 task 的 handoff 条目（+ 有教训就交坑条目）；
     /// ② <b>session 收尾</b>（reset 之前）：把本会话产出的**全部知识源**（踩坑集 · 记忆 · handoff · 设计文档 · 词表 · 技能）
     /// **抽象进 L1/L2**、**晋级知识库新版本**、**推进记忆水位**、记收尾水位线；
@@ -148,7 +172,7 @@ public static class ProtocolText
     /// 依据：`docs/DESIGN-SOLVE-LANGUAGE.md` §四·五（含**知识来源清单** —— 只写「踩坑集 + 记忆」会漏掉四类源）。
     /// 实测 **10 行 / 2,699 字符 / 675 token** ⇒ **先量后定**：行 ≤12、token ≤700。
     /// 为何此刻改：WB 侧头部**几天没跑、缓存命中早已失效** ⇒ 归零代价 ≈ 0（无需攒窗口）。</para>
-    /// <para><b>v10 → v11（本次；用户 2026-09-20 14:4x 定「把整个流程的操作手法写入冻结区协议区」）</b>：
+    /// <para><b>v10 → v11（本次；主人 2026-09-20 14:4x 定「把整个流程的操作手法写入冻结区协议区」）</b>：
     /// 第 7 条由「三层」扩成**可执行的操作手册**，并新增第 8/9 条把「谁执行、按什么顺序、失败怎么办」写死 ——
     /// 目标是**远端 AI 自己把收尾/重开跑完，不需要人类介入**：
     /// ① 三层各自交什么（task：handoff + 坑；session：抽象 L1/L2 + 晋级 + 推水位 + 记收尾水位线；reset/start）；
@@ -156,50 +180,50 @@ public static class ProtocolText
     /// ③ 安全栏写进协议：**晋级只加版本、从不删历史 ⇒ 一切可回滚**（`--rollback`）；
     /// ④ 80% 阈值：达标即收尾，由 AI 自己跑，**无人批阅**；唯一例外 = gap ⇒ 问人。
     /// 实测 **11 行 / 3,122 字符 / 781 token** ⇒ **先量后定**：行 ≤12、token ≤800。</para>
-    /// <para><b>v11 → v12（本次；用户 2026-09-20 16:1x 定「权限判定权下放给远端 AI 自判」）</b>：第 5 条 <c>[TOOL]</c> 那一句补
+    /// <para><b>v11 → v12（本次；主人 2026-09-20 16:1x 定「权限判定权下放给远端 AI 自判」）</b>：第 5 条 <c>[TOOL]</c> 那一句补
     /// <b><c>risk:</c> 声明</b> —— 「同一次调用自带风险声明：<c>risk: none</c> 或 <c>risk: &lt;可能弄坏什么&gt;</c>；
     /// 只有**自己判定**不会损害电脑 / 用户数据 / 公共安全时才写 none，其余（含犹豫）交给人类；
     /// **运行时的硬红线照旧拦**（受保护路径 · 凭据 · 发布/不可逆），**假声明会被记下来**」。
     /// 依据 <c>docs/DESIGN-APPROVAL-V12.md</c>（判定权归属升级；<c>[TOOL]</c> 仍是唯一块，**不新增块**）。
     /// 实测 **11 行 / 3,459 字符 / 865 token** ⇒ **先量后定**：行 ≤12、token ≤900。</para>
-    /// <para><b>v12 → v13（本次；用户 2026-09-21 23:2x 定「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」＋「凭据和私钥暂时也放行，不要有任何硬约束」）</b>：
+    /// <para><b>v12 → v13（本次；主人 2026-09-21 23:2x 定「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」＋「凭据和私钥暂时也放行，不要有任何硬约束」）</b>：
     /// ① 第 5 条【<b>撤闸门</b>】去掉两句**已不成立**的话（"may refuse or ask a human" / "anything else, doubt included, goes to a human"），
     /// 换成事实：「runtime 对每次调用**分类、留档，然后照跑**；任务内部**不问人**，判断归模型」；声明那句补
     /// 「**留档不是点头**」；② 第 6 条【<b>终局前自判</b>】新增一句：终局之前必须自判有没有「可能造成巨大损失」的动作，
     /// 有则**不要终局**，停下用**自然语言**问用户要不要做。依据 <c>docs/DESIGN-APPROVAL-V13.md</c>。
     /// 实测 **11 行 / 3,612 字符 / 903 token** ⇒ **先量后定**：预算显式重定为 **≤12 行 / ≤1,000 token**。</para>
-    /// <para><b>v18（本次；用户 2026-09-22 04:0x 令）</b>：第 5 条**把形状说死 + 给带引号的完整示例** ——
+    /// <para><b>v18（本次；主人 2026-09-22 04:0x 令）</b>：第 5 条**把形状说死 + 给带引号的完整示例** ——
     /// v16 补的「工具名 + 各工具的键」只教了 <c>exec{command,timeoutSeconds}</c> 这一**紧凑形状**，模型于是照抄它写成
     /// <c>[TOOL] exec {command: "…", timeoutSeconds: 60}</c>（**JSON 的键没引号** ⇒ 不是合法 JSON ⇒ <c>ToolArgs.Parse</c> 拒，fail-closed）——
     /// 真机实测一场 11 轮问答里 **3 轮纯浪费**（E003/E004/E005 三条 <c>ToolDenied</c>，第 4 轮才自己改对）。
     /// 改法（**键清单只能当附录，不能替代形状**）：先给形状 <c>[TOOL] name {"key":"value"} risk: none</c>（键带引号）+
     /// 完整示例 <c>[TOOL] read {"path":"src/Program.cs","maxLines":80} risk: none</c>，键清单降级为「**key names per tool**」（说明它是**名字**、不是 JSON）。
     /// 实测 **12 行 / 4,841 字符 / 1,211 token** ⇒ **仍在 ≤13 行 / ≤1,300 token 之内，预算不动**（v15/v16 同例）。</para>
-    /// <para><b>v20 → v21（2026-09-24 19:4x，用户定「报告必交 / 完整版 / 终局后下轮交」）</b>：新增**第 12 条·决策报告** ——
+    /// <para><b>v20 → v21（2026-09-24 19:4x，主人定「报告必交 / 完整版 / 终局后下轮交」）</b>：新增**第 12 条·决策报告** ——
     /// 终局后宿主**请求一次**，模型用**一个 <c>[REPORT]</c> 块**交「人读的那篇文章」（need / step n / outcome / found[kind] / next[rec]），
     /// 块 ≤30 行、不铺原文/不写表格/不写颜色、可带 <c>(E###)</c> 锚；**缺失或形状不合 ⇒ 任务显示为「未提交报告」**（不拿原料充数）。
     /// 依据 <c>docs/DESIGN-LIFECYCLE-BRIEF.md</c>（v8）。**先量后定**：实测 13 行 / 6,534 字符 / **≈1,634 token** ⇒ 预算重定为 **≤13 行 / ≤1,800 token**（留 ~10% 余量）。
     /// 配套设施已在先：<c>DecisionReportParser</c>（r914）· <c>ReportPrefix</c> 进块头清单（解析边界，零缓存代价）。</para>
-    /// <para><b>v21 → v22（2026-09-24 夜，用户令「协议区做净」）</b>：第 12 条补 <c>body:</c> <b>成品正文位</b> ——
+    /// <para><b>v21 → v22（2026-09-24 夜，主人令「协议区做净」）</b>：第 12 条补 <c>body:</c> <b>成品正文位</b> ——
     /// <b>成品</b>（题面 / 文案 / 方案正文这类要给人读的东西）逐字进报告；<b>原料</b>（日志 / 工具输出 / 事件）仍**不进**，
     /// 两者不是一类。依据坑 #154 / <c>§十·61</c>（「不铺原料」的口径缺「成品」一类 ⇒ 成品与原料一起被拍死）。
     /// <b>先量后定</b>：实测 13 行 / 6,792 字符 / ≈1,698 token ⇒ 预算 1,800 → <b>1,900</b>（留 ~10% 余量）。
     /// ⚠️ r958 只改了正文、**没升版本号**（提交信息/注释/水位都写 v22，常量仍是 "21"）⇒ 已加闸门
     /// <c>Gate_Protocol_VersionTracksTextBytes</c> 钉住「正文指纹 × 版本号」这一对，防同型复发。</para>
-    /// <para><b>v24 → v25（2026-09-25 夜，用户令「本次一次改够」）</b>：两件同窗口落地 ——
+    /// <para><b>v24 → v25（2026-09-25 夜，主人令「本次一次改够」）</b>：两件同窗口落地 ——
     /// ① 第 5 条【工具队列口径】把 <c>add up to 4 "[TOOL]" blocks</c> 改成 <c>add "[TOOL]" blocks ... about 4 per reply is the intended pace</c>
     /// + 明说超出额度**排队、不拒、不丢**（下一轮开头接着跑，并可见地提示「还有 N 个待发」）——
     /// 呼应宿主侧 r1058 的 <c>PendingToolQueue</c>；旧口径「超 4 个 ⇒ 整篇拒」的代价是真机两次整篇拒（动作全丢）。
     /// ② 第 12 条【报告轮不带终局块】补一句：报告在终局块**之后那一轮**交，该轮不带终局块
     /// （<c>DESIGN-LIFECYCLE-BRIEF.md</c> §十三-derived #2，一直写着「攒下次内核版本一并付」）。
     /// <b>先量后定</b>：实测 **14 行 / 8,589 字符 / ≈2,148 token**（v29 实测）⇒ 预算按余量纪律（~10%）上移一档为 **≤14 行 / ≤2,400 token**。</para>
-    /// <para><b>v29 → v30（2026-09-29 17:0x，用户令「工具面的活逐步全部交给 Worker，不要反过来」）</b>：两处**分工口径**改写 ——
+    /// <para><b>v29 → v30（2026-09-29 17:0x，主人令「工具面的活逐步全部交给 Worker，不要反过来」）</b>：两处**分工口径**改写 ——
     /// ① 第 2 条「要窗口」的主语从「你自己读」改成「那是 Worker 的一半」：源文件与文件读取交派发、你只看凝结结果；
     /// 自己拉窗口 = **没有 Worker 能接时的兜底**，且要说明；② 第 13 条删掉「A quick look … stays yours / do not dispatch trivia」
     /// —— 它把「快看一眼归你」写成了 master 的权利，与「doing 归 Worker」直接冲突（实测 88% 的工具面动作仍在 master 侧，
     /// 其中 67% 正是这种「快看一眼」）⇒ 改为「无论体量大小，doing 归 Worker；自己做 = 兜底且要说明」。
     /// <b>先量后定</b>：改后实测见 <c>ProtocolZoneTests</c> 的 <c>EstimatedTokens</c>/<c>Version</c> 断言（预算不动：≤14 行 / ≤2,400 token）。</para>
-    /// <para><b>v30 → v31（2026-09-29 21:3x，用户令「改 WB 的 master 协议区」）</b>：两处 ——
+    /// <para><b>v30 → v31（2026-09-29 21:3x，主人令「改 WB 的 master 协议区」）</b>：两处 ——
     /// ① <b>第 5 条键清单按角色渲染</b>（此前手写 7 把，而 master 的真实面只剩 <c>index</c>/<c>scope</c>
     /// ⇒ 正文与实现**口径分裂**：模型照正文点名 read/exec 一律被拒、白烧轮次）——
     /// 现由 <c>ToolFaceClause.MasterKeys</c> 从 <c>ToolNames.MasterFace</c> 渲染（唯一声明处）；
@@ -207,13 +231,13 @@ public static class ProtocolText
     /// 而正文没教（同一个分裂）；地址绝对由运行时**派发前拒**兜底（任务 17 A 方案，r1220），现写进正文让 master 一开始就给对。
     /// <b>先量后定</b>：见 <c>ProtocolZoneTests</c> 的 <c>EstimatedTokens</c>/<c>Version</c> 断言。</para>
     /// <para>⚠️ 改协议 = 缓存整体归零 ⇒ 只在**内核版本**里改。本成员由 <c>@@KEYS@@</c> 占位符**渲染**而来（不再手写键清单）。</para>
-    /// <para><b>v32 → v33（2026-09-30 16:1x，用户令「意图枚举组合要写入协议区，让远端模型自己选择」）</b>：
+    /// <para><b>v32 → v33（2026-09-30 16:1x，主人令「意图枚举组合要写入协议区，让远端模型自己选择」）</b>：
     /// 第 13 条**改形状** —— 派发 = **一句自然语言目的 + 一个模型自选的枚举组合**（8 类：READ / READ#verbatim /
     /// LOCATE / VERIFY / WRITE / EDIT / EXEC / DERIVE）+ 叠加轴（criteria / when / side_effects）；
     /// 收窄规则写死在正文（只写句子=未收窄；只写组合=缺表达 ⇒ 两者缺一不可）；回执改为**按 kind 取字段**
     /// （master 面只指过去，形状的唯一声明处在 worker 面）。**先量后定**：实测 10223 字符 / ≈2556 token（14 行）
     /// ⇒ 预算按余量纪律（~9.5%）由 ≤2,400 上移为 **≤14 行 / ≤2,800 token**（<c>docs/DESIGN-INTENT-TYPES.md</c> v0.4 建议 ≤3,000 之内）。</para>
-    /// <para><b>v36 → v37（2026-10-06，用户令「运行时绝不担保/兜底实质层，只管形状层」）</b>：
+    /// <para><b>v36 → v37（2026-10-06，主人令「运行时绝不担保/兜底实质层，只管形状层」）</b>：
     /// <c>MasterWorkerProtocol</c> 新增 <c>[DUTY]</c> 段（**形状 vs 实质的分工**，两侧逐字同一份）：
     /// 实质由 Worker 自证（交该类的键 + <c>basis=</c>，且每个读数运行时都能从盘上复算）；master 以**最小代价复算**证据
     /// （一致⇒认账，不一致⇒带病因退回；**绝不重做任务去验**）；**运行时只管形状层**（块形 / 封闭 kind 集 /
@@ -226,16 +250,21 @@ public static class ProtocolText
         2) Knowledge is a tree L1->L2->L3->L4; only L1 is resident. Read by id, never in bulk: ids are L<layer>-<short>-<n>. L2 is question shapes, L3 units, L4 evidence. Source and files you read yourself: ask in ONE reply for the windows you need (not one window per turn), never a whole file: every result comes back capped with a pointer, so continue with offset instead of re-reading. Loaded nodes are reference material, not your history. [FOCUSREPORT] = your own earlier self-report.
         3) Event line: "E004 [KIND] text"; KIND is a closed, self-describing set. History is immutable: never ask to delete or rewrite events; add a new event.
         4) Solve language: the need is an Equation, Known Conditions are what is established (prefix + events), a Solution is the path you pursue, a Solve Step is one continuous push that turns Known Conditions into new ones (it spans turns; it ends when you stop requesting tools or need input). Open [TAIL] with "solve: <path pursued>" and "step: <n> -- <what this step does>". Show a Solution Set (<=3) only when the paths really differ in cost or risk; a user changing the need is an Intervention = a new Solution.
-        5) Self-report: write your working state ONLY when it actually changed -- a "[TAIL]" block = solve line + step line + todos (<=12 lines) and a "[DRAFT]" block = open, unsettled items (<=16 lines); if nothing changed, write NO block at all -- no placeholder line, no restatement (the runtime reads its own store, not your prose: the whiteboard (R4), the draft (R5), the console and the next prompt all follow your LAST change, so a rewrite of an unchanged state is pure noise); also end with "[FOCUS] E### E###" (existing ids only); to load knowledge add a "[KN]" block = ids (e.g. L2-iso-001, L4-iso-001); a repeat fetch returns a pointer, not the text again; to act on the machine add "[TOOL]" blocks in ONE reply -- one action per block, and up to 4 blocks may go in the SAME reply (about 4 per reply is the intended pace), shape: ONE element -- "[TOOL] <call><name>index</name><symbol>SomeType</symbol></call>" -- one member per argument (names per tool: @@KEYS@@); a multi-line body goes inside its element, verbatim, no escaping; (for a long value -- a whole document, a script, a command full of quotes -- put it **inside its element**, verbatim, no escaping; or write it to a file and pass that path instead. The old `{...}` / `key: <<` forms are **retired** -- do not use them, and a malformed one is rejected whole); key names per tool: @@KEYS@@ -- those are the only actions on your side; to see one thing defined, index it by symbol in a single call -- symbol: Name gives that whole definition (from its first line to its closing brace), which beats paging a big file window by window; ask at once for everything the step needs instead of one call per turn -- several independent reading/probing actions (hashing, counting, listing, sampling) belong in the SAME reply as separate "[TOOL]" blocks, or in one command; do not spend a whole turn on a single call when the step already knows them all: the runtime runs up to 4 in order, each answered by its own result event, and any further call is QUEUED -- never rejected, never lost -- and runs at the start of your next reply (the runtime tells you how many are still pending) (it also classifies each call and records the ones that would have needed a human -- nobody is asked inside a task, so the judgement is yours). Add a risk member to that same element: "<risk>none</risk>" or "<risk>what could break</risk>"; write "none" only when you judge it cannot harm the machine, the user's data or public safety -- a record is not an approval, and a false claim is recorded; wait for the result events, and never assume it ran. To keep something durably, add a "[NOTE]" block = the lines to append to today's memory -- the runtime writes the file for you; never dispatch just to write a note. The memory files are the fallback layer and are READ-ONLY to you: do not write them with a tool (a direct write is refused and wastes a turn) -- keep durable things through [NOTE].
+        5) Self-report: write your working state ONLY when it actually changed -- a "[TAIL]" block = solve line + step line + todos (<=12 lines) and a "[DRAFT]" block = open, unsettled items (<=16 lines); if nothing changed, write NO block at all -- no placeholder line, no restatement (the runtime reads its own store, not your prose: the whiteboard (R4), the draft (R5), the console and the next prompt all follow your LAST change, so a rewrite of an unchanged state is pure noise); to load knowledge add a "[KN]" block = ids (e.g. L2-iso-001, L4-iso-001); a repeat fetch returns a pointer, not the text again; to act on the machine add "[TOOL]" blocks in ONE reply -- one action per block, and up to 4 blocks may go in the SAME reply (about 4 per reply is the intended pace), shape: ONE element -- "[TOOL] <call><name>index</name><symbol>SomeType</symbol></call>" -- one member per argument (names per tool: @@KEYS@@); a multi-line body goes inside its element, verbatim, no escaping; (for a long value -- a whole document, a script, a command full of quotes -- put it **inside its element**, verbatim, no escaping; or write it to a file and pass that path instead. The old `{...}` / `key: <<` forms are **retired** -- do not use them, and a malformed one is rejected whole); key names per tool: above; those are the only actions on your side; network tools use the same element shape and go through the runtime gateway (SSRF, limits, credentials): web_fetch(url)->readable text; web_search(query)->ranked results; http_request(method,url,body)->HTTP (POST/PUT/PATCH/DELETE are critical); web_download(url)->an authorized file; web_search_extract(urls)->batch text; credentials only by authRef -- never paste secrets; to see one thing defined, index it by symbol in a single call -- symbol: Name gives that whole definition (from its first line to its closing brace), which beats paging a big file window by window; ask at once for everything the step needs instead of one call per turn -- several independent reading/probing actions (hashing, counting, listing, sampling) belong in the SAME reply as separate "[TOOL]" blocks, or in one command; do not spend a whole turn on a single call when the step already knows them all: the runtime runs up to 4 in order, each answered by its own result event, and any further call is QUEUED -- never rejected, never lost -- and runs at the start of your next reply (the runtime tells you how many are still pending) (it also classifies each call and records the ones that would have needed a human -- nobody is asked inside a task, so the judgement is yours). Add a risk member to that same element: "<risk>none</risk>" or "<risk>what could break</risk>"; write "none" only when you judge it cannot harm the machine, the user's data or public safety -- a record is not an approval, and a false claim is recorded; wait for the result events, and never assume it ran. To keep something durably, add a "[NOTE]" block = the lines to append to today's memory -- the runtime writes the file for you; never dispatch just to write a note. The memory files are the fallback layer and are READ-ONLY to you: do not write them with a tool (a direct write is refused and wastes a turn) -- keep durable things through [NOTE].
         6) DEFAULT IS CONTINUE: keep working. Stopping is an EXPLICIT choice of exactly THREE kinds, and only you can make it -- the runtime never interferes: (a) "[DONE] <what was solved>" + the decision report -- the task is solved; (b) "[NO-SOLUTION] <why>" -- the task is settled as unsolvable, ask the human; (c) "[NEED-USER] <the decision you need>" -- you are half-way and a human ruling is required to go on; when a ruling reveals a durable preference of the user, record it so it converges into the USER-PREFERENCES set (a member of the rules zone). The decision library and the project design principles are live project docs under "whitebox/workspace/" (DECISION-LIBRARY.md / PROJECT-DESIGN-PRINCIPLES.md): read them on demand (they never enter the prefix) and they bind every decision you make for the user. A reply with none of these three DOES NOT stop the chain: it continues (a tool call, a dispatch, a "[BASE]" ask, a bounce -- all continue). Before you choose (a): judge whether anything you did or are about to do could cause large or irreversible loss -- if so choose (c) instead, in plain language.
-        7) Closeout has three layers, and you run them: task closeout (do NOT hold it for the terminal block -- a reply that taught a pitfall says so right there: what it was, how you fixed it, that it is logged; a handoff entry is announced in the reply that writes it); session closeout (converge everything the session produced -- pitfalls, handoff, design docs, glossary, plus the day's memory which arrives through [NOTE] -- abstract it into L1/L2, promote the knowledge base to a new version, advance the memory watermark, then record the closeout watermark); reset (close the event stream) and start (open the next session).
+        7) Closeout has three layers, and you run them: task closeout (do NOT hold it for the terminal block -- a reply that taught a pitfall says so right there: what it was, how you fixed it, that it is logged; a handoff entry is announced in the reply that writes it); session closeout -- ONLY here, never in ordinary turns -- MUST do BOTH growths: (a) KNOWLEDGE: every new L4 edge item (today's pitfalls, evidence, design notes) -> L3 processing unit -> L2 question shape -> at least one L1 law where it generalizes; write a new knowledge-vNNNN snapshot under knowledge/versions/ and update knowledge/.ledger.xml; (b) DECISIONS: every new D-xxxx in USER-DECISION-ENTRIES.md -> L4 evidence -> L3 unit -> L2 shape -> L1 stance in DECISION-LIBRARY.md, update the counts and links; also converge handoff/design docs/glossary and the day's memory which arrives through [NOTE], advance the memory and closeout watermarks. A closeout that only writes memory/watermark and does not grow BOTH libraries is INCOMPLETE; reset (close the event stream) and start (open the next session).
         8) The runtime prints the concrete commands and paths when a closeout is due; run them in that order, report each result, and never skip one silently -- if one fails, say which and stop there. Everything the runtime hands you is versioned and rollback-able: promote adds a version, it never deletes history.
         9) reset keeps the prefix and your [TAIL]/[DRAFT] and drops the events; start loads [TAIL]/[DRAFT] from the closeout handover -- so keep both standing alone (never depend on old event ids). No human step is required: when the runtime reports 80% of the window, run closeout + reset + start yourself and continue the same task; do not wait for it to be settled (below 80% keep going). Ask a human only for a gap.
         10) Omit only when nothing changed (state carries over). Never restate history or this contract.
-        11) Where things are, and how to work efficiently: tool-relative paths resolve against the runtime's working directory (its own source dir) and the repo root is two levels up from there; the host code is under "src/" (AgentRuntime.Core / .Hosting / .Tui / .Cli), docs under "docs/", and this workspace's own files under "whitebox/workspace/" (whitebox/ holds no C# source). The closeout's own extensible pieces live under "tools/closeout/" (one declaration per requirement: requirements/<id>.xml): read the repo-root "EXTENSIBILITY.md" before you change the closeout flow. So locate first (grep / find), then read only the window you need -- never dump a whole file (every result is capped and carries a pointer to continue with), and spend your turns on deciding, not on paging.
-        12) End every task with a decision report -- the article the user reads. The runtime asks for it after your terminal block, so put it in that next reply as ONE "[REPORT]" block: "need:" (one line: what this task had to settle); "step <n>:" (one line per solve step, in order, <=6: what that step settled -- not which tool you ran); "outcome:" (one or two lines: what is now true); "body:" (optional; the finished deliverable itself -- a question, a copy draft, a spec -- verbatim, take the lines you need); "found [blocked|failed|noticed]:" (<=3 lines: what blocked you or worried you); "next [rec]:" (<=3 lines, in order: what you recommend the user picks next -- mark the one you recommend with "rec"). Write it for someone who did NOT watch you work: raw process material (event dumps, tool output, logs) never goes in the report -- but the FINISHED PRODUCT the user reads or consumes DOES, verbatim, as "body:"; no tables, no colours, never restate this contract or the history, one line per item, whole block <=30 lines; add "(E###)" to a line only when it makes that claim checkable. The runtime renders this block as the report below the card and never edits your words; missing or malformed, the task is shown as unreported. The report goes out in the reply AFTER your terminal block: that report reply carries the [REPORT] block and NO terminal block -- the terminal block that ended the task stays the one that ended it.
+        11) Where things are, and how to work efficiently: tool-relative paths resolve against the runtime's working directory (its own source dir) and the repo root is two levels up from there; the host code is under "src/" (AgentRuntime.Core / .Hosting / .Tui / .Cli), docs under "docs/", and this workspace's own files under "whitebox/workspace/" (whitebox/ holds no C# source). Every path you hand to a tool is ABSOLUTE -- a relative path resolves against that source dir, not your project. The closeout's own extensible pieces live under "tools/closeout/" (one declaration per requirement: requirements/<id>.xml): read the repo-root "EXTENSIBILITY.md" before you change the closeout flow. So locate first (grep / find), then read only the window you need -- never dump a whole file (every result is capped and carries a pointer to continue with), and spend your turns on deciding, not on paging. Build discipline: after a batch of related edits run one build; build only the changed project where possible; run the final full verification once at the end; on a build failure read the incremental error first and fix it before rerunning the same full build.
+        12) End every task with a decision report -- the article the user reads: put ONE "[REPORT]" block in the SAME reply, immediately after your terminal block (or in the next reply when the runtime explicitly asks for it): "need:" (one line: what this task had to settle); "term <name>:" (one line per abbreviation, type name, alias or process name used, <=8: full name + one plain-language sentence; any abbreviation without a term makes the report unacceptable -- the reader must never have to guess what ABC is); "step <n>:" (one line per solve step, in order, <=6: "what that step settled -- why it was needed -- (E###)"; never a bare code name); "outcome:" (one or two lines: what is now true); "body:" (optional; the finished deliverable itself -- a question, a copy draft, a spec -- verbatim, take the lines you need); "found [blocked|failed|noticed]:" (<=3 lines: "symptom -- impact -- (E###)"; what blocked you or worried you, and why it matters); "next [rec]:" (<=3 lines, in order: "option -- what choosing it changes -- (E###)"; mark the one you recommend with "rec"). Write it for someone who did NOT watch you work: raw process material (event dumps, tool output, logs) never goes in the report -- but the FINISHED PRODUCT the user reads or consumes DOES, verbatim, as "body:"; no tables, no colours, never restate this contract or the history, one line per item, whole block <=40 lines; add "(E###)" to a line only when it makes that claim checkable. The runtime renders this block as the report below the card and never edits your words; missing or malformed, the task is shown as unreported. Put the terminal block FIRST and the [REPORT] block immediately AFTER it in the SAME reply; a split is allowed only when the runtime explicitly asks for the report, and that report reply then carries no second terminal block. A [REPORT] with no terminal block has no owner and the card stays open.
         14) Order the work by SIZE, not by arrival. Do the small, scattered items FIRST: they are cheap, and they settle the map. A piece you can already tell is big is not one to send and be stopped on -- SET IT ASIDE; when it is what remains, CUT it into its steps and send them one piece at a time. The runtime tells you BEFORE you send when it expects a block to be too big (a "[PACE]" line naming the axis and the chunk count): read it as the instruction to cut the block now, not as a warning to carry.
         15) To change the RULES zone, never write to the rules themselves -- outside closeout the rules are READ-ONLY. Append ONE line instead to "whitebox/workspace/rules-changeOrder.md" (that single file is read-write at all times), in this shape: "- **[open]** <which rule> -> <the change> -- basis: <E### or reason>". Closeout converges every [open] line into the real rules and advances that file's watermark line -- which only closeout writes -- so reading that ONE file tells you whether anything is still pending; you never re-scan memory for it. A request is a request: the rules stay as they are until a closeout applies it. The same path applies to every other settling into the RULES zone (for example the USER-PREFERENCES set of clause 6): request it, do not write it.
+        16) Troubleshooting discipline: if the same tool error repeats twice, STOP retrying the same action -- record the blocker and change strategy (fresh working copy / a path added locally / ask). `E160006 No such revision 1` (or `malformed property list`) means repository metadata is corrupt: do not retry `svn import`, URL-created nodes, or repeated updates; create/commit from a fresh local working copy. If the whole `software-company/projects` subtree is corrupt, the repository root is healthy: import to a new top-level path at the repo root and verify by `svn ls -R` / `svn cat`; report the new path. Never reuse a path name that already produced E160006: choose a fresh unused name (for example `<name>-v2`). Treat old [TAIL]/[DRAFT] as prior context, not facts to re-litigate; update them silently. When a command contains shell metacharacters (`<`, `&`, `|`, quotes), send ONE tool block and put long commands/scripts in a file, then pass its path.
+        17) Focus: end EVERY reply with one "[FOCUS] E### E###" line -- the 1-5 existing event ids your reply LEANED ON (the tool results you read, the checks you ran), because that line is the only input the next prompt has for what you are keeping in mind; it decays and does not carry over. Write "[FOCUS] none" only when your reply used no prior event at all; the "state only when changed" rule (clause 10) does NOT exempt this line.
+        18) XML is the ONLY tool face. The provider request never carries a native "tools" or "functions" field, so a native tool call cannot be honoured: every action -- the local tools and every network tool, now and later -- must be written as a "[TOOL] <call><name>...</name>...</call>" element in your reply (clause 5 gives the shape, the keys and the risk member). Native function-call syntax, JSON tool objects, or prose asking the runtime to run something are NOT actions.
+        19) How WB runs (read-only context; it grants no action): one user message opens one task lifecycle; the card shows that lifecycle per turn as intent -> operations -> result, and the [REPORT] is its final human article. The prompt is assembled from regions R1-P (protocol), R1 (frozen prefix), R2 (append-only events), R4 (whiteboard), R5 (draft), R3 (focus), so write [TAIL]/[DRAFT]/[FOCUS] instead of restating them. Closeout, reset and start are separate flows that run only when a human explicitly asks; never start them on your own. Tool actions happen only through [TOOL] XML elements; every result lands as an event, so never assume it ran.
+        20) Closeout proof is a RECEIPT, not a claim: `--close` writes "tools/closeout/receipt.xml" holding the convergence rev + fingerprint, the knowledge version / L1-L4 counts / orphans / unmarked-L4, the decision entries / converged / gaps / orphans, and the growth deltas since the last receipt. The closeout is INCOMPLETE -- even when every other check is green -- if (a) live knowledge changed since the last receipt but the ledger version did not advance, (b) any L4 body has no node marker or the derived tree reports orphans, or (c) the decision library has any gap or orphan. Verify from the repository, never from memory: run "tools/closeout --receipt", run "tools/closeout --decision-converge", and read knowledge/.derived/summary.xml; cite those fields, not a recollection of having done it.
         """.Replace("@@KEYS@@", ToolFaceClause.MasterKeys);
 
     /// <summary>
@@ -278,7 +307,7 @@ public static class ProtocolText
     /// <summary>
     /// **规格声明的预算**（<c>docs/REPORT-PROTOCOL-ZONE.md</c> §四 P4 / §七 Q8i）：**现为 ≤14 行 且 ≤2,400 token（v25）**；v5 起逐版「先量后定」（历史见 §三）。
     /// <para>
-    /// 用户 2026-09-15 23:4x **定（协议区扩容 / <c>docs/DESIGN-SKILL-LAYERS.md</c> §十）**：设计预估 20 行 / 640 token，
+    /// 主人 2026-09-15 23:4x **定（协议区扩容 / <c>docs/DESIGN-SKILL-LAYERS.md</c> §十）**：设计预估 20 行 / 640 token，
     /// 实际落地 **6 行 / ≤280 token**（各区契约压进第 1/2 条即可覆盖，符合「最小化」）⇒ 预算重定为
     /// **≤8 行 / ≤280 token**（正文一个字节不删；实测 6 行 / 1029 字符 / 258 token）。
     /// </para>
@@ -291,13 +320,16 @@ public static class ProtocolText
     /// <para><b>v20</b>：第 6 条补**两句**（没结束不发终局块 + [NO-SOLUTION] 的负向口径 + 还在点工具不算终局；
     /// 以及「**停下来问人本身就是终局 ⇒ 用 [NEED-USER]**」）后实测见下方记录 ⇒ 预算按「先量后定」上移一档（行数仍 12 ⇒ 行预算不动）。</para>
     /// <para><b>v66</b>：第 7 条话术改写后实测 <b>9,276 字符 ⇒ 2,319 token</b>、14 行 ⇒ 预算按「先量后定」重定为 <b>≤110 行 / ≤2,400 token</b>。</para>
-    public const int DeclaredMaxTokens = 2700;
+    /// <para><b>v80（2026-10-18）</b>：第 5 条删掉埋在长句里的 `[FOCUS]` 半句，新增第 17 条（每轮都要以 `[FOCUS]` 结尾；没东西可关注写 `none`）；第 11 条补「交给工具的路径一律绝对」。实测 <b>12,841 字符 / 3,211 token / 17 行</b> ⇒ 预算按「先量后定」重定为 <b>≤3,500 token</b>（留 ~8% 余量）。</para>
+    /// <para><b>v75（2026-10-18）</b>：工具面新增 5 个网络工具并补上**用法教学**（同一元素形状 + 经运行时网关 + 凭据只写 authRef）
+    /// ⇒ 实测 <b>11,169 字符 ⇒ 2,793 token</b>、15 行 ⇒ 预算按「先量后定」重定为 <b>≤110 行 / ≤2,800 token</b>（留 ~7 余量）。</para>
+    public const int DeclaredMaxTokens = 4300;
 
     /// <summary>
     /// **可执行闸门的 token 上限**（同 <see cref="DeclaredMaxTokens"/>；闸门不得比声明更紧）。
     /// <para>实测值与声明值双双钉在 <c>Gate_ProtocolBudget_IsWithinLimits_AndRankZero</c>。</para>
     /// <para><b>v12</b>：正文补 <c>[TOOL] risk:</c> 声明（判定权归属升级）后实测 <b>865 token</b> ⇒ 预算重定为 **≤12 行 / ≤900 token**。</para>
-    /// <para><b>v13</b>：撤闸门 + 终局前自判后实测 <b>903 token</b> ⇒ 预算重定为 **≤12 行 / ≤1,000 token**（原因写明：又一次新契约，且用户明确“可无视缓存代价”）。</para>
+    /// <para><b>v13</b>：撤闸门 + 终局前自判后实测 <b>903 token</b> ⇒ 预算重定为 **≤12 行 / ≤1,000 token**（原因写明：又一次新契约，且主人明确“可无视缓存代价”）。</para>
     /// <para><b>v14</b>：第 5 条放开「一次回复最多 4 次 [TOOL]」+ 第 2 条把 bulk 边界写清 + 第 5 条补「risk 在 JSON 外」后
     /// 实测 <b>995 token</b> ⇒ 预算重定为 **≤12 行 / ≤1,100 token**（留 ~10% 余量：v13 的 995/1,000 只剩 5 token，
     /// 一次措辞微调就要重议预算）。</para>
@@ -305,7 +337,7 @@ public static class ProtocolText
     /// ⇒ 第 2 条措辞收正（一次要齐「你需要的窗口」，**绝不整份倒**；结果有上限 + 指针，续读用 offset），实测 <b>1008 token</b> ⇒ **仍在 ≤1,100 之内，预算不动**。</para>
     /// <para><b>v16 / v17</b>：v16 第 5 条补「工具名 + 各工具的键」（模型不再猜 <c>cmd</c>/<c>bash</c>）；v17 新增第 11 条
     /// **「东西在哪 + 怎么干得快」**（cwd / 仓库根 / <c>src/</c> / <c>whitebox/workspace/</c> + 先定位后读窗口）。
-    /// 依据：用户 2026-09-22 03:45 定「**工具调用级别的效率问题属协议层，不属用户铁则区；扩大协议区容量**」——
+    /// 依据：主人 2026-09-22 03:45 定「**工具调用级别的效率问题属协议层，不属用户铁则区；扩大协议区容量**」——
     /// 实测 v16 那一跑 7 轮里 **3 轮纯在找代码在哪**（模型在 <c>whitebox/</c> 里 grep C#）。
     /// 实测 <b>1180 token / 12 行</b> ⇒ 预算按「先量后定」扩容为 **≤13 行 / ≤1,300 token**（留 ~10% 余量）。</para>
     /// <para><b>v18</b>：第 5 条把 <c>[TOOL]</c> 形状说死 + 给带引号完整示例（v16 的键清单只当附录）后
@@ -314,8 +346,8 @@ public static class ProtocolText
     /// <para><b>v19</b>：见上（1269 token ⇒ 预算不动）。</para>
     /// <para><b>v20</b>：第 6 条补负向口径（没结束不发终局块 / <c>[NO-SOLUTION]</c> 只表示已证此路不通 / 还在点工具不算终局 / **停下来问人本身就是终局 ⇒ <c>[NEED-USER]</c>**）后
     /// 实测 **1390 token / 12 行** ⇒ 预算随之重定为 **≤13 行 / ≤1,500 token**：**留 ~8% 余量**（照 v14 的教训 ——
-    /// v13 的 995/1,000 只剩 5 token，一次措辞微调就要重议预算）。依据：真机假终局块 + 「问人却没发终局块」两次现场，用户 2026-09-22 17:0x/21:5x 令。</para>
-    public const int MaxTokens = 2700;
+    /// v13 的 995/1,000 只剩 5 token，一次措辞微调就要重议预算）。依据：真机假终局块 + 「问人却没发终局块」两次现场，主人 2026-09-22 17:0x/21:5x 令。</para>
+    public const int MaxTokens = 4300;
 
     /// <summary>英文 token 估算口径：~4 字符/token（规格 §三 §3.1 声明的口径）。</summary>
     public const double CharsPerToken = 4.0;
@@ -352,14 +384,14 @@ public static class ProtocolText
     /// <para><b>v25（2026-09-25）</b>：它**不再是拒绝条件** —— 一次回复超出额度也**不整篇拒**：额度内照跑，
     /// 其余按发出顺序**排队**（<c>PendingToolQueue</c>），下一轮开头接着跑，并可见地提示「还有 N 个待发」。
     /// 旧口径（一次超 4 个 ⇒ 整篇拒）的成本是真机实测的：那一轮的动作全丢、重发要再买一轮整份上下文。</para>
-    /// <para><b>v14（本次；用户 2026-09-22 03:2x 定「允许多个 tool/turn」）</b>：旧口径是
+    /// <para><b>v14（本次；主人 2026-09-22 03:2x 定「允许多个 tool/turn」）</b>：旧口径是
     /// <c>one call per reply</c>，后果是真机实测的一场简单提问跑 9 轮，其中 **4 轮是「读一点、看一点、再读一点」**
     /// —— 一次只准点一个动作，取证就只能一轮一轮地挤，而每轮都要重发整份上下文。
     /// 上限仍设：一次回复无限点动作会让结果体量失控，也让人看不懂这一步在干什么。</para>
     /// </summary>
     public const int ToolMaxCallsPerReply = 4;
 
-    /// <summary>`[DISPATCH]` —— **派发给 Worker 的块头**（协议第 13 条，用户 2026-09-25）。
+    /// <summary>`[DISPATCH]` —— **派发给 Worker 的块头**（协议第 13 条，主人 2026-09-25）。
     /// <para>它**已经是解析边界**（进 <see cref="ReportBlockHeaders"/>）：否则会被前一块的正文吞掉（PITFALLS #30 那一族）。</para></summary>
     public const string DispatchPrefix = "[DISPATCH]";
 
@@ -368,14 +400,14 @@ public static class ProtocolText
     public const string IntentPrefix = "[INTENT]";
 
     /// <summary>
-    /// <c>[BASE]</c> 块头（2026-10-06 用户令）：**按需核实路径基准** ——
+    /// <c>[BASE]</c> 块头（2026-10-06 主人令）：**按需核实路径基准** ——
     /// 远端 AI 第一次要发**文件地址**时，用它跟运行时核一次 base；运行时把值落进流，远端把它写进自己的 R2
     /// 并用 <c>[FOCUS]</c> 指向那条 ⇒ 之后**直接采信**，不必再问（再问只得到一条 hint）。
     /// <para>worker 不需要它：它每次派发都从 <c>base:</c> 段拿到**已验证的**值。</para>
     /// </summary>
     public const string BasePrefix = "[BASE]";
 
-    /// <summary>一次回复**最多几个派发**（协议第 13 条声明 ≤2；用户 2026-09-25 定）。</summary>
+    /// <summary>一次回复**最多几个派发**（协议第 13 条声明 ≤2；主人 2026-09-25 定）。</summary>
     public const int DispatchMaxPerReply = 2;
 
     /// <summary><c>[DISPATCH]</c> / <c>[INTENT]</c> 段在「回看窗口」里占的行数。
@@ -390,7 +422,7 @@ public static class ProtocolText
     /// <summary><c>[DRAFT]</c> 段前缀（V4.3 · R5；与 <c>[TAIL]</c> 同族）。</summary>
     public const string DraftPrefix = "[DRAFT]";
 
-    /// <summary><c>[NOTE]</c> 块头（v58 · 2026-10-09 用户令 · D3-A）：**把一段话落进当日 memory/**，
+    /// <summary><c>[NOTE]</c> 块头（v58 · 2026-10-09 主人令 · D3-A）：**把一段话落进当日 memory/**，
     /// 由运行时**确定性**写盘 —— 不经派发链（真机：一次「记一笔」走了两轮派发、14 分钟、还被压缩改写）。
     /// <para>它**也是解析边界**（进 <see cref="ReportBlockHeaders"/>）—— 否则会被前一块的正文吞掉。</para></summary>
     public const string NotePrefix = "[NOTE]";
@@ -420,7 +452,7 @@ public static class ProtocolText
 
     /// <summary>
     /// <c>[DONE]</c> 段前缀（**v9**）—— 终局三态之一：**得解**（一条任务以此收尾）。
-    /// <para>三态是**独立块**（用户 2026-09-20 定「感觉需要硬核一些」⇒ 不用三态合一的 <c>[SOLVE]</c>）。
+    /// <para>三态是**独立块**（主人 2026-09-20 定「感觉需要硬核一些」⇒ 不用三态合一的 <c>[SOLVE]</c>）。
     /// 判据与解析唯一家 = <see cref="TerminalReport"/>。</para>
     /// </summary>
     public const string DonePrefix = "[DONE]";
@@ -460,11 +492,14 @@ public static class ProtocolText
     /// </summary>
     public const string ReportPrefix = "[REPORT]";
 
-    /// <summary>报告块**行数上限**（形状约束；展示层**不设上限、不折叠** —— 用户 19:1x 定）。</summary>
-    public const int ReportMaxLines = 30;
+    /// <summary>报告块**行数上限**（形状约束；展示层**不设上限、不折叠** —— 主人 19:1x 定）。</summary>
+    public const int ReportMaxLines = 40;
 
     /// <summary>报告里 <c>step</c> 条数上限。</summary>
     public const int ReportMaxSteps = 6;
+
+    /// <summary>报告术语表最多几条（v85）。</summary>
+    public const int ReportMaxTerms = 8;
 
     /// <summary>报告里 <c>found</c> 条数上限。</summary>
     public const int ReportMaxFound = 3;

@@ -64,6 +64,7 @@ public static class DecisionReportParser
         var steps = new List<DecisionReportStep>();
         var found = new List<DecisionReportFinding>();
         var next = new List<DecisionReportNext>();
+        var terms = new List<DecisionReportTerm>();
         var bodyLines = new List<string>();
 
         // 续行目标：**只有多行允许的键**接得住续行（否则一段折行的 need 会把正文粘成怪东西）。
@@ -126,6 +127,38 @@ public static class DecisionReportParser
                     appendTo = null;
                     break;
 
+                case "term":
+                    if (terms.Count >= ProtocolText.ReportMaxTerms)
+                    {
+                        notes.Add($"term 超过 {ProtocolText.ReportMaxTerms} 条 ⇒ 后面的没看");
+                        appendTo = null;
+                        break;
+                    }
+
+                    // term 的键是**大小写敏感**的显示名（ABC / R1）；qualifier 已被统一小写 ⇒ 从原行取回原名。
+                    var colon = line.IndexOf(':');
+                    var headParts = colon > 0
+                        ? line[..colon].Trim().Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries)
+                        : [];
+                    var termKey = headParts.Length > 1
+                        ? string.Join(' ', headParts[1..]).Trim('[', ']', '（', '）')
+                        : string.Empty;
+                    if (termKey.Length == 0) termKey = qualifier;
+                    if (string.IsNullOrWhiteSpace(termKey))
+                    {
+                        notes.Add("term 缺名称 ⇒ 丢掉");
+                        appendTo = null;
+                        break;
+                    }
+
+                    terms.Add(new DecisionReportTerm(termKey.Trim(), value));
+                    appendTo = merged =>
+                    {
+                        var last = terms[^1];
+                        terms[^1] = last with { Meaning = last.Meaning + merged };
+                    };
+                    break;
+
                 case "step":
                     if (steps.Count >= ProtocolText.ReportMaxSteps)
                     {
@@ -136,7 +169,8 @@ public static class DecisionReportParser
 
                     var index = int.TryParse(qualifier, out var n) && n > 0 ? n : steps.Count + 1;
                     var (stepText, stepEvidence) = SplitEvidence(value);
-                    steps.Add(new DecisionReportStep(index, stepText, stepEvidence));
+                    var (stepWhat, stepWhy) = SplitWhy(stepText);
+                    steps.Add(new DecisionReportStep(index, stepWhat, stepEvidence, stepWhy));
                     appendTo = null;
                     break;
 
@@ -165,7 +199,8 @@ public static class DecisionReportParser
                     }
 
                     var (foundText, foundEvidence) = SplitEvidence(value);
-                    found.Add(new DecisionReportFinding(NormalizeFindingKind(qualifier), foundText, foundEvidence));
+                    var (foundWhat, foundImpact) = SplitWhy(foundText);
+                    found.Add(new DecisionReportFinding(NormalizeFindingKind(qualifier), foundWhat, foundEvidence, foundImpact));
                     appendTo = merged =>
                     {
                         var last = found[^1];
@@ -181,11 +216,14 @@ public static class DecisionReportParser
                         break;
                     }
 
+                    var (nextClean, _) = SplitEvidence(value);
+                    var (nextText, nextConsequence) = SplitWhy(nextClean);
                     next.Add(new DecisionReportNext(
                         next.Count + 1,
-                        value,
+                        nextText,
                         string.Equals(qualifier, "rec", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(qualifier, "recommended", StringComparison.OrdinalIgnoreCase)));
+                        || string.Equals(qualifier, "recommended", StringComparison.OrdinalIgnoreCase),
+                        nextConsequence));
                     appendTo = merged =>
                     {
                         var last = next[^1];
@@ -228,6 +266,7 @@ public static class DecisionReportParser
             Steps = steps,
             Outcome = outcome,
             Body = bodyLines,
+            Terms = terms,
             Found = found,
             Next = next,
             Fingerprint = Fingerprint(body),
@@ -344,6 +383,15 @@ public static class DecisionReportParser
     }
 
     /// <summary>把「值里的一句 <c>(E###)</c>」摘成证据锚（取第一个）；正文里不留它（渲染层另排锚）。</summary>
+    /// <summary>v85：把 <c>what — why</c> / <c>what -- why</c> 拆成两段；没有分隔 ⇒ 只有 what。</summary>
+    private static (string What, string? Why) SplitWhy(string text)
+    {
+        var parts = System.Text.RegularExpressions.Regex.Split(text, @"\s+(?:—|--)\s+");
+        if (parts.Length < 2) return (Collapse(text), null);
+        var why = string.Join(" — ", parts.Skip(1)).Trim().TrimEnd('—', '-', ' ').Trim();
+        return (Collapse(parts[0]), why.Length == 0 ? null : Collapse(why));
+    }
+
     private static (string Text, string? Evidence) SplitEvidence(string value)
     {
         var at = value.IndexOf('(');
@@ -381,7 +429,7 @@ public static class DecisionReportParser
     /// （「题：…」）。只有**认识这个键名**才算下一个键（坑 #154 的当场补充）。</para>
     /// </summary>
     private static bool IsKnownKey(string key) =>
-        key is "need" or "step" or "outcome" or "body" or "found" or "next";
+        key is "need" or "term" or "step" or "outcome" or "body" or "found" or "next";
 
     /// <summary>发现类别归一到封闭词表（<c>blocked</c> / <c>failed</c> / <c>noticed</c>）；认不出 ⇒ <c>noticed</c>（不编类别）。</summary>
     private static string NormalizeFindingKind(string qualifier) => qualifier switch

@@ -36,6 +36,16 @@ internal static class Launch
 
     public static int Tui(string[] a)
     {
+        // 2026-10-20 主人令：**默认入口 = TUI2**（方案 B）。
+        // 回滚 = `whitebox --tui1`（现 TUI）；`--tui2` 继续兼容为显式选择。
+        // 两条路共用同一份默认配置与 cwd。
+        var legacy = a.Contains("--tui1") || a.Contains("--legacy") || a.Contains("--tui-old");
+        a = StripModeFlags(a);
+        if (!legacy)
+        {
+            return Tui2(a);
+        }
+
         var dll = Path.Combine(TuiDir, "bin/Debug/net10.0/AgentRuntime.Tui.dll");
         if (!File.Exists(dll))
         {
@@ -55,6 +65,70 @@ internal static class Launch
 
         list.AddRange(a);
         return Repo.Run("dotnet", Prepend(dll, list), cwd: TuiDir);
+    }
+
+    private static string[] StripModeFlags(string[] a) =>
+        a.Where(x => x is not ("--tui2" or "--tui1" or "--legacy" or "--tui-old")).ToArray();
+
+    // ---------------- tui2（方案 B · docs/DESIGN-TUI-EDITOR-B.md） ----------------
+
+    /// <summary>TUI2 目录（Terminal.Gui.Editor 宿主）。</summary>
+    private static string Tui2Dir => Path.Combine(Repo.Root(), "src", "AgentRuntime.Tui2");
+
+    /// <summary>
+    /// 起 TUI2：优先 Release，没有再退回 Debug；缺 dll 就地把本工程编一次
+    /// （与 whitebox 脚本「代码比 dll 新就编」同一口径）。编译失败 ⇒ 明说回滚办法。
+    /// </summary>
+    private static int Tui2(string[] a)
+    {
+        var root = Tui2Dir;
+        var dll = Path.Combine(root, "bin/Release/net10.0/AgentRuntime.Tui2.dll");
+        if (!File.Exists(dll)) dll = Path.Combine(root, "bin/Debug/net10.0/AgentRuntime.Tui2.dll");
+
+        // 代码比 dll 新（或 dll 不存在）⇒ 就地重编一次：不许跑旧二进制（铁则 9）。
+        if (!File.Exists(dll) || SourceNewerThan(root, dll))
+        {
+            Console.Error.WriteLine($"[tui2] 代码比 dll 新（或首次运行）⇒ 编译 {root}");
+            var rc = Repo.Run("dotnet", new[] { "build", Path.Combine(root, "AgentRuntime.Tui2.csproj"), "-c", "Release", "-v", "q", "--nologo" }, cwd: root);
+            dll = Path.Combine(root, "bin/Release/net10.0/AgentRuntime.Tui2.dll");
+            if (rc != 0 || !File.Exists(dll))
+            {
+                Console.Error.WriteLine("[tui2] 编译失败 ⇒ 回滚：whitebox --tui1 进现 TUI");
+                return rc == 0 ? 2 : rc;
+            }
+        }
+
+        var cfg = Path.Combine(TuiDir, "../AgentRuntime.Cli/config.stage1.xml");
+        var list = new List<string>();
+        if (!a.Contains("--config"))
+        {
+            list.Add("--config");
+            list.Add(cfg);
+        }
+
+        list.AddRange(a);
+        return Repo.Run("dotnet", Prepend(dll, list), cwd: root);
+    }
+
+    private static bool SourceNewerThan(string root, string dll)
+    {
+        try
+        {
+            var stamp = File.GetLastWriteTimeUtc(dll);
+            foreach (var file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            {
+                if (file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)
+                    || file.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)) continue;
+                if (File.GetLastWriteTimeUtc(file) > stamp) return true;
+            }
+
+            var proj = Path.Combine(root, "AgentRuntime.Tui2.csproj");
+            return File.Exists(proj) && File.GetLastWriteTimeUtc(proj) > stamp;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     // ---------------- verify-demo（原 Tui/verify-demo.sh） ----------------
@@ -127,7 +201,7 @@ internal static class Launch
             "whitebox; echo \"EXITCODE=$?\"; sleep 8");
         Thread.Sleep(4000);
 
-        // ① 判据一律**结构量**（用户 2026-10-14 令：去掉框线后，`状态 · 本轮`/`协议 v` 这类**人读文案**在单栏
+        // ① 判据一律**结构量**（主人 2026-10-14 令：去掉框线后，`状态 · 本轮`/`协议 v` 这类**人读文案**在单栏
         //    版式里早已不在屏上 ⇒ 旧判据会**假红**说「没进 TUI」。坑 #323：判据别比被测物活得长）。
         //    · 「进了 TUI」= 进了**备用屏**（alternate screen）—— 结构性，与版式/措辞无关；
         //    · 「没被滚掉」= 顶行仍是**分割行**（`ⓘ ` = 本版式里 chrome 行的结构标记，不随措辞变）。

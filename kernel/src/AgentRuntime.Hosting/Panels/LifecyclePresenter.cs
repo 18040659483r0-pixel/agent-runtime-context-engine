@@ -154,11 +154,11 @@ public static class LifecyclePresenter
     /// </param>
     /// <param name="accumulate">
     /// **累积显示**（默认开；<c>/append off</c> 关）：意图 / 打算 / 结果**不再滚动刷新**，
-    /// 而是**有新推进就加一行**（用户 2026-09-24 19:30 定：「卡会变得很长，没关系，用户能看到思考过程」）；
+    /// 而是**有新推进就加一行**（主人 2026-09-24 19:30 定：「卡会变得很长，没关系，用户能看到思考过程」）；
     /// 关掉后回到旧口径（只显示**最新**那一条）。
     /// </param>
     /// <remarks>
-    /// <b>v8（用户 2026-09-24 19:30 定）</b>：卡上**原有内容照旧**；改的只是「远端 AI 意图」与「结果」
+    /// <b>v8（主人 2026-09-24 19:30 定）</b>：卡上**原有内容照旧**；改的只是「远端 AI 意图」与「结果」
     /// 这两处从**滚动刷新**变为**追加**（逐字、不截断）—— 卡因此会变长，这正是要的效果。
     /// </remarks>
     public static IReadOnlyList<string> Card(
@@ -191,15 +191,15 @@ public static class LifecyclePresenter
         }
 
         // —— ② 意图 / 打算（**模型自己的口径**；没写就不画，不编 —— §十·64）——
-        // v8（用户 2026-09-24 19:30 定）：这两行**不再滚动刷新** —— 每次 `[TAIL]` 的 solve / step 推进各加一行。
+        // v8（主人 2026-09-24 19:30 定）：这两行**不再滚动刷新** —— 每次 `[TAIL]` 的 solve / step 推进各加一行。
         lines.AddRange(IntentLines(lifecycle, accumulate));
 
-        // —— ③ 派发（用户 2026-09-25 令）：卡上要能看出**是 worker 在跑具体的任务** ——
+        // —— ③ 派发（主人 2026-09-25 令）：卡上要能看出**是 worker 在跑具体的任务** ——
         //    每行一个 worker，sync/async 写在行里，时长是它自己的（与卡的计时分开 —— W6/C3）。
         //    **空则这一段根本不存在**（不占一个字节）。
         if (workers is { Count: > 0 })
         {
-            // 2026-10-09（用户令）：整块**缩进**（段落缩进）—— 一眼认出这是「工蜂」的卡；
+            // 2026-10-09（主人令）：整块**缩进**（段落缩进）—— 一眼认出这是「工蜂」的卡；
             // 每个 worker 一行（多 worker 异步交叉 ⇒ 多条），结果由 WorkerFacts 换行带出 ⇒ 独立一行。
             lines.Add("  [[strong]]工蜂：[[/]]");
             foreach (var w in workers)
@@ -211,7 +211,7 @@ public static class LifecyclePresenter
             }
         }
 
-        // —— ③ 过程发现（**默认展开**：用户 2026-09-22 23:0x 定「过程中发现了什么问题」要看得见；
+        // —— ③ 过程发现（**默认展开**：主人 2026-09-22 23:0x 定「过程中发现了什么问题」要看得见；
         //    带首因，不是只给一个计数；全文仍在流里）——
         if (lifecycle.Findings.Count > 0)
         {
@@ -234,10 +234,10 @@ public static class LifecyclePresenter
         }
 
         // —— 结果（v8：**追加**显示 —— 每轮一段（切掉自报块的正文），逐字不截断；带 E### 便于定位）——
-        // 卡会因此变长，这正是用户要的（能看见思考过程）；`/append off` 回到「只给最新」。
+        // 卡会因此变长，这正是主人要的（能看见思考过程）；`/append off` 回到「只给最新」。
         lines.AddRange(ResultLines(lifecycle, accumulate));
 
-        // 决策点：**正文为空就不画**（2026-09-22 用户真机报的现场：块头独占一行、正文在下面 ⇒ 旧解析拿不到正文，
+        // 决策点：**正文为空就不画**（2026-09-22 主人真机报的现场：块头独占一行、正文在下面 ⇒ 旧解析拿不到正文，
         // 卡上就成了「待你决定：• 」——**提示人回话却没问题**）。空正文改成一句明确的告警，
         // 绝不画一个空的问题位（§十·34：决定型内容要留完整显示）。
         var decisions = lifecycle.Decisions.Where(static d => !string.IsNullOrWhiteSpace(d)).ToArray();
@@ -268,12 +268,12 @@ public static class LifecyclePresenter
         }
 
         // —— ⑤ 还可能有问题 ——
-        // 2026-10-14 20:30 用户令：**「risk 声明 N 次」不上卡**（用户不需要知道这个；事实仍在流 / `/trace` 里）。
-        // 2026-10-15 用户令：「决策卡的结果后面还有一行『风险』…不需要再显示了，很影响注意力」⇒ **整行撤掉**
+        // 2026-10-14 20:30 主人令：**「risk 声明 N 次」不上卡**（用户不需要知道这个；事实仍在流 / `/trace` 里）。
+        // 2026-10-15 主人令：「决策卡的结果后面还有一行『风险』…不需要再显示了，很影响注意力」⇒ **整行撤掉**
         // （「草稿未决 N 条 / 留档 N 次」随之不再常驻；事实照旧在事件流里，`/trace` 可查）。
 
-        // 用户 2026-10-14 20:30 令：**模型自己声明过的 risk 备注不上卡** —— 它们逐条带命令与**绝对地址**，
-        // 一屏就被占掉大半（用户原话：「模型引用过的各种地址……占据了很大的显示空间……收进原文里」）。
+        // 主人 2026-10-14 20:30 令：**模型自己声明过的 risk 备注不上卡** —— 它们逐条带命令与**绝对地址**，
+        // 一屏就被占掉大半（主人原话：「模型引用过的各种地址……占据了很大的显示空间……收进原文里」）。
         // 事实不丢：仍在事件流里（`/trace` 可逐条看）。
 
 
@@ -282,7 +282,7 @@ public static class LifecyclePresenter
             lines.Add($"[[warn]]⚠ 终局块冲突 {lifecycle.TerminalConflicts} 次（协议要求互斥 ⇒ 报告，不猜）[[/]]");
         }
 
-        // 被拒的调用：**v14 起不再常驻红字**（用户 2026-09-22 01:1x：「红字不用显示出来，runtime 存档即可，可展开查看」）。
+        // 被拒的调用：**v14 起不再常驻红字**（主人 2026-09-22 01:1x：「红字不用显示出来，runtime 存档即可，可展开查看」）。
         // 存档照旧一条不少（事件流 + 账本）；折叠态只给一句**注记**（不是告警），原文与颜色都在**展开态 / `/trace`** 里。
         // 为什么改：它原先**永不折叠** ⇒ 屏上永远挂着红字，观感像「被拦住不放」——而 v13 起它只是**不合协议**，不是闸门。
         var denied = lifecycle.Trace.Where(static e => e.NeverFold).ToArray();
@@ -293,7 +293,7 @@ public static class LifecyclePresenter
             foreach (var entry in lifecycle.Trace)
             {
                 // 展开 = 看**全量**：条目一条不少，且**正文照印**。
-                // 用户 2026-09-29 19:56 令（缺口 A③）：此前展开态也只印首行 ⇒ 多行工具结果的**正文在屏上根本看不到**，
+                // 主人 2026-09-29 19:56 令（缺口 A③）：此前展开态也只印首行 ⇒ 多行工具结果的**正文在屏上根本看不到**，
                 // 与「原文永远在流里 ⇒ /trace 看原文」的承诺不符。折叠态仍可只给摘要——那是屏面的事，不是事实的事。
                 var bodyLines = (entry.Text ?? string.Empty).Replace("\r", string.Empty).Split('\n');
                 lines.Add(entry.NeverFold
@@ -319,10 +319,10 @@ public static class LifecyclePresenter
             }
         }
 
-        // 没有 worker 事实 ⇒ 在灰色页脚里插「单 master」（用户 2026-10-14 20:40 令）。
+        // 没有 worker 事实 ⇒ 在灰色页脚里插「单 master」（主人 2026-10-14 20:40 令）。
         lines.Add($"[[dim]]{Footer(lifecycle, singleMaster: workers is null or { Count: 0 })}[[/]]");
 
-        // —— 卡下的**决策报告**（成品层 · 协议 v21 第 12 条 · 用户 2026-09-24 定）——
+        // —— 卡下的**决策报告**（成品层 · 协议 v21 第 12 条 · 主人 2026-09-24 定）——
         // 只在「宿主要过报告」或「已经交了」时画：旧流 / 关掉自动接续的会话不画 ——
         // 不然 replay 出来的老卡会凭空多一句「未提交」（那是**假话**，§十·30）。
         if (includeReport && (lifecycle.ReportRequested || lifecycle.ReportText.Length > 0))
@@ -352,21 +352,21 @@ public static class LifecyclePresenter
     }
 
     /// <summary>页脚那一行（轮 / 工具 / 拒绝 / 留档 / 用量；**用量未知就写破折号，不写 0**）。
-    /// <para>2026-10-14 用户令：**「· 风险声明 N」已从本行移除** —— 这一行他常看，那一项阻碍顺畅阅读。</para></summary>
+    /// <para>2026-10-14 主人令：**「· 风险声明 N」已从本行移除** —— 这一行他常看，那一项阻碍顺畅阅读。</para></summary>
     public static string Footer(TaskLifecycle lifecycle, bool singleMaster = false)
     {
         ArgumentNullException.ThrowIfNull(lifecycle);
 
         var usage = lifecycle.Usage is null ? "用量 —" : lifecycle.Usage.Footer();
         var filed = lifecycle.Filed > 0 ? $" · 留档 {lifecycle.Filed}" : string.Empty;   // v13：无留档就不占位
-        // 用户 2026-10-14 20:40 令：**没有 worker 就别单开一行**（那行很影响阅读）——
+        // 主人 2026-10-14 20:40 令：**没有 worker 就别单开一行**（那行很影响阅读）——
         // 在本行（灰色字）里插一小段即可：「现在是谁在干活」一眼就够。
         var solo = singleMaster ? " · 单 master" : string.Empty;
         return $"{lifecycle.Turns} 轮 · 工具 {lifecycle.ToolCalls} · 拒绝 {lifecycle.Denied}{filed}"
                + $"{solo} · {usage}";
     }
 
-    // ---------------- 累积显示：意图 / 打算 / 结果（v8 · 用户 2026-09-24 19:30 定） ----------------
+    // ---------------- 累积显示：意图 / 打算 / 结果（v8 · 主人 2026-09-24 19:30 定） ----------------
 
     /// <summary>结果段落续行的对齐缩进（「结果：」= 2 个全角 + 一个冒号 ⇒ 5 列）。</summary>
     private const string ResultContinuation = "     ";
@@ -478,12 +478,11 @@ public static class LifecyclePresenter
                 continue;
             }
 
-            // **一行一条**（用户 2026-09-24 19:4x 定：「有新结果就加上一行」）——
-            // 首行是「结果」那一行，行尾带 `E###`；该轮还有续行 ⇒ **给去处**（`/result`），**不截字**（`§十·34`）。
+            // **一行一条**（主人 2026-09-24 19:4x 定：「有新结果就加上一行」）——
+            // 首行是「结果」那一行，行尾只留灰色 `(E###)` 锚（2026-10-18 主人令：不要「另 N 行 ⇒ /result」，
+            // 用户不需要在卡上看到续行指针；原文仍可用 `/result` 查看）。
             var lines = prose.Split('\n');
-            yield return lines.Length == 1
-                ? $"结果：{lines[0].TrimEnd()} [[dim]]（{entry.Tag}）[[/]]"
-                : $"结果：{lines[0].TrimEnd()} [[dim]]（{entry.Tag} · 另 {lines.Length - 1} 行 ⇒ `/result`）[[/]]";
+            yield return $"结果：{lines[0].TrimEnd()} [[dim]]（{entry.Tag}）[[/]]";
         }
 
         // 终局块正文：**本任务的结论** —— 逐字**全文**（决定型内容不截断、不折行，`§十·34`）。
@@ -551,13 +550,13 @@ public static class LifecyclePresenter
         string.IsNullOrEmpty(tag) ? string.Empty : $" [[dim]]（{tag}）[[/]]";
 
     /// <summary>
-    /// **决策报告（成品层）** —— 铺在生命周期块**最下面**；卡本身一字不改（用户 2026-09-24 19:0x 定）。
+    /// **决策报告（成品层）** —— 铺在生命周期块**最下面**；卡本身一字不改（主人 2026-09-24 19:0x 定）。
     /// <para>
     /// 三条纪律：
     /// <list type="number">
     /// <item><b>报告不含原料</b>：这里只排远端 AI 交的要点，从不把正文（<c>/result</c> 那一份）顶上来；</item>
     /// <item><b>未交 ⇒ 只贴框</b>（fail-closed）：一句「未提交决策报告」+ 指针，**绝不拿原料充数**；</item>
-    /// <item><b>完整展示、不折叠</b>（用户 19:1x 定）：报告多长就多长；正文行**不截字**（`§十·34`）。</item>
+    /// <item><b>完整展示、不折叠</b>（主人 19:1x 定）：报告多长就多长；正文行**不截字**（`§十·34`）。</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -583,6 +582,16 @@ public static class LifecyclePresenter
 
         var anchors = new List<ReportAnchor>();
 
+        // —— 一·补、术语表（v85）：先解释缩写/类型/别名，再读正文 ——
+        if (report.Terms.Count > 0)
+        {
+            lines.Add("[[strong]]术语[[/]]");
+            foreach (var term in report.Terms)
+            {
+                lines.Add($"   {term.Key} = {Collapse(term.Meaning)}");
+            }
+        }
+
         // —— 一、这一轮要解决什么 ——
         lines.Add($"[[strong]]{SectionNumbers[0]}、这一轮要解决什么[[/]]");
         lines.AddRange(Paragraph(report.Need));
@@ -601,6 +610,10 @@ public static class LifecyclePresenter
                 }
 
                 lines.Add($"   2.{i + 1} {Collapse(step.What)}{InlineAnchor(step.Evidence)}");
+                if (!string.IsNullOrWhiteSpace(step.Why))
+                {
+                    lines.Add($"      为什么：{Collapse(step.Why)}");
+                }
             }
         }
 
@@ -622,11 +635,17 @@ public static class LifecyclePresenter
                     anchors.Add(new ReportAnchor(key, finding.Evidence!));
                 }
 
-                rows.Add([FindingLabel(finding.Kind), Collapse(finding.What), finding.Evidence ?? ""]);
+                rows.Add([FindingLabel(finding.Kind), Collapse(finding.What), Collapse(finding.Impact ?? ""), finding.Evidence ?? ""]);
             }
 
             lines.Add("   T1 过程发现");
-            lines.AddRange(TextTable.Render(["类别", "发现", "锚"], rows).Select(static line => "   " + line.ToMarkup()));
+            var foundHeaders = report.Found.Any(f => !string.IsNullOrWhiteSpace(f.Impact))
+                ? new[] { "类别", "发现", "影响", "锚" }
+                : new[] { "类别", "发现", "锚" };
+            var foundRows = foundHeaders.Length == 4
+                ? rows
+                : rows.Select(r => (IReadOnlyList<string>)new[] { r[0], r[1], r[3] }).ToList();
+            lines.AddRange(TextTable.Render(foundHeaders, foundRows).Select(static line => "   " + line.ToMarkup()));
         }
         else if (report.Found.Count == 1)
         {
@@ -639,16 +658,27 @@ public static class LifecyclePresenter
             }
 
             lines.Add($"   4.1 {FindingLabel(finding.Kind)}：{Collapse(finding.What)}{InlineAnchor(finding.Evidence)}");
+            if (!string.IsNullOrWhiteSpace(finding.Impact))
+            {
+                lines.Add($"      影响：{Collapse(finding.Impact)}");
+            }
         }
 
         // —— 五、接下来（编号项 + 宿主兜底通道行；**兜底行只指已有通道**）——
         if (report.Next.Count > 0)
         {
-            lines.Add($"[[strong]]{SectionNumbers[4]}、接下来（回 1 / 2 / 3，或直接说）[[/]]");
+            var nextHeading = frame.Status == TaskLifecycleStatus.WaitingForUser
+                ? "五、建议处理方式与后果（回 1 / 2 / 3，或直接说）"
+                : "五、接下来（回 1 / 2 / 3，或直接说）";
+            lines.Add($"[[strong]]{nextHeading}[[/]]");
             foreach (var item in report.Next)
             {
                 var mark = item.Recommended ? " [[dim]]（它建议）[[/]]" : string.Empty;
                 lines.Add($"   [[todo]]{item.Index}.[[/]] {Collapse(item.Text)}{mark}");
+                if (!string.IsNullOrWhiteSpace(item.Consequence))
+                {
+                    lines.Add($"      → {Collapse(item.Consequence)}");
+                }
             }
         }
 

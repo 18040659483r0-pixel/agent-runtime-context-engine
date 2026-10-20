@@ -606,7 +606,7 @@ public static class TaskTerminalAssertions
             return false;
         }
 
-        // 四字段的唯一形状声明处 = WorkerReceiptShape（用户 2026-09-29 完整验证现场）：
+        // 四字段的唯一形状声明处 = WorkerReceiptShape（主人 2026-09-29 完整验证现场）：
         // 渲染侧写 `key="…"`、闸门侧此前只认 `key:` ⇒ 「明明有四字段却说没有」⇒ [DONE] 永远过不了。
         // 现在两边共用同一份：字段名 + 「`:` 或 `=` 都认、大小写不敏感、不要求行首」。
         return WorkerReceiptShape.HasAllRequired(text);

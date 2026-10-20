@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 namespace AgentRuntime.Presentation;
 
 /// <summary>
-/// **文本里的「块表」→ 装进给定宽度**（决策报告正文用 · 2026-10-14 用户令）。
-/// <para>用户令原文：「给 TUI 设计一个接收决策报告中的表格的**重绘算法**，让表格能够适应我们自己当前终端的宽度，
+/// **文本里的「块表」→ 装进给定宽度**（决策报告正文用 · 2026-10-14 主人令）。
+/// <para>主人令原文：「给 TUI 设计一个接收决策报告中的表格的**重绘算法**，让表格能够适应我们自己当前终端的宽度，
 /// **不要绘制表格错乱**。」</para>
 /// <para><b>分工（一处声明）</b>：本类只做「哪几行是一张表」的**识别**与**转交**；
 /// 几何与三档（S 原样 / M 缩折 / D 竖向）在 <see cref="TextTable.Fit"/>（表格几何的既有唯一家）。</para>
@@ -14,9 +14,9 @@ namespace AgentRuntime.Presentation;
 public static class TableReflow
 {
     /// <summary>
-    /// **表格总宽的可用占比**（用户 2026-10-14 21:4x 令）：表**连缩进在内**最多占可用宽的这一比例，其余留作右边界余量。
+    /// **表格总宽的可用占比**（主人 2026-10-14 21:4x 令）：表**连缩进在内**最多占可用宽的这一比例，其余留作右边界余量。
     /// <para>为什么：重排后的表会**恰好铺到最后一列** ⇒ 真机观感「贴着、越过右边界一点点」。留 ~10% 后松一档，
-    /// 也更耐各终端在右缘折行（用户原话：「少许宽度紧缩个 10% 估计就优雅很多了」）。</para>
+    /// 也更耐各终端在右缘折行（主人原话：「少许宽度紧缩个 10% 估计就优雅很多了」）。</para>
     /// </summary>
     public const double WidthShare = 0.90;
 
@@ -38,7 +38,7 @@ public static class TableReflow
 
         // ⚠️ 检测与解析一律在**纯文本**上做：宿主用 `TextTable.Render(...).ToMarkup()` 画的表，每行都带
         //    `[[strong]]…[[/]]` ⇒ 首字符是 `[` 而不是 `┌`/`│` ⇒ 不过这一层就会**判定失败、整块漏过**
-        //    （超宽即被 Wrap 折烂 —— 用户报的现场）。放过的**非表行**照旧输出**原文**（标记一个字不动）。
+        //    （超宽即被 Wrap 折烂 —— 主人报的现场）。放过的**非表行**照旧输出**原文**（标记一个字不动）。
         var plain = lines.Select(Markup.Strip).ToList();
 
         var output = new List<string>(lines.Count);
@@ -49,7 +49,7 @@ public static class TableReflow
             {
                 // ⚠️ 宽度预算要**扣掉这行自己的缩进**（卡里的表普遍带 `   ` 缩进）——
                 //    否则「表宽 80 + 缩进 3 = 83」仍会被外层 Wrap 折一刀（实测踩过）。
-                // ⚠️ 再留 **WidthShare 的右边界余量**（用户 2026-10-14 21:4x 令）：预算先按可用宽收缩到 90%，
+                // ⚠️ 再留 **WidthShare 的右边界余量**（主人 2026-10-14 21:4x 令）：预算先按可用宽收缩到 90%，
                 //    再扣缩进 —— 「表宽 + 缩进」总落在可用宽的 90% 以内，右边界不再贴边。
                 var usable = Math.Max(1, (int)Math.Floor(width * WidthShare));
                 var budget = Math.Max(1, usable - TerminalText.WidthOf(indent));
@@ -93,7 +93,7 @@ public static class TableReflow
 
         // ⚠️ 2026-10-14：**宿主自己画的表**（`TextTable.Render` 的 `┌─┬─┐/│/└─┴─┘`）也必须重排 ——
         // 决策报告里的「类别 / 发现 / 锚」表就是它（`LifecyclePresenter` 两处）。此前只认 Markdown 管表 ⇒
-        // 框线表整块漏过 ⇒ 一超宽就被 Wrap 折烂（用户报的「表格比终端宽、换行错乱」）。
+        // 框线表整块漏过 ⇒ 一超宽就被 Wrap 折烂（主人报的「表格比终端宽、换行错乱」）。
         if (!trimmed.StartsWith('|'))
         {
             return TryParseBox(lines, start, out header, out rows, out consumed, out indent);

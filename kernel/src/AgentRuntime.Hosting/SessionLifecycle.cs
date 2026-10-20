@@ -113,7 +113,7 @@ public sealed record ResetReport(
             ArchivedResumePoint is null
                 ? "[重开] 旧恢复点：同路径，会被新会话的恢复点覆盖（旧流已归档，不影响回到它）"
                 : $"[重开] 旧恢复点已另存：{ArchivedResumePoint}",
-            // **worker 集合**（用户 2026-09-29 18:50）：reset 对**每一个** worker 生效，不是只动当前那个。
+            // **worker 集合**（主人 2026-09-29 18:50）：reset 对**每一个** worker 生效，不是只动当前那个。
             //   逐家报事实；失败**不静默跳过** —— 哪一家、什么错，都要在屏上看得见。
             (WorkerArchives is null || WorkerArchives.Count == 0) && (WorkerFailures is null || WorkerFailures.Count == 0)
                 ? "[重开] worker 侧：没有可归档的 worker 家（没配 / 本来就没有流）"
@@ -165,7 +165,7 @@ public sealed record StartReport(
             lines.Add($"[开始] 已装载：白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行 —— **接着往下做就行**（不用重述上下文）。");
         }
 
-        // **worker 集合逐个宣告**（用户 2026-09-29 18:50）：有几家就报几家 —— 不是只报「当前那一个」。
+        // **worker 集合逐个宣告**（主人 2026-09-29 18:50）：有几家就报几家 —— 不是只报「当前那一个」。
         if (WorkerLines is { Count: > 0 })
         {
             lines.Add($"[开始] worker 侧（{WorkerLines.Count} 家，同一个集合，逐个读）：{string.Join(" · ", WorkerLines)}");
@@ -183,7 +183,7 @@ public sealed record StartReport(
 /// <summary>
 /// **会话生命周期**（协议 v9 第 7 条的宿主实现）：<b>收尾</b>（closeout）与<b>重开</b>（reset）。
 /// <para>
-/// **完整流程是三步**（协议 v10 第 7 条 · 用户 2026-09-20 13:5x 定）：
+/// **完整流程是三步**（协议 v10 第 7 条 · 主人 2026-09-20 13:5x 定）：
 /// <b>closeout</b>（收敛 + 记水位线 + **存末态**）→ <b>reset</b>（归档旧流，会话结束）→ <b>start</b>（开新会话，
 /// 白板与草稿**从末态开始**）。「继承」的正解不是「文件恰好没动」，而是「**最后状态被明确留下，新会话从它开始**」。
 /// </para>
@@ -228,7 +228,7 @@ public static class SessionLifecycle
         //（含 ToolRunner）⇒ 之后账就空了（不是 bug 而是设计：换面 = 重建）。实测：第一版取在它后面 ⇒ 末态里 Artifacts 恒空。
         var artifacts = host.Modules.OfType<ToolModule>().FirstOrDefault()?.Runner.Artifacts.ToArray() ?? [];
 
-        // **收尾命令强制把 master 的面放成全量**（用户 2026-09-30 12:47：收尾命令里强制使用 master 全量工具授权，
+        // **收尾命令强制把 master 的面放成全量**（主人 2026-09-30 12:47：收尾命令里强制使用 master 全量工具授权，
         // 非收尾阶段工具面一律从 master 手中收走）。放在**读模块之前**：下面 FrozenPrefix / 收尾件 / 交接件都读 host.Modules。
         // 重装**复用当前挂着的流**（reuseStream）—— 否则从盘上重放会把还没落盘的事件读丢。
         host.EnterCloseoutFace();
@@ -361,9 +361,9 @@ public static class SessionLifecycle
         var archived = !string.IsNullOrWhiteSpace(oldStream) && File.Exists(oldStream) ? oldStream : null;
         config.Stream.Path = null;
 
-        // ③·五 **worker 的持续流一并归档**（用户 2026-09-29：master reset ⇒ worker 也 reset，生命周期同源）。
+        // ③·五 **worker 的持续流一并归档**（主人 2026-09-29：master reset ⇒ worker 也 reset，生命周期同源）。
         //       判据 = 盘上事实（流真的移走）；没配 worker / 没有流 ⇒ 什么都不做（行为逐字不变）。
-        //   **集合**（用户 2026-09-29 18:50）：有多个 worker 时逐个归档，不是只动「当前那一个」。
+        //   **集合**（主人 2026-09-29 18:50）：有多个 worker 时逐个归档，不是只动「当前那一个」。
         //   顺序 = 家名升序（确定性、可复算）；**一个失败不静默跳过** ⇒ 收集进 WorkerFailures，由报告响亮说出。
         IReadOnlyList<string> workerArchives = [];
         IReadOnlyList<string> workerFailures = [];
@@ -474,12 +474,12 @@ public static class SessionLifecycle
         var tail = host.Modules.OfType<CurrentTailModule>().FirstOrDefault();
         var draft = host.Modules.OfType<DynamicDraftModule>().FirstOrDefault();
         // **空承接不许把台面清空**（2026-10-15 真机）：`/start` 把末态里的**空**台面 Override 进去 ⇒
-        // 白板/草稿当场变空。用户的口径：**只要更新过一次就永远不可能是空的** ⇒
+        // 白板/草稿当场变空。主人的口径：**只要更新过一次就永远不可能是空的** ⇒
         // **空 ⇒ 不覆盖**（保留现有那份 —— 就是 `CarryFromNewest` 抄来的最近一份）。
         var tailState = handover is null || handover.Tail.Length == 0 ? null : tail?.Override(handover.Tail);
         var draftState = handover is null || handover.Draft.Length == 0 ? null : draft?.Override(handover.Draft);
 
-        // ③·五 **接续线索**（用户 2026-09-22 23:1x 报）：把「上一会话最后一条用户消息 + 它是否答完」作为
+        // ③·五 **接续线索**（主人 2026-09-22 23:1x 报）：把「上一会话最后一条用户消息 + 它是否答完」作为
         // **新流的第一条 Hint** 交给模型 —— 否则中断/重开之后那句“接续”会被当成全新问题（模型只能满仓库猜题意）。
         if (handover is { LastUserMessage.Length: > 0 })
         {
@@ -494,7 +494,7 @@ public static class SessionLifecycle
                 .Save(new SessionPointer(config.Stream.Path, Closed: false, now, host.StartCount, handover?.At.ToString("O")));
         }
 
-        // ③·六 **worker 集合逐个宣告**（用户 2026-09-29 18:50）：start 遍历**同一个集合**（FamiliesOf），
+        // ③·六 **worker 集合逐个宣告**（主人 2026-09-29 18:50）：start 遍历**同一个集合**（FamiliesOf），
         //      不是只报「当前那一个」。归档是 reset 的职责 ⇒ 这里只**读并宣告**每一家的状态（不重复搬文件）。
         var workerLines = config.Worker.Enabled
             ? WorkerWatermark.DescribeFamilies(MinimalWorker.RootOf(config.Worker))
@@ -636,7 +636,7 @@ public static class SessionLifecycle
     /// <summary>
     /// **启动时按配置开窗**（<c>lifecycle.window = always</c>）：整个会话常开 —— 配置声明的那几类目标静默放行。
     /// <para>为什么要有这一档：task 级收尾件（handoff / 坑 / 记忆）发生在**任务过程中**，只在 <c>/closeout</c> 开窗
-    /// ⇒ 那些写还在窗外逐条问（用户实测「一次收尾按十几次」）。</para>
+    /// ⇒ 那些写还在窗外逐条问（主人实测「一次收尾按十几次」）。</para>
     /// </summary>
     public static IReadOnlyList<string> OpenWindowAtBoot(RuntimeHost host)
     {
@@ -698,7 +698,7 @@ public static class SessionLifecycle
         return archived;
     }
     /// <summary>
-    /// **内置收尾**（用户 2026-10-11 定）：运行时**一次给全形状 → 一次模型调用 → 自己覆盖那些 MD**。
+    /// **内置收尾**（主人 2026-10-11 定）：运行时**一次给全形状 → 一次模型调用 → 自己覆盖那些 MD**。
     /// 与旧口径**并列**（旧口径 = 协议第 7/8 条，远端 AI 一轮一轮跑流水线；由 <c>lifecycle.nativeCloseout</c> 选）。
     /// <para><b>处理内容是文件 IO，不是起进程</b>（R2 只管起进程）⇒ 收尾的「内容」这一段运行时可以自己做，
     /// 而且**不过工具面**（<c>[TOOL]</c> 数 = 0）。失败**如实报**，不假装收尾成功。</para>

@@ -73,7 +73,7 @@ public sealed class SolveLanguageTests
     [Fact]
     public void 终局三态_块式写法_正文在下面几行也认_不再未写正文()
     {
-        // 2026-09-22 用户真机现场（流里的 E110）：块头**独占一行**、问题在**下面几行** ——
+        // 2026-09-22 主人真机现场（流里的 E110）：块头**独占一行**、问题在**下面几行** ——
         // 与 [TAIL] / [DRAFT] 同一形状。旧口径只读同一行 ⇒ 正文为空 ⇒ 屏上「[NEED-USER]（未写正文）」
         // + 卡上空的问题位（「待你决定：• 」）：**人被告知要回话却看不到问题**。
         var text =
@@ -123,7 +123,7 @@ public sealed class SolveLanguageTests
         Assert.True(ContextBudget.ShouldPropose(done, 95_000, 100_000));
         Assert.False(ContextBudget.ShouldPropose(done, 79_999, 100_000));    // 差一点就继续做下一个
 
-        // v72（用户 2026-10-17）：**80% 是唯一停手点** —— 不再要求任务已了结。
+        // v72（主人 2026-10-17）：**80% 是唯一停手点** —— 不再要求任务已了结。
         Assert.True(ContextBudget.ShouldPropose(needUser, 90_000, 100_000));
         Assert.True(ContextBudget.ShouldPropose(none, 90_000, 100_000));
         Assert.False(ContextBudget.ShouldPropose(done, 90_000, 0));           // 窗口未知 ⇒ 不拍脑袋
@@ -298,7 +298,7 @@ public sealed class SolveLanguageTests
         b.Reply = "做完了。\n[DONE] 甲";
         var outcome = await b.Host.RunTurnAsync("开始", cancellationToken: Ct);
 
-        // 2026-10-14 用户令：**「预算行」不再铺进正文**（灰色字之下不出现运行时行）⇒ 改判「正文里没有它」。
+        // 2026-10-14 主人令：**「预算行」不再铺进正文**（灰色字之下不出现运行时行）⇒ 改判「正文里没有它」。
         Assert.DoesNotContain(outcome.StderrBeforeResponse, l => l.StartsWith("[收尾要求]", StringComparison.Ordinal));
 
         // 提议同时进流成 Hint 事件（协议第 7 条写的是「当运行时说……」—— 宿主不说，模型就不可能照做）。
@@ -452,7 +452,7 @@ public sealed class SolveLanguageTests
         Assert.EndsWith(".xml", start.NewStream!, StringComparison.Ordinal);
         Assert.NotEqual(b.StreamPath, b.Config.Stream.Path);
         // 新流**不含旧对话**（旧事件留在归档卷里）；若有接续线索，首条是**运行时那条 Hint**（不是历史正文）。
-        // 用户 2026-09-22 23:1x 定：跟 reset 的接续必须把「上一会话最后一条用户消息」交给模型。
+        // 主人 2026-09-22 23:1x 定：跟 reset 的接续必须把「上一会话最后一条用户消息」交给模型。
         // 2 条：① 接续线索（source=runtime）② **无 worker 的可用性告知**（§6.3 判据 2，2026-09-26）
         // 2026-10-10：③ **路径基准**（source=path-base，修 E4/D2）
         // 2026-10-11：④ **工具块形状** Hint 试过又撤了（模型照旧走原生 DSML，无收益）⇒ 仍旧三条。
@@ -506,12 +506,12 @@ public sealed class SolveLanguageTests
         Assert.Contains(report.Lines(b.Config.Frozen.Watermark), l => l.Contains("水位线已推进", StringComparison.Ordinal));
     }
 
-    // ---------------- 中断 / 接续线索（用户 2026-09-22 23:1x 真机现场） ----------------
+    // ---------------- 中断 / 接续线索（主人 2026-09-22 23:1x 真机现场） ----------------
 
     [Fact]
     public async Task 中断会进流_下一轮看得见那句接续提示()
     {
-        // 现场：用户按 Ctrl-C 暂停，紧接着发的那句是**被打断那一轮的接续**，
+        // 现场：主人按 Ctrl-C 暂停，紧接着发的那句是**被打断那一轮的接续**，
         // 但旧实现只往**屏幕**写一行（`⏹ 本轮已中断`），事件流**一条不写** ⇒ 模型以为「上一轮无事发生」，
         // 于是把接续句当全新问题，满仓库去猜题意。修法：同一条消息**同时进流**（既有 Hint 通道）。
         using var b = new Bench();

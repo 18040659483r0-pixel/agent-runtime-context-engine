@@ -20,7 +20,7 @@ public static class WorkerReceiptShape
     public const string KindField = "kind";
 
     /// <summary>读回执里的 <c>kind</c>（无/不在 6 类里 ⇒ 空）。
-    /// <para><b>XML 优先</b>（用户 2026-10-07）：回执若是 <c>&lt;receipt&gt;</c> 元素，就读它的 <c>&lt;kind&gt;</c> 成员；
+    /// <para><b>XML 优先</b>（主人 2026-10-07）：回执若是 <c>&lt;receipt&gt;</c> 元素，就读它的 <c>&lt;kind&gt;</c> 成员；
     /// 否则走旧的 <c>kind=</c> 文本扫描（迁移期的归一后路）。</para></summary>
     public static ReceiptKind? KindOf(string? text) =>
         ReceiptXml.Take(text) is { } xml ? ReceiptKinds.Parse(xml.Kind)

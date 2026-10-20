@@ -105,6 +105,26 @@ public sealed class DecisionReportFlowTests
         Assert.Equal(2, session.Conversation.Count(static e => e.Kind is "you" or "lifecycle"));
     }
 
+    [Fact]
+    public async Task NEED_USER_也请求决策报告_并给出建议处理与后果()
+    {
+        var (session, calls) = await TalkAsync(
+            "两条路都行。\n[NEED-USER] 请二选一：① 改现有层；② 新建独立层",
+            "[REPORT]\nneed: 选哪条路\nstep 1: 现有边界层已审计完\noutcome: 现有边界层已审计完\n"
+            + "next [rec]: ① 改现有层（后果：改动小，但旧边界仍在）\n"
+            + "next: ② 新建独立层（后果：边界干净，但多一轮迁移）");
+
+        Assert.Equal(2, calls);                       // 任务轮 + 报告轮
+        var card = Card(session);
+
+        Assert.Contains("决策报告 #1", card, StringComparison.Ordinal);
+        Assert.Contains("⏳ 等人", card, StringComparison.Ordinal);
+        Assert.Contains("五、建议处理方式与后果", card, StringComparison.Ordinal);
+        Assert.Contains("① 改现有层", card, StringComparison.Ordinal);
+        Assert.Contains("后果：", card, StringComparison.Ordinal);
+        Assert.Equal(2, session.Conversation.Count(static e => e.Kind is "you" or "lifecycle"));
+    }
+
     // ---------------- 负例 ----------------
 
     [Fact]

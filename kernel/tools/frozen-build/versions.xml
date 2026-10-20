@@ -3,41 +3,41 @@
   <Versions>
     <Version>
       <Key>rules.global</Key>
-      <Value>21</Value>
+      <Value>25</Value>
     </Version>
     <Version>
       <Key>knowledge.global</Key>
-      <Value>81</Value>
+      <Value>88</Value>
     </Version>
     <Version>
       <Key>decision.global</Key>
-      <Value>2</Value>
+      <Value>3</Value>
     </Version>
     <Version>
       <Key>memory.index</Key>
-      <Value>32</Value>
+      <Value>36</Value>
     </Version>
   </Versions>
   <Sources>
     <Source>
       <Key>rules.global</Key>
       <Tier>A</Tier>
-      <Sha256>ccb6b4edd85d4eaba8d94fec03e3d514293fe85a93cd6dcd211805158e4843ea</Sha256>
+      <Sha256>74dc00d01e32b9072776a536f7f02c69e9f9ea88f3caf95506d297be1d3b05ab</Sha256>
     </Source>
     <Source>
       <Key>knowledge.global</Key>
       <Tier>A</Tier>
-      <Sha256>4e3cd27c47a4e02f4261317734a0e4456d53f52e81e744a51f9548f94ad63ede</Sha256>
+      <Sha256>6fb73a606f38ac1af0deeeae303e0c5ef056354365070692c6c0261b7ec4eadd</Sha256>
     </Source>
     <Source>
       <Key>decision.global</Key>
       <Tier>A</Tier>
-      <Sha256>bdc6df68008f2c1dd7c9d152771c13614d5224d99c080052f21c15523aefbb40</Sha256>
+      <Sha256>209356aad4aaa032a97ae8d5258840e420a6a973dd6084170812eb7a26520e6c</Sha256>
     </Source>
     <Source>
       <Key>memory.index</Key>
       <Tier>A</Tier>
-      <Sha256>2e18abea63ec0c1c8e1115d89544e1897c880e95ffa3954a1129868004f02de9</Sha256>
+      <Sha256>e0abe47f036514026826426b13cfbee112613b278d999352f168b8c4c6ae6ab9</Sha256>
     </Source>
   </Sources>
 </FrozenVersions>

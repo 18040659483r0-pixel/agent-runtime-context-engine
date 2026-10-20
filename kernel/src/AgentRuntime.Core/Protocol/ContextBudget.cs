@@ -59,7 +59,7 @@ public static class ContextBudget
     public static bool ShouldPropose(TerminalReport terminal, int promptTokens, int windowTokens)
     {
         ArgumentNullException.ThrowIfNull(terminal);
-        // 用户 2026-10-17 15:5x：**80% 是唯一停手点**，不再要求「任务已终局」
+        // 主人 2026-10-17 15:5x：**80% 是唯一停手点**，不再要求「任务已终局」
         //（<80% 一律继续做下一个 task；任务终局只是「可以更早收」的额外理由，不是门槛）。
         return windowTokens > 0
             && promptTokens > 0

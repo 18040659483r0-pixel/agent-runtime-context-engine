@@ -1,6 +1,7 @@
 using AgentRuntime.Core;
 using AgentRuntime.Core.Focus;
 using AgentRuntime.Core.Knowledge;
+using AgentRuntime.Core.Protocol;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Models;
 
@@ -32,6 +33,9 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
 
     private readonly SessionStreamStore? _store;
     private readonly bool _captureFocusReports;
+
+    /// <summary>本次会话是否已经提醒过「缺 [FOCUS]」——只提醒一次，避免每轮刷屏。</summary>
+    private string? _focusHintTurnTag;
     private readonly List<string> _warnings = [];
 
     /// <param name="stream">事件流（内存态；落盘另传 store）。</param>
@@ -143,7 +147,7 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
 
         if (context.IsRuntimeNotice)
         {
-            // **运行时提示**（2026-10-09 用户令）：催稿 / 语法提示是**运行时说的**，不是用户输入 ⇒ 记成 Hint。
+            // **运行时提示**（2026-10-09 主人令）：催稿 / 语法提示是**运行时说的**，不是用户输入 ⇒ 记成 Hint。
             // 形状上就分得开「谁说的」 —— 否则聚合器会把它数成新 task（真机：17 次派发被数成 42）。
             if (!string.IsNullOrWhiteSpace(userText))
             {
@@ -167,11 +171,40 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
         }
 
         // V4.1 §四：把远端模型的**非确定性自报**固化成流里的事实（只追加、不改历史）。
-        // 解析不到 ⇒ 什么都不做（模型没配合不是数据错误，不报错）。
-        if (_captureFocusReports && agentEvent is not null && FocusService.TryParseReport(output, out var tags))
+        // 解析不到 ⇒ 不写 FocusReport；**每一轮**缺 [FOCUS] 时提示一次（按 turn 去重，不是按进程一次）：
+        // 2026-10-18 真机：模型只在状态变了才写 TAIL/DRAFT，而旧提示也只在「写了 TAIL/DRAFT 却没写 FOCUS」时触发
+        // ⇒ 普通工作轮（不写 TAIL/DRAFT）永远不检查，焦点权重逐轮衰减到空、面板永远「未报」。
+        // 协议 v80 把 FOCUS 提到第 17 条并要求**每轮都写**；这里同步把闸门改成每轮检查。
+        if (_captureFocusReports && agentEvent is not null)
         {
-            var report = new FocusReport { Tags = tags, Turn = context.Turn, TurnTag = agentEvent.Tag };
-            AppendDocument(SessionEventKind.FocusReport, report.Text);
+            if (FocusService.TryParseReport(output, out var tags))
+            {
+                var report = new FocusReport { Tags = tags, Turn = context.Turn, TurnTag = agentEvent.Tag };
+                AppendDocument(SessionEventKind.FocusReport, report.Text);
+            }
+            // 报告轮（[REPORT]）豁免：它是那篇「给人读的文章」，不带工具/状态；焦点在这里没有价值。
+            else if (!output.Contains(ProtocolText.ReportPrefix, StringComparison.Ordinal)
+                     && !string.Equals(_focusHintTurnTag, agentEvent.Tag, StringComparison.Ordinal))
+            {
+                _focusHintTurnTag = agentEvent.Tag;
+
+                // **2026-10-19 优化（主人令「做归一」）**：模型每轮漏写 [FOCUS] 时，旧路发一条长提示
+                // （真机 9~12 条/会话，每条约 250 字）却仍不写 ⇒ 焦点逐轮衰减。改成**运行时按事实补焦点**：
+                // 用本轮最近 1~5 条 ToolResult 的 tag 生成 FocusReport（焦点只从「本轮依据」来，语义不变），
+                // 不再把提示塞进上下文。真的一个工具结果都没有（首轮/纯问答）才发一次短提示。
+                var recent = RecentToolTags(5);
+                if (recent.Count > 0)
+                {
+                    AppendDocument(SessionEventKind.FocusReport, string.Join(" ", recent));
+                }
+                else
+                {
+                    AppendDocument(
+                        SessionEventKind.Hint,
+                        "本轮缺 `[FOCUS]` 且没有工具结果可依据 —— 下一轮请按协议第 17 条写 `[FOCUS] E### …`（或 `[FOCUS] none`）。",
+                        "focus-missing");
+                }
+            }
         }
 
         // v74：兑现 [KN] 自报 —— 模型点名的知识节点**按 id** 经同一条 append 通道进流。
@@ -190,5 +223,22 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
         }
 
         return ValueTask.CompletedTask;
+    }
+    /// <summary>最近一条 ToolResult 的事件标签（给焦点提示一个**可照抄的候选**，不让模型只能写 none）。</summary>
+    /// <summary>本轮最后 N 条工具结果的 tag（按时间正序返回；用于补焦点）。</summary>
+    private List<string> RecentToolTags(int max)
+    {
+        var events = Stream.Events;
+        var tags = new List<string>(max);
+        for (var i = events.Count - 1; i >= 0 && i >= events.Count - 16 && tags.Count < max; i--)
+        {
+            if (events[i].Kind == SessionEventKind.ToolResult)
+            {
+                tags.Add(events[i].Tag);
+            }
+        }
+
+        tags.Reverse();
+        return tags;
     }
 }

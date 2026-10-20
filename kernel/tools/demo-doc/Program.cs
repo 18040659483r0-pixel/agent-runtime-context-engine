@@ -9,7 +9,7 @@ namespace AgentRuntime.Tools.DemoDoc;
 /// 分工（生成物同步纪律）：本工具按「节标题 + 该节内第几个 ```text 块」定位，**只换围栏里的正文**，
 /// 散文一字不动；<c>--check</c> 只报不改。`wb-cli verify-demo` 独立复验（帧逐行比对、墙钟归一化）——成对使用。
 /// </para>
-/// <para><b>为什么搬</b>：core 内不许出现 Python（用户 2026-09-29 定案）。判据 = 与 py 逐字节等价。</para>
+/// <para><b>为什么搬</b>：core 内不许出现 Python（主人 2026-09-29 定案）。判据 = 与 py 逐字节等价。</para>
 /// </summary>
 public static class Program
 {

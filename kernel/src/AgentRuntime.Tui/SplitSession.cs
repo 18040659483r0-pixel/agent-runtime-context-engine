@@ -46,7 +46,7 @@ public sealed class SplitSession
     private readonly bool _verbose;
 
     /// <summary>
-    /// **累积显示**（v8 · 用户 2026-09-24 19:30 定；默认开）：意图 / 打算 / 结果**有新推进就加一行**，
+    /// **累积显示**（v8 · 主人 2026-09-24 19:30 定；默认开）：意图 / 打算 / 结果**有新推进就加一行**，
     /// 卡会变长（看得到思考过程）；<c>/append off</c> 关掉回到旧口径（只显示最新一条）。
     /// <para>只是**显示开关** —— 不动事件流、不进 prompt（送进模型的字节一个字不改）。</para>
     /// </summary>
@@ -72,13 +72,28 @@ public sealed class SplitSession
     /// </summary>
     private static ConsoleKeyInfo ReadConsoleKey()
     {
-        try
+        // 方案 1（2026-10-18）：优先 raw UTF-8 输入后端；非 TTY / 安装失败才退回 ReadKey。
+        if (RawConsoleInput.Current is { } raw)
         {
-            return Console.ReadKey(intercept: true);
+            return raw.Read();
         }
-        catch (System.IO.IOException ex)
+
+        // 中文输入法会让终端短暂改写 termios（macOS 实测：偶发 EIO），而 stdio 本身还在。
+        // 先给两次短重试；仍失败才认「终端真没了」——不要因为输入法抖动就丢掉整场会话。
+        for (var attempt = 0; ; attempt++)
         {
-            throw new InputDisconnectedException(ex);
+            try
+            {
+                return Console.ReadKey(intercept: true);
+            }
+            catch (System.IO.IOException) when (attempt < 2)
+            {
+                Thread.Sleep(15);
+            }
+            catch (System.IO.IOException ex)
+            {
+                throw new InputDisconnectedException(ex);
+            }
         }
     }
 
@@ -90,13 +105,28 @@ public sealed class SplitSession
             return false;
         }
 
-        try
+        // raw 输入后端（2026-10-18 方案 1）自己读 stdin ⇒ .NET 的 Console.KeyAvailable
+        // 看不到那些字节（恒 false）。必须问 raw 队列，否则主循环只能等 settle 才读一键，
+        // 表现为「输入像一个字一个字打、退格丢键」。这是同一条输入的**唯一可用性来源**。
+        if (RawConsoleInput.Current is { } raw)
         {
-            return Console.KeyAvailable;
+            return raw.HasInput;
         }
-        catch (System.IO.IOException ex)
+
+        for (var attempt = 0; ; attempt++)
         {
-            throw new InputDisconnectedException(ex);
+            try
+            {
+                return Console.KeyAvailable;
+            }
+            catch (System.IO.IOException) when (attempt < 2)
+            {
+                Thread.Sleep(15);
+            }
+            catch (System.IO.IOException ex)
+            {
+                throw new InputDisconnectedException(ex);
+            }
         }
     }
 
@@ -136,13 +166,13 @@ public sealed class SplitSession
     private int _menuSelection;
     /// <summary>
     /// **就地展开的区**（v12）：正文摊在**目录里它自己那一行下面**（不另占一块，也不覆盖详细块）。
-    /// <para>默认 = 白板 R4 / 草稿 R5 / 焦点 R3（用户 2026-09-20 15:3x 定的常态）；
+    /// <para>默认 = 白板 R4 / 草稿 R5 / 焦点 R3（主人 2026-09-20 15:3x 定的常态）；
     /// 按 <c>Enter</c> 就地插入 / 收起，设置**记在 <c>~/.agentruntime/tui.xml</c></b>（下次拉起照旧）。</para>
     /// </summary>
     /// <summary>
     /// **就地展开的区集**（v13：**默认全部展开**）。
     /// <para>历史：v12 默认只展开 R4/R5/R3，且把人的选择落盘（<c>tui.xml</c>）—— 结果是
-    /// 「默认没展开、还得 Enter 一个个点」，而且落盘的旧子集会把默认值盖回去（用户 2026-09-21 23:5x 报）。
+    /// 「默认没展开、还得 Enter 一个个点」，而且落盘的旧子集会把默认值盖回去（主人 2026-09-21 23:5x 报）。
     /// 现在**不读旧设置**、一律全展开；Escape / Enter 仍可在本次会话内收起（**不再落盘**）。</para>
     /// </summary>
     private readonly HashSet<StackRegion> _inline = [.. StackPanel.Ordered];
@@ -151,6 +181,15 @@ public sealed class SplitSession
     private readonly TuiStateStore? _tuiState;
     private PaneFocus _focus = PaneFocus.Input;
     private string _input = string.Empty;
+    /// <summary>超大粘贴的折叠指示（|Command+V: N 行|）；null = 正常显示输入内容。</summary>
+    /// <summary>大段粘贴的正文（哨兵 ID 存在 _input 里，渲染成 |Command+V: N 行|）。</summary>
+    private readonly Dictionary<int, string> _pastePayloads = [];
+
+
+    private int _pasteSeq;
+
+    private const char PasteStart = '\u0001';
+    private const char PasteEnd = '\u0002';
 
     /// <summary>
     /// **最后一次真的改动输入的时刻**（<c>Environment.TickCount64</c>）—— 输入区行高防抖的时钟（v12）。
@@ -196,7 +235,7 @@ public sealed class SplitSession
         _tuiState = tuiState;
         Style = style ?? StyleTable.Standard;
 
-        // v13：**不读回旧的 InlineExpanded** —— 那个子集会把「默认全展开」盖回去（用户 23:5x 报的
+        // v13：**不读回旧的 InlineExpanded** —— 那个子集会把「默认全展开」盖回去（主人 23:5x 报的
         // 「拉起后一个个模块都没展开」）。人类偏好仍可落盘（TuiState），但展开态不再由它决定。
     }
 
@@ -248,7 +287,9 @@ public sealed class SplitSession
     /// <summary>提交一行（普通文本 = 一轮；<c>/</c> 开头 = 面板）。</summary>
     public async Task SubmitAsync(string line, CancellationToken cancellationToken = default)
     {
-        line = line.Trim();
+        // 终端/输入法偶尔把括号粘贴标记漏进正文（真机 user input 里出现过 `[200~…`）：
+        // 在这里做最后一道净化，绝不把控制标记当用户消息。
+        line = StripPasteMarkers(line).Trim();
         if (line.Length == 0)
         {
             return;
@@ -263,6 +304,22 @@ public sealed class SplitSession
         if (line.StartsWith("/decide", StringComparison.OrdinalIgnoreCase))
         {
             await DecideAsync(line, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (line.Equals("/retry", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_retryMessage is { Length: > 0 } retry)
+            {
+                _conversation.Add(new ConversationEntry("info", "重试上一句（provider 恢复后）…"));
+                await RunTurnAsync(retry, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                _conversation.Add(new ConversationEntry("info", "/retry → 没有待重试的失败轮次。"));
+            }
+
+            Redraw?.Invoke();
             return;
         }
 
@@ -352,7 +409,7 @@ public sealed class SplitSession
         return pool.Snapshot().Select(e =>
         {
             var fx = UsageFact(e.Usage);   // 2026-10-09：此刻上下文 + 命中率（上限不显示 —— 换模型就不同）
-            // 逐轮结果 append（2026-10-09 用户令）：每轮的产出各占一行（工蜂卡照 master 的「结果逐轮 append」）。
+            // 逐轮结果 append（2026-10-09 主人令）：每轮的产出各占一行（工蜂卡照 master 的「结果逐轮 append」）。
             var trace = e.Trace.Count == 0
                 ? string.Empty
                 : "\n" + string.Join('\n', e.Trace.Select((t, i) => $"轮 {i + 1}：{t}"));
@@ -370,7 +427,7 @@ public sealed class SplitSession
         }).ToArray();
     }
 
-    /// <summary>**用量事实**（2026-10-09 用户令）：当前 task 新增 tok · 缓存命中率 · 上下文 tok · 第 N 轮。
+    /// <summary>**用量事实**（2026-10-09 主人令）：当前 task 新增 tok · 缓存命中率 · 上下文 tok · 第 N 轮。
     /// <para>没有用量（未结算 / 无回执）⇒ 空串（**不占字节** —— 与「无 worker 那一行根本不存在」同规）。</para></summary>
     internal static string UsageFact(AgentRuntime.Core.Worker.WorkerUsage? u)
     {
@@ -379,8 +436,8 @@ public sealed class SplitSession
             return string.Empty;
         }
 
-        // **此刻上下文**（2026-10-09 用户令）：取**最新一轮**的 prompt（缓存部分**不重复累计**）—— 不是逐轮之和。
-        // 上限（窗口）**不显示**（2026-10-09 用户令：该家 1M、但换模型就不同 ⇒ 不写死）。
+        // **此刻上下文**（2026-10-09 主人令）：取**最新一轮**的 prompt（缓存部分**不重复累计**）—— 不是逐轮之和。
+        // 上限（窗口）**不显示**（2026-10-09 主人令：该家 1M、但换模型就不同 ⇒ 不写死）。
         var ctx = u.ContextTokens > 0 ? u.ContextTokens : u.PromptTokens;
         var cached = u.ContextTokens > 0 ? u.ContextCached : u.CachedTokens;
         var hit = ctx == 0 ? 0 : (double)Math.Max(0, cached) / ctx * 100.0;
@@ -402,6 +459,16 @@ public sealed class SplitSession
             StackPanel.TotalBytes(layers),
             _lastReal?.Bytes ?? 0,
             _lastReal?.Fingerprint12);
+
+        // 输入框按内容自动增高（2026-10-18 主人报：超过一行不长高；2026-10-19：上限 5 行太小）；
+        // 下限保留原来的「按屏高」值（≥24 行时 2 行），上限按**屏高**收紧到半屏（且 ≤ MaxInputRows）。
+        // raw UTF-8 后端只把**已提交**字符写进输入缓冲 ⇒ 输入法预编辑串不会再顶行高。
+        var maxRows = Math.Clamp(height / 2, SplitLayout.InputPanelRowsFor(height), SplitLayout.MaxInputRows);
+        var displayInput = RenderInput();
+        var displayCaret = RenderCaret();
+        var inputRows = Math.Min(
+            maxRows,
+            Math.Max(SplitLayout.InputPanelRowsFor(height), SplitRenderer.InputRowsFor(displayInput, width)));
 
         return new SplitFrame
         {
@@ -431,10 +498,10 @@ public sealed class SplitSession
             DetailLines = _detail,
             DetailScroll = _detailScroll,
             ConversationScroll = _conversationScroll,
-            Input = _input,
-            InputRows = SplitLayout.InputPanelRowsFor(height),   // v14：按屏高恒定（输入变长不再重排整帧）
+            Input = displayInput,
+            InputRows = inputRows,
             LastNote = LastNoteText(),
-            Caret = _caret,
+            Caret = displayCaret,
             Focus = _focus,
             Width = width,
             Height = height,
@@ -454,18 +521,112 @@ public sealed class SplitSession
     /// <c>_thinking=false</c> 时逐字节返回原列表 ⇒ 无头帧 / 演示帧不混墙钟（坑集 #39）。</para>
     /// </summary>
 
-    /// <summary>「正在思考」的**像素动画**（8 列 ≈ 4 个中文字；循环；思考停即停）。
-    /// <para>帧由**现有的重绘节拍**驱动（<see cref="ThinkingRedrawMs"/> = 200ms ⇒ 每秒 5 帧），**不另起线程**；
-    /// 颜色用 <c>[[done]]</c>（本仓既有的绿角色）。用户 2026-10-15 令：把 ⏳ 换成"看起来在干活"的动图。</para>
+    /// <summary>
+    /// **「正在思考」的单行贪吃蛇粒子动画**（主人 2026-10-18 定）：
+    /// **8 个 Braille 字符 = 4 个汉字宽**；每个字符内部是 **2×4 像素点阵**。
+    /// 粒子链在 **16×4 像素网格**里走蛇形：第一像素列最下方 → 向上 → 横穿到第二列第一行 →
+    /// 向下 → 再横穿 …… 走完整条线后沿原路折返（往复循环）。
+    /// <para>链条 = 5 个像素点（头 + 4 格尾巴），全部落在**一行**里；帧由现有 200ms 节拍驱动。</para>
     /// </summary>
-    private static readonly string[] ThinkFrames =
-    [
-        "█▁▁▁▁▁▁▁", "▁█▁▁▁▁▁▁", "▁▁█▁▁▁▁▁", "▁▁▁█▁▁▁▁",
-        "▁▁▁▁█▁▁▁", "▁▁▁▁▁█▁▁", "▁▁▁▁▁▁█▁", "▁▁▁▁▁▁▁█",
-    ];
+    private const int ThinkCells = 8;          // 8 个 Braille 字符 ≈ 4 个汉字宽
 
-    private static string ThinkGlyph() =>
-        $"[[done]]{ThinkFrames[(int)(Environment.TickCount64 / 200 % ThinkFrames.Length)]}[[/]]";
+    private const int ThinkDotRows = 4;        // Braille 每个字符 2×4 像素
+
+    private const int ThinkTailPixels = 12;
+
+    private static readonly (int X, int Y)[] ThinkPath = BuildThinkPath();
+
+    private static (int X, int Y)[] BuildThinkPath()
+    {
+        const int columns = ThinkCells * 2;    // 16 个像素列
+        var raw = new List<(int X, int Y)>();
+        for (var x = 0; x < columns; x++)
+        {
+            // 偶数列从下往上，奇数列从上往下 —— 蛇形穿过整条线。
+            if (x % 2 == 0)
+            {
+                for (var y = ThinkDotRows - 1; y >= 0; y--) raw.Add((x, y));
+            }
+            else
+            {
+                for (var y = 0; y < ThinkDotRows; y++) raw.Add((x, y));
+            }
+        }
+
+        // 反向折返：走完整条线后从最后一列原路回去（避免循环时粒子瞬移）。
+        for (var x = columns - 1; x >= 0; x--)
+        {
+            if (x % 2 == 1)
+            {
+                for (var y = ThinkDotRows - 1; y >= 0; y--) raw.Add((x, y));
+            }
+            else
+            {
+                for (var y = 0; y < ThinkDotRows; y++) raw.Add((x, y));
+            }
+        }
+
+        var path = new List<(int X, int Y)>(raw.Count);
+        foreach (var cell in raw)
+        {
+            if (path.Count == 0 || path[^1] != cell)
+            {
+                path.Add(cell);                // 折返点不重复画同一像素
+            }
+        }
+
+        if (path.Count > 1 && path[0] == path[^1])
+        {
+            path.RemoveAt(path.Count - 1);     // 闭环：最后一格 = 第一格
+        }
+
+        return [.. path];
+    }
+
+    /// <summary>按时间取一帧（纯函数；测试可传任意 tick）。**只返回一行**，长度 = 8 个字符。</summary>
+    internal static string ThinkSnakeFrame(long tickMs)
+    {
+        var head = (int)(tickMs / ThinkingRedrawMs % ThinkPath.Length);
+        var builder = new System.Text.StringBuilder(ThinkCells);
+        for (var cell = 0; cell < ThinkCells; cell++)
+        {
+            var mask = 0;
+            for (var dx = 0; dx < 2; dx++)
+            {
+                for (var y = 0; y < ThinkDotRows; y++)
+                {
+                    var on = false;
+                    for (var distance = 0; distance < ThinkTailPixels; distance++)
+                    {
+                        var index = (head - distance + ThinkPath.Length) % ThinkPath.Length;
+                        if (ThinkPath[index] == (cell * 2 + dx, y))
+                        {
+                            on = true;
+                            break;
+                        }
+                    }
+
+                    if (on)
+                    {
+                        mask |= DotBit(dx, y);
+                    }
+                }
+            }
+
+            builder.Append(mask == 0 ? ' ' : (char)(0x2800 + mask));
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>Braille 位映射：左列 = 1/2/4/64，右列 = 8/16/32/128（自上而下）。</summary>
+    private static int DotBit(int column, int row) => column == 0
+        ? row switch { 0 => 1, 1 => 2, 2 => 4, _ => 64 }
+        : row switch { 0 => 8, 1 => 16, 2 => 32, _ => 128 };
+
+    /// <summary>完整的思考行：单行 = 动画 + 文字。</summary>
+    private string ThinkLine() =>
+        $"{ThinkSnakeFrame(Environment.TickCount64)} 远端模型正在思考… {TaskLabel()}".TrimEnd();
 
     private IReadOnlyList<ConversationEntry> ThinkingConversation()
     {
@@ -475,10 +636,10 @@ public sealed class SplitSession
         {
             // 需求 E：显示的是**task 生命周期**的读数（不是这一次请求的秒数）——后者只说明「这一拍多久」。
             // 颜色：kind 用 "thinking" ⇒ 由 SplitView 按 **与「得解」同一个角色**（薄荷绿）上色。
-            lines.Add(new ConversationEntry("thinking", $"{ThinkGlyph()} 远端模型正在思考… {TaskLabel()}"));
+            lines.Add(new ConversationEntry("thinking", ThinkLine()));
         }
 
-        // 2026-10-09 用户令：**工蜂在干活**也要有同形的一行（挂在工蜂卡下面）——
+        // 2026-10-09 主人令：**工蜂在干活**也要有同形的一行（挂在工蜂卡下面）——
         // 一眼知道「工蜂在工作」＋第几轮 / 多久。空 ⇒ 一行不加（与「无 worker 那一行不存在」同规）。
         foreach (var working in WorkerWorkingLines())
         {
@@ -506,7 +667,7 @@ public sealed class SplitSession
             .ToArray();
     }
 
-    /// <summary>**实时读秒**（2026-10-09 用户令）：从本次生命周期的开始时刻算到**此刻**（每帧重算 ⇒ 每秒都动，
+    /// <summary>**实时读秒**（2026-10-09 主人令）：从本次生命周期的开始时刻算到**此刻**（每帧重算 ⇒ 每秒都动，
     /// 与 master 那条「正在思考」一致）；格式 mm:ss（超一小时 h:mm:ss）。</summary>
     private static string Clock(long startedAtMs)
     {
@@ -520,12 +681,12 @@ public sealed class SplitSession
         return total >= 3_600_000 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"mm\:ss");
     }
 
-    /// <summary>需求 B 的轮询间隔：计时器每 ~200ms 刷一拍（够跟手，也不烧 CPU）。</summary>
-    private const int ThinkingRedrawMs = 200;
+    /// <summary>需求 B 的轮询间隔：计时器每 ~100ms 刷一拍（10 帧/秒 —— 主人 2026-10-18 令「动画 2 倍速」）。</summary>
+    private const int ThinkingRedrawMs = 100;
 
     /// <summary>
     /// **提示点**：一轮（turn = 一次模型请求）在上游等过这么久就**提示一声** —— **只看不砍**。
-    /// <para>用户 2026-10-15 令：「照常执行下去，只提示，我自己知道就行了，任务要继续做完，说不定 6 分钟的时候做完了」。
+    /// <para>主人 2026-10-15 令：「照常执行下去，只提示，我自己知道就行了，任务要继续做完，说不定 6 分钟的时候做完了」。
     /// 唯一家 = <see cref="PaceWall.NoticeSeconds"/>（与 `pacer master` 的读数**同源**，不各处手写 300）。</para>
     /// <para>级别说清：它量的**只是这一轮的这个请求**（turn 级）；task（一次请求 + 全部续跑轮）与 session（整条流）**都不受影响**。</para>
     /// </summary>
@@ -548,7 +709,7 @@ public sealed class SplitSession
         var total = _taskAccumulatedMs + (_taskRunning ? Environment.TickCount64 - _taskStartedMs : 0);
         var span = TimeSpan.FromMilliseconds(total);
         var clock = total >= 3_600_000 ? span.ToString(@"h\:mm\:ss") : span.ToString(@"mm\:ss");
-        // **与工蟜同一条计时规则**（2026-10-09 用户令）：「第 N 轮」= **本 session 的第 N 次生命周期**（不是引擎内部轮次）；
+        // **与工蟜同一条计时规则**（2026-10-09 主人令）：「第 N 轮」= **本 session 的第 N 次生命周期**（不是引擎内部轮次）；
         // 读秒 = **本次生命周期**的总消耗（每帧重算 ⇒ 每秒都动，mm:ss）。两边读法一致 —— 一眼就能对照。
         var stop = _taskRunning ? string.Empty : "（已停）";
         return CurrentLifecycle() is { } life
@@ -570,11 +731,10 @@ public sealed class SplitSession
                 return false;
 
             case ConsoleKey.Enter:
-                if (_input.Trim().Length > 0)
+                if (ExpandPastes(_input).Trim().Length > 0)
                 {
-                    _pendingSteer = _input.Trim();
-                    _input = string.Empty;
-                    _caret = 0;
+                    _pendingSteer = ExpandPastes(_input).Trim();
+                    ClearInput();
                     _conversation.Add(new ConversationEntry("info", $"（插话）{_pendingSteer} —— 先停当前轮，再把这句发出去"));
                 }
 
@@ -582,32 +742,25 @@ public sealed class SplitSession
                 return false;
 
             case ConsoleKey.Backspace:
-                if (_caret > 0)
-                {
-                    _input = _input.Remove(_caret - 1, 1);
-                    _caret--;
-                }
-
+                BackspaceEdit();
                 return true;
 
             case ConsoleKey.Escape:
-                _input = string.Empty;
-                _caret = 0;
+                ClearInput();
                 return true;
 
             case ConsoleKey.LeftArrow:
-                _caret = Math.Max(0, _caret - 1);
+                LeftEdit();
                 return true;
 
             case ConsoleKey.RightArrow:
-                _caret = Math.Min(_input.Length, _caret + 1);
+                RightEdit();
                 return true;
 
             default:
                 if (!char.IsControl(key.KeyChar))
                 {
-                    _input = _input.Insert(_caret, key.KeyChar.ToString());
-                    _caret++;
+                    InsertChar(key.KeyChar);
                 }
 
                 return true;
@@ -615,7 +768,7 @@ public sealed class SplitSession
     }
 
     /// <summary>
-    /// **一整块粘贴**落进输入框（换行原样保留、**不提交**）—— 用户 2026-09-24 20:5x 令：
+    /// **一整块粘贴**落进输入框（换行原样保留、**不提交**）—— 主人 2026-09-24 20:5x 令：
     /// 「WB 的 TUI 要像 [OC] 一样，有个多段文本的粘贴收集器」。
     /// <para>
     /// **为什么不自动提交**：粘进来的多半是「要改一改再发」的东西（一段措辞 / 一段日志）；
@@ -623,8 +776,40 @@ public sealed class SplitSession
     /// 发不发，由人按回车定。
     /// </para>
     /// </summary>
+    /// <summary>把一段大文本折成一个哨兵块（渲染成 |Command+V: N 行|；正文存在 payload 里）。</summary>
+    private string MakePasteToken(string text)
+    {
+        var id = ++_pasteSeq;
+        _pastePayloads[id] = text;
+        var lines = text.Count(static c => c == '\n') + 1;
+        _conversation.Add(new ConversationEntry(
+            "info",
+            $"（Command+V: {lines} 行 / {text.Length:N0} 字符）"));
+        return $"{PasteStart}{id}{PasteEnd}";
+    }
+
+    /// <summary>普通字符路径收到**无括号标记**的大段粘贴：越过阈值就折成一个块。</summary>
+    private void MaybeFoldPlainInput()
+    {
+        if (_input.IndexOf(PasteStart) >= 0)
+        {
+            return;
+        }
+
+        var lines = _input.Count(static c => c == '\n') + 1;
+        if (_input.Length <= 2000 && lines <= 12)
+        {
+            return;
+        }
+
+        var body = _input;
+        _input = MakePasteToken(body);
+        _caret = _input.Length;
+    }
+
     private void InsertPaste(string text)
     {
+        text = StripPasteMarkers(text);
         if (text.Length == 0)
         {
             return;
@@ -639,22 +824,239 @@ public sealed class SplitSession
         }
 
         var at = Math.Clamp(_caret, 0, _input.Length);
-        _input = _input.Insert(at, text);
-        _caret = at + text.Length;
-
-        // 单行粘贴与人手打字无从分辨（也不值得报）；**多行的必须明说一句** —— 否则人不知道
-        // 它是「一条」还是「N 条」（今晚出事的正是这件事：N 条各打断一次，只剩最后一行活下来）。
         var lines = text.Count(static c => c == '\n') + 1;
-        if (lines > 1)
+        if (lines > 12 || text.Length > 2000)
         {
-            _conversation.Add(new ConversationEntry(
-                "info",
-                $"（粘贴 {lines} 行 / {text.Length} 字符 —— 已**一次**收进输入框；回车才提交）"));
+            // 大段 ⇒ 一个哨兵块（可与其他文本/块**复合**；不再有尾部括号提示）。
+            var token = MakePasteToken(text);
+            _input = _input.Insert(at, token);
+            _caret = at + token.Length;
+        }
+        else
+        {
+            _input = _input.Insert(at, text);
+            _caret = at + text.Length;
+            MaybeFoldPlainInput();
         }
     }
 
+    private static string TokenText(int lines) => $"|Command+V: {lines} 行|";
+
+    private void ClearInput()
+    {
+        _input = string.Empty;
+        _caret = 0;
+        _pastePayloads.Clear();
+    }
+
+    private bool DeletePasteBefore()
+    {
+        if (_caret >= 2 && _input[_caret - 1] == PasteEnd)
+        {
+            var start = _input.LastIndexOf(PasteStart, _caret - 2);
+            if (start >= 0)
+            {
+                _input = _input.Remove(start, _caret - start);
+                _caret = start;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool DeletePasteAt()
+    {
+        if (_caret < _input.Length && _input[_caret] == PasteStart)
+        {
+            var end = _input.IndexOf(PasteEnd, _caret + 1);
+            if (end >= 0)
+            {
+                _input = _input.Remove(_caret, end - _caret + 1);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void BackspaceEdit()
+    {
+        if (DeletePasteBefore())
+        {
+            return;
+        }
+
+        var from = TerminalText.PrevIndex(_input, _caret);
+        if (from < _caret)
+        {
+            _input = _input.Remove(from, _caret - from);
+            _caret = from;
+        }
+    }
+
+    private void DeleteEdit()
+    {
+        if (DeletePasteAt())
+        {
+            return;
+        }
+
+        var to = TerminalText.NextIndex(_input, _caret);
+        if (to > _caret)
+        {
+            _input = _input.Remove(_caret, to - _caret);
+        }
+    }
+
+    private void LeftEdit()
+    {
+        if (_caret >= 2 && _input[_caret - 1] == PasteEnd)
+        {
+            var start = _input.LastIndexOf(PasteStart, _caret - 2);
+            if (start >= 0)
+            {
+                _caret = start;
+                return;
+            }
+        }
+
+        _caret = TerminalText.PrevIndex(_input, _caret);
+    }
+
+    private void RightEdit()
+    {
+        if (_caret < _input.Length && _input[_caret] == PasteStart)
+        {
+            var end = _input.IndexOf(PasteEnd, _caret + 1);
+            if (end >= 0)
+            {
+                _caret = end + 1;
+                return;
+            }
+        }
+
+        _caret = TerminalText.NextIndex(_input, _caret);
+    }
+
+    private void InsertChar(char ch)
+    {
+        // 不允许把光标停在哨兵内部：先跳到块尾。
+        var start = _caret > 0 ? _input.LastIndexOf(PasteStart, Math.Min(_caret - 1, _input.Length - 1)) : -1;
+        if (start >= 0)
+        {
+            var end = _input.IndexOf(PasteEnd, start + 1);
+            if (end >= 0 && _caret > start && _caret <= end)
+            {
+                _caret = end + 1;
+            }
+        }
+
+        _input = _input.Insert(_caret, ch.ToString());
+        _caret++;
+        MaybeFoldPlainInput();
+    }
+
+    /// <summary>把带哨兵的输入展开成提交给模型的正文。</summary>
+    private string ExpandPastes(string input)
+    {
+        var sb = new System.Text.StringBuilder(input.Length);
+        for (var i = 0; i < input.Length; i++)
+        {
+            if (input[i] != PasteStart)
+            {
+                sb.Append(input[i]);
+                continue;
+            }
+
+            var end = input.IndexOf(PasteEnd, i + 1);
+            if (end < 0 || !int.TryParse(input.AsSpan(i + 1, end - i - 1), out var id) || !_pastePayloads.TryGetValue(id, out var body))
+            {
+                sb.Append(input[i]);
+                continue;
+            }
+
+            sb.Append(body);
+            i = end;
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>把哨兵渲染成 |Command+V: N 行|（显示用）。</summary>
+    private string RenderInput()
+    {
+        var sb = new System.Text.StringBuilder(_input.Length);
+        for (var i = 0; i < _input.Length; i++)
+        {
+            if (_input[i] != PasteStart)
+            {
+                sb.Append(_input[i]);
+                continue;
+            }
+
+            var end = _input.IndexOf(PasteEnd, i + 1);
+            if (end < 0 || !int.TryParse(_input.AsSpan(i + 1, end - i - 1), out var id) || !_pastePayloads.TryGetValue(id, out var body))
+            {
+                sb.Append(_input[i]);
+                continue;
+            }
+
+            sb.Append(TokenText(body.Count(static c => c == '\n') + 1));
+            i = end;
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>光标在显示串里的位置（块整体算一个 token）。</summary>
+    private int RenderCaret()
+    {
+        var display = 0;
+        for (var i = 0; i < _input.Length; i++)
+        {
+            if (i == _caret)
+            {
+                return display;
+            }
+
+            if (_input[i] != PasteStart)
+            {
+                display++;
+                continue;
+            }
+
+            var end = _input.IndexOf(PasteEnd, i + 1);
+            if (end < 0 || !int.TryParse(_input.AsSpan(i + 1, end - i - 1), out var id) || !_pastePayloads.TryGetValue(id, out var body))
+            {
+                display++;
+                continue;
+            }
+
+            display += TokenText(body.Count(static c => c == '\n') + 1).Length;
+            if (_caret > i && _caret <= end + 1)
+            {
+                return display;
+            }
+
+            i = end;
+        }
+
+        return display;
+    }
+
+    /// <summary>去掉括号粘贴的起止标记（含 ESC 形态与已被终端漏成字面量的 `[200~` / `[201~`）。</summary>
+    internal static string StripPasteMarkers(string text) =>
+        text.Replace("\u001b[200~", string.Empty, StringComparison.Ordinal)
+            .Replace("\u001b[201~", string.Empty, StringComparison.Ordinal)
+            .Replace("[200~", string.Empty, StringComparison.Ordinal)
+            .Replace("[201~", string.Empty, StringComparison.Ordinal);
+
     /// <summary>插话内容（工作期间按 Enter 留下的那一句）：等当前轮停下后由 <see cref="RunTurnAsync"/> 接着发。</summary>
     private string? _pendingSteer;
+
+    /// <summary>上一句因 provider 连不上而失败的原文；`/retry` 用它原样重发（不是让模型猜「继续」）。</summary>
+    private string? _retryMessage;
 
     /// <summary>开一个 task（新任务来了才重置；同一 task 的续跑轮接着走）。</summary>
     private void TaskClockStart()
@@ -689,11 +1091,15 @@ public sealed class SplitSession
     /// </summary>
     private async Task<KeyOrPaste?> ReadKeyWithSettleAsync(CancellationToken cancellationToken)
     {
-        if (Console.IsInputRedirected || _settleDrawn)
+        if (Console.IsInputRedirected)
         {
             return _keys.Read();
         }
 
+        // **永不无限阻塞**（2026-10-19 主人报「动不动卡住 1~2 秒 / 超一行就卡死」）：
+        // 旧实现在 `_settleDrawn` 之后直接 `_keys.Read()`，一旦读取线程/终端状态异常就永久停住，
+        // 连时钟与窗口重绘都停 ⇒ 看起来整个 TUI 卡死。现在改为**最长 200ms 必返回一次 null**，
+        // 主循环照常重绘/重探；有键立即读，不会丢响应。
         while (true)
         {
             if (ConsoleKeyAvailable())
@@ -703,7 +1109,18 @@ public sealed class SplitSession
 
             if (Environment.TickCount64 - _inputKeyMs >= SplitRenderer.InputSettleMs)
             {
-                _settleDrawn = true;      // 只补画一帧
+                if (!_settleDrawn)
+                {
+                    _settleDrawn = true;
+                    return null;
+                }
+
+                await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+                if (ConsoleKeyAvailable())
+                {
+                    return _keys.Read();
+                }
+
                 return null;
             }
 
@@ -739,7 +1156,7 @@ public sealed class SplitSession
                     break;                          // 令牌已取消 ⇒ 别再自旋，交给下面 await 抛
                 }
 
-                // **到点只提示，不停不等断**（用户 2026-10-15 令）：出一行告诉人「这一轮已经多久了」，
+                // **到点只提示，不停不等断**（主人 2026-10-15 令）：出一行告诉人「这一轮已经多久了」，
                 // 然后**照样等**——不取消、不放弃、不回退（说不定下一分钟就回来了）。只提示一次，不刷屏。
                 if (!notified && WaitNoticeDue(_thinkingStartedMs, Environment.TickCount64))
                 {
@@ -750,7 +1167,7 @@ public sealed class SplitSession
                         + "继续等，不中断（任务照常做完）。"));
                 }
 
-                // **工作期间仍然收键**（用户 2026-09-20 15:3x 要的「临时停止 / 插话」）：
+                // **工作期间仍然收键**（主人 2026-09-20 15:3x 要的「临时停止 / 插话」）：
                 //   Ctrl-C = 停止当前轮（已有的 Ctrl-C 一下语义）· Enter = **插话**（先停当前轮，再把这句发出去）。
                 if (ConsoleKeyAvailable())
                 {
@@ -801,6 +1218,8 @@ public sealed class SplitSession
     /// <summary>交互（备用屏 + 按键）。退出时一定恢复终端。</summary>
     public async Task<int> RunInteractiveAsync(CancellationToken cancellationToken = default)
     {
+        // 输入后端：raw UTF-8（一次 termios raw；退出按 stty -g 恢复）。非 TTY ⇒ null，退回 ReadKey。
+        using var raw = RawConsoleInput.TryInstall();
         using var screen = new AnsiScreen();
         screen.Enter();
 
@@ -837,6 +1256,7 @@ public sealed class SplitSession
                 // 终端可能已经没了 ⇒ 说不出去就算了（不能再抛：那又变成用崩溃收场）。
             }
 
+            raw?.Dispose();         // 先恢复 termios（否则终端会留在 raw 状态）
             screen.Dispose();       // 尽力恢复终端（终端没了也安全：Dispose 绝不抛）
             Environment.Exit(0);    // 体面退出（不是崩溃）
         }
@@ -878,18 +1298,45 @@ public sealed class SplitSession
                     continue;                       // 节拍那一帧：回循环顶重画（任务钟 / 思考计时）
                 }
 
-                if (ev.IsPaste)
-                {
-                    // 一整块粘贴：**只落进输入框**（不提交）。多行粘贴被拆成 N 条消息、逐个打断当轮，
-                    // 正是本批要修的病灶 —— 发不发由人按回车定。
-                    InsertPaste(ev.Paste!);
-                    _inputKeyMs = Environment.TickCount64;
-                    _settleDrawn = false;
-                    continue;
-                }
-
                 var before = _input;
-                await HandleKeyAsync(ev.Key, cancellationToken).ConfigureAwait(false);
+
+                // **先清空这一拍已经到达的键，再重绘一次**（2026-10-18 主人报：快速退格会漏键、
+                // 回车后输入像「一个字一个字打回去」）。旧实现每处理一个键就整帧重绘，
+                // 键盘队列积压时只能按帧速追赶；这里把同一批键一次吃完，外观上就是即时。
+                var batch = 0;
+                var current = ev;
+                while (batch++ < 256)
+                {
+                    if (current.IsPaste)
+                    {
+                        // 一整块粘贴：**只落进输入框**（不提交）。多行粘贴被拆成 N 条消息、逐个打断当轮，
+                        // 正是本批要修的病灶 —— 发不发由人按回车定。
+                        InsertPaste(current.Paste!);
+                        _inputKeyMs = Environment.TickCount64;
+                        _settleDrawn = false;
+                    }
+                    else
+                    {
+                        await HandleKeyAsync(current.Key, cancellationToken).ConfigureAwait(false);
+                        if (current.Key.Key == ConsoleKey.Enter || QuitRequested)
+                        {
+                            break;                  // 已提交 / 已退出 ⇒ 后面的键留到下一拍
+                        }
+                    }
+
+                    if (!ConsoleKeyAvailable())
+                    {
+                        // raw 读取线程可能比主循环晚一步：给它 2ms 把同一突发的后续字节入队，
+                        // 否则 100 个字符会被拆成 100 次「读一个 → 重绘」的慢动作。
+                        await Task.Delay(2, cancellationToken).ConfigureAwait(false);
+                        if (!ConsoleKeyAvailable())
+                        {
+                            break;
+                        }
+                    }
+
+                    current = _keys.Read();
+                }
 
                 if (before != _input)
                 {
@@ -968,7 +1415,7 @@ public sealed class SplitSession
     {
         switch (key.Key)
         {
-            // **Ctrl-C 两下退出**（用户 2026-09-20 要求）：一下 = 中断当前轮（会话不死）；
+            // **Ctrl-C 两下退出**（主人 2026-09-20 要求）：一下 = 中断当前轮（会话不死）；
             // 两下（2 秒内）= 退出。两条路都接：这里是**按键**路径（.NET 的 ReadKey 常把 ^C 当按键递进来），
             // 信号路径在 `CtrlCQuit.Install` 里（真终端下发 SIGINT 时）。计数与退出逻辑同一份。
             case ConsoleKey.C when (key.Modifiers & ConsoleModifiers.Control) != 0:
@@ -980,7 +1427,7 @@ public sealed class SplitSession
                 return;
 
             case ConsoleKey.Tab:
-            // v15（用户 2026-09-22 02:2x）：**单栏** —— 再没有右栏可切，Tab 从此不做事。
+            // v15（主人 2026-09-22 02:2x）：**单栏** —— 再没有右栏可切，Tab 从此不做事。
             // （保留这个 case 只为不把「按了没反应」变成「掉进 default 当成输入字符」。）
                 return;
 
@@ -995,33 +1442,23 @@ public sealed class SplitSession
                     return;
                 }
 
-                var line = _input;
-                _input = string.Empty;
-                _caret = 0;
+                var line = ExpandPastes(_input);
+                ClearInput();
                 await SubmitAsync(line, cancellationToken).ConfigureAwait(false);
                 return;
 
             case ConsoleKey.Backspace:
-                if (_caret > 0)
-                {
-                    _input = _input.Remove(_caret - 1, 1);
-                    _caret--;
-                }
-
+                BackspaceEdit();
                 return;
 
             case ConsoleKey.Delete:
-                if (_caret < _input.Length)
-                {
-                    _input = _input.Remove(_caret, 1);
-                }
-
+                DeleteEdit();
                 return;
 
             case ConsoleKey.LeftArrow:
                 if (_focus == PaneFocus.Input)
                 {
-                    _caret = Math.Max(0, _caret - 1);
+                    LeftEdit();
                 }
 
                 return;
@@ -1029,7 +1466,7 @@ public sealed class SplitSession
             case ConsoleKey.RightArrow:
                 if (_focus == PaneFocus.Input)
                 {
-                    _caret = Math.Min(_input.Length, _caret + 1);
+                    RightEdit();
                 }
                 else
                 {
@@ -1047,7 +1484,7 @@ public sealed class SplitSession
                 return;
 
             case ConsoleKey.UpArrow:
-                // v13 修 BUG（用户 23:5x）：Tab 切到右栏后，↕ 必须**移动模块选中项**；
+                // v13 修 BUG（主人 23:5x）：Tab 切到右栏后，↕ 必须**移动模块选中项**；
                 // 以前它先去「滚详细内容」，而全展开时详细内容恒非空 ⇒ 选中项**永远动不了**。
                 // 详细内容改用 PgUp / PgDn 滚（见下）。
                 if (_focus == PaneFocus.Right)
@@ -1082,8 +1519,7 @@ public sealed class SplitSession
         {
             // 打字即回到输入栏（右栏是「看」的，不是「写」的）。
             _focus = PaneFocus.Input;
-            _input = _input.Insert(_caret, key.KeyChar.ToString());
-            _caret++;
+            InsertChar(key.KeyChar);
         }
     }
 
@@ -1211,7 +1647,7 @@ public sealed class SplitSession
     /// <summary>
     /// **工作期间敲进来的那一句怎么处理**（唯一判定处）：命中命令名单 ⇒ 按命令执行（不喂给模型）。
     /// <para>
-    /// 现场（2026-09-22 23:3x 真机）：用户工作期间敲 `/result` ⇒ 旧路径把它当**插话**发出去（模型回了一句
+    /// 现场（2026-09-22 23:3x 真机）：主人工作期间敲 `/result` ⇒ 旧路径把它当**插话**发出去（模型回了一句
     /// 「`/result` 收到」），而那句还进流成 `UserInput` ⇒ 白开一张卡（`用户：/result`）。
     /// </para>
     /// </summary>
@@ -1219,6 +1655,7 @@ public sealed class SplitSession
 
     private async Task RunTurnOnceAsync(string message, CancellationToken cancellationToken)
     {
+        _retryMessage = message;   // 若本轮失败在 provider 连接阶段，/retry 原样重发这一句
         // 本轮的取消源：Ctrl-C 一下取消它（只中断这一轮，不影响后面的轮次）。
         using var turn = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _turnCts = turn;
@@ -1243,7 +1680,7 @@ public sealed class SplitSession
 
         _cardIndex = _conversation.Count - 1;
 
-        // **本轮被取消 ≠ 进程要死**（v14 · 2026-09-22 01:39 用户真机报「说一句收尾就自动退出」+ 已复现）：
+        // **本轮被取消 ≠ 进程要死**（v14 · 2026-09-22 01:39 主人真机报「说一句收尾就自动退出」+ 已复现）：
         // Ctrl-C 一下 / 思考中按 Enter（插话）取消的是**这一轮** —— `CtrlCQuit` 的契约就是「进程不死、会话继续」；
         // 以前这里没人接 ⇒ `TaskCanceledException` 一路冒到 `Main` ⇒ 未捕获异常 ⇒ 整个 TUI 被 abort（实测退出码 **-6**）。
         try
@@ -1277,7 +1714,7 @@ public sealed class SplitSession
                     LandTurn(outcome2, _continuationPreview!, _continuationCursor);
                     return ValueTask.CompletedTask;
                 },
-                // 续跑痕：**不占详细区**（用户 2026-09-22 02:0x：「task 处理周期内，右侧第二个区要固定显示默认的区目录，
+                // 续跑痕：**不占详细区**（主人 2026-09-22 02:0x：「task 处理周期内，右侧第二个区要固定显示默认的区目录，
                 // 不要显示成别的内容」）——它是诊断，只在 <c>--verbose</c> 时进对话（与账本行 / 工具行同一口径）。
                 trace: line =>
                 {
@@ -1288,7 +1725,7 @@ public sealed class SplitSession
                 },
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            // ④ **自动闭环**（用户 2026-10-17）：AI 按协议跑到 80% ⇒ 收尾 ⇒ 会话变 Closed
+            // ④ **自动闭环**（主人 2026-10-17）：AI 按协议跑到 80% ⇒ 收尾 ⇒ 会话变 Closed
             //    ⇒ **运行时自动** reset + start，然后**接着做刚才那个任务**（白板/草稿承接）。
             //    全程无人批阅；唯一例外 = 决策库/原则书没讲清楚（gap）——那时 AI 自己会停下来问人。
             //    安全阀：一个进程内最多自动闭环 <see cref="MaxAutoLoops"/> 次，超了就停手并明说。
@@ -1323,21 +1760,24 @@ public sealed class SplitSession
                 "info",
                 "⏹ 本轮已中断（会话继续）—— 直接再打一句即可；如果是插话，那句会接着发出去。"));
 
-            // **同时进流**（用户 2026-09-22 23:1x 报）：上面那行只有**人**看得见 ——
+            // **同时进流**（主人 2026-09-22 23:1x 报）：上面那行只有**人**看得见 ——
             // 模型看不到就会以为「上一轮无事发生」，于是把接续句当成全新问题去满仓库猜题意。
             _host.NoteTurnInterrupted(message);
         }
         catch (ModelClientException ex)
         {
-            // **单轮请求失败 ≠ 进程要死，也 ≠ 这活白做**（用户 2026-10-15 令：「也没退出的道理…照常执行下去，只提示」）。
+            // **单轮请求失败 ≠ 进程要死，也 ≠ 这活白做**（主人 2026-10-15 令：「也没退出的道理…照常执行下去，只提示」）。
             // 与 Ctrl-C 中断**同一姿势**：会话继续、同时**进流留痕**。
             // 与 plain 模式对齐：那边早就每轮接住 ModelClientException 后 continue（Program.RunPlainAsync），
             // 只有 split 这条路从前没人接 ⇒ 冒到 Main ⇒ 整只 TUI 退出（退出码 3，真机 2026-10-15 12:01 / 12:18 两次）。
             // ⚠️ 「等得久」**不走这里**（那只是提示，见 WaitNoticeDue）—— 能到这里的是真失败（回包非 2xx / 网络错 / 声明的上界）。
             RefreshCard();
+            _retryMessage = message;
             _conversation.Add(new ConversationEntry(
                 "info",
-                $"⏱ 本轮请求失败 —— **会话继续、任务不中断**（可直接重发）：{ex.Message}"));
+                ex.ProviderUnreachable
+                    ? $"⏱ **provider 连不上** —— 会话继续、任务不中断。{ex.Message}\n网络恢复后输入 `/retry` 重试上一句；要停止就 /quit。"
+                    : $"⏱ 本轮请求失败 —— **会话继续、任务不中断**（可直接重发）：{ex.Message}"));
             _host.NoteTurnFailed(message, ex.Message);
         }
         finally
@@ -1363,7 +1803,7 @@ public sealed class SplitSession
     /// <summary>
     /// **split 模式下要掐掉的 info 行**：终局正文那一行（`[终局] 得解[DONE]：<正文>`）——
     /// 它已经由卡上的 `结果：` 承载，再印一遍就是**同一段文字在屏上出现两次**
-    /// （用户 2026-09-22 01:3x 真机报：「得解后终局的内容描述了两遍」）。
+    /// （主人 2026-09-22 01:3x 真机报：「得解后终局的内容描述了两遍」）。
     /// <para>判据**同源**：对**同一份 response** 再解析一次，掐掉的正是 <see cref="TerminalReport.Describe"/> 那一行；
     /// 辅助行（「它在等你」/「终局块冲突」）不在 `Describe()` 里，**照旧显示**（卡上没有它们）。</para>
     /// <para>纯文本 / CLI 路径不走这里 ⇒ 那边照旧由 info 行承载终局正文（没有卡）。</para>
@@ -1379,7 +1819,7 @@ public sealed class SplitSession
     /// <summary>把一轮的产出落到屏上（**正常轮与续跑轮共用**，两边不会走偏）。</summary>
     /// <param name="since">本轮开始前的流游标（只有它之后的工具事件才属于这一轮）。</param>
     /// <summary>
-    /// **面板输出进正文**（v15 · 用户 2026-09-22 02:2x 选「按你推荐的做」）：原先是右栏「详细区」，
+    /// **面板输出进正文**（v15 · 主人 2026-09-22 02:2x 选「按你推荐的做」）：原先是右栏「详细区」，
     /// 右栏取消后直接拼在会话流**末尾**（全宽、可滚）——前面加一行块头（命令 + 行数），人不至于不知道这是什么。
     /// <para>数据仍在 <c>_detail</c>（所以 `Esc` 清面板 / 下一轮开头自动清 的旧语义**不变**）；它只是换了个渲染位。</para>
     /// </summary>
@@ -1406,7 +1846,7 @@ public sealed class SplitSession
 
     private void LandTurn(TurnOutcome outcome, PromptComposition preview, int since)
     {
-        // **同句不重复铺**（用户 2026-10-14 令：屏面文字极贵，无关紧要的少显示）：
+        // **同句不重复铺**（主人 2026-10-14 令：屏面文字极贵，无关紧要的少显示）：
         // `[task 收尾] …` / 档位 / 存储告警这些**每轮算同一句**的行，从前一轮一行、几轮就糊满半个屏
         // （其中还带一串地址）。现在：**首现照旧显示**（信号不能丢），**与「上一条 info 行」相同就跳过**。
         foreach (var text in VisibleInfoLines(outcome.StderrBeforeResponse, outcome.Result.Response))
@@ -1419,7 +1859,7 @@ public sealed class SplitSession
             _conversation.Add(new ConversationEntry("info", text));
         }
 
-        // L2：正文**不再逐轮铺进左栏**，也**不上卡**（用户 2026-09-24 19:1x：原料层只放结构行）——
+        // L2：正文**不再逐轮铺进左栏**，也**不上卡**（主人 2026-09-24 19:1x：原料层只放结构行）——
         // 全文归 `/result`（逐字原文）与 `/trace`（全量轨迹）；左栏逐轮铺的话，5 轮自续跑就是 5 条消息。
 
         var record = _ledger.Records[^1];
@@ -1485,7 +1925,7 @@ public sealed class SplitSession
         if (!string.Equals(preview.Sha256, real.Sha256, StringComparison.Ordinal))
         {
             // T1 破线：预览 ≠ 实发。必须当场喊出来，不能默默显示其中一份。
-            // 2026-10-14（用户问「是真破线还是显示问题」⇒ 答案必须**可查**，不能靠信任）：
+            // 2026-10-14（主人问「是真破线还是显示问题」⇒ 答案必须**可查**，不能靠信任）：
             //   · 屏上这行写明**这是运行时自检、不是模型输出**（否则它被模型引述时会像「刷告警」）；
             //   · 同批**落盘**一条到 `<流同目录>/t1-breaks.log`（含消息数对比）⇒ 真假一读便知。
             T1BreakCount++;
@@ -1522,7 +1962,7 @@ public sealed class SplitSession
 
     /// <summary>
     /// **T1 破线的落盘**（诊断口）：写一条到**流的同目录**（`t1-breaks.log`）——
-    /// 这样「到底有没有真破线」不靠信任，`read` 一下文件就有答案（用户 2026-10-14 问的就是这个）。
+    /// 这样「到底有没有真破线」不靠信任，`read` 一下文件就有答案（主人 2026-10-14 问的就是这个）。
     /// <para>落盘失败不打断会话（宁可少一条日志，不许把屏打挂）。</summary>
     private void LogT1Break(string note)
     {
@@ -1546,9 +1986,9 @@ public sealed class SplitSession
         }
     }
 
-    /// <summary>**工蜂自己的卡**（2026-10-09 用户令）：每只工蜂 = 短状态行 + **它自己的生命周期卡**（同一份呈现器）。
+    /// <summary>**工蜂自己的卡**（2026-10-09 主人令）：每只工蜂 = 短状态行 + **它自己的生命周期卡**（同一份呈现器）。
     /// <para>数据源同 master 那条：worker 的流 → `LifecycleAggregator.AggregateFile` → `LifecyclePresenter.Card`。
-    /// **风险留痕 / 轨迹折叠不显示**（用户令）。读不到 / 坏文件 ⇒ 只出短行（不把 TUI 拖垮）。</para></summary>
+    /// **风险留痕 / 轨迹折叠不显示**（主人令）。读不到 / 坏文件 ⇒ 只出短行（不把 TUI 拖垮）。</para></summary>
     private IReadOnlyList<string> WorkerCards()
     {
         var facts = WorkerFacts();
@@ -1619,7 +2059,7 @@ public sealed class SplitSession
     }
 
     /// <summary>
-    /// <c>/append [on|off]</c> —— **累积显示**开关（v8 · 用户 2026-09-24 19:30 定）：
+    /// <c>/append [on|off]</c> —— **累积显示**开关（v8 · 主人 2026-09-24 19:30 定）：
     /// 开（默认）：意图 / 打算 / 结果**有新推进就加一行**（卡会变长 —— 看得到思考过程）；
     /// 关：回到旧口径（只显示**最新**一条）。
     /// <para>只是**显示开关**：不动事件流、不进 prompt（T1：送进模型的字节一个字不改）。</para>
@@ -1699,7 +2139,7 @@ public sealed class SplitSession
     }
 
         /// <summary>
-    /// 状态表里**白板 / 草稿那一行的注**（需求 B：用户要它们在**最右侧状态区**看得见）。
+    /// 状态表里**白板 / 草稿那一行的注**（需求 B：主人要它们在**最右侧状态区**看得见）。
     /// <para>为什么挂在区行上而不是另开一块：区行**任何窗口尺寸下都在**（自报区会因高度让位），
     /// 而摘要只在放得下时才加（不截字）。白板优先给 <c>solve:</c> 那一行（求解语言的口径）。</para>
     /// </summary>
@@ -1744,9 +2184,9 @@ public sealed class SplitSession
             new SplitSelfReport(
                 StackRegion.R3,
                 "焦点 R3",
-                tags.Count == 0 ? "（空，零注入）" : $"[FOCUS] {string.Join(' ', tags)}",
-                tags.Count == 0 ? "（空）" : string.Join(' ', tags),
-                tags.Count == 0 ? "空" : $"{tags.Count} 个标签"),
+                tags.Count == 0 ? "（模型本场未报 [FOCUS]）" : $"[FOCUS] {string.Join(' ', tags)}",
+                tags.Count == 0 ? "（模型未报）" : string.Join(' ', tags),
+                tags.Count == 0 ? "未报" : $"{tags.Count} 个标签"),
             new SplitSelfReport(StackRegion.R5, "草稿 R5", SelfReportSummary(draft), SelfReportSummary(draft), SelfReportShort(draft)),
         ];
     }
@@ -1871,7 +2311,7 @@ public sealed class SplitSession
     }
 
     /// <summary>
-    /// **换会话时把屏上清回 0**（用户 2026-09-20 15:0x 要求：「reset 后窗口里很多显示信息都应该清空回到 0 的状态」）。
+    /// **换会话时把屏上清回 0**（主人 2026-09-20 15:0x 要求：「reset 后窗口里很多显示信息都应该清空回到 0 的状态」）。
     /// <list type="bullet">
     /// <item>对话流：清空 + 一行会话边界（人知道自己在哪一节）；</item>
     /// <item>命中账本：清空（账本是会话级的 —— 否则右栏「上一轮」会拿上一节的数字说话）；</item>

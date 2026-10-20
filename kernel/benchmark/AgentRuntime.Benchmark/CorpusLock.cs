@@ -7,7 +7,7 @@ using AgentRuntime.Core.Persistence;
 namespace AgentRuntime.Benchmark;
 
 /// <summary>
-/// **实验语料锁**（用户 2026-09-14 定死）：测试工程**只允许**使用仓库内的 10K 切片。
+/// **实验语料锁**（主人 2026-09-14 定死）：测试工程**只允许**使用仓库内的 10K 切片。
 /// <para>
 /// 为什么要有锁：私有全量语料（`frozen-private/`，A 档 ≈24.5k token）与实测语料
 /// （`corpus/` ≈9.6k token）体积差 2.5 倍。一旦实验悄悄改用全量语料，

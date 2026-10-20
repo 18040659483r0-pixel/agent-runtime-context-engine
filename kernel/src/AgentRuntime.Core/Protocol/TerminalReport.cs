@@ -108,7 +108,7 @@ public sealed record TerminalReport(TerminalState State, string Detail, int Coun
             return None;
         }
 
-        // **块式写法**（2026-09-22 用户真机报的现场）：块头**独占一行**、正文在**下面几行** ——
+        // **块式写法**（2026-09-22 主人真机报的现场）：块头**独占一行**、正文在**下面几行** ——
         // 旧口径只读同一行 ⇒ 正文为空，于是屏上出现「[NEED-USER]（未写正文）」、卡上是空的「待你决定：•」，
         // **人被告知要回话却看不到问题**。口径与 [TAIL] / [DRAFT] **同一形状**
         // （<c>DraftService.TryParseReport</c>）：正文 = 块头之后、**下一个块头之前**的那几行。

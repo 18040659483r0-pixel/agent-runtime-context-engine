@@ -84,7 +84,7 @@ public class WorkerFailureFactsTests
     [Fact]
     public void 超时_不再重发同块_停即拆()
     {
-        // 2026-10-09（用户令 · 停即拆 · 设计 docs/DESIGN-SPLIT-ON-STOP.md 阶段 1）。
+        // 2026-10-09（主人令 · 停即拆 · 设计 docs/DESIGN-SPLIT-ON-STOP.md 阶段 1）。
         // 实证：provider 400s 超时被判「可重试」⇒ 重发同块 2 次 ⇒ 单条派发 1,200,0xx ms（E110/E137）。
         var reason = WorkerFailureFacts.ClassifyException("ModelClientException：请求超时（400s）");
         Assert.Equal(WorkerFailureReason.ProviderTimeout, reason);

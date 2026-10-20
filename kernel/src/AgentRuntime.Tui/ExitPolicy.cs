@@ -4,14 +4,14 @@ using System.Text;
 namespace AgentRuntime.Tui;
 
 /// <summary>
-/// **「不阻断」策略的唯一决策处**（用户 2026-10-17 令）。
+/// **「不阻断」策略的唯一决策处**（主人 2026-10-17 令）。
 /// <para>
-/// 用户原话：「**所有运行时和闸门，都不许强制阻断，而是留下警告** —— 因为阻断之后很难推测退出的根本原因。」
+/// 主人原话：「**所有运行时和闸门，都不许强制阻断，而是留下警告** —— 因为阻断之后很难推测退出的根本原因。」
 /// </para>
 /// <para>
 /// 于是本类型把「本该退出」的那几条一律改成 **警告 + 留在原地**：进程不死、现场可读、可复盘；
 /// 并由 <see cref="AppendLog"/> 把每一条**追加**到一处 —— 此前 <c>last-exit.txt</c> 是**覆盖式**（只留最后一次），
-/// 所以「把所有退出报错收集起来做归类」**根本做不到**（这正是用户的第二个诉求）。
+/// 所以「把所有退出报错收集起来做归类」**根本做不到**（这正是主人的第二个诉求）。
 /// </para>
 /// <para>
 /// 两条边界，别踩：① **非交互（stdin 被重定向）时不等待输入** —— 等待会把管道/自动化永久挂住，
@@ -64,7 +64,7 @@ internal static class ExitPolicy
     {
         ArgumentNullException.ThrowIfNull(ex);
 
-        Console.Error.WriteLine($"[warn] {family} —— **不退出**（用户 2026-10-17 令：运行时与闸门只警告、不阻断）");
+        Console.Error.WriteLine($"[warn] {family} —— **不退出**（主人 2026-10-17 令：运行时与闸门只警告、不阻断）");
         Console.Error.WriteLine($"[warn]   {ex.GetType().FullName}: {ex.Message}");
         Console.Error.WriteLine($"[warn]   事件流：{streamPath ?? "(未配置)"}（原退出码 {legacyExitCode} 只作留痕）");
         Console.Error.WriteLine($"[warn]   诊断：{InputExit.RecordPath} · {AppendLogPath}");

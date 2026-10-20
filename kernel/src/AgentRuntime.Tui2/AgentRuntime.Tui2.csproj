@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentRuntime.Tui2</RootNamespace>
+    <AssemblyName>AgentRuntime.Tui2</AssemblyName>
+    <!-- 输入驱动用 select(2)（macOS 的 poll() 对 TTY 返回 POLLNVAL，实测见 tools/tui2-testsuite）。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- 方案 B（docs/DESIGN-TUI-EDITOR-B.md）：
+         宿主循环 = Terminal.Gui；编辑面 = Terminal.Gui.Editor 的 Editor/TextDocument；
+         **输入层 = 自有 Utf8InputDriver**（read(2) + poll(2) 200ms + EINTR + bracketed paste 500ms 收口），
+         不经过 Terminal.Gui 的输入解析器（它在 macOS IME 批量 UTF-8 下会产出 U+FFFD）。
+         边界：本工程只做呈现/输入适配；AgentRuntime.Core / 协议区 / 工具面不动。 -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Terminal.Gui" Version="2.5.0" />
+    <PackageReference Include="Terminal.Gui.Editor" Version="2.5.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentRuntime.Core\AgentRuntime.Core.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Models\AgentRuntime.Models.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Modules\AgentRuntime.Modules.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Providers\AgentRuntime.Providers.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
+    <ProjectReference Include="..\AgentRuntime.Presentation\AgentRuntime.Presentation.csproj" />
+    <!-- 复用 TUI1 的面板命令路由器（/reset、/stack、/tail … 的同一实现，不抄第二套）。 -->
+    <ProjectReference Include="..\AgentRuntime.Tui\AgentRuntime.Tui.csproj" />
+  </ItemGroup>
+
+</Project>

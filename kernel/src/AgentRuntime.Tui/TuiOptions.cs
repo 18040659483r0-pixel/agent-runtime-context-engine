@@ -44,6 +44,9 @@ internal sealed class TuiOptions
     /// <summary><c>--auto-budget &lt;分钟&gt;</c>：自动接续的**经过时间**预算（0 = 不限）。</summary>
     public int? AutoBudgetMinutes { get; private set; }
 
+    /// <summary><c>--web</c>：本地 Web UI（浏览器呈现 + 输入；终端只做启动器）。</summary>
+    public bool Web { get; private set; }
+
     public bool Help { get; private set; }
 
     /// <summary><c>--ui split|plain</c> 的原值（null = 默认 split，但会在不合适的环境自动降级）。</summary>
@@ -83,6 +86,9 @@ internal sealed class TuiOptions
                     break;
                 case "--modules" when i + 1 < args.Length:
                     options.Modules = args[++i];
+                    break;
+                case "--web":
+                    options.Web = true;
                     break;
                 case "--bare":
                     options.Bare = true;

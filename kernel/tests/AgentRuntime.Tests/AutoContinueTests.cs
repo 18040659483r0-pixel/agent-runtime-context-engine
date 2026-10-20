@@ -113,7 +113,7 @@ public sealed class AutoContinueTests
         var cursor = b.Events.Count;
         Assert.False(HasToolOutcome(b.Events, 0));
 
-        // 用户 2026-09-29 20:0x 令：master 的工具面已剥到只剩只读（index/scope）⇒ 续跑判据要**两头都成立**：
+        // 主人 2026-09-29 20:0x 令：master 的工具面已剥到只剩只读（index/scope）⇒ 续跑判据要**两头都成立**：
         // ① 只读工具跑完 ⇒ ToolResult；② 点一条**不允许**的动作（已不在 master 面上）⇒ ToolDenied。
         // 两条都算「有结果」，宿主据此续跑 —— 判据只看**流**，不看是哪种结果。
         b.Reply = "[TOOL] index";                   // 只读 ⇒ ToolResult

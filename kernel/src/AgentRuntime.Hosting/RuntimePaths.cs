@@ -101,8 +101,11 @@ public static class RuntimePaths
         }
 
         var live = Path.GetFullPath(workspace);
-        var root = Path.GetFullPath(Path.Combine(live, "..", ".."));                                 // projects/AgentRuntime
-        var archive = Path.GetFullPath(Path.Combine(live, "..", "..", "..", "..", "whitebox-workspace")); // software-company/whitebox-workspace（WB 存档区；比代码仓多一层）
+        var root = Path.GetFullPath(Path.Combine(live, "..", ".."));                                 // whitebox 代码仓根
+        // **新库（2026-10-18 起）**：活版 `whitebox/whitebox/workspace` **本身已是公共 SVN 的工作副本**，
+        // 不再有独立的 `software-company/whitebox-workspace` 存档区（2026-10-19 主人令删除重复副本）。
+        // ⇒ 存档区 = 活版本身（同一条提交路径；parity 自比恒绿，不再产生「两棵树」）。
+        var archive = live;
 
         Environment.SetEnvironmentVariable("WB_LIVE", live);
         Environment.SetEnvironmentVariable("WB_ROOT", root);

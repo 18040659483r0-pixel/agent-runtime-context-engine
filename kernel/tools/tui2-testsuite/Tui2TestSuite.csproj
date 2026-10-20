@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>tui2-testsuite</AssemblyName>
+    <RootNamespace>AgentRuntime.Tui2.Testsuite</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/AgentRuntime.Tui2/AgentRuntime.Tui2.csproj" />
+  </ItemGroup>
+</Project>

@@ -7,7 +7,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **任务生命周期的派生**（用户 2026-10-07 令 · 铁则 8）：master 与 worker 派生自**同一基类**
+/// **任务生命周期的派生**（主人 2026-10-07 令 · 铁则 8）：master 与 worker 派生自**同一基类**
 /// （<see cref="TaskLifecycleBase"/>），**流程逐字同源**，差异只在「词汇」与「交付要求」两处。
 /// 这里钉四件事：
 /// ① 两侧各自的**词汇**认得出结算（master = 终局三态；worker = 回执 <c>kind=</c>）；

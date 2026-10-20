@@ -44,6 +44,11 @@ if (args.Contains("--close"))
     return CloseoutCli.Close(args.Contains("--dry-run"));
 }
 
+if (args.Contains("--receipt"))
+{
+    return CloseoutCli.Receipt(args.Contains("--write"));
+}
+
 if (!args.Contains("--check"))
 {
     PrintHelp();
@@ -64,6 +69,7 @@ static void PrintHelp()
     Console.WriteLine("  --dry-run    与 --close 合用：只打印不写");
     Console.WriteLine("  --selftest   负例自证：注入缺陷断言闸门变红（在 /tmp 副本上跑）");
   Console.WriteLine("  --decision-converge  决策库收敛**报告**（只读、不写回）：空档 / 去重疑点 / 孤儿 / 上行可达");
+    Console.WriteLine("  --receipt [--write]  收尾回执（4 组事实 + 增量）：两库版本/计数/孤儿/未标记 L4");
     Console.WriteLine("  --where      打印绝对根与规范调用（治起点目录/相对路径类失败）");
     Console.WriteLine();
     Console.WriteLine(CloseoutCli.CloseOrder);

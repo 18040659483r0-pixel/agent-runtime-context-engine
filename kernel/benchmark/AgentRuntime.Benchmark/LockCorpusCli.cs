@@ -9,7 +9,7 @@ namespace AgentRuntime.Benchmark;
 /// **实验语料锁的锁文件生成 / 校验**（A3：把 <c>benchmark/tools/lock-corpus.py</c> 搬进 C#）。
 /// <para>
 /// 锁什么：<c>benchmark.config.xml</c> 的 <c>corpus.lock.allowedSources</c> 里那三个语料文件的 sha256。
-/// 为什么：测试工程只允许使用仓库内的 10K 切片（用户 2026-09-14 定死）；语料一改，历史结论就不可复算
+/// 为什么：测试工程只允许使用仓库内的 10K 切片（主人 2026-09-14 定死）；语料一改，历史结论就不可复算
 /// ⇒ 改语料必须**同步改锁**，让差异可见。
 /// </para>
 /// <para>用法：<c>dotnet run --project benchmark/AgentRuntime.Benchmark -- lock-corpus --update|--check [--base &lt;benchmark/&gt;]</c>。</para>

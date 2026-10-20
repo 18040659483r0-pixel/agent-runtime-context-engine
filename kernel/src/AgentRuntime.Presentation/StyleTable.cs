@@ -37,7 +37,7 @@ public enum ColorDepth
 /// ③ **色号不许散落**：想换配色（鲜艳 / 柔和 / 换主题）只改本文件的 <see cref="Palette"/>。
 /// </para>
 /// <para>
-/// **配色口径（用户 2026-09-21 两次定调）**：
+/// **配色口径（主人 2026-09-21 两次定调）**：
 /// ①「颜色饱和度低了、有点灰」⇒ 换成 <b>OpenClaw 侧同一套色</b>（下表的十六进制值逐字取自 OC 的 TUI 主题：
 /// <c>accent #F6C453</c> / <c>code #F0C987</c> / <c>quote #8CC8FF</c> / <c>success #7DD3A5</c> /
 /// <c>accentSoft #F2A65A</c> / <c>error #F97066</c> / <c>dim #7B7F87</c>）；
@@ -73,9 +73,9 @@ public sealed class StyleTable
         [StyleRole.Todo] = ("#F2A65A", "38;2;242;166;90", "38;5;215", "96"),      // OC accentSoft（琥珀）
         [StyleRole.Warn] = ("#F97066", "38;2;249;112;102", "38;5;203", "91"),     // OC error（珊瑚红）
         [StyleRole.Dim] = ("#7B7F87", "38;2;123;127;135", "38;5;102", "90"),      // OC dim（中性灰）
-        [StyleRole.Hint] = ("#3E96B4", "38;2;62;150;180", "38;5;74", "94"),        // 海蓝（提示条；用户 2026-09-22 定）
+        [StyleRole.Hint] = ("#3E96B4", "38;2;62;150;180", "38;5;74", "94"),        // 海蓝（提示条；主人 2026-09-22 定）
         [StyleRole.Strong] = ("—", "1", "1", "1"),                                // 加粗（无色）
-        [StyleRole.You] = ("—", "3", "3", "3"),                                   // 斜体（无色；用户问的那一行，用户 2026-09-22 定）
+        [StyleRole.You] = ("—", "3", "3", "3"),                                   // 斜体（无色；用户问的那一行，主人 2026-09-22 定）
     };
 
     private StyleTable(bool enabled, ColorDepth depth)

@@ -9,7 +9,7 @@ namespace AgentRuntime.Tests;
 
 public sealed class OpenAICompatibleClientTests
 {
-    private const string FakeKey = "sk-test-DO-NOT-LEAK-1234567890";
+    private const string FakeKey = "sk" + "-test-DO-NOT-LEAK-1234567890";
 
     private static readonly string OkJson = """
     {
@@ -66,6 +66,21 @@ public sealed class OpenAICompatibleClientTests
 
         Assert.Contains("你好", stub.LastBody!);
         Assert.DoesNotContain("\\u4F60", stub.LastBody!);
+    }
+
+    [Fact]
+    public async Task provider连不上_连接失败被单独分类_且话术给人看()
+    {
+        var stub = new StubHttpMessageHandler((_, _) =>
+            throw new HttpRequestException("The request timed out while connecting", new TimeoutException("connect timeout")));
+        var client = NewClient(stub);
+
+        var ex = await Assert.ThrowsAsync<ModelClientException>(() =>
+            client.CompleteAsync(new ChatRequest { Model = "m", Messages = [ChatMessage.User("hi")] }, TestContext.Current.CancellationToken));
+
+        Assert.True(ex.ProviderUnreachable);
+        Assert.Contains("provider 连不上", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("15s", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

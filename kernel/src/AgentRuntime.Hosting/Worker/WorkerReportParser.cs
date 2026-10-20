@@ -56,7 +56,7 @@ public static class WorkerReportParser
     public sealed record Parsed(
         bool Found,
         string Conclusion,
-        // **结论正文**（用户 2026-09-29 19:16 令）：worker 的分析结论（≤N 行）。此前 conclusion 只能装
+        // **结论正文**（主人 2026-09-29 19:16 令）：worker 的分析结论（≤N 行）。此前 conclusion 只能装
         // done/impossible（状态而非结论）⇒ 分析被迫塞进 evidence、master 只能「要逐字原文」（坑 #220 根因）。
         string Answer,
         IReadOnlyList<string> Evidence,
@@ -75,13 +75,13 @@ public static class WorkerReportParser
         /// </summary>
         public string Covered { get; init; } = string.Empty;
 
-        /// <summary>**回执的成员袋**（名 → 值；清单以逗号连接）—— **交付键的载体**（用户 2026-10-07）：
+        /// <summary>**回执的成员袋**（名 → 值；清单以逗号连接）—— **交付键的载体**（主人 2026-10-07）：
         /// XML 回执里 `addr=/bytes=/lines=/sha256=/…` 是一等成员，这里原样带上，
         /// 由 <c>WorkerResult.Members</c> 送到 master 的视图（`ResultLine`）与闸门。</summary>
         public IReadOnlyDictionary<string, string> Members { get; init; } = new Dictionary<string, string>();
 
         /// <summary>**形状归一的账**（2026-10-08）：这份回执原来是**非法 XML**（混入未转义标签），
-        /// 由 <c>XmlBlock.TakeLenient</c> 归一后才读出来。容错允许，**不许静默**（用户 2026-10-07 令）
+        /// 由 <c>XmlBlock.TakeLenient</c> 归一后才读出来。容错允许，**不许静默**（主人 2026-10-07 令）
         /// ⇒ 非真时调用方记一条 <c>[形状注记]</c>。</summary>
         public bool ShapeNormalized { get; init; }
     }
@@ -92,7 +92,7 @@ public static class WorkerReportParser
 
     public static Parsed Parse(string? text)
     {
-        // —— 新形状（用户 2026-10-07）：回执是一个 **XML 元素** ——元素自定界 ⇒ 块外回声进不来；
+        // —— 新形状（主人 2026-10-07）：回执是一个 **XML 元素** ——元素自定界 ⇒ 块外回声进不来；
         //    成员按**名**取（顺序无关）；交付键（addr/bytes/lines/sha256/…）是一等成员。 ——
         if (ReceiptXml.Take(text, out var normalized) is { } xml)
         {
@@ -265,7 +265,7 @@ public static class WorkerReportParser
         return added;
     }
 
-    /// <summary>**字段名归一**（2026-10-09 用户令 · §十·47）：模型会把字段名**译成中文**（真机：`结论：/证据：/变更：/未决：`）⇒
+    /// <summary>**字段名归一**（2026-10-09 主人令 · §十·47）：模型会把字段名**译成中文**（真机：`结论：/证据：/变更：/未决：`）⇒
     /// 运行时按**唯一映射**改正，而不是判「没交回契约块」（那会让它 3 轮打转、`ContractUnsatisfied`）。
     /// <para>只认这一张表的四项；其余名字**原样**（不被吞）。</para></summary>
     private static string Canonical(string key) => key switch

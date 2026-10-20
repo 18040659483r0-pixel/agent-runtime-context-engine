@@ -114,7 +114,7 @@ public sealed class WorkerBaseTests
         }
     }
 
-    // ---------------- ⑥ A 方案：派发地址一律绝对（2026-09-29 用户裁决）----------------
+    // ---------------- ⑥ A 方案：派发地址一律绝对（2026-09-29 主人裁决）----------------
 
     [Fact]
     public void 相对路径解不到_派发前拒绝并给绝对路径建议()
@@ -134,7 +134,7 @@ public sealed class WorkerBaseTests
             Assert.Null(WindowResolver.Audit(abs, out var kept, root));
             Assert.Equal(abs, kept);
 
-            // 2026-10-06（用户令 · 问题一）：绝对路径**不再免检** —— 指向一棵**不存在的树**同样拒。
+            // 2026-10-06（主人令 · 问题一）：绝对路径**不再免检** —— 指向一棵**不存在的树**同样拒。
             var ghost = Path.GetFullPath(Path.Combine(root, "ghost", "deep", "x.md"));
             var ghostProblem = WindowResolver.Audit(ghost, out _, root);
             Assert.NotNull(ghostProblem);

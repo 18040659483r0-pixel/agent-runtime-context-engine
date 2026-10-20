@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
-/// **命令级分级**（<c>exec</c> 专用）—— 用户 2026-09-16 13:1x 定：
-/// **发布 / 不可逆命令从「需批」升到「must-ask」**，目的是"让用户还有机会在遇到复杂问题时先停手"。
+/// **命令级分级**（<c>exec</c> 专用）—— 主人 2026-09-16 13:1x 定：
+/// **发布 / 不可逆命令从「需批」升到「must-ask」**，目的是"让主人还有机会在遇到复杂问题时先停手"。
 /// <para>
 /// <b>为什么需要它</b>：<c>exec</c> 是一根万能管子 —— 「跑 <c>svn status</c>」与「跑 <c>svn commit</c>」
 /// 在 <see cref="ToolNames.RiskOf"/> 眼里是同一个工具、同一档。但**发布**（把改动推出去，别人会看见）
@@ -27,7 +27,7 @@ public static class ExecCommandRisk
     /// <para><c>null</c> = 该程序本身就是不可逆的（不要求子命令，如 <c>rm</c>）。</para>
     /// <para>清单刻意短：只收「推给别人看见」与「删了回不来」两类；
     /// 只读命令（<c>status</c> / <c>log</c> / <c>info</c> …）**本次不动**（仍是需批）——
-    /// 放宽免批是另一个方向的改动，需用户单独点头。</para>
+    /// 放宽免批是另一个方向的改动，需主人单独点头。</para>
     /// </summary>
     private static readonly (string Program, string? Subcommand)[] MustAsk =
     [

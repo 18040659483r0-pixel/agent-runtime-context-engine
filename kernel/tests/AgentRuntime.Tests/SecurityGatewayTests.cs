@@ -48,7 +48,7 @@ public sealed class SecurityGatewayTests
     private static SecurityAction Command(string command, bool untrusted = false, bool wide = false) =>
         new(Capability.ProcExec, command, "跑命令", untrusted, wide);
 
-    // ---------------- ① 直接拒绝：受保护目标（§9.6 用户 19:15 那条） ----------------
+    // ---------------- ① 直接拒绝：受保护目标（§9.6 主人 19:15 那条） ----------------
 
     [Theory]
     [InlineData(Capability.FsRead)]
@@ -210,7 +210,7 @@ public sealed class SecurityGatewayTests
     [Fact]
     public async Task 写判定者自身目录_默认放行_显式开保护才拒()
     {
-        // **语义变更（2026-09-16 21:2x，用户定：自迭代优先）**：运行时自身目录**默认不再保护** ——
+        // **语义变更（2026-09-16 21:2x，主人定：自迭代优先）**：运行时自身目录**默认不再保护** ——
         // 否则 `dotnet build` 写自己的输出目录会被自己的笼子拒掉（WB 改不了自己）。
         // 需要旧性质时设 WB_PROTECT_SELF=1（交付物阶段），此时仍是「直接拒绝、不进审批」。
         var previous = Environment.GetEnvironmentVariable(SecurityPolicy.ProtectSelfEnv);
@@ -275,7 +275,7 @@ public sealed class SecurityGatewayTests
     [Fact]
     public async Task 受保护分类_不再阻断_但仍然留档()
     {
-        // v13 二版：判定层的 Deny 档也**不再阻断**（用户：「凭据和私钥，暂时也放行」）——
+        // v13 二版：判定层的 Deny 档也**不再阻断**（主人：「凭据和私钥，暂时也放行」）——
         // 但分类与理由照样写进留档（将来那套敏感数据框架就长在这条留档上）。
         // 用「凭据形状」取证据（temp 目录里的 api_key）——**不拿真实私钥当样本**。
         var dir = TempDir();
@@ -333,7 +333,7 @@ public sealed class SecurityGatewayTests
         Assert.All(ledger.Entries, e => Assert.Equal(ApprovalDecision.Filed, e.Decision));
     }
 
-    // ---------------- ⑧ 批量授权面（用户 19:14：能一起看，不能一次全批） ----------------
+    // ---------------- ⑧ 批量授权面（主人 19:14：能一起看，不能一次全批） ----------------
 
 
 }

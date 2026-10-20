@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Frozen;
 
 /// <summary>
-/// **worker 自己的记忆索引源**（2026-10-10 用户令 · 治水位待办 ①）：把 <c>memory-index</c> 这一区**从 master 那份脱钩**，
+/// **worker 自己的记忆索引源**（2026-10-10 主人令 · 治水位待办 ①）：把 <c>memory-index</c> 这一区**从 master 那份脱钩**，
 /// 改指向 **worker 自己的 memory 家**（<c>&lt;workerHome&gt;/memory/index.md</c>）。
 /// <para>
 /// **只换一格**：铁则区 / 知识区仍与 master **同一份源**（逐字节同一份）；换的只是记忆索引

@@ -6,7 +6,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Modules;
 
 /// <summary>
-/// **旁路决策模块**（`decision-bypass` · **热插拔** · 用户 2026-10-17 令）。
+/// **旁路决策模块**（`decision-bypass` · **热插拔** · 主人 2026-10-17 令）。
 /// <para>
 /// 它给远端 AI 一个**认知**：存在一个**旁路的自己** —— 由它**代替用户**作决定，运行时随即把
 /// tasklifecycle 推进到下一个，于是连续解决问题；**人只在"库里没讲清楚"时出场**。

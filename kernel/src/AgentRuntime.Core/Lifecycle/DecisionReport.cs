@@ -24,7 +24,7 @@ public sealed record DecisionReport : TaskDecisionReport
     /// **宿主「请交决策报告」那一句的来源标记**（进 <c>Hint</c> 事件的账本字段 <c>Source</c>）——
     /// 聚合器靠它认出「哪条 Hint 是报告请求」，从而把**紧随其后的那一条回复**当报告。
     /// <para><b>为什么用 Source 而不是新事件 KIND</b>：History 是不可变的事件流，加 KIND = 改模型看得见的字符表；
-    /// 而 Source 只是**账本字段**（不进 prompt）⇒ 零协议代价（用户 2026-09-24 定「走既有 Hint 通道」）。</para>
+    /// 而 Source 只是**账本字段**（不进 prompt）⇒ 零协议代价（主人 2026-09-24 定「走既有 Hint 通道」）。</para>
     /// </summary>
     public const string RequestSource = "report-request";
 
@@ -39,6 +39,9 @@ public sealed record DecisionReport : TaskDecisionReport
     /// <summary>一、**这一轮要解决什么**（一句话；缺失 ⇒ 解析即拒绝，不替它归纳 —— `§十·64`）。</summary>
     public required string Need { get; init; }
 
+    /// <summary>一·补、**术语表**（v85：缩写 / 类型名 / 别名逐条给全称与人话解释）。</summary>
+    public IReadOnlyList<DecisionReportTerm> Terms { get; init; } = [];
+
     /// <summary>二、**怎么解的**（按解步推进；1~6 条，每条一句话）。</summary>
     public required IReadOnlyList<DecisionReportStep> Steps { get; init; }
 
@@ -50,7 +53,7 @@ public sealed record DecisionReport : TaskDecisionReport
     /// <para>
     /// 为什么它必须能进来：报告原先只分「原料」（不进）与「总结」（进），**缺第三类「成品」**
     /// —— 交付给人阅读/消费的内容本身（题面 / 文案 / 方案正文）。只写「不许铺原料」会把成品一起拍死
-    /// （2026-09-24 用户问「为什么题进不了报告」当场抓出，坑 #154 · `§十·61`）。
+    /// （2026-09-24 主人问「为什么题进不了报告」当场抓出，坑 #154 · `§十·61`）。
     /// </para>
     /// <para>
     /// **与 <see cref="Outcome"/> 的分工**：Outcome 是「现在什么是真的」（判断）；本字段是「请读这个东西」（交付物）。
@@ -70,19 +73,22 @@ public sealed record DecisionReport : TaskDecisionReport
 /// <param name="Index">步序（1 起；形状是 <c>step &lt;n&gt;:</c>，认不出编号时退化为**出现次序** —— 排序是事实，不是编造）。</param>
 /// <param name="What">这一步**结算了什么**（一句话；不是「跑了什么工具」）。</param>
 /// <param name="Evidence">证据锚（可空；**宿主校验存在性**，不存在即丢 —— 认不出就不编）。</param>
-public sealed record DecisionReportStep(int Index, string What, string? Evidence);
+public sealed record DecisionReportStep(int Index, string What, string? Evidence, string? Why = null);
 
 /// <summary>报告的一条**过程发现**。</summary>
 /// <param name="Kind">类别（<c>blocked</c> 卡住 / <c>failed</c> 失败 / <c>noticed</c> 顺手发现；缺省 <c>noticed</c>）。</param>
 /// <param name="What">一句话。</param>
 /// <param name="Evidence">证据锚（可空）。</param>
-public sealed record DecisionReportFinding(string Kind, string What, string? Evidence);
+public sealed record DecisionReportFinding(string Kind, string What, string? Evidence, string? Impact = null);
+
+/// <summary>报告术语表的一条（v85）：缩写 / 类型名 / 别名 → 全称 + 一句人话。</summary>
+public sealed record DecisionReportTerm(string Key, string Meaning);
 
 /// <summary>报告的一条**接下来**（用户在卡上可点选；回 1/2/3 或 <c>/decide n</c>）。</summary>
 /// <param name="Index">序号（1 起，按出现次序）。</param>
 /// <param name="Text">一句话（**只允许指向已有通道或本报告已说过的动作**，不发明能力）。</param>
 /// <param name="Recommended">是不是它推荐的那一条（屏上标「它建议」）。</param>
-public sealed record DecisionReportNext(int Index, string Text, bool Recommended);
+public sealed record DecisionReportNext(int Index, string Text, bool Recommended, string? Consequence = null);
 
 /// <summary>锚表的一条：显示键（<c>§n.m</c> / <c>Tk:Lj</c>）↔ 事件 id（<c>E###</c>）。</summary>
 public sealed record ReportAnchor(string Key, string Tag);

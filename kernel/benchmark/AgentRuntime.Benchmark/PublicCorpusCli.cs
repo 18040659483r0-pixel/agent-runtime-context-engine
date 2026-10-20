@@ -15,9 +15,9 @@ public static class PublicCorpusCli
     /// <summary>（正则, 替换）—— 顺序即优先级（先路径、后标识、再人名）。</summary>
     private static readonly (string Pattern, string Replacement)[] Scrubs =
     [
-        (@"(/Users/[A-Za-z0-9_.\-]+/\.openclaw/workspace)", "<workspace>"),
-        (@"(/Users/[A-Za-z0-9_.\-]+/Documents/[A-Za-z0-9_./\-]*)", "<工作副本>"),
-        (@"(/Users/[A-Za-z0-9_.\-]+)", "<用户目录>"),
+        (@"(/home/user/[A-Za-z0-9_.\-]+/\.openclaw/workspace)", "<workspace>"),
+        (@"(/home/user/[A-Za-z0-9_.\-]+/Documents/[A-Za-z0-9_./\-]*)", "<工作副本>"),
+        (@"(/home/user/[A-Za-z0-9_.\-]+)", "<用户目录>"),
         (@"(C:\\\\Users\\\\[A-Za-z0-9_.\-]+)", "<用户目录>"),
         (@"(C:\\\\Mac\\\\Home\\\\Documents\\\\AgentWorkFlow)", "<工作副本>"),
         (@"(F:\\\\AgentWorkFlow)", "<工作副本>"),
@@ -34,8 +34,8 @@ public static class PublicCorpusCli
         (@"(提取码[:：]?\s*\S+)", "提取码:<略>"),
         (@"(\d[\d,]*\.?\d*\s*元)", "<金额>"),
         (@"(徐总)", "用户"),
-        (@"(用户)", "用户"),
-        (@"(助手)", "助手"),
+        (@"(主人)", "用户"),
+        (@"(樱桃)", "助手"),
         (@"(\bwazi\b)", "user"),
         (@"(\b001\b)", "WIN端"),
     ];
@@ -51,10 +51,10 @@ public static class PublicCorpusCli
     /// <summary>发布前自检：产物中绝不允许出现。</summary>
     private static readonly string[] LeakPatterns =
     [
-        @"/Users/", @"C:\\\\", @"F:\\\\", @"\b\d{1,3}(?:\.\d{1,3}){3}\b",
+        @"/home/user/", @"C:\\\\", @"F:\\\\", @"\b\d{1,3}(?:\.\d{1,3}){3}\b",
         @"\bxuxinyue\b", @"\bnm-[0-9a-f]{8,}", @"\bNM-[0-9a-f]{8,}",
         @"\bsk-[A-Za-z0-9_\-]{8,}", @"\bghp_[A-Za-z0-9]{8,}", @"\bgithub_pat_[A-Za-z0-9_]{8,}",
-        @"\b1[3-9]\d{9}\b", "徐总", "用户", "助手", @"\bwazi\b", @"pan\.baidu\.com",
+        @"\b1[3-9]\d{9}\b", "徐总", "主人", "樱桃", @"\bwazi\b", @"pan\.baidu\.com",
     ];
 
     public static int Run(string[] args)

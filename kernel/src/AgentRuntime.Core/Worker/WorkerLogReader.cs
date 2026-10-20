@@ -7,7 +7,7 @@ using AgentRuntime.Core.Stream;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// master 读 worker 落点 stream.xml 的入口（2026-09-27；按用户裁定改为「按 dispatch.xml 定位真身」）。
+/// master 读 worker 落点 stream.xml 的入口（2026-09-27；按主人裁定改为「按 dispatch.xml 定位真身」）。
 /// 落点层级 = workerHome/&lt;provider&gt;/&lt;批次&gt;/，每个批次目录同时含 dispatch.xml / stream.xml / usage.xml。
 /// 规则：以最新 dispatch.xml 为**批次锚** ⇒ 取同目录的 stream.xml。
 /// 读不到（无锚 / 无同目录 stream.xml）⇒ 返回 null（**判红**，绝不回落到别的文件）。

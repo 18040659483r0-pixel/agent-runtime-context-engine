@@ -14,14 +14,14 @@ namespace AgentRuntime.Core.Worker;
 /// </summary>
 public static class WorkerProtocolText
 {
-    /// <para><b>v17（2026-09-30 用户令「意图枚举组合写入协议区」）</b>：回执改**两段式** —— 首行
+    /// <para><b>v17（2026-09-30 主人令「意图枚举组合写入协议区」）</b>：回执改**两段式** —— 首行
     /// <c>[RESULT] &lt;一句自然语言结论&gt;</c>（<c>[WORKER]</c> 仍认）+ <c>kind=</c>（封闭 6 类：done / partial /
     /// blocked / refused / impossible / need_human）+ **按类取字段**（终局自验按 <c>kind</c> 取，不再要求"四字段齐"
     /// ⇒ 解掉"失败回执永远活不过闸门 ⇒ 死循环"）。<b>先量后定</b>：实测 4,900 字符 / 21 行 ⇒ 预算 4,400 → **5,400**。</para>
     /// <summary>版本（进 Worker 的账本，**不进 prompt** —— 与主协议同一纪律）。</summary>
     /// <summary>版本标记（带日期时间，与主协议同一形状；<see cref="Version"/> 保持短）。</summary>
-    public const string VersionStamp = "v48（2026-10-17 17:10）";
-    public const string Version = "48";
+    public const string VersionStamp = "v49（2026-10-18 16:10）";
+    public const string Version = "49";
 
     /// <summary>行预算（**唯一声明处**）—— v39 起共用段新增 `[PACE]` 节 ⇒ 110 → 115。</summary>
     public const int DeclaredMaxLines = 115;
@@ -35,7 +35,7 @@ public static class WorkerProtocolText
 
     /// <summary>
     /// 契约正文（英文正文 + **工具面口径直接引用 <see cref="AgentRuntime.Core.Tooling.ToolFaceClause"/>**）。
-    /// <para><b>v9（2026-09-29 用户令）</b>：不再「只给一段典型用法」（证明不够）——
+    /// <para><b>v9（2026-09-29 主人令）</b>：不再「只给一段典型用法」（证明不够）——
     /// 工具面**照 master 那边的口径教**（形状 / 每把工具要哪些键 / 节奏与省字，三份都取自唯一来源），
     /// 于是「同一形状一处认、一处不认」的分叉从结构上就不可能。</para>
     /// </summary>

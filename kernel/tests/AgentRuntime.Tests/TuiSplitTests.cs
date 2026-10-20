@@ -42,7 +42,7 @@ public sealed class TuiSplitTests
         frame.Regions.Single(r => r.Region == region);
 
     /// <summary>
-    /// **单轮 provider 失败 ≠ 退出进程**（2026-10-15 用户令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
+    /// **单轮 provider 失败 ≠ 退出进程**（2026-10-15 主人令：「也没退出的道理，运行时提示用户存在单轮超 5 分钟即可，
     /// 提示即可，不需要退出」）。
     /// <para>从前只有 split 这条路没人接 <see cref="ModelClientException"/>（plain 早接住了：<c>RunPlainAsync</c>
     /// 每轮 catch 后 continue）⇒ 异常一路冒到 <c>Main</c> ⇒ **整只 TUI 退出（退出码 3）**；真机 2026-10-15 12:01 / 12:18 两次。</para>
@@ -85,8 +85,41 @@ public sealed class TuiSplitTests
         Assert.Equal(2, calls);
     }
 
+    [Fact]
+    public async Task Split_provider连不上_明说是provider_且_retry可原样重发()
+    {
+        var calls = 0;
+        var client = new FakeModelClient((_, _) => ++calls == 1
+            ? Task.FromException<ChatResponse>(
+                new ModelClientException(
+                    "provider 连不上（连接超时 15s）：https://api.deepseek.com/chat/completions —— 请检查网络后重试",
+                    providerUnreachable: true))
+            : Task.FromResult(new ChatResponse
+            {
+                Id = "fake-retry",
+                Model = "fake-model",
+                Choices =
+                [
+                    new ChatChoice { Index = 0, Message = ChatMessage.Assistant("重试成功"), FinishReason = "stop" },
+                ],
+                Usage = new TokenUsage { PromptTokens = 3, CompletionTokens = 4, TotalTokens = 7 },
+            }));
+
+        using var h = new TuiHarness("split-provider-unreachable", client: client);
+        var session = NewSession(h);
+        await session.StartAsync(Ct);
+
+        await session.SubmitAsync("第一句", Ct);
+        Assert.Contains(session.Conversation, e => e.Text.Contains("provider 连不上", StringComparison.Ordinal));
+        Assert.Contains(session.Conversation, e => e.Text.Contains("/retry", StringComparison.Ordinal));
+
+        await session.SubmitAsync("/retry", Ct);
+        Assert.Equal(2, calls);
+        Assert.Contains(session.Conversation, e => e.Text.Contains("重试成功", StringComparison.Ordinal));
+    }
+
     /// <summary>
-    /// **提示点是「只看不砍」**（用户 2026-10-15 令）：到了 5 分钟只**出一行**，不取消、不放弃（≠ 放弃这一轮）。
+    /// **提示点是「只看不砍」**（主人 2026-10-15 令）：到了 5 分钟只**出一行**，不取消、不放弃（≠ 放弃这一轮）。
     /// 边界用纯函数钉住，不用真等 5 分钟。
     /// </summary>
     [Fact]
@@ -389,7 +422,7 @@ public sealed class TuiSplitTests
         var session = NewSession(h);
         await session.StartAsync(Ct);
 
-        // ① 默认态（v13）：六项**全部就地展开**（用户 2026-09-21 23:5x：「你全部展开吧」）——
+        // ① 默认态（v13）：六项**全部就地展开**（主人 2026-09-21 23:5x：「你全部展开吧」）——
         //    正文摊在每个模块自己那一行下面，不用再按 Enter。旧行为（默认只展开 R4/R5/R3 + 落盘）已废。
         var fresh = session.Frame(96, 30);
         Assert.Equal(6, fresh.Menu.Count);
@@ -510,7 +543,7 @@ public sealed class TuiSplitTests
         Assert.Equal(height, lines.Count);
         Assert.All(lines, l => Assert.Equal(width, TerminalText.WidthOf(l)));
 
-        // ② 顶框：全档给六区逐区 ≈token；中/底线档把区栈压成合计（口径按版式档位，用户 02:2x 定）。
+        // ② 顶框：全档给六区逐区 ≈token；中/底线档把区栈压成合计（口径按版式档位，主人 02:2x 定）。
         if (layout.TopBandContentRows >= 5)
         {
             foreach (var id in new[] { "R1-P", "R1", "R2", "R4", "R5", "R3" })
@@ -528,14 +561,14 @@ public sealed class TuiSplitTests
         // 2026-10-06：默认续 ⇒ 帧里可能停在"续跑中"的状态行（不再是裸提示符）⇒ 只要求顶框带运行时标识。
         Assert.Contains("agent-runtime", text, StringComparison.Ordinal);
 
-        // ③ **无边框版式**（用户 2026-10-14）：整帧不画框 —— 块与块之间靠**固定位置的 `ⓘ` 提示行**分割
+        // ③ **无边框版式**（主人 2026-10-14）：整帧不画框 —— 块与块之间靠**固定位置的 `ⓘ` 提示行**分割
         //    （第 0 行 = 标题行；顶块内容之后 = 「对话（全宽）」行），与底部状态条同一种自然分割。
-        // 2026-10-15 用户令：文字左右各留 1 格（对称）⇒ 第 1 列是留白，`ⓘ` 从第 2 列起。
+        // 2026-10-15 主人令：文字左右各留 1 格（对称）⇒ 第 1 列是留白，`ⓘ` 从第 2 列起。
         Assert.StartsWith("ⓘ ", lines[0][1..], StringComparison.Ordinal);
         Assert.StartsWith("ⓘ ", lines[layout.TopBandRows - 1][1..], StringComparison.Ordinal);
         Assert.Contains("对话", lines[layout.TopBandRows - 1], StringComparison.Ordinal);
 
-        // ③′ **宽度 bug 的闸门**（2026-10-15 用户报「每一行总是会漏一个字」）：整帧**首列与末列都是留白** ——
+        // ③′ **宽度 bug 的闸门**（2026-10-15 主人报「每一行总是会漏一个字」）：整帧**首列与末列都是留白** ——
         //     正文永不顶到最后一列 ⇒ 落屏紧跟的 `EraseToEndOfLine` 只擦得掉空白，不会再吃掉正文末字。
         Assert.All(lines, l => Assert.Equal(' ', l[0]));
         Assert.All(lines, l => Assert.Equal(' ', l[^1]));
@@ -551,7 +584,7 @@ public sealed class TuiSplitTests
     }
 
     /// <summary>
-    /// **宽度 bug 的专闸**（用户 2026-10-15 报「每一行总是会漏一个字，包括 <c>agent-runtime&gt;</c> 那行」）。
+    /// **宽度 bug 的专闸**（主人 2026-10-15 报「每一行总是会漏一个字，包括 <c>agent-runtime&gt;</c> 那行」）。
     /// <para>根：<c>SplitView.Pad</c> 旧写法 <c>TruncateTo(w).PadTo(w)</c> 让正文**顶满到最后一列**；
     /// 而落屏时每行紧跟一句 <c>EraseToEndOfLine</c> ⇒ 光标正停在正文末字上 ⇒ **末字被擦掉**。</para>
     /// <para>判据（200 列一帧，逐行量宽）：显示宽 = 200，且**首列 / 末列都是留白**（左右各留 1 格、对称）。</para>
@@ -632,9 +665,9 @@ public sealed class TuiSplitTests
     [Fact]
     public void 输入区_行高随内容立刻变化_只在停稳后收窄()
     {
-        // v13 修 BUG（用户 2026-09-21 报）：旧的两段口径（键入中只看显式换行 / 停稳才软换行）
+        // v13 修 BUG（主人 2026-09-21 报）：旧的两段口径（键入中只看显式换行 / 停稳才软换行）
         // 会让行高**跳回一行**、且要等几百毫秒才长高。
-        // 新口径：**行高只按内容算**（立刻、软换行、上限 5 行）；收窄由宿主在停稳后做。
+        // 新口径：**行高只按内容算**（立刻、软换行、上限 MaxInputRows=12，每屏再按半屏收紧）；收窄由宿主在停稳后做。
         var longLine = new string('中', 60);          // 显示宽度 120 列
 
         // 立刻就是 2 行（不再等停稳）。
@@ -645,7 +678,7 @@ public sealed class TuiSplitTests
         Assert.Equal(2, SplitRenderer.InputRowsFor("第一行\n短", 80));
         Assert.Equal(3, SplitRenderer.InputRowsFor("a\nb\nc", 80));
 
-        // 上限：再长也只在 5 行里滚。
+        // 上限：再长也只在 MaxInputRows 行里滚。
         Assert.Equal(SplitLayout.MaxInputRows, SplitRenderer.InputRowsFor(new string('中', 600), 80));
         Assert.Equal(400, SplitRenderer.InputSettleMs);                 // 它现在只当「收窄防抖窗口」
 
@@ -661,6 +694,20 @@ public sealed class TuiSplitTests
         var one = SplitLayoutFor(session, "");
         var two = SplitLayoutFor(session, "a\nb");
         Assert.Equal(one.BodyRows - 1, two.BodyRows);
+    }
+
+    [Fact]
+    public void 输入变长时帧的InputRows自动增高()
+    {
+        using var h = new TuiHarness("tui-input-autogrow");
+        var session = NewSession(h);
+        var field = typeof(AgentRuntime.Tui.SplitSession).GetField("_input", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        field.SetValue(session, new string('A', 100));
+        var frame = session.Frame(80, 30);
+        Assert.True(frame.InputRows >= 2, $"InputRows={frame.InputRows}");
+
+        field.SetValue(session, "short");
+        Assert.Equal(SplitLayout.InputPanelRowsFor(30), session.Frame(80, 30).InputRows);
     }
 
     private static SplitLayout SplitLayoutFor(AgentRuntime.Tui.SplitSession session, string input)
@@ -743,7 +790,7 @@ public sealed class TuiSplitTests
     [Fact]
     public void 用户行_you大于号前缀_整行斜体_上下各空一行()
     {
-        // 用户 2026-09-22 定：对话流里**自己问的那一句**要一眼瞄到 ⇒ `you > ` 前缀（两边各一个空格）
+        // 主人 2026-09-22 定：对话流里**自己问的那一句**要一眼瞄到 ⇒ `you > ` 前缀（两边各一个空格）
         // + 整行**斜体** + 上下各空一行。三条都是契约，缺一条人就看不出「这句是我问的」。
         var frame = FrameWithConversation(
             new ConversationEntry("you", "再确认一次部署代号"),
@@ -772,7 +819,7 @@ public sealed class TuiSplitTests
     [Fact]
     public async Task 本轮被取消_不再把整个会话带走()
     {
-        // 2026-09-22 01:39 用户真机报「说一句收尾就自动退出」：Ctrl-C 一下 / 思考中按 Enter（插话）取消的是**这一轮**，
+        // 2026-09-22 01:39 主人真机报「说一句收尾就自动退出」：Ctrl-C 一下 / 思考中按 Enter（插话）取消的是**这一轮**，
         // 而取消以前没人接 ⇒ TaskCanceledException 冒到 Main ⇒ 未捕获 ⇒ 整个 TUI 被 abort（实测退出码 -6）。
         // 这里用**会挂住的假模型**把取消卡在「请求在飞」那一刻（真实路径）。
         using var h = new TuiHarness("split-cancel");
@@ -801,7 +848,7 @@ public sealed class TuiSplitTests
     [Fact]
     public async Task 口径_顶框说本task与近token_不写本轮()
     {
-        // 用户 2026-09-22 02:0x / 02:2x：「轮」= 一次模型调用（计算单位）；「生命周期 / task」= 一次用户请求。
+        // 主人 2026-09-22 02:0x / 02:2x：「轮」= 一次模型调用（计算单位）；「生命周期 / task」= 一次用户请求。
         // v15 单栏：口径全在**顶部框**（会话 / 区栈）—— 不再有「状态块」与「Δ列」。
         using var h = new TuiHarness("split-wording");
         var session = NewSession(h);
@@ -818,7 +865,7 @@ public sealed class TuiSplitTests
     [Fact]
     public async Task 提示条_带海蓝角色_且正文与纯文本帧逐字节一致()
     {
-        // 用户 2026-09-22 02:0x：输入区上方那条提示改海蓝（StyleRole.Hint）。
+        // 主人 2026-09-22 02:0x：输入区上方那条提示改海蓝（StyleRole.Hint）。
         // 角色是零宽标记 ⇒ 不得改变帧正文（plain == rich 闸门照旧）。
         using var h = new TuiHarness("split-hint");
         var session = NewSession(h);
@@ -835,7 +882,7 @@ public sealed class TuiSplitTests
     [Fact]
     public void 终局正文不再两遍_info行给卡让位()
     {
-        // 2026-09-22 01:3x 用户真机报：「得解后终局的内容描述了两遍」——
+        // 2026-09-22 01:3x 主人真机报：「得解后终局的内容描述了两遍」——
         // info 行 `[终局] 得解[DONE]：<正文>` 与卡上 `结果：<正文>` 是**同一段文字**。
         // split 模式掐掉 info 行（卡承载它），辅助行照旧显示（卡上没有它们）。
         var response = "做完了。\n[DONE] R1 协议区正文无可零损精简";
@@ -1026,5 +1073,97 @@ public sealed class TuiSplitTests
         addEntry.Invoke(conv, [entry]);
         Assert.True((bool)probe.Invoke(session, ["[task 收尾] 同一句（带 memory/… handoff/… 地址）"])!);   // 同句 ⇒ 跳过
         Assert.False((bool)probe.Invoke(session, ["另一句不同的话"])!);                                    // 换了内容 ⇒ 照铺
+    }
+
+    [Fact]
+    public void 输入区_长输入时提示符常驻且行数增高()
+    {
+        // 2026-10-19 主人报：「agent-runtime > 竟然可以被删除」「大段输入不会垒高」。
+        // 真因：面板超过上限时只显示最后 N 行，提示符所在的第一行被滚出视野。
+        using var h = new TuiHarness("tui-input-sticky-prompt");
+        var session = NewSession(h);
+        var field = typeof(AgentRuntime.Tui.SplitSession).GetField("_input", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        field.SetValue(session, string.Join("\n", Enumerable.Repeat("这是一行很长的输入内容，用来把面板撑到上限。", 20)));
+
+        var frame = session.Frame(80, 24);
+        var lines = AgentRuntime.Tui.SplitRenderer.Render(frame);
+        var text = string.Join("\n", lines);
+
+        Assert.Equal(12, frame.InputRows);                       // 24 高 ⇒ 半屏 12 行（不再卡在 5）
+        Assert.Contains("agent-runtime > ", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 超大粘贴_折叠成一行指示_不铺满屏()
+    {
+        using var h = new TuiHarness("tui-paste-summary");
+        var session = NewSession(h);
+        var insert = typeof(AgentRuntime.Tui.SplitSession).GetMethod("InsertPaste", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        insert.Invoke(session, [string.Join("\n", Enumerable.Repeat("x", 320))]);
+
+        var frame = session.Frame(80, 24);
+        var text = string.Join("\n", AgentRuntime.Tui.SplitRenderer.Render(frame));
+
+        Assert.Equal(2, frame.InputRows);
+        Assert.Contains("|Command+V: 320 行|", text, StringComparison.Ordinal);
+        Assert.Contains("agent-runtime > ", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("xxxx", text);
+    }
+
+    [Fact]
+    public void 折叠粘贴后继续输入的内容仍可见()
+    {
+        using var h = new TuiHarness("tui-paste-then-type");
+        var session = NewSession(h);
+        var insert = typeof(AgentRuntime.Tui.SplitSession).GetMethod("InsertPaste", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var type = typeof(AgentRuntime.Tui.SplitSession).GetMethod("InsertChar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        insert.Invoke(session, [string.Join("\n", Enumerable.Repeat("block-line", 20))]);
+        foreach (var ch in "补充") { type.Invoke(session, [ch]); }
+
+        var text = string.Join("\n", AgentRuntime.Tui.SplitRenderer.Render(session.Frame(80, 24)));
+
+        Assert.Contains("|Command+V: 20 行|", text, StringComparison.Ordinal);
+        Assert.Contains("补充", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("block-line", text);
+    }
+
+    [Fact]
+    public void 段编辑器_多块复合_退格删文本再删块_左右跳过块()
+    {
+        using var h = new TuiHarness("tui-editor-compose");
+        var session = NewSession(h);
+        var insert = typeof(AgentRuntime.Tui.SplitSession).GetMethod("InsertPaste", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var type = typeof(AgentRuntime.Tui.SplitSession).GetMethod("InsertChar", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var back = typeof(AgentRuntime.Tui.SplitSession).GetMethod("BackspaceEdit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var left = typeof(AgentRuntime.Tui.SplitSession).GetMethod("LeftEdit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var right = typeof(AgentRuntime.Tui.SplitSession).GetMethod("RightEdit", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        insert.Invoke(session, [string.Join("\n", Enumerable.Repeat("A", 20))]);
+        foreach (var ch in "中间") { type.Invoke(session, [ch]); }
+        insert.Invoke(session, [string.Join("\n", Enumerable.Repeat("B", 20))]);
+        foreach (var ch in "尾") { type.Invoke(session, [ch]); }
+
+        var text = string.Join("\n", AgentRuntime.Tui.SplitRenderer.Render(session.Frame(80, 24)));
+        Assert.Contains("|Command+V: 20 行|", text, StringComparison.Ordinal);
+        Assert.Contains("中间", text, StringComparison.Ordinal);
+        Assert.Contains("尾", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("回车提交", text);
+
+        // 退格：先删尾字，再删第二个块，再删「中间」，最后删第一个块。
+        back.Invoke(session, null);
+        back.Invoke(session, null);
+        back.Invoke(session, null);
+        back.Invoke(session, null);
+        back.Invoke(session, null);
+        text = string.Join("\n", AgentRuntime.Tui.SplitRenderer.Render(session.Frame(80, 24)));
+        Assert.DoesNotContain("|Command+V:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("中间", text, StringComparison.Ordinal);
+
+        // 左右跳过块：插一个块后，左键应落在块前，右键回块后。
+        insert.Invoke(session, [string.Join("\n", Enumerable.Repeat("C", 20))]);
+        left.Invoke(session, null);
+        right.Invoke(session, null);
+        text = string.Join("\n", AgentRuntime.Tui.SplitRenderer.Render(session.Frame(80, 24)));
+        Assert.Contains("|Command+V: 20 行|", text, StringComparison.Ordinal);
     }
 }

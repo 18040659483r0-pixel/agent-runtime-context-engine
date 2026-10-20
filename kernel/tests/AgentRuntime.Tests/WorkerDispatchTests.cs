@@ -15,7 +15,7 @@ namespace AgentRuntime.Tests;
 
 /// <summary>
 /// **派发（协议第 13 条）的闸门** —— 解析 / 池 / 模块三段。
-/// <para>钉的是用户 2026-09-25 那几条要求：池是 **session 作用域且有状态**（W11/W12/W14）、
+/// <para>钉的是主人 2026-09-25 那几条要求：池是 **session 作用域且有状态**（W11/W12/W14）、
 /// 池满**只报事实不代替决定**（W13）、同步与异步**可分辨**（W7）、派发**绝不静默失败**（W4）。</para>
 /// </summary>
 public sealed class WorkerDispatchTests
@@ -193,7 +193,7 @@ public sealed class WorkerDispatchTests
     [Fact]
     public async Task W7b_回执行回流_pitfalls_与_handoff_正文_缺口A1()
     {
-        // 用户 2026-09-29 19:56 令：这两列此前**没进 master 侧可见的那一行**（worker 交了等于没交）。
+        // 主人 2026-09-29 19:56 令：这两列此前**没进 master 侧可见的那一行**（worker 交了等于没交）。
         var (m, sink, runner, pool) = Build();
         runner.Pitfalls = ["相对路径会漂移 ⇒ 一律绝对"];
         runner.Handoff = ["handoff/39-answer-semantics-and-gaps.md"];
@@ -246,7 +246,7 @@ public sealed class WorkerDispatchTests
         Assert.Equal(900, m.WorkerNewTokens);
     }
 
-    // ---------------------------------------------------------------- 字节装配 + 零转义（2026-09-29 用户令）
+    // ---------------------------------------------------------------- 字节装配 + 零转义（2026-09-29 主人令）
 
     [Fact]
     public void 派发_任务里带竖线_不再静默截断_并且落痕()
@@ -472,7 +472,7 @@ public sealed class WorkerDispatchTests
 
         var m = modules.OfType<WorkerDispatchModule>().Single();
         Assert.NotNull(m.Pool);
-        Assert.Equal(2, m.Pool.MaxWorkers);                       // 用户定：目前只允许 2 条异步 worker
+        Assert.Equal(2, m.Pool.MaxWorkers);                       // 主人定：目前只允许 2 条异步 worker
         Assert.Null(m.Pool.Describe());                            // 新池 = 空 ⇒ 不占字节（W12）
     }
 
@@ -597,7 +597,7 @@ public sealed class WorkerDispatchTests
         var lines = string.Join("\n", SplitRenderer.Render(
             FrameWithWorkers(["#W1 sync 4.1s「把 A 的读取改到新 API」"])));
 
-        Assert.Contains("工蜂", lines, StringComparison.Ordinal);   // 2026-10-09 用户令：头部字样 worker → 「工蜂」
+        Assert.Contains("工蜂", lines, StringComparison.Ordinal);   // 2026-10-09 主人令：头部字样 worker → 「工蜂」
         Assert.Contains("#W1", lines, StringComparison.Ordinal);
         Assert.Contains("sync", lines, StringComparison.Ordinal);
         Assert.Contains("4.1s", lines, StringComparison.Ordinal);
@@ -615,7 +615,7 @@ public sealed class WorkerDispatchTests
         var withWorker = string.Join("\n", LifecyclePresenter.Card(
             lifecycle, workers: ["#W1 sync 4.1s「把 A 的读取改到新 API」", "#W2 async 3.1s「跑一遍测试」（在跑）"]));
 
-        Assert.Contains("工蜂：", withWorker, StringComparison.Ordinal);        // C1：看得出是「工蜂」在跑（2026-10-09 用户令：worker → 工蜂）
+        Assert.Contains("工蜂：", withWorker, StringComparison.Ordinal);        // C1：看得出是「工蜂」在跑（2026-10-09 主人令：worker → 工蜂）
         Assert.Contains("#W1 sync 4.1s", withWorker, StringComparison.Ordinal); // C2：sync 可分辨
         Assert.Contains("#W2 async 3.1s", withWorker, StringComparison.Ordinal);// C2：async 可分辨
 
@@ -626,7 +626,7 @@ public sealed class WorkerDispatchTests
     [Fact]
     public void C4_头部参数_新增tok与命中率与上下文与轮数()
     {
-        // 2026-10-09 用户令：要的是**此刻上下文**（最新一轮 prompt、缓存不重复累计），像 OC 底部 702k/1.0m 70%。
+        // 2026-10-09 主人令：要的是**此刻上下文**（最新一轮 prompt、缓存不重复累计），像 OC 底部 702k/1.0m 70%。
         var u = new AgentRuntime.Core.Worker.WorkerUsage
         {
             PromptTokens = 240000,     // 3 轮累加（成本口径）
@@ -644,7 +644,7 @@ public sealed class WorkerDispatchTests
         Assert.Contains("上下文 70,000", fact, StringComparison.Ordinal);          // **此刻**，不是 240,000
         Assert.Contains("86%", fact, StringComparison.Ordinal);                     // 60000/70000 ≈ 85.7 ⇒ 86
         Assert.DoesNotContain("240,000", fact, StringComparison.Ordinal);           // 不得把累加当上下文
-        Assert.DoesNotContain("80,000", fact, StringComparison.Ordinal);            // 上限不显示（2026-10-09 用户令）
+        Assert.DoesNotContain("80,000", fact, StringComparison.Ordinal);            // 上限不显示（2026-10-09 主人令）
 
         Assert.Equal(string.Empty, AgentRuntime.Tui.SplitSession.UsageFact(null));  // 没有 ⇒ 不占字节
     }

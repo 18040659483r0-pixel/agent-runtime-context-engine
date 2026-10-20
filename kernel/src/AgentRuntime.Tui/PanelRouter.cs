@@ -42,8 +42,8 @@ public sealed class PanelRouter
     /// <summary>
     /// **命令清单（唯一声明处）** —— 只有**首个词命中这份名单**的行才算命令；其余一律当**普通文本**发给模型。
     /// <para>
-    /// 为什么不再用「行首是 <c>/</c>」（用户 2026-09-22 22:2x 真机报）：他把一个绝对路径
-    /// （<c>/home/user/Documents/…</c>）粘进输入区，整条被当成命令吃掉、没能发出去 ——
+    /// 为什么不再用「行首是 <c>/</c>」（主人 2026-09-22 22:2x 真机报）：他把一个绝对路径
+    /// （<c>/home/user/wazi/Documents/…</c>）粘进输入区，整条被当成命令吃掉、没能发出去 ——
     /// **路径与命令长得一样**，所以判定要看**名字**，不能看第一个字符。
     /// </para>
     /// <para>要强制把一条以 <c>/</c> 开头的文本当文本发：写成 <c>//…</c>（见 <see cref="Unescape"/>）。</para>
@@ -142,7 +142,7 @@ public sealed class PanelRouter
 
                 case "/reset":
                 {
-                    // **唯一的停顿点**（用户 2026-09-20 14:5x）：收尾一气呵成跑完，只在这里问一次
+                    // **唯一的停顿点**（主人 2026-09-20 14:5x）：收尾一气呵成跑完，只在这里问一次
                     // 「reset + 自动 start（一气呵成）」还是「只 reset」——除了它，收尾全过程不再问人。
                     var report = SessionLifecycle.Reset(_host, DateTimeOffset.Now, LifecycleUsages());
                     List<string> lines = [.. report.Closeout.Lines(_host.Config.Frozen.Watermark), .. report.Lines()];
@@ -426,7 +426,7 @@ public sealed class PanelRouter
     {
         var lines = new List<string>(SessionLifecycle.Closeout(_host, DateTimeOffset.Now, lifecycles: LifecycleUsages()).Lines(_host.Config.Frozen.Watermark));
 
-        // **内置收尾**（2026-10-11 用户定）：收尾的**内容**这一段由运行时自己做 ——
+        // **内置收尾**（2026-10-11 主人定）：收尾的**内容**这一段由运行时自己做 ——
         // 一次给全形状 → 一次模型调用 → 运行时自己覆盖那些 MD（**不过工具面**）。
         if (_host.Config.Lifecycle.NativeCloseout)
         {
@@ -443,7 +443,7 @@ public sealed class PanelRouter
     /// 状态必须一眼可查，否则「为什么它不回我话」会变成玄学。</para>
     /// </summary>
     /// <summary>
-    /// **自动闭环**（用户 2026-10-17）：收尾已完成（AI 按协议跑完 closeout）⇒ **reset + start 一气呵成**，
+    /// **自动闭环**（主人 2026-10-17）：收尾已完成（AI 按协议跑完 closeout）⇒ **reset + start 一气呵成**，
     /// 不等任何人点头。返回要打给人看的行（由调用方落进对话）。
     /// </summary>
     public IReadOnlyList<string> AutoLoop()
@@ -620,7 +620,7 @@ public sealed class PanelRouter
 
         var lines = new List<string>
         {
-            $"[worker] 池上限 {dispatch.Pool.MaxWorkers}（用户定：只允许 2 条异步）",
+            $"[worker] 池上限 {dispatch.Pool.MaxWorkers}（主人定：只允许 2 条异步）",
         };
 
         var snapshot = dispatch.Pool.Snapshot();

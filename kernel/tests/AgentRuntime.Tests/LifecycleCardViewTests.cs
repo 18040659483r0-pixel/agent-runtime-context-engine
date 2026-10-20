@@ -67,7 +67,7 @@ public sealed class LifecycleCardViewTests
         Assert.Equal("lifecycle", entry.Kind);                  // 而屏上只有**一条**条目
         Assert.Contains("5 轮", plain, StringComparison.Ordinal);
         Assert.Contains("✓ 得解", plain, StringComparison.Ordinal);
-        // v8（用户 2026-09-24 19:30）：结果**累积**显示 —— 了结时终局正文照旧作一条结果（卡上原有内容不变）
+        // v8（主人 2026-09-24 19:30）：结果**累积**显示 —— 了结时终局正文照旧作一条结果（卡上原有内容不变）
         Assert.Contains("结果：五轮跑完", plain, StringComparison.Ordinal);
         Assert.Contains("/trace", plain, StringComparison.Ordinal);   // 轨迹的入口在卡上（不挤在卡里）   // 轨迹的入口在卡上（不挤在卡里）
     }

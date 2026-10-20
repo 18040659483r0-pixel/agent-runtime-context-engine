@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **内置收尾**（用户 2026-10-11 定稿形态）：原料（memory/踩坑集/handoff，水位线之后）→ **一次问法** →
+/// **内置收尾**（主人 2026-10-11 定稿形态）：原料（memory/踩坑集/handoff，水位线之后）→ **一次问法** →
 /// 运行时写**两个落点**（`KNOWLEDGE.md` + 铁则区 `AGENTS.md`）→ **水位线由运行时提高**。
 /// </summary>
 public sealed class CloseoutJobTests
@@ -48,7 +48,7 @@ public sealed class CloseoutJobTests
     [Fact]
     public async Task 材料被截断_绝不推进水位_否则假干净()
     {
-        // 2026-10-11 用户令：「截断时不推进水位比较保险」。上限之外的部分会被静默跳过 ⇒ 推进 = 假干净。
+        // 2026-10-11 主人令：「截断时不推进水位比较保险」。上限之外的部分会被静默跳过 ⇒ 推进 = 假干净。
         var (ws, _, roots) = Scene();
         for (var d = 1; d <= 250; d++)
         {
@@ -68,7 +68,7 @@ public sealed class CloseoutJobTests
     [Fact]
     public void 水位读不出_不静默跳过_而是全取_fail_closed()
     {
-        // 2026-10-11 用户令「确保真收尾」：旧口径是「读不出 ⇒ 空 ⇒ 没有新材料 ⇒ 不调模型」，
+        // 2026-10-11 主人令「确保真收尾」：旧口径是「读不出 ⇒ 空 ⇒ 没有新材料 ⇒ 不调模型」，
         // 再自己写一条「已收敛至今天」⇒ **永久假干净**。判据：读不出 ⇒ **全取**，绝不静默跳过。
         var (ws, _, _) = Scene();
         File.WriteAllText(Path.Combine(ws, "memory", "收尾水位.md"),

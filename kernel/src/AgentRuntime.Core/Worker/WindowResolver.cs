@@ -6,7 +6,7 @@ using System.Linq;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// 派发前把 window 解析成**绝对路径**（2026-09-27 用户令①）。
+/// 派发前把 window 解析成**绝对路径**（2026-09-27 主人令①）。
 /// 根因：master 基准 = 仓库根，worker 的 cwd = whitebox/workspace/worker
 /// ⇒ 同一个相对路径两边解析不同（本夜 4/4 派发因此空手："仓库路径未提供"）。
 /// 规则：已是绝对路径 ⇒ 原样保留；否则拼上仓库根并规范化。
@@ -103,7 +103,7 @@ public static class WindowResolver
     }
     public static IReadOnlyList<string> ResolveMany(System.Collections.Generic.IEnumerable<string>? w, string? root=null) => Resolve(w, root);
 
-    // ---------------- A 方案（2026-09-29 · 用户裁决）：派发地址一律绝对 ----------------
+    // ---------------- A 方案（2026-09-29 · 主人裁决）：派发地址一律绝对 ----------------
 
     /// <summary>
     /// **派发前的地址审**：相对 ⇒ 归一成绝对；归一不到、或**相对路径解到的位置不存在** ⇒
@@ -152,7 +152,7 @@ public static class WindowResolver
             }
         }
 
-        // **绝对路径也不再免检**（用户 2026-10-06 令 · 问题一）：它曾按「master 的显式断言 ⇒ 照收」处理，
+        // **绝对路径也不再免检**（主人 2026-10-06 令 · 问题一）：它曾按「master 的显式断言 ⇒ 照收」处理，
         // 真机就栽在这里 —— master 用**自己的 cwd（活版）**把相对地址拼成绝对（`<live>/.stage1/acc/…`），
         // 指向一棵**不存在**的树，运行时照收 ⇒ worker 如实报「无可读文件」，白烧 2 次补发 + 零终局。
         // 判据与相对路径**同一把尺**：本身存在，或它**所在的那一层**存在（新建目标允许尚不存在）。
@@ -166,9 +166,9 @@ public static class WindowResolver
             }
         }
 
-        // 跨树判定（用户 2026-09-29 18:50 令② · 任务 17 的第 ② 条）：**不在 base 下 ⇒ 派发前就拒**。
+        // 跨树判定（主人 2026-09-29 18:50 令② · 任务 17 的第 ② 条）：**不在 base 下 ⇒ 派发前就拒**。
         // 理由：worker 的**全部相对路径**都按 base 解析 ⇒ 跨树的 window 会让「读得到、写不对」静默发生。
-        // **2026-10-09 用户令「B」**：这条守卫**只对写侧（WRITE/EDIT）生效** —— 读类 / EXEC 的 window 只是读源 / 范围提示，
+        // **2026-10-09 主人令「B」**：这条守卫**只对写侧（WRITE/EDIT）生效** —— 读类 / EXEC 的 window 只是读源 / 范围提示，
         // 跨树无害（真机：master 读 `/tmp` 里自己刚落的临时件、读父目录，都被这道守卫挡住、白烧轮次）。
         if (guardBase && OutsideBase(abs, root) is { } outside)
         {

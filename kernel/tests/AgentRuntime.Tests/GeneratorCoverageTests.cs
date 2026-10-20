@@ -84,7 +84,7 @@ public sealed class GeneratorCoverageTests
     {
         var scripts = Scripts();
 
-        // **2026-10-14 翻转**（用户令「一律 C#」）：仓内脚本的**应有集合 = 空**。
+        // **2026-10-14 翻转**（主人令「一律 C#」）：仓内脚本的**应有集合 = 空**。
         // 旧的 `NotEmpty` 是「有脚本 ⇒ 必须认得出来」；现在**有脚本本身就是红**（更强的不变量）。
         Assert.True(
             scripts.Count == 0,

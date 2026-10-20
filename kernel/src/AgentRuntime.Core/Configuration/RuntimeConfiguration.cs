@@ -39,6 +39,10 @@ public sealed class RuntimeConfiguration
     [DataMember]
     public int TimeoutSeconds { get; set; } = 60;
 
+    /// <summary>**provider 连接阶段超时**（秒；默认 15）—— 连不上时快速失败，不等整轮总超时。</summary>
+    [DataMember]
+    public int ConnectTimeoutSeconds { get; set; } = 15;
+
     /// <summary>采样温度；null = 不发送。</summary>
     [DataMember]
     public double? Temperature { get; set; }
@@ -158,6 +162,13 @@ public sealed class RuntimeConfiguration
     /// <summary>最小 Worker（便宜 Provider + 受限工具面 + 受限上下文）。见 <c>docs/DESIGN-MINIMAL-WORKER.md</c>。</summary>
     [DataMember]
     public WorkerConfiguration Worker { get; set; } = new();
+
+    /// <summary>
+    /// 网络能力（第一批 5 个网络工具）：搜索后端 / 超时 / 响应上限 / 下载根目录 / <c>authRef</c> 声明。
+    /// <para>见 <c>docs/DESIGN-NETWORK-TOOLS.md</c> §二。凭据只写环境变量名，不写值。</para>
+    /// </summary>
+    [DataMember]
+    public NetworkConfiguration Network { get; set; } = new();
 
     public static RuntimeConfiguration Load(string path)
     {
@@ -414,7 +425,7 @@ public sealed class LifecycleConfiguration
 
     /// <summary>
     /// **收尾窗口的开放模式**：<c>closeout</c>（默认 = 只在 <c>/closeout</c> 那一刻开）｜<c>always</c>（整个会话常开）。
-    /// <para>用户 2026-09-20 16:1x：「现在一次收尾要按十几次权限授权……我们需要的是一个更加宽泛的权限约束方式」——
+    /// <para>主人 2026-09-20 16:1x：「现在一次收尾要按十几次权限授权……我们需要的是一个更加宽泛的权限约束方式」——
     /// task 级的收尾件（handoff / 坑）发生在任务过程中，只在 <c>/closeout</c> 开窗 ⇒ 那些写还在窗外逐条问。
     /// <c>always</c> = 把「配置声明的那几类目标」在整个 tasklife 里静默放行（v13：分类仍算，但只留档、不拦截）。</para>
     /// </summary>
@@ -427,7 +438,7 @@ public sealed class LifecycleConfiguration
 
     /// <summary>
     /// **工具面拒绝的收件箱**（如 <c>docs/TOOLFACE-PITFALLS.md</c>）；留空 = 不写（不猜路径）。
-    /// <para><b>用户 2026-10-15 令</b>：远端 AI 即使读了协议区仍会一上来先试 JSON、被拒；协议区讲了但遵从率低 ⇒
+    /// <para><b>主人 2026-10-15 令</b>：远端 AI 即使读了协议区仍会一上来先试 JSON、被拒；协议区讲了但遵从率低 ⇒
     /// 由**知识库系统兜底**：<b>任何工具面拒绝，除了记录，还要立刻落进踩坑集</b>，
     /// 下一个 session 再由**顶层知识库**限制一次它的行为。</para>
     /// <para>为什么要机械落盘而不是「提醒模型去记」：拒绝只进事件流就**等于没记**（同 worker 的教训：写进模型读不到的地方 = 只留给人看）。
@@ -459,7 +470,7 @@ public sealed class LifecycleConfiguration
     /// 显式配了才启用「跨进程续接」这一整套。</para>
     /// </summary>
     /// <summary>
-    /// **内置收尾**（2026-10-11 用户定）：收尾**由运行时自己做** —— 收集未收敛内容 → **一次模型调用** →
+    /// **内置收尾**（2026-10-11 主人定）：收尾**由运行时自己做** —— 收集未收敛内容 → **一次模型调用** →
     /// 运行时**自己覆盖那些 MD**（<c>CloseoutJob</c>）。**处理内容是文件 IO，不是起进程**（R2 只管起进程）。
     /// 默认 <c>false</c>：不显式打开时，收尾仍按旧口径（协议第 7/8 条，远端 AI 跑流水线）。
     /// </summary>

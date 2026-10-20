@@ -20,10 +20,10 @@ public enum PaceBand
 }
 
 /// <summary>
-/// **节拍预算**（L2 · 用户 2026-10-09 00:0x 定稿）：把「端点此刻多快」换算成「一块最多等多久」。
+/// **节拍预算**（L2 · 主人 2026-10-09 00:0x 定稿）：把「端点此刻多快」换算成「一块最多等多久」。
 ///
-/// <para><b>锚点定常数</b>（2026-10-09 22:2x 再更新）：用户把常数提到 **30000** ⇒ 56.7 tok/s ⇒ ≈529s（70 ⇒ ≈429s、40 ⇒ 750s；上界 900）。
-/// 上一版 25175（= 56.7 × 444）已不够：复杂活本来就需十几分钟，该拆信号变晚不要紧（用户口径）。</para>
+/// <para><b>锚点定常数</b>（2026-10-09 22:2x 再更新）：主人把常数提到 **30000** ⇒ 56.7 tok/s ⇒ ≈529s（70 ⇒ ≈429s、40 ⇒ 750s；上界 900）。
+/// 上一版 25175（= 56.7 × 444）已不够：复杂活本来就需十几分钟，该拆信号变晚不要紧（主人口径）。</para>
 ///
 /// <para><b>物理读法（诚实标注）</b>：*"愿意在这个速度下，等它吐完约 6.3k 个输出 token 的时间"*。
 /// ⚠️ 这是**按速度折算的等待上限**，**不是**严格的 token 预算：真机里炸掉的 lifecycle 是**慢 + 重试**主导（不是输出多），
@@ -41,7 +41,7 @@ public sealed record PaceBudget(
     /// <summary>闸门下界（快档）。</summary>
     public const double DefaultMinSeconds = 100;
 
-    /// <summary>闸门上界（慢档）—— 2026-10-14 用户令：**900 → 1200**（「复杂任务跑 20 分钟也能继续跑，不被中断」）。</summary>
+    /// <summary>闸门上界（慢档）—— 2026-10-14 主人令：**900 → 1200**（「复杂任务跑 20 分钟也能继续跑，不被中断」）。</summary>
     public const double DefaultMaxSeconds = 1200;
 
     /// <summary>换模型临界（低于它就**别切了**）。</summary>
@@ -71,7 +71,7 @@ public sealed record PaceBudget(
         var lo = minSeconds > 0 ? minSeconds : DefaultMinSeconds;
         var hi = maxSeconds >= lo ? maxSeconds : DefaultMaxSeconds;
 
-        // **显式闸门优先**（用户 2026-10-09）：> 0 ⇒ 直接用，不看速度公式。
+        // **显式闸门优先**（主人 2026-10-09）：> 0 ⇒ 直接用，不看速度公式。
         if (fixedGateSeconds > 0)
         {
             var band = tokPerSec < hardBelowTokPerSec ? PaceBand.TooSlow : PaceBand.Normal;

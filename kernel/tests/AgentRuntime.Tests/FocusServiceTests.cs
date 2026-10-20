@@ -12,7 +12,7 @@ namespace AgentRuntime.Tests;
 /// ① 权重表是**流上的可重算纯函数**（同流两次 ⇒ 逐条相同，含落盘重放）；
 /// ② 渲染**逐字节稳定**（同状态 ⇒ 同 band；空焦点 ⇒ 空串）；
 /// ③ <see cref="FocusState"/> **没有修改入口**（反射断言：无 setter / Remove / Insert）；
-/// ④ 默认值 = K=16 / **minWeight=0.95**（规格书 §六 初值 1.0，用户 2026-09-15 下调）/ 半衰期=40 / band 一行封顶。
+/// ④ 默认值 = K=16 / **minWeight=0.95**（规格书 §六 初值 1.0，主人 2026-09-15 下调）/ 半衰期=40 / band 一行封顶。
 /// </summary>
 public sealed class FocusServiceTests
 {
@@ -207,6 +207,18 @@ public sealed class FocusServiceTests
 
         // 显式覆盖也是同一个归一化口径（非法标签被丢弃）。
         Assert.Equal(new[] { "E003", "E010" }, FocusService.Normalize(["e3", " E010 ", "乱写"]));
+    }
+
+    [Fact]
+    public void Focus_ReportParsing_显式空焦点也合规()
+    {
+        // 2026-10-18 真机：模型没东西可关注时只能「编 id」或「干脆不写」—— 两者都让焦点失真。
+        // 给一个合法的空形状：写了 = 已报（0 标签）；没写 = 未报（不产事件）。
+        Assert.True(FocusService.TryParseReport("做完了\n[FOCUS] none", out var none));
+        Assert.Empty(none);
+        Assert.True(FocusService.TryParseReport("[FOCUS] -", out _));
+        Assert.True(FocusService.TryParseReport("[FOCUS]", out _));
+        Assert.Equal("[FOCUS] none", new FocusReport().Text);
     }
 
     [Fact]

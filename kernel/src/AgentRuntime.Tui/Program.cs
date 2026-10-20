@@ -38,9 +38,22 @@ internal static class Program
 
     private static async Task<int> Main(string[] args)
     {
+        // **UTF-8 输入/输出**（macOS 中文输入法）：显式设一次，避免终端编码在 IME 前后漂移。
+        // 这不是万能药（真正的修复是 raw UTF-8 输入后端），但能消掉一类「同一句中文时好时坏」。
+        try
+        {
+            var utf8 = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+            Console.InputEncoding = utf8;
+            Console.OutputEncoding = utf8;
+        }
+        catch (System.IO.IOException)
+        {
+            // 没有控制台（无头/演示）⇒ 不改；后续照常走 --frame 等路径。
+        }
+
         var options = TuiOptions.Parse(args);
 
-        // 用户 2026-10-17 令（运行时/闸门只警告不阻断）：把**两条进程外的「无痕死亡」通道**先接上留痕。
+        // 主人 2026-10-17 令（运行时/闸门只警告不阻断）：把**两条进程外的「无痕死亡」通道**先接上留痕。
         // ① AppDomain.UnhandledException —— 后台线程未捕获异常 ⇒ CLR abort；
         //    ~/Library/Logs/DiagnosticReports 那 8 份 dotnet-*.ips **全是原生帧、没有托管栈** ⇒ 事后归因不了。
         //    本钩子是**通知性质**（拦不住终止），但能把**托管栈先落盘**。
@@ -84,7 +97,7 @@ internal static class Program
                 return ExitUsage;
             }
 
-            // v13：工具面**不再有审批闸门**（用户 2026-09-21 定：放弃 runtime 的硬闸门）⇒
+            // v13：工具面**不再有审批闸门**（主人 2026-09-21 定：放弃 runtime 的硬闸门）⇒
             // 本该问人的动作由 ToolRunner **留档 + 放行**，右侧授权区不再出现。
             // 自动接续的预算钟照旧（它只服务续跑，与审批无关）。
             var budget = new ContinuationBudget();
@@ -116,7 +129,7 @@ internal static class Program
         }
         catch (ModelClientException ex)
         {
-            // **只剩「启动阶段」的 provider 错误走这里**（2026-10-15 用户令「没退出的道理」）：
+            // **只剩「启动阶段」的 provider 错误走这里**（2026-10-15 主人令「没退出的道理」）：
             // 运行期每一轮的 provider 失败现已在会话循环里接住（SplitSession.RunTurnOnceAsync / plain 的 RunPlainAsync）
             // ⇒ 只提示、会话继续；能冒到这里的基本只有 Boot（密钥/首次装配）阶段。
             Console.Error.WriteLine($"[provider] {ex.Message}");
@@ -139,7 +152,7 @@ internal static class Program
         {
             // 2026-10-17 01:01 真机**就是这条打死会话的**：代理对被截断劈开 ⇒ EncoderFallbackException
             // （它是 ArgumentException 的子类）⇒ 落到这里 ⇒ 原本「只打一行 [config] + 退出码 2」= 会话当场消失。
-            // 用户令：**不许阻断** ⇒ 只警告 + 留在原地；现场（含托管栈）落盘。
+            // 主人令：**不许阻断** ⇒ 只警告 + 留在原地；现场（含托管栈）落盘。
             Console.Error.WriteLine($"[config] {ex.Message}");
             return ExitPolicy.WarnAndStayAlive("配置/用法错误", ex, ExitUsage, streamPathForExit);
         }
@@ -152,7 +165,7 @@ internal static class Program
             CrashDump.Write(ex, options.Config);
             Console.Error.WriteLine($"[tui] 未捕获异常已落盘：{CrashDump.Path}");
             Console.Error.WriteLine($"[tui] {ex.GetType().Name}: {ex.Message}");
-            // 用户 2026-10-17 令：**不再往上抛** —— 「抛出 = 进程死 = 事后归因不了」，正是要治的病。
+            // 主人 2026-10-17 令：**不再往上抛** —— 「抛出 = 进程死 = 事后归因不了」，正是要治的病。
             return ExitPolicy.WarnAndStayAlive("未捕获异常（兜底）", ex, ExitUsage, streamPathForExit);
         }
     }
@@ -181,6 +194,11 @@ internal static class Program
             Environment.GetEnvironmentVariable("TERM"),
             Environment.GetEnvironmentVariable("COLORTERM"),
             StyleTable.ParseDepth(options.ColorDepth));
+
+        if (options.Web)
+        {
+            return await WebUi.RunAsync(host, configPath, options, options.Continuation, budget).ConfigureAwait(false);
+        }
 
         var decision = UiPolicy.Decide(new UiPolicy.Environment(
             RequestsSplit: requestedSplit,
@@ -407,6 +425,7 @@ internal static class Program
         Console.WriteLine("  --color auto|always|never  落屏上色策略（默认 auto：TTY 且非 NO_COLOR/TERM=dumb 才上色）");
         Console.WriteLine("  --color-depth auto|16|256|truecolor  色深（默认 auto；与 OpenClaw 侧同色，256/真彩都很温和）");
         Console.WriteLine("  --snapshot <file>    配合 --ui split：无头渲染**一帧**到文件（纯文本帧，可 diff / 可 CI 断言）");
+        Console.WriteLine("  --web                本地 Web UI（浏览器呈现 + 输入；仅 127.0.0.1）");
         Console.WriteLine("  --frame-size WxH     帧尺寸（默认 96x30 = 笔记本半屏目标；80x24 也不垮）");
         Console.WriteLine("  --cols N --rows N    同上，分开写（与 --frame-size 可混用）");
         Console.WriteLine("  --help, -h           显示本帮助");

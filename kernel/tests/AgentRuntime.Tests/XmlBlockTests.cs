@@ -7,7 +7,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **XML 块通道**（用户 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
+/// **XML 块通道**（主人 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
 /// 这里钉四件事：① 四面各自**往返**（写出去再读回来逐字段相等）；② **确定性**（同值两次字节相等）；
 /// ③ **块外文本进不来**（元素自定界 ⇒ 回声污染从结构上消失 —— 本次病灶）；④ 坏形状**响亮抛**。
 /// </summary>
@@ -37,6 +37,17 @@ public sealed class XmlBlockTests
         Assert.Equal(call.Command, back.Command);
         Assert.Equal(30, back.TimeoutSeconds);
         Assert.Equal("none", back.Risk);
+    }
+
+    [Fact]
+    public void 工具正文保留XML注释标记()
+    {
+        // 2026-10-18 真机：知识树标记 <!--kn: ...--> 写在 write/edit 正文里，
+        // 普通 XElement.Value 会把注释节点丢掉 ⇒ 知识节点只剩正文、标记消失。
+        var call = ToolArgs.Parse(
+            "<call><name>write</name><path>/tmp/a.md</path><content>前<!--kn: L1-x-001-->后</content></call>",
+            "write");
+        Assert.Equal("前<!--kn: L1-x-001-->后", call.RequireString("content"));
     }
 
     [Fact]

@@ -6,13 +6,13 @@ using AgentRuntime.Hosting.Worker;
 namespace AgentRuntime.Hosting.Lifecycle;
 
 /// <summary>
-/// **worker 侧的任务生命周期**（<see cref="TaskLifecycleBase"/> 的派生之二 · 用户 2026-10-07 令）。
+/// **worker 侧的任务生命周期**（<see cref="TaskLifecycleBase"/> 的派生之二 · 主人 2026-10-07 令）。
 ///
 /// <para><b>为什么要有它</b>：worker 此前**只有一台状态机的投影**（结算时拿 <c>LifecycleAggregator</c> 算个 <c>exit</c>），
 /// 没有**驱动轮次**的状态机。本类型把 worker 的每一轮也交给**同一条流程**
 /// （认结算 → 自验 → 定状态 → 给下一轮目标），与 master 逐字同一份基类。</para>
 ///
-/// <para><b>终局也是三态</b>（用户 2026-10-07 令）：<c>kind=done</c> ⇒ <b>得解</b>；
+/// <para><b>终局也是三态</b>（主人 2026-10-07 令）：<c>kind=done</c> ⇒ <b>得解</b>；
 /// <c>kind=impossible</c> ⇒ <b>无解</b>；<c>kind=need_human</c> ⇒ <b>需要人类裁决</b>；
 /// 其余（<c>partial</c>/<c>blocked</c>/<c>refused</c>/未声明 <c>kind=</c>）⇒ **未终结**（继续推进）。
 /// 三态**交给 master 去理解**（与协议 <c>StopKind</c> 同一口径）。</para>
@@ -49,7 +49,7 @@ public sealed class WorkerTaskLifecycle : TaskLifecycleBase
     private int _lastGapSeen;
 
     /// <inheritdoc />
-    /// <para>**收窄口径（用户 2026-10-07）**：只认自己声明的 <c>kind=</c> 落在终局三态上；
+    /// <para>**收窄口径（主人 2026-10-07）**：只认自己声明的 <c>kind=</c> 落在终局三态上；
     /// <c>partial</c>/<c>blocked</c>/<c>refused</c>/未声明 ⇒ **未终结**（继续推进，缺口决定下一步）。</para>
     protected override TerminalState RecognizeTerminal(string replyText, out string detail)
     {
@@ -130,7 +130,7 @@ public sealed class WorkerTaskLifecycle : TaskLifecycleBase
         ?? null;
 
     /// <summary>回执契约闸门的**拒绝理由**（唯一处）：空串 = 过门。
-    /// <para><b>2026-10-07（用户令 · 让 worker 自己知道缺什么）</b>：加**交付键**判据 ——
+    /// <para><b>2026-10-07（主人令 · 让 worker 自己知道缺什么）</b>：加**交付键**判据 ——
     /// 来源是与闸门/CONTRACT **同一份** <see cref="ReceiptKinds.RequiredFields"/>；
     /// 并把缺口**记账**（同一个缺口第 2 次 ⇒ 升级为实错、要记坑，见 <see cref="FeedbackPolicy.EscalatesToRealError"/>）。</para></summary>
     private string GateReasonOf(string replyText)

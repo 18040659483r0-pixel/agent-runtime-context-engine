@@ -9,7 +9,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **收尾面窗口**（用户 2026-09-30 01:03：「让 master 在收尾时获得全部工具处理能力，并且完全 master 自己收尾，
+/// **收尾面窗口**（主人 2026-09-30 01:03：「让 master 在收尾时获得全部工具处理能力，并且完全 master 自己收尾，
 /// 而 start 后还是按照 默认 master 指挥 worker 干活的模式做」）。
 /// <para>三条不变量：</para>
 /// <list type="number">
@@ -27,7 +27,7 @@ public sealed class CloseoutFaceWindowTests
         BaseUrl = "https://x/v1",
         Model = "m",
         Modules = ["system-rules", "append-stream", "tool"],
-        SystemRules = "你是助手。",
+        SystemRules = "你是樱桃。",
     };
 
     private static IReadOnlyList<string> MasterFaceOf(IReadOnlyList<IRuntimeModule> modules) =>
@@ -38,7 +38,7 @@ public sealed class CloseoutFaceWindowTests
     {
         var modules = ModuleRegistry.Create(Config());
 
-        // 2026-10-10（用户令「把工具交回 master」）：master 面 = **全量**（ToolNames.MasterFace = All）
+        // 2026-10-10（主人令「把工具交回 master」）：master 面 = **全量**（ToolNames.MasterFace = All）
         // ⇒ 窗口不再是「两张地图 → 全量」的开关。
         Assert.Equal(ToolNames.All, MasterFaceOf(modules));
         Assert.DoesNotContain(modules, m => m is CloseoutWindowModule);
@@ -64,8 +64,8 @@ public sealed class CloseoutFaceWindowTests
     [Fact]
     public void 收尾命令强制开全量面_且_reset_后收回()
     {
-        // 用户 2026-09-30 12:47：「收尾命令中强制使用 master 全量工具授权；非收尾阶段工具面从 master 手中收走」。
-        // 2026-10-10（用户令「把工具交回 master」）：master 面**常态就是全量** ⇒ 本测试改守**窗口开关**本身
+        // 主人 2026-09-30 12:47：「收尾命令中强制使用 master 全量工具授权；非收尾阶段工具面从 master 手中收走」。
+        // 2026-10-10（主人令「把工具交回 master」）：master 面**常态就是全量** ⇒ 本测试改守**窗口开关**本身
         // （收尾命令开窗 / reset 收窗），面不再随窗口变（但它仍是同一份声明渲染出来的）。
         using var harness = new TuiHarness("closeout-face-force", modules: ["rules","append-stream","tool"]);
         var host = harness.Host;

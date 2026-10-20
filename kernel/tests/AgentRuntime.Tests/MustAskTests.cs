@@ -6,7 +6,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **must-ask 档**（用户 2026-09-16 13:1x 定：发布 / 不可逆命令从「需批」升到 must-ask）。
+/// **must-ask 档**（主人 2026-09-16 13:1x 定：发布 / 不可逆命令从「需批」升到 must-ask）。
 /// <para>每条不变量一个测试；**正例 + 负例都要有**（§十·30：闸门要有牙，正例绿 ≠ 有牙）。</para>
 /// </summary>
 public sealed class MustAskTests

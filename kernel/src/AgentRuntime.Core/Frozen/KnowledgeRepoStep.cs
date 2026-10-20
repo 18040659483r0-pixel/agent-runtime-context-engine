@@ -6,7 +6,7 @@ namespace AgentRuntime.Core.Frozen;
 /// **收尾·知识树派生** —— 就地重建 <c>knowledge/.derived/</c> 并做结构校验。
 /// <para>
 /// 只做文件 IO + 计算（不起进程）：<c>knowledge.md</c> 是活版，派生层由它重算。
-/// 红/警告**如实报**，但**不阻断收尾**（用户 2026-10-17 令：运行时与闸门只警告不阻断）。
+/// 红/警告**如实报**，但**不阻断收尾**（主人 2026-10-17 令：运行时与闸门只警告不阻断）。
 /// </para>
 /// </summary>
 public sealed class KnowledgeRepoStep(string workspace) : ICloseoutStep

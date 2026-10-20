@@ -4,7 +4,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **最小 Worker 的引擎** —— 从 <see cref="AgentRuntimeEngine"/> <b>派生</b>（用户 2026-09-25 定：
+/// **最小 Worker 的引擎** —— 从 <see cref="AgentRuntimeEngine"/> <b>派生</b>（主人 2026-09-25 定：
 /// 「worker 是派生 engine」）。
 ///
 /// <para><b>为什么是派生而不是另写一个引擎</b>：Worker 与 Master 的<b>本质是同一个东西</b> ——

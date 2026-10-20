@@ -10,7 +10,7 @@ namespace AgentRuntime.Tui;
 /// </summary>
 /// <remarks>
 /// <para>
-/// **为什么必须做**（2026-09-24 用户真机报）：TUI 原本只认 <see cref="ConsoleKey.Enter"/> ⇒
+/// **为什么必须做**（2026-09-24 主人真机报）：TUI 原本只认 <see cref="ConsoleKey.Enter"/> ⇒
 /// 多行粘贴被拆成 N 条用户消息，每条都把当轮**打断**一次（流里留下 N 条
 /// 「用户中断了上一轮 …… 该轮没有终局块」的 Hint），而真正活下来的任务文本**只剩最后一行**。
 /// </para>
@@ -120,9 +120,36 @@ internal sealed class PasteCollector
         }
 
         var text = new StringBuilder();
+
+        // **粘贴体空闲超时**（2026-10-19 卡死真因）：终端可能只发 `ESC[200~` 不发 `ESC[201~`，
+        // 或收尾标记在分段读取里丢了 ⇒ 旧实现 `Next()` 永久阻塞，整个 TUI 卡死。
+        // 有内容且 500ms 没有新字节 ⇒ 按「已收到的内容」提交；空粘贴 30ms 就退出。
+        const int bodyIdleMs = 500;
+        var lastKeyMs = _clockMs();
+        var emptySinceMs = _clockMs();
+
         while (true)
         {
+            if (!_more())
+            {
+                var idle = _clockMs() - lastKeyMs;
+                if (text.Length > 0 && idle >= bodyIdleMs)
+                {
+                    break;
+                }
+
+                if (text.Length == 0 && _clockMs() - emptySinceMs >= _markWaitMs)
+                {
+                    break;
+                }
+
+                Thread.Sleep(1);
+                continue;
+            }
+
             var k = Next();
+            lastKeyMs = _clockMs();
+            emptySinceMs = lastKeyMs;
             if (k.Key == ConsoleKey.Escape)
             {
                 var tail = new List<ConsoleKeyInfo>(BracketedPaste.EndMark.Length);

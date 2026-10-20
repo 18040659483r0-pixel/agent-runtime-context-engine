@@ -116,4 +116,29 @@ public sealed class ChatModelsSerializationTests
     {
         Assert.Equal(string.Empty, new ChatResponse().FirstText());
     }
+
+    [Fact]
+    public void Request_永远不携带原生工具字段_tools_tool_choice_functions()
+    {
+        // 主人 2026-10-19 令：provider 侧**不传 tools** ⇒ 模型完全关闭原生工具请求，
+        // 所有动作只能走协议区第 18 条定义的 XML 工具面。这里用**生产者自己的序列化口径**
+        // （OpenAICompatibleClient.RequestSerializerOptions）断言请求体没有这三个键 ——
+        // 防止将来有人给 ChatRequest 加字段又把原生工具面悄悄打开。
+        var request = new ChatRequest
+        {
+            Model = "m-1",
+            Messages = [ChatMessage.User("hi")],
+            Temperature = 0,
+            MaxTokens = 64,
+            ServiceTier = "flex",
+            ReasoningEffort = "low",
+        };
+
+        var json = JsonSerializer.Serialize(request, AgentRuntime.Providers.OpenAICompatibleClient.RequestSerializerOptions);
+
+        using var doc = JsonDocument.Parse(json);
+        Assert.False(doc.RootElement.TryGetProperty("tools", out _), "请求体不得带 tools");
+        Assert.False(doc.RootElement.TryGetProperty("tool_choice", out _), "请求体不得带 tool_choice");
+        Assert.False(doc.RootElement.TryGetProperty("functions", out _), "请求体不得带 functions");
+    }
 }

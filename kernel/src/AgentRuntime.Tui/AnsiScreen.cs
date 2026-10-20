@@ -7,7 +7,7 @@ namespace AgentRuntime.Tui;
 /// **备用屏缓冲的 ANSI 画笔** —— 进屏 / 落帧 / 退出恢复，全部在这里（不引第三方 TUI 库）。
 /// <para>
 /// 用备用屏缓冲（<c>?1049h</c>）而不是"清屏"：退出时终端要回到原样（历史滚动还在），
-/// 这是"当宿主用"的底线 —— 崩了也不能把用户的终端留在半屏乱码里。
+/// 这是"当宿主用"的底线 —— 崩了也不能把主人的终端留在半屏乱码里。
 /// </para>
 /// <para>落帧 = 光标归位 → 逐行写 + 抹到行尾（<c>EL</c>）→ 抹掉下方残留（<c>ED</c>）。
 /// 不做全屏 clear：全清会闪，逐行覆写不会。</para>
@@ -26,7 +26,7 @@ public sealed class AnsiScreen : IDisposable
     /// </summary>
     private const string DisableAutoWrap = "\u001b[?7l";
 
-    /// <summary>恢复自动换行（退出时必须还原 —— 不能把用户的终端留在关着 DECAWM 的状态）。</summary>
+    /// <summary>恢复自动换行（退出时必须还原 —— 不能把主人的终端留在关着 DECAWM 的状态）。</summary>
     private const string EnableAutoWrap = "\u001b[?7h";
     private const string LeaveAlternateScreen = "\u001b[?1049l";
     private const string HideCursor = "\u001b[?25l";

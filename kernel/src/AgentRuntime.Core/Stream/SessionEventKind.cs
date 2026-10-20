@@ -76,7 +76,7 @@ public enum SessionEventKind
     PermissionFiled,
 
     /// <summary>
-    /// **派发给 Worker 的事实**（用户 2026-09-25）：哪个 worker / 什么模式（sync|async）/ 任务一行 / 窗口。
+    /// **派发给 Worker 的事实**（主人 2026-09-25）：哪个 worker / 什么模式（sync|async）/ 任务一行 / 窗口。
     /// <para>与 <see cref="WorkerResult"/> **成对**：本条记「活交出去了」，那条记「结果回来了」。
     /// 同步派发时，两条之间的那段就是 Master 的等待期；异步时中间夹着 Master 自己的其它事件
     /// （⇒ 人从流上一眼能分辨同步与异步，得设计稿 W7）。</para>
@@ -120,7 +120,7 @@ public enum SessionEventKind
 public static class SessionEventKinds
 {
     /// <summary>
-    /// **算不算「一次可消费的回合结果」** —— 事件种类的**唯一声明处**（2026-09-29 用户令「停手交接」）。
+    /// **算不算「一次可消费的回合结果」** —— 事件种类的**唯一声明处**（2026-09-29 主人令「停手交接」）。
     /// <para>
     /// 为什么要有它：续跑判据过去在两侧各写一份 <c>ToolResult or ToolDenied</c> 的字面量 ⇒
     /// 那条通道**产生的结果不在判据里**（派发 / 回执是另外两种事件）⇒ 加了通道等于加了一条静默死路
@@ -136,7 +136,7 @@ public static class SessionEventKinds
 
     /// <summary>解析标签（大小写不敏感）；未知返回 null。</summary>
     /// <remarks>
-    /// **格式面迁移的「先兼容读」半步**（用户 2026-10-17 令：先兼容读 → 改新写 → 观察 → 撤旧）。
+    /// **格式面迁移的「先兼容读」半步**（主人 2026-10-17 令：先兼容读 → 改新写 → 观察 → 撤旧）。
     /// 将来 <c>Skill</c> 要改名（去 skill），旧流里逐字是 <c>skill</c>、新流会写新名 ——
     /// ⇒ 现在先把**新旧两名都认**（都归到当前成员），改名后旧流照样读得动。
     /// </remarks>

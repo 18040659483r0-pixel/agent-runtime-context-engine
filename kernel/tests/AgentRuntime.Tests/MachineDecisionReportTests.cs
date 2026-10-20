@@ -7,7 +7,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **决策报告的公共虚拟类型**（用户 2026-10-07 令）：master 与 worker 各派生一形态、走同一流程；
+/// **决策报告的公共虚拟类型**（主人 2026-10-07 令）：master 与 worker 各派生一形态、走同一流程；
 /// 终局三态（得解 / 无解 / 需要人类裁决）**任一都要出报告**；worker 那份是**机器决策报告**
 /// （<see cref="MachineDecisionReport"/>）—— 把宽泛说辞收窄成字段，并把**回执系统**塞在里面。
 /// </summary>
@@ -71,7 +71,7 @@ public sealed class MachineDecisionReportTests
         Assert.False(report.GateRejected);                 // 回执契约闸门：过
     }
 
-    // 用户 2026-10-07 令：卡在「不是我能定的那件事」上时，交的是一份**临时回执**（裁决请求）——
+    // 主人 2026-10-07 令：卡在「不是我能定的那件事」上时，交的是一份**临时回执**（裁决请求）——
     // 含**封闭枚举**收窄意图（CHOOSE_TARGET/AUTHORIZE/…），而不是一句散文 question:。
     [Fact]
     public void 要人裁_必须附临时回执_且枚举收窄意图()

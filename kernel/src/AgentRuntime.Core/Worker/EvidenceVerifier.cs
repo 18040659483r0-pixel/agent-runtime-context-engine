@@ -4,7 +4,7 @@ using System.Text;
 
 namespace AgentRuntime.Core.Worker;
 
-/// <summary>master 侧回执复核结论（2026-09-27 用户令①）。</summary>
+/// <summary>master 侧回执复核结论（2026-09-27 主人令①）。</summary>
 public sealed record EvidenceVerdict
 {
     public bool Ok { get; init; }

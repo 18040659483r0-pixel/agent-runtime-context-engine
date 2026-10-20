@@ -6,7 +6,7 @@ using System.Text;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **master-worker 运行模式的共用协议段**（用户 2026-09-30 16:58 令：两边必须具有**同一份**）。
+/// **master-worker 运行模式的共用协议段**（主人 2026-09-30 16:58 令：两边必须具有**同一份**）。
 /// <para><b>为什么要有它</b>：这条模式的规矩此前被**拆成两份各自改写** —— master 面在协议区第 13 条、
 /// worker 面在worker 协议区第 5/7 条。两份一改写就不同源：worker 手里因此**没有"必须给哪些键"那张表**，
 /// 于是它按直觉写散文、运行时按表把它拦下（真机 2026-09-30）。**同一件事只能有一处声明**（§十·17）。</para>
@@ -63,7 +63,7 @@ public static class MasterWorkerProtocol
             sb.Append("    instance: ").Append(ReceiptKinds.Instance(kind)).Append('\n');
         }
 
-        // **[PACE] 节拍**（用户 2026-10-09 定）：闸门由运行时换算/显式设定 —— 同一件事只许一处声明。
+        // **[PACE] 节拍**（主人 2026-10-09 定）：闸门由运行时换算/显式设定 —— 同一件事只许一处声明。
         sb.Append("[PACE] the runtime times EVERY dispatch against a per-dispatch GATE (seconds): if it has not come back by then it STOPS the worker\n");
         sb.Append("and tells you to split the work (it does NOT retry -- a retry is just the same too-big chunk again).\n");
         sb.Append("One dispatch is NOT one generation: a worker may issue SEVERAL provider requests, so the gate is set generously (not from a single generation).\n");
@@ -82,7 +82,7 @@ public static class MasterWorkerProtocol
                 + string.Join("|", ReceiptCombination.CoveredValues) + "), side_effects= ("
                 + string.Join("|", ReceiptCombination.SideEffectValues) + "), scope = the absolute addresses touched.\n");
 
-        // v46（2026-10-07 用户口径）：**临时回执（裁决请求）**—— 卡在“不是我能定的那件事”上时，
+        // v46（2026-10-07 主人口径）：**临时回执（裁决请求）**—— 卡在“不是我能定的那件事”上时，
         // 不猜、也不结算：交一份**临时回执**给 master 裁定，链**继续**。形状与 [INTENT] 同一套。
         sb.Append("[RULING] a step that needs a decision that is NOT yours: do NOT guess and do NOT settle -- hand the Master a TEMPORARY receipt and CONTINUE (the ruling comes back as an event). shape: \"[RULING] <ruling><ask>what must be decided</ask><kind>KIND</kind><options>/abs/one</options></ruling>\" (add that kind's keys as members). Kinds (with their keys):\n");
         foreach (var ruling in Enum.GetValues<RulingKind>())
@@ -92,7 +92,7 @@ public static class MasterWorkerProtocol
               .Append(RulingKinds.Short(ruling)).Append('\n');
         }
 
-        // v47（2026-10-07 用户口径）：**信封**（身份 + 时刻 + id + re + 模式）· **裁定回信**（临时回执的对偶）· **作废**。
+        // v47（2026-10-07 主人口径）：**信封**（身份 + 时刻 + id + re + 模式）· **裁定回信**（临时回执的对偶）· **作废**。
         sb.Append("[ENVELOPE] every message between the two sides carries ONE line -- who (fingerprint) to whom, when (datetime), which one (id = hash(from|at)), and which one it answers (re=). Modes (direction): "
                 + string.Join(" | ", Enum.GetValues<MessageMode>().Select(m => $"{MessageModes.Name(m)} {MessageModes.Direction(m)}")) + ".\n");
         sb.Append("[RULING-ANSWER] the Master's reply to an interim receipt -- its DUAL, same element shape: \"[RULING-ANSWER] <verdict><decision>DECISION</decision><value>the pick or the new direction</value><re>the interim id</re></verdict>\" -- DECISION is "
@@ -101,7 +101,7 @@ public static class MasterWorkerProtocol
                 + " + \"re: <the interim id>\". Pick one of the offered options, or give a NEW direction of your own; ESCALATE hands it to the human. It continues.\n");
         sb.Append("[ABORT] the Master voids ONE in-flight dispatch by its envelope id: \"[ABORT] <id>\". The voided dispatch no longer counts; the chain continues.\n");
 
-        // v37（用户 2026-10-06 口径）：形状层 / 实质层**分工**写进共用段 —— 两侧拿到的是**同一份**（§十·58）。
+        // v37（主人 2026-10-06 口径）：形状层 / 实质层**分工**写进共用段 —— 两侧拿到的是**同一份**（§十·58）。
         // 2026-10-06：把**语义规则**从运行时搬进协议区（运行时只机械执行）—— 两条都由**代码里的唯一声明表**渲染。
         sb.Append("[WINDOW] a window is a READ SOURCE or a WRITE TARGET: a read source must ALREADY exist; a write target only needs its directory. Read sources: " + string.Join(", ", Enum.GetValues<DispatchIntentKind>().Where(DispatchIntents.WindowMustExist).Select(DispatchIntents.Name)) + ".\n");
         sb.Append("[FEEDBACK] a format-class failure (fix the shape, NO pitfall) is: " + string.Join(", ", FeedbackPolicy.FormatClass.Select(c => c.ToString())) + "; everything else attributable is a REAL ERROR (record a pitfall).\n");
@@ -118,7 +118,7 @@ public static class MasterWorkerProtocol
         sb.Append("Worker: the dispatch carries the VERIFIED base as its \"base:\" line -- that is the value; never guess a tree.\n");
         sb.Append("[DUTY] shape vs substance -- the SAME split on both sides.\n");
         sb.Append("Worker: the substance is YOURS to certify. Your receipt carries the keys its kind requires plus a basis= anchor, and every number you state must be one the runtime can recompute from disk.\n");
-        // v52（2026-10-07 用户口径）：**读数时效** —— 读数是**本轮那一次运行**的属性，不许被记忆 / 过往回执覆盖。
+        // v52（2026-10-07 主人口径）：**读数时效** —— 读数是**本轮那一次运行**的属性，不许被记忆 / 过往回执覆盖。
         // 真机：worker 的 exec stdout 里 sha 是对的，回执却声明了上一轮的旧 sha（记忆覆盖刚读到的值）。
         sb.Append("Freshness: a reading is true ONLY for the run that produced it -- quote a number ONLY from a TOOL RESULT of THIS dispatch. "
                 + "A number you remember, or one an earlier receipt carried, is NOT a source; if you must reuse an earlier reading, label it as reuse WITH that turn, or write `unknown`. "

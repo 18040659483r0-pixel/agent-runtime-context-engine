@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Net.Sockets;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -63,6 +65,42 @@ public sealed class OpenAICompatibleClient : IModelClient, IServiceTierProbe
     /// <summary>本次调用要打到的地址（测试直接断言它）。</summary>
     public string Endpoint => OpenAICompatibleOptions.BuildChatCompletionsUrl(_options.BaseUrl);
 
+    /// <summary>
+    /// 这条失败是不是「连不上 provider」（DNS / TCP / TLS / 连接超时）—— UI 据此给「是否重试」，
+    /// 而不是把所有网络错误都报成一句笼统的「请求失败」。
+    /// </summary>
+    private static bool LooksUnreachable(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException)
+            {
+                return true;
+            }
+
+            if (current is SocketException socket)
+            {
+                return socket.SocketErrorCode is SocketError.TimedOut
+                    or SocketError.HostNotFound
+                    or SocketError.HostUnreachable
+                    or SocketError.NetworkDown
+                    or SocketError.NetworkUnreachable
+                    or SocketError.TryAgain
+                    or SocketError.ConnectionRefused
+                    or SocketError.ConnectionReset;
+            }
+        }
+
+        var text = ex.Message + " " + (ex.InnerException?.Message ?? string.Empty);
+        return text.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("connection refused", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("no such host", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("name or service not known", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("unreachable", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("dns", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -95,6 +133,7 @@ public sealed class OpenAICompatibleClient : IModelClient, IServiceTierProbe
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiKey);
 
         HttpResponseMessage httpResponse;
+        var callClock = Stopwatch.StartNew();
         try
         {
             httpResponse = await _http.SendAsync(httpRequest, HttpCompletionOption.ResponseContentRead, cancellationToken)
@@ -106,11 +145,29 @@ public sealed class OpenAICompatibleClient : IModelClient, IServiceTierProbe
         }
         catch (TaskCanceledException ex)
         {
+            callClock.Stop();
+            // 连接阶段超时（15s）与整轮总超时（1200s）必须分开报：前者是「provider 连不上」，后者是「模型太慢」。
+            var connectWindow = TimeSpan.FromSeconds(_options.ConnectTimeoutSeconds + 2);
+            if (callClock.Elapsed <= connectWindow && LooksUnreachable(ex))
+            {
+                throw new ModelClientException(
+                    $"provider 连不上（连接超时 {_options.ConnectTimeoutSeconds}s）：{Endpoint} —— 请检查网络后重试",
+                    innerException: ex,
+                    providerUnreachable: true);
+            }
+
             throw new ModelClientException($"请求超时（{_options.TimeoutSeconds}s）：{Endpoint}", innerException: ex);
         }
         catch (HttpRequestException ex)
         {
-            throw new ModelClientException($"网络请求失败：{Endpoint}（{ex.Message}）", innerException: ex);
+            callClock.Stop();
+            var unreachable = LooksUnreachable(ex);
+            throw new ModelClientException(
+                unreachable
+                    ? $"provider 连不上（连接超时 {_options.ConnectTimeoutSeconds}s）：{Endpoint} —— 请检查网络后重试"
+                    : $"网络请求失败：{Endpoint}（{ex.Message}）",
+                innerException: ex,
+                providerUnreachable: unreachable);
         }
 
         using (httpResponse)

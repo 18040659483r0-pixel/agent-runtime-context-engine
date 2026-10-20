@@ -23,6 +23,9 @@ namespace AgentRuntime.Tests;
 /// </summary>
 public sealed class ProtocolZoneTests
 {
+
+
+
     private static RuntimeConfiguration Config(List<string>? modules = null, List<string>? domains = null) => new()
     {
         BaseUrl = "https://example.invalid/v1",
@@ -55,60 +58,60 @@ public sealed class ProtocolZoneTests
             $"协议区文本 {ProtocolText.EstimatedTokens} token，超出预算 {ProtocolText.DeclaredMaxTokens} token。");
 
         // ⚠️ **三次放宽/重定的来历（可复算，不靠记性）**：
-        //    ① r532（用户 2026-09-15 22:09 按 A 定）：正文实测 723 字符 ⇒ 181 token > 旧声明 160 ⇒ 预算放宽到 ≤200。
-        //    ② V4.3（用户 2026-09-15 23:2x 定稿 Q5）：加入 [DRAFT] 段后正文 849 字符 ⇒ 213 token > 200 ⇒ 放宽到 ≤10 行 / ≤240 token。
-        //    ③ v5（用户 2026-09-15 23:4x 定，协议区扩容 / DESIGN-SKILL-LAYERS §十）：正文 1029 字符 ⇒ 258 token > 240
+        //    ① r532（主人 2026-09-15 22:09 按 A 定）：正文实测 723 字符 ⇒ 181 token > 旧声明 160 ⇒ 预算放宽到 ≤200。
+        //    ② V4.3（主人 2026-09-15 23:2x 定稿 Q5）：加入 [DRAFT] 段后正文 849 字符 ⇒ 213 token > 200 ⇒ 放宽到 ≤10 行 / ≤240 token。
+        //    ③ v5（主人 2026-09-15 23:4x 定，协议区扩容 / DESIGN-SKILL-LAYERS §十）：正文 1029 字符 ⇒ 258 token > 240
         //       ⇒ 预算重定为 ≤8 行 / ≤280 token（正文一个字节不删；行数回到 8 是因为 v5 实测只有 6 行）。
         //    ④ v6（协议区补 [L3] 自报块，依据 DESIGN-SKILL-LAYERS §五；前置 = 「按 id 装载 L3」已落地）：
         //       **先重算再定预算** —— 正文 1106 字符 ⇒ 277 token **仍在 ≤8 行 / ≤280 token 之内，预算不变**。
         //    ⑤ v7（协议区补 [TOOL] 块，依据 DESIGN-TOOL-FACE §六；前置 = 工具面同期落地）：
         //       **先重算再定预算** —— 正文 1323 字符 ⇒ 331 token > 280 ⇒ 预算重定为 **≤8 行 / ≤340 token**
         //       （其余 5 条逐字节未改；行数仍 6）。
-        //    ⑥ v8（用户 2026-09-16 22:19/22:23 定，**与「知识库 18KB 精简」同窗口**）：
+        //    ⑥ v8（主人 2026-09-16 22:19/22:23 定，**与「知识库 18KB 精简」同窗口**）：
         //       ① 第 2 条去掉 SKILL 口径（**本系统只有 L1/L2/L3**；外部 skill 靠**吸收收敛**汇入）；
         //       ② 块名 [SKILL] → [L3]（唯一声明处 `ProtocolText.L3Prefix`）；
         //       ③ 第 4 条补「**怎么请求能力**」（DESIGN-SECURITY-GATEWAY §八 S0）。
         //       **先重算再定预算** —— 正文 1559 字符 ⇒ 378 token > 340 ⇒ 预算重定为 **≤8 行 / ≤400 token**（行数仍 6）。
         // 下面三个数（实测值 / 预算 / 闸门）都钉住，谁要复核直接看这三行。
-        //    ⑦ v9（用户 2026-09-20 12:3x 定：命名 Solve Step · 终局用独立块 · 预算 ≤10 行 / ≤600 token）：
+        //    ⑦ v9（主人 2026-09-20 12:3x 定：命名 Solve Step · 终局用独立块 · 预算 ≤10 行 / ≤600 token）：
         //       ① 新增第 4 条「求解语言」（Equation / Known Conditions / Solution / Solve Step / Solution Set / Intervention）；
         //       ② 旧第 4 条 → 第 5 条，[TAIL] 首两行改为 solve / step（白板承担「当前解 / 求解步 i」，**不新增块**）；
         //       ③ 新增第 6 条终局三态（[DONE] / [NO-SOLUTION] / [NEED-USER]，**三个独立块**）；
         //       ④ 新增第 7 条收尾 / 重开（closeout + reset 是设计内交接；≥20% 窗口且任务了结 ⇒ 提议）。
         //       **先量后定** —— 正文 2,390 字符 ⇒ 598 token、9 行 ⇒ 预算 ≤10 行 / ≤600 token。
-        //    ⑧ v10（用户 2026-09-20 13:3x 定「现在就改，不必攒着」）：第 7 条补**收尾三层**
+        //    ⑧ v10（主人 2026-09-20 13:3x 定「现在就改，不必攒着」）：第 7 条补**收尾三层**
         //       （task 收尾：handoff + 坑 / session 收尾：抽象 L1/L2 + 晋级 + 推进水位 + 记收尾水位线 / reset）。
         //       实测 2,699 字符 ⇒ 675 token、10 行 ⇒ 预算重定为 **≤12 行 / ≤700 token**。
         //       为何此刻改：WB 侧头部几天没跑、缓存命中早已失效 ⇒ 归零代价 ≈ 0。
-        //    ⑨ v11（用户 2026-09-20 14:4x「把整个流程的操作手法写入冻结区协议区」）：第 7 条扩成**操作手册**，
+        //    ⑨ v11（主人 2026-09-20 14:4x「把整个流程的操作手法写入冻结区协议区」）：第 7 条扩成**操作手册**，
         //       新增第 8/9 条写死「谁执行 / 什么顺序 / 失败怎么办 / 一切可回滚 / 20% 达标即自动跑」。
         //       实测 3,122 字符 ⇒ 781 token、11 行 ⇒ 预算 **≤12 行 / ≤800 token**。
-        //    ⑩ v12（用户 2026-09-20 16:1x「权限判定权下放给远端 AI 自判」，依据 docs/DESIGN-APPROVAL-V12.md）：
+        //    ⑩ v12（主人 2026-09-20 16:1x「权限判定权下放给远端 AI 自判」，依据 docs/DESIGN-APPROVAL-V12.md）：
         //       第 5 条 [TOOL] 补 **risk: 声明**（risk: none|<what could break>；不会损害电脑/数据/公共安全才写 none；
         //       硬红线照旧拦；假声明被记下来）—— **不新增块**。
         //       实测 3,459 字符 ⇒ 865 token、11 行 ⇒ 预算重定为 **≤12 行 / ≤900 token**。
-        //    ⑪ v13（用户 2026-09-21 23:2x「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」＋「凭据和私钥暂时也放行」，
+        //    ⑪ v13（主人 2026-09-21 23:2x「放弃 runtime 的硬闸门，纯用纪律约束远端 AI」＋「凭据和私钥暂时也放行」，
         //       依据 docs/DESIGN-APPROVAL-V13.md）：撤闸门（第 5 条改成事实：分类 + 留档 + 照跑，任务内不问人）+ 终局前自判（第 6 条）。
         //       实测 3,612 字符 ⇒ 903 token、11 行 ⇒ 预算显式重定为 **≤12 行 / ≤1,000 token**。
-        //    ⑫ v14（用户 2026-09-22 03:2x「允许多个 tool/turn」＋「第 2 条边界写清」）：
+        //    ⑫ v14（主人 2026-09-22 03:2x「允许多个 tool/turn」＋「第 2 条边界写清」）：
         //       第 5 条一次回复最多 4 次 [TOOL]（旧 one call per reply；实测 9 轮里 4 轮是「读一点看一点」）+ 第 2 条 bulk 边界 + risk 在 JSON 外。
         //       实测 3,980 字符 ⇒ 995 token、11 行 ⇒ 预算重定为 **≤12 行 / ≤1,100 token**。
-        //    ⑬ v15（用户 2026-09-22 03:3x「A+B+C」）：v14 实测变差（9 轮/16.3k → 12 轮/37.1k）⇒ 第 2 条措辞收正（要齐窗口、绝不整份倒；结果有上限+指针）。
+        //    ⑬ v15（主人 2026-09-22 03:3x「A+B+C」）：v14 实测变差（9 轮/16.3k → 12 轮/37.1k）⇒ 第 2 条措辞收正（要齐窗口、绝不整份倒；结果有上限+指针）。
         //       实测 4,029 字符 ⇒ 1008 token、11 行 ⇒ **仍在 ≤12 行 / ≤1,100 token 之内，预算不动**。
-        //    ⑭ v16（用户 2026-09-22 03:3x「顺手做了」）：第 5 条补上「工具名 + 各工具的键」（同一处渲染 = ToolNames.FaceText）。
+        //    ⑭ v16（主人 2026-09-22 03:3x「顺手做了」）：第 5 条补上「工具名 + 各工具的键」（同一处渲染 = ToolNames.FaceText）。
         //       实测 4,138 字符 ⇒ 1035 token、11 行 ⇒ **仍在 ≤12 行 / ≤1,100 token 之内，预算不动**。
-        //    ⑮ v16 / v17（用户 2026-09-22 03:4x）：v16 第 5 条补工具面（名字 + 各工具的键）；
+        //    ⑮ v16 / v17（主人 2026-09-22 03:4x）：v16 第 5 条补工具面（名字 + 各工具的键）；
         //       v17 新增第 11 条「东西在哪 + 怎么干得快」（工具调用效率属协议层，不属用户铁则区）。
         //       实测 4,719 字符 ⇒ 1180 token、12 行 ⇒ 预算**扩容**为 **≤13 行 / ≤1,300 token**。
-        //    ⑯ v18（用户 2026-09-22 04:0x 令）：第 5 条把 [TOOL] **形状说死 + 给带引号完整示例**
+        //    ⑯ v18（主人 2026-09-22 04:0x 令）：第 5 条把 [TOOL] **形状说死 + 给带引号完整示例**
         //       （v16 的键清单只当**附录** —— 键清单不能替代形状）。起因：真机实测模型照抄 v16 的紧凑形状
         //       ⇒ 写出 {command: "…", timeoutSeconds: 60}（**键无引号** ⇒ 非法 JSON ⇒ fail-closed），
         //       一场 11 轮问答里 **3 轮纯浪费**（E003/E004/E005 三条 ToolDenied，第 4 轮才自己改对）。
         //       实测 4,841 字符 ⇒ 1211 token、12 行 ⇒ **仍在 ≤13 行 / ≤1,300 token 之内，预算不动**。
-        //    ⑰ v19（用户 2026-09-22 16:4x 令「动协议区，这次动完基本不用再动」）：第 5 条 read 的键补 `symbol`
+        //    ⑰ v19（主人 2026-09-22 16:4x 令「动协议区，这次动完基本不用再动」）：第 5 条 read 的键补 `symbol`
         //       + 教会「按名字一次取整段」。依据：同题六跑的 A/B —— 上限两方向都更差、附注三版都更差（坑 #114~#116）
         //       ⇒ 病不在窗口而在「要几次才够」。实测 5,073 字符 ⇒ 1269 token、12 行 ⇒ **仍在 ≤13 行 / ≤1,300 token 之内，预算不动**。
-        //    ⑱ v20（用户 2026-09-22 17:0x：「**这是交互体验的重要方面，不能由用户知识库去兜底**」）：第 6 条补**负向口径** ——
+        //    ⑱ v20（主人 2026-09-22 17:0x：「**这是交互体验的重要方面，不能由用户知识库去兜底**」）：第 6 条补**负向口径** ——
         //       「没结束就不发终局块（继续干用 [TAIL]/[DRAFT]/[FOCUS]/[TOOL]）」+「`[NO-SOLUTION]` 只表示已证此路不通，
         //       不是『本轮没做完』」+「同轮还在点工具就不算终局」。起因：真机 `.stage1/stream-20260922-164509.jsonl` E011 ——
         //       模型想表达「本轮不终局」却写了 `[NO-SOLUTION] 本轮不发终端块 —— 取证未完，继续。`
@@ -118,53 +121,57 @@ public sealed class ProtocolZoneTests
         //       自然语言问句不能替代它」。起因：真机 `.stage1/stream-20260922-170759.jsonl` E248 —— 它问「L3 切条现在重建吗？给 API key 路径」
         //       却没发终局块 ⇒ 卡 `#3 ● 进行中` 悬住（坑 #120）。实测 5,558 字符 ⇒ **1390 token**、12 行
         //       ⇒ 预算上移一档为 **≤13 行 / ≤1,500 token**（留 ~8% 余量，照 v14 的教训）。
-        // v21（2026-09-24 19:4x，用户定「报告必交 / 完整版 / 终局后下轮交」）：新增**第 12 条·决策报告**（[REPORT] 块，≤30 行）——
+        // v21（2026-09-24 19:4x，主人定「报告必交 / 完整版 / 终局后下轮交」）：新增**第 12 条·决策报告**（[REPORT] 块，≤30 行）——
         //       实测 **6,534 字符 ⇒ 1634 token**、13 行 ⇒ 预算按「先量后定」重定为 **≤13 行 / ≤1,800 token**（留 ~10% 余量）。
-        // v22（2026-09-24 夜，用户令「协议区做净」）：第 12 条补 **`body:` 成品正文位**（题面 / 文案 / 方案正文逐字进；原料仍不进）——
+        // v22（2026-09-24 夜，主人令「协议区做净」）：第 12 条补 **`body:` 成品正文位**（题面 / 文案 / 方案正文逐字进；原料仍不进）——
         //       依据坑 #154 / §十·61（「不铺原料」的口径缺「成品」一类 ⇒ 成品与原料一起被拍死）。
         //       v23（2026-09-25）：第 13 条【派发给 Worker】上线 ⇒ 实测 **7,562 字符 ⇒ 1891 token**、14 行 ⇒ 预算重定 **≤14 行 / ≤2,100 token**（留 ~10% 余量）。
         //       v24（2026-09-25）：第 13 条措辞改强命令式（Dispatch BY DEFAULT）+ 阈值与 WorkerConfiguration.BulkTokens(3,000) 同锚
         //       ⇒ 实测 **7,870 字符 ⇒ 1,968 token**、14 行 ⇒ 预算重定 **≤14 行 / ≤2,200 token**。
-        // v25（2026-09-25 夜，用户令「本次一次改够」）：① 第 5 条工具队列口径（≈4 为**节奏**；超出**排队、不拒、不丢**）
+        // v25（2026-09-25 夜，主人令「本次一次改够」）：① 第 5 条工具队列口径（≈4 为**节奏**；超出**排队、不拒、不丢**）
         //       ② 第 12 条「报告轮不带终局块」（DESIGN-LIFECYCLE-BRIEF §十三-derived #2 挂账落地）
         //       ⇒ 实测 **8,589 字符 ⇒ 2,148 token**、14 行 ⇒ 预算上移 **≤14 行 / ≤2,400 token**（留 ~10% 余量）。
-        // v31（2026-09-29 21:3x · 用户令「改 master 协议区」）：第 5 条键清单**按角色渲染**（master 只 index/scope，
+        // v31（2026-09-29 21:3x · 主人令「改 master 协议区」）：第 5 条键清单**按角色渲染**（master 只 index/scope，
         //       由 ToolFaceClause.MasterKeys 渲染）+ 第 13 条补 `ask:` / 回执读数 / 地址一律绝对
         //       ⇒ 实测 **9,267 字符 ⇒ 2,317 token**、14 行 ⇒ **仍在 ≤14 行 / ≤2,400 token 之内，预算不动**（先量后定）。
-        // v32（2026-09-30 01:3x · 用户令「master 和 worker 的协议区都要改，让 worker 也理解 master 是怎么使用它的」）：
+        // v32（2026-09-30 01:3x · 主人令「master 和 worker 的协议区都要改，让 worker 也理解 master 是怎么使用它的」）：
         //       第 13 条补「**按回执校准派发详细度**」（薄 => 说细：具体文件/命令/答案形状，并拆小；强 => 按意图派）
         //       + worker 的载荷预算小、记忆跨派发保留 ⇒ 实测 **9,565 字符 ⇒ 2,392 token**、14 行 ⇒ **仍在 ≤2,400 之内，预算不动**（先量后定）。
-        // v58（2026-10-09 22:15 · 用户令 · D3-A）：第 5 条补一句 **[NOTE] 块**（把一段话落进当日 memory，运行时确定性写盘，不经派发链）
+        // v58（2026-10-09 22:15 · 主人令 · D3-A）：第 5 条补一句 **[NOTE] 块**（把一段话落进当日 memory，运行时确定性写盘，不经派发链）
         //       ⇒ 实测 **6,247 token** ⇒ **仍在 ≤110 行 / ≤6,300 token 之内，预算不动**（先量后定）。
-        // v64（2026-10-14 22:05 · 用户令「过程中每一轮都刷」）：第 5 条回转 v62-B ——
+        // v64（2026-10-14 22:05 · 主人令「过程中每一轮都刷」）：第 5 条回转 v62-B ——
         //       `[TAIL]`/`[DRAFT]` 由「只在决策报告轮写一次」改为**每条回复都刷新当前工作状态**
         //       ⇒ 实测 **8,856 字符 ⇒ 2,214 token**、14 行 ⇒ **仍在 ≤110 行 / ≤2,300 token 之内，预算不动**（先量后定）。
-        // v65（2026-10-14 23:50 · 用户令「b 也要做」）：第 5 条补**长正文纪律**（长值用 `key: <<` 块，禁塞进 `{...}`）
+        // v65（2026-10-14 23:50 · 主人令「b 也要做」）：第 5 条补**长正文纪律**（长值用 `key: <<` 块，禁塞进 `{...}`）
         //       ⇒ 实测 **9,176 字符 ⇒ 2,294 token**、14 行 ⇒ **仍在 ≤110 行 / ≤2,300 token 之内，预算不动**（先量后定）。
-        // v66（2026-10-15 00:25 · 用户令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮就说）
+        // v66（2026-10-15 00:25 · 主人令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮就说）
         //       ⇒ 实测 **9,276 字符 ⇒ 2,319 token**、14 行 ⇒ 预算按「先量后定」重定为 **≤110 行 / ≤2,400 token**。
-        // v67（2026-10-15 01:35 · 用户令「改协议」）：第 5 条回转 v64 —— **[TAIL]/[DRAFT] 只在真变了时才写**
+        // v67（2026-10-15 01:35 · 主人令「改协议」）：第 5 条回转 v64 —— **[TAIL]/[DRAFT] 只在真变了时才写**
         //       （没变就一个块都不写；重写未变状态 = 纯噪声）。
         //       ⇒ 实测 **9,279 字符 ⇒ 2,320 token**、14 行 ⇒ **仍在 ≤110 行 / ≤2,400 token 之内，预算不动**（先量后定）。
-        // v68（2026-10-15 13:2x · 用户令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）
+        // v68（2026-10-15 13:2x · 主人令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）
         //       ⇒ 实测 **9,271 字符 ⇒ 2,313 token**、14 行 ⇒ **仍在 ≤110 行 / ≤2,400 token 之内，预算不动**（先量后定）。
-        // v69（2026-10-16 13:30 · 用户令「rules 平时只读、收尾中收敛；改写请求单 + 水位线」）：新增**第 15 条**
+        // v69（2026-10-16 13:30 · 主人令「rules 平时只读、收尾中收敛；改写请求单 + 水位线」）：新增**第 15 条**
         //       ——  改 rules 不许直接写，只往 `whitebox/workspace/rules-changeOrder.md` 追加一行 [open] 请求；
         //       收尾把 [open] 收敛进真 rules 并推进该文件的水位线（只由收尾写）。
         //       ⇒ 实测 **9,877 字符 ⇒ 2,470 token**、15 行 ⇒ 预算按「先量后定」重定为 **≤110 行 / ≤2,500 token**。
-        // v70（2026-10-16 13:55 · 用户令「扫一眼协议区有没有跟这几轮改动冲突的」）：**一次改够五处** ——
+        // v70（2026-10-16 13:55 · 主人令「扫一眼协议区有没有跟这几轮改动冲突的」）：**一次改够五处** ——
         //       ① 第 5 条：**memory 是只读兜底层**，不许用工具直接写（用 [NOTE]）；② 第 7 条：当日记忆**经 [NOTE] 收敛**；
         //       ③ 第 11 条：补「收尾的可扩展件在 tools/closeout/（requirements/<id>.xml），改前先读仓库根 EXTENSIBILITY.md」；
         //       ④ 第 15 条：补「对 rules 区的其它落定（含条款 6 的 USER-PREFERENCES）也走请求、不直接写」；
         //       ⑤ 版本 69 → 70。⇒ 实测 **10,448 字符 ⇒ 2,612 token**、15 行 ⇒ 预算重定为 **≤110 行 / ≤2,700 token**。
-        // v71（2026-10-16 23:58 · 用户令「skill 已从 WB 退役，不要再看到任何 skill 的内容」）：
+        // v71（2026-10-16 23:58 · 主人令「skill 已从 WB 退役，不要再看到任何 skill 的内容」）：
         //       协议正文里两处 skill 措辞去词（第 2 条「L4 = 原 skill 逐字」→「L4 = 逐字原件」；
         //       第 5 条「L4-…-001 a skill」→「an entry」）⇒ 实测 **10,442 字符 ⇒ 2,611 token**、15 行 ⇒ 预算不动。
-        Assert.Equal(2676, ProtocolText.EstimatedTokens);
-        Assert.Equal(2700, ProtocolText.DeclaredMaxTokens);
+        // v77（2026-10-18）：新增第 16 条「排障纪律」（同一错误两次即停 / E160006 走全新本地 WC /
+        // 旧 TAIL/DRAFT 不反复自证 / 含 shell 元字符的脚本走单块 + 文件）；实测 **12,106 字符 ⇒ 3,027 token**、
+        // 16 行 ⇒ 预算按先量后定为 **≤3,250**（v79 再补“不得复用坏路径名”）。
+        // v86（2026-10-20）：新增第 20 条「收尾回执 + 两库生长硬闸门」⇒ 实测 15,714 字符 ⇒ 3,929 token、20 行。
+        Assert.Equal(3929, ProtocolText.EstimatedTokens);
+        Assert.Equal(4300, ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.EstimatedTokens <= ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.MaxTokens >= ProtocolText.DeclaredMaxTokens);
-        Assert.Equal(2700, ProtocolText.MaxTokens);
+        Assert.Equal(4300, ProtocolText.MaxTokens);
         Assert.Equal(110, ProtocolText.DeclaredMaxLines);
         Assert.True(ProtocolText.Lines.Count <= ProtocolText.DeclaredMaxLines);
 
@@ -175,9 +182,9 @@ public sealed class ProtocolZoneTests
         // v20（2026-09-22 17:0x）：第 6 条补负向口径（没结束不发终局块；[NO-SOLUTION] 只表示已证此路不通），版本号升 "20"。
         // v21（2026-09-24 19:4x）：新增第 12 条**决策报告**（[REPORT] 块，块 ≤30 行，必交、缺失即「未提交」），版本号升 "21"。
         // v24（2026-09-25）：第 13 条【派发给 Worker】口径落地；v25（同日夜）：第 5 条队列口径 + 第 12 条报告轮，版本号升 "25"。v26（2026-09-27）：第 5 条工具面补 index{symbol}（协议正文与工具面同一份渲染），版本号升 "26"。v27（2026-09-27）：第 5 条工具面补 scope{task}（任务地址表入口），版本号升 "27"。v28（2026-09-29）：第 5 条工具面形状改**行式键值**（去 JSON —— 与运行时工具面 / worker worker 协议区同一口径），版本号升 "28"。v64（2026-10-14）：第 5 条 [TAIL]/[DRAFT] 回转**每轮刷新**（v62-B 作废）。v65：长正文纪律。v66：task closeout 当轮说。v67（2026-10-15）：第 5 条回转 v64 —— **[TAIL]/[DRAFT] 只在真变了时才写**（没变就一个块都不写），版本号升 "67"。
-        Assert.EndsWith("74", ProtocolText.Version, StringComparison.Ordinal);
-        // 2026-10-06 用户令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v74（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.EndsWith("86", ProtocolText.Version, StringComparison.Ordinal);
+        // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
+        Assert.Matches(@"^v86（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
         Assert.Contains(ProtocolText.DraftPrefix, ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.DraftMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.TailMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
@@ -256,9 +263,9 @@ public sealed class ProtocolZoneTests
 
         // 协议文本的唯一声明处是代码常量：改代码才能改协议。
         Assert.False(string.IsNullOrWhiteSpace(ProtocolText.Text));
-        Assert.EndsWith("74", ProtocolText.Version, StringComparison.Ordinal);
-        // 2026-10-06 用户令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v74（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.EndsWith("86", ProtocolText.Version, StringComparison.Ordinal);
+        // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
+        Assert.Matches(@"^v86（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
 
         // 知识树配置只允许「**路径**」：Repo = 地址表。
         // 不得出现行数 / 上限 / **协议开关**这些「用户改协议」的口子。
@@ -371,23 +378,23 @@ public sealed class ProtocolZoneTests
     [Fact]
     public void Gate_协议正文里的工具面_与代码同一份渲染()
     {
-        // 2026-09-22（用户令「顺手做了」）：协议第 5 条补上「名字 + 各工具的键」—— 模型第一次点动作就能写对
+        // 2026-09-22（主人令「顺手做了」）：协议第 5 条补上「名字 + 各工具的键」—— 模型第一次点动作就能写对
         // （实测它先前猜 `bash` / `cmd`，白烧一轮）。这张面由 `ToolNames.FaceText` **同一处渲染**：
         // 谁改了工具、或改了它的参数名，这里就红 —— 防「协议里写的」与「运行时认的」两处漂移。
         var face = ToolNames.FaceText(ToolSet.Default());
         Assert.Equal(
-            "read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds} index{symbol} scope{task}",
+            "read{path,symbol,maxLines,offset,limit} list{path} write{path,content} edit{path,oldText,newText} exec{command,timeoutSeconds} index{symbol} scope{task} web_fetch{url,maxChars,offset,format} web_search{query,count,recency} http_request{method,url,headers,query,body,contentType,authRef,timeoutSeconds} web_download{url,path,maxBytes,conflict} web_search_extract{urls,maxCharsPerPage,concurrency}",
             face);
         Assert.Contains(ToolFaceClause.MasterKeys, ProtocolText.Text, StringComparison.Ordinal);
-        // 2026-10-10（用户令「把工具交回 master」）：master 面 = **全量**（<c>ToolNames.MasterFace = All</c>）
+        // 2026-10-10（主人令「把工具交回 master」）：master 面 = **全量**（<c>ToolNames.MasterFace = All</c>）
         // ⇒ 正文第 5 条必须列出全部 7 把（正文说的 = 运行时给的，同一处渲染）。
         Assert.Equal(ToolFaceClause.KeysText(ToolNames.MasterFace), ToolFaceClause.MasterKeys);
         Assert.Contains("read{path", ProtocolText.Text, StringComparison.Ordinal);
 
-        // v18 的实质（用户 2026-09-22 04:0x 令）：**键清单不能替代形状** —— v16 只教了 `exec{command,timeoutSeconds}`
+        // v18 的实质（主人 2026-09-22 04:0x 令）：**键清单不能替代形状** —— v16 只教了 `exec{command,timeoutSeconds}`
         // 这种紧凑形状，模型照抄它写成 `{command: "…", timeoutSeconds: 60}`（键没引号 ⇒ 非法 JSON ⇒ 被拒），
         // 真机一场 11 轮里白烧 3 轮。⇒ 形状必须显式说死并带**带引号的完整示例**；键清单只能当附录。
-        // v28（2026-09-29 用户令）：形状改**行式键值**（去 JSON）—— 与运行时工具面、worker worker 协议区**同一口径**；
+        // v28（2026-09-29 主人令）：形状改**行式键值**（去 JSON）—— 与运行时工具面、worker worker 协议区**同一口径**；
         // 旧 JSON 口径必须已消失（否则就是两套口径共存）。
         Assert.Contains("<call><name>", ProtocolText.Text, StringComparison.Ordinal);                       // v48：工具形状改 XML 元素
         Assert.Contains("verbatim, no escaping", ProtocolText.Text, StringComparison.Ordinal);            // 多行正文写在成员里
@@ -400,14 +407,14 @@ public sealed class ProtocolZoneTests
         Assert.Contains("symbol", face, StringComparison.Ordinal);
         Assert.Contains("index it by symbol", ProtocolText.Text, StringComparison.Ordinal);
 
-        // 2026-10-10（用户令「协议区拔干净 worker」）：第 13 条与 [MASTER-WORKER] 共用段**已拔出**
+        // 2026-10-10（主人令「协议区拔干净 worker」）：第 13 条与 [MASTER-WORKER] 共用段**已拔出**
         // ⇒ 这些 worker 记号**不应**再出现在 master 协议正文里（逐字留档见 docs/BACKUP-WORKER-PROTOCOL.md）。
         Assert.DoesNotContain("[INTENT]", ProtocolText.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("[MASTER-WORKER]", ProtocolText.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("[DISPATCH]", ProtocolText.Text, StringComparison.Ordinal);
 
         // v20（2026-09-22 17:0x）：第 6 条补**负向口径** —— 三句都必须**真在正文里**（现场：假终局块把任务判无解）。
-        // 2026-10-06（用户令）：第 6 条重写成「**默认续 + 停只三模式**」——旧口径（"不结束就不带终局块"/
+        // 2026-10-06（主人令）：第 6 条重写成「**默认续 + 停只三模式**」——旧口径（"不结束就不带终局块"/
         // "停下来问人本身就是终局"）已被替换，断言随之改为新口径。
         Assert.Contains("DEFAULT IS CONTINUE", ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains("exactly THREE kinds", ProtocolText.Text, StringComparison.Ordinal);
@@ -466,7 +473,7 @@ public sealed class ProtocolZoneTests
         Assert.True(File.Exists(doc), $"找不到协议区文档：{doc}");
         var text = File.ReadAllText(doc, Encoding.UTF8);
 
-        // 2026-10-06 用户令：元数据带**日期时间**（VersionStamp），加载时一眼确认是不是最新。
+        // 2026-10-06 主人令：元数据带**日期时间**（VersionStamp），加载时一眼确认是不是最新。
         Assert.Contains($"## 三、逐字协议文本 **{ProtocolText.VersionStamp}**", text, StringComparison.Ordinal);
         Assert.Contains(
             $"- 规模：**{ProtocolText.Lines.Count:N0} 行 / {ProtocolText.CharCount:N0} 字符 / {ProtocolText.EstimatedTokens:N0} token（{ProtocolText.VersionStamp}）**",
@@ -665,16 +672,16 @@ public sealed class ProtocolZoneTests
         ["32"] = "f7e48c005db67f335b054ee878dddfc465cd63ef57b1c6a60f45110ba6c10385",
         // v33（2026-09-30）：第 13 条改「目的句 + 模型自选枚举组合」（8 类）+ 回执按 kind 取字段；预算 2400 → 2800。
         ["33"] = "371d7b6f033fdf74837c1f5da5fc000073075caea66786e504dd0f68cf3a7d21",
-        // v34（2026-09-30 16:47 用户口径「运行时只按纯净规则走，不兜底」）：第 13 条写死——
+        // v34（2026-09-30 16:47 主人口径「运行时只按纯净规则走，不兜底」）：第 13 条写死——
         // 回执**必须给出该组合的交付键**（缺 ⇒ 不算 done、退回），且没有"不需要"这一档（键不适用 = 选错了类或 criteria）；
         // 形状：一行一键，键与分隔符之间可有空白。
         ["34"] = "81b7ccada7b00d904ee71134084b51740080b0c10c7a12dd31fa062c494cc5a5",
-        // v35（2026-09-30 16:58 用户令）：**master 与 worker 具有同一份** master-worker 模式协议段 ——
+        // v35（2026-09-30 16:58 主人令）：**master 与 worker 具有同一份** master-worker 模式协议段 ——
         // 第 13 条的内联清单删掉，改由 MasterWorkerProtocol 渲染、两侧各自逐字嵌入。
         // ⚠️ v35 的正文**未登记**（当日直接从 v34 改到 v35 再改到 v36，漏登记；v35 正文亦已不可追证，
         //    同 v21 及更早的口径）—— 账面上这**是一处已知缺口**，不是「v35 = v36」。
         ["36"] = "c710854a93933f1391dda4aeae1551d43ec140491c161cacabd151b7bd69bb2d",
-        // v37（2026-10-06 用户令「运行时绝不担保/兜底实质层，只管形状层」）：共用段新增 [DUTY] 节
+        // v37（2026-10-06 主人令「运行时绝不担保/兜底实质层，只管形状层」）：共用段新增 [DUTY] 节
         // （实质由 Worker 自证 + master 最小代价复算证据 + 运行时只管形状层）；行预算 70→75。
         ["43"] = "beb37e3e264262a7ae641ee5ea83074c3ac5fa982bc56253f5d8516ef0cb721d",
         // v44（2026-10-07 15:15）：共用段新增**回执组合的轴**（照派发的 modifiers 一一对账）。
@@ -692,7 +699,7 @@ public sealed class ProtocolZoneTests
         ["59"] = "1a6ec5861853ff462000b4799ed8bbbbf1eeb863ee7127b5dc0a8f1013a2e2d4",
         // v60（2026-10-10 13:55 · 待办 3b）：新增第 14 条 —— 按体量排工（零散先做 / 大的先切再发 / `[PACE]` 事前建议 = 指令）。
         ["60"] = "2a3e146066e8013c2122bbcda02349ddc270ba5f9fa46057573e006dcd66ca46",
-        // v61（2026-10-10 19:55 · 用户令）：**拔掉 worker** —— 删第 13 条、去第 2/5 条的 worker 句、不再拼 [MASTER-WORKER] 共用段；
+        // v61（2026-10-10 19:55 · 主人令）：**拔掉 worker** —— 删第 13 条、去第 2/5 条的 worker 句、不再拼 [MASTER-WORKER] 共用段；
         // 逐字留档见 docs/BACKUP-WORKER-PROTOCOL.md。协议正文 25,655 → 8,288 字符。
         ["61"] = "9084e2083bd68616b844ccaf397f2d844c18333662b3e2f00b952a21588e8b34",
         // v62（2026-10-11 17:44）：A = 允许多块/独立取证一次发齐（"one action per block"，明说可 4 块同回复）；
@@ -721,20 +728,20 @@ public sealed class ProtocolZoneTests
         // v52（2026-10-07 22:20）：共用段 [DUTY] 补**读数时效** —— 读数是本轮那一次运行的属性，不许被记忆／过往回执覆盖。
         ["52"] = "c2ea4e94b476903a80bca8d8839e60d93454e45134db15db4c41d36adc18e4fd",
         ["63"] = "4ea625efbdd565447d80310f141f1d82843869368a8236e8b800a978bad05cc5",
-        // v64（2026-10-14 22:05 · 用户令「过程中每一轮都刷」）：第 5 条**回转** v62-B ——
+        // v64（2026-10-14 22:05 · 主人令「过程中每一轮都刷」）：第 5 条**回转** v62-B ——
         // `[TAIL]`/`[DRAFT]` 由「只在决策报告轮写一次」改为**每条回复都刷新当前工作状态**
         // （台面 R4/R5 随每个任务生命周期动态刷新；排在事件流 R2 之后 ⇒ 不吃前缀缓存）。
         ["64"] = "32129650f238c59161d5a82b3ec9a161ffc620da0db124e0599bce749ba3f4cc",
-        // v65（2026-10-14 23:50 · 用户令「b 也要做」）：第 5 条补**长正文纪律** —— 长值（整篇文档 / 脚本 /
+        // v65（2026-10-14 23:50 · 主人令「b 也要做」）：第 5 条补**长正文纪律** —— 长值（整篇文档 / 脚本 /
         //   带引号的命令）用 `key: <<` 块逐字写，**禁塞进 `{...}`**（那是解析器唯一救不回来的形状）。
         ["65"] = "48cd6ef1f015a028ef5187f7a89f24b56f3f55a99f8bb3e8e6d722e4ce1d0cef",
-        // v66（2026-10-15 00:25 · 用户令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写 ——
+        // v66（2026-10-15 00:25 · 主人令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写 ——
         //   坑 / handoff **遇到就在当轮说**（不攒到终局）；预算 2,300 → 2,400（先量后定）。
         ["66"] = "318a29b1c4f0a4a465401f13196c44e3a487226e445600a9b43d8e620895916b",
-        // v67（2026-10-15 01:35 · 用户令「改协议」）：第 5 条回转 v64 —— [TAIL]/[DRAFT] **只在真变了时才写**
+        // v67（2026-10-15 01:35 · 主人令「改协议」）：第 5 条回转 v64 —— [TAIL]/[DRAFT] **只在真变了时才写**
         //   （没变就一个块都不写；台面不再被每轮重写）。
         ["67"] = "28a4fd3d3de09d4b20c05e84c9d3e7eec2a73b2390fb99a8e810ae5ec835e38a",
-        // v68（2026-10-15 13:2x · 用户令「用协议区的方式把这个改好」）：第 5 条**去旧形状尾巴** ——
+        // v68（2026-10-15 13:2x · 主人令「用协议区的方式把这个改好」）：第 5 条**去旧形状尾巴** ——
         //       删 `{...}` / `key: <<` 那半句（已退役的 JSON/行式），改成「长正文放进元素里、或写文件传路径」。
         //       来历：真机模型照旧先验写 `[TOOL] read {"path": /abs}`（值没引号）⇒ 整篇拒；
         //       而协议区自己还留着 `{...}` 字样 + 拒因话术教「行式键值」⇒ **三处教三种形状**。
@@ -742,11 +749,33 @@ public sealed class ProtocolZoneTests
         ["69"] = "139768694887e7b3cd94a3a1147345a099dd6245d2d988416b8365e18e23b0b2",
         ["70"] = "e486b0856b530726c5f9e2ce09aa8b26a2829c57860d3d93a00d0b400be0c938",
         ["71"] = "6f32a55802b4afc9d75ad38ca2f36e83b43ca19a2204d68866a3928c2a152975",
-        // v72（2026-10-17 15:52 · 用户令：80% 是唯一停手点，不必等任务终局；收尾后 reset→start 接着做同一任务）。
+        // v72（2026-10-17 15:52 · 主人令：80% 是唯一停手点，不必等任务终局；收尾后 reset→start 接着做同一任务）。
         ["72"] = "a3d8d266abadbcc6083281c2b21fc524f80b815f4e4fb08cbaf7a06589c6df51",
-        // v73（2026-10-17 16:10 · 用户令：决策库与项目级设计原则书都走协议区认知，但正文是**活版**、按需读、绑项目）。
+        // v73（2026-10-17 16:10 · 主人令：决策库与项目级设计原则书都走协议区认知，但正文是**活版**、按需读、绑项目）。
         ["73"] = "c96ee0db2121f1b6f4fde4d4a3a084719a88b3e6679d1f5fbf506d82e7cdcd29",
         ["74"] = "618f10c88fa558435157321665be94269fbc801e23f85f1d3a8ae809e77766b0",
+        // v75（2026-10-18）：工具面新增 5 个网络工具（web_fetch / web_search / http_request / web_download / web_search_extract）。
+        ["75"] = "a790a912fdc06331f3b1c79cda7fffb8ceef4c5603ab158f9e3ce5d8440a8c91",
+        // v76（2026-10-18）：第 11 条补 build 纪律（批量改完再 build / 只 build 变更项目 / 最后全量验证一次）。
+        ["76"] = "ca34696c8a07c1883a053c91dd1bbf478bc954be64f171b9bab4b94eeb9bcd47",
+        // v77（2026-10-18）：第 16 条排障纪律（同一错误两次即停 / E160006 换全新本地 WC / 旧 TAIL/DRAFT 不自证）。
+        ["77"] = "6f4455588491ad304b76f358ba6b733d5aa9165cc26c0fcf2aa710cf49c36cea",
+        ["78"] = "9987f1745ee809a7cd1ddd1129a5ba3f6122e929b710f759a6cbcd221c1e60ad",
+        ["79"] = "940917af008a553741be7902943b53deba375bca8d5203f3b0e4925f7206871d",
+        // v80（2026-10-18）：第 17 条「每轮都以 [FOCUS] 结尾（无内容写 none）」+ 第 11 条「工具路径一律绝对」
+        ["80"] = "bfc585d04aa028b00b7e2c15d5d48a5505f9ae8eafbb89b0a6f1921308e5b166",
+        // v81（2026-10-18）：第 17 条措辞改成「本轮依据的事件」（否则模型一律写 none ⇒ 机制触发但无导航价值）
+        ["81"] = "134fc89f66ad57d6dbcc0f86b73dba23cd726cb55a3d311e0b6dfe0391dae8d4",
+        // v82（2026-10-19）：**正文未改**，只升版本号 —— 归一兜底（DSML 残形 / 重复 </call>）与焦点自动补位
+        //   都是**运行时行为**，不占协议字节 ⇒ 正文指纹与 v81 逐字节相同（这是有意的：字节身份不与行为版本混同）。
+        ["82"] = "134fc89f66ad57d6dbcc0f86b73dba23cd726cb55a3d311e0b6dfe0391dae8d4",
+        // v83（2026-10-19 14:0x · 主人令）：新增第 18 条「XML 是唯一工具面；provider 不传 tools/functions」。
+        ["83"] = "793abf17e5a21ed99064adac9e5dc982fdc817d3f9d9d87ce0541289bf529e09",
+        // v84（2026-10-19 14:3x · 主人令「再次修改协议区补完这个事」）：第 12 条改为**终局块在前、报告紧随其后、同一轮**。
+        ["84"] = "3b00e86d11132a806e3202b7ab771758ed91e490e3b68615169666219055fdcf",
+        ["85"] = "c62c18af5ddeb6637f1e96ff9a5ea715dce0f262b513b4118e375403f6fdfdd6",
+        // v86（2026-10-20 22:30 · 主人令）：新增第 20 条「收尾回执 + 两库生长硬闸门」。
+        ["86"] = "46c7e48db5db9f5b57bb386e76e61e85a567456da99407c5fbba6148df4a8588",
     };
 
     /// <summary>找出「无主」的块形 token（去重、排序，便于断言）。</summary>

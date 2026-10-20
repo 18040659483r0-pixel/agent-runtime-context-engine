@@ -45,6 +45,11 @@ public static class ToolSyntaxNormalizer
         "parameter\\s+name=\"(?<key>[^\"]+)\"[^>]*>(?<value>.*?)</\\s*(?:\\k<key>|parameter)\\s*>",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
+    /// <summary>原生 invoke 里的**裸成员元素**（<c>&lt;url&gt;…&lt;/url&gt;</c>）：与 <c>parameter name=</c> 等价。</summary>
+    private static readonly Regex NativeMemberPattern = new(
+        "<(?<key>[A-Za-z_][A-Za-z0-9_]*)>(?<value>.*?)</\\k<key>>",
+        RegexOptions.Singleline | RegexOptions.Compiled);
+
     /// <summary>
     /// **根 = 工具名**（无 <c>&lt;call&gt;</c> 外壳、无 <c>&lt;name&gt;</c>）：
     /// <c>[TOOL] &lt;exec&gt;&lt;command&gt;…&lt;/command&gt;&lt;/exec&gt;</c>。
@@ -86,6 +91,32 @@ public static class ToolSyntaxNormalizer
     private static readonly Regex ToolInvokeResiduePattern = new(
         @"invoke\s+name\s*=\s*""TOOL\]""\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    /// <summary>
+    /// **<c>&lt;name&gt;工具名&lt;/name&gt;</c> 打头、但没有 <c>&lt;call&gt;</c> 外壳**（2026-10-18 真机 E725）：
+    /// <c>[TOOL] &lt;name&gt;exec&lt;/name&gt;&lt;command&gt;…&lt;/command&gt;</c> ⇒ 严格解析把 <c>&lt;name&gt;</c> 当根
+    /// ⇒ 判「工具块没有 name」。形状确定（name 后紧跟成员元素）⇒ 直接补外壳，不拒。
+    /// </summary>
+    private static readonly Regex NameOnlyBlockPattern = new(
+        @"(?<head>\[TOOL\][\s]*)<name>\s*(?<n>[A-Za-z0-9_.-]+)\s*</name>\s*(?<body>(?:<(?<t>[A-Za-z_][A-Za-z0-9_]*)>(?:(?!</\k<t>>).)*</\k<t>>\s*)+)",
+        RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <summary>
+    /// **DSML 闭合残形**（2026-10-19 真机）：模型把 DeepSeek 的专用标记漏进正文 ——
+    /// <c>&lt;/｜｜DSML｜｜ calls&gt;</c>（全角竖线 U+FF5C，中间可能有空格）。
+    /// 它不是 XML 元素 ⇒ 严格解析整篇拒。它**不是调用**，直接剥除（留痕 dsml-residue）。
+    /// </summary>
+    private static readonly Regex DsmlResiduePattern = new(
+        @"</?[｜|]{2}\s*DSML\s*[｜|]{2}\s*[A-Za-z_]*\s*>", RegexOptions.Compiled);
+
+    /// <summary>块外孤立的 <c>&lt;/call&gt;</c>（整行）或紧邻重复的收尾 —— 见 NormalizeBlockMarkers 注释。</summary>
+    private static readonly Regex StrayCallClosePattern = new(
+        @"(?m)^[ \t]*</call>[ \t]*$|</call>[ \t]*</call>", RegexOptions.Compiled);
+
+    /// <summary>块外孤立的原生外壳收尾（真机 2026-10-19）：`</parameter>` / `</invoke>` / `</tool_call>`
+    /// 跟在 `</TOOL>` 之后成一行 ⇒ 同一族残形。</summary>
+    private static readonly Regex StrayWrapperClosePattern = new(
+        @"(?m)^[ \t]*</(?:parameter|invoke|tool_call|tool)>[ \t]*$", RegexOptions.Compiled);
+
     /// <summary>一个裸 <c>&lt;call&gt;…&lt;/call&gt;</c> 块（无块头）。</summary>
     private static readonly Regex BareCallBlockPattern = new(
         @"<call>.*?</call>", RegexOptions.Singleline | RegexOptions.Compiled);
@@ -95,7 +126,7 @@ public static class ToolSyntaxNormalizer
         @"<name>\s*(?<n>[A-Za-z0-9_.-]+)\s*</name>", RegexOptions.Compiled);
 
     /// <summary>
-    /// **兜底批 4（2026-10-17 用户令「运行时兜底」）**：
+    /// **兜底批 4（2026-10-17 主人令「运行时兜底」）**：
     /// ① <c>&lt;TOOL&gt;</c> / <c>&lt;/TOOL&gt;</c> ⇒ 规范块头；② DSML 残形 ⇒ 规范块头；
     /// ③ **无块头的裸 <c>&lt;call&gt;</c>**（围栏外、工具名在封闭集）⇒ 补上 <c>[TOOL]</c>。
     /// <para>真机（M7/M10）两族：模型把块写成 <c>&lt;TOOL&gt;</c>，或在连续正文里只发裸 <c>&lt;call&gt;</c>；
@@ -103,6 +134,12 @@ public static class ToolSyntaxNormalizer
     /// </summary>
     private static string NormalizeBlockMarkers(string s, List<string> traces)
     {
+        if (DsmlResiduePattern.IsMatch(s))
+        {
+            s = DsmlResiduePattern.Replace(s, string.Empty);
+            traces.Add("dsml-residue");
+        }
+
         if (ToolTagPattern.IsMatch(s) || ToolCloseTagPattern.IsMatch(s) || ToolInvokeResiduePattern.IsMatch(s))
         {
             s = ToolTagPattern.Replace(s, ToolReport.Prefix + " ");
@@ -111,11 +148,54 @@ public static class ToolSyntaxNormalizer
             traces.Add("marker-normalized");
         }
 
+        // 2026-10-19 真机：模型把收尾写重复 —— `…</call></TOOL>` 之后再补一行 `</call>`（或 `</call></TOOL>`）。
+        // 块自定界 ⇒ 块外孤立的 `</call>` 一定是残形；留着会让严格解析判「整篇不合语法」，一轮白烧。
+        // 必须放在 `</TOOL>` 剥除**之后**（否则 `</call></TOOL>` 不是「整行只有 </call>」）。
+        var stray = StrayCallClosePattern.Replace(s, string.Empty);
+        if (stray.Length != s.Length)
+        {
+            s = stray;
+            traces.Add("stray-call-close");
+        }
+
+        stray = StrayWrapperClosePattern.Replace(s, string.Empty);
+        if (stray.Length != s.Length)
+        {
+            s = stray;
+            traces.Add("stray-wrapper-close");
+        }
+
+        var nameOnly = 0;
+        s = NameOnlyBlockPattern.Replace(s, m =>
+        {
+            nameOnly++;
+            return m.Groups["head"].Value + "<call><name>" + m.Groups["n"].Value + "</name>"
+                + m.Groups["body"].Value + "</call>";
+        });
+
+        if (nameOnly > 0)
+        {
+            traces.Add($"name-only-wrapped:{nameOnly}");
+        }
+
         var wrapped = 0;
         s = BareCallBlockPattern.Replace(s, m =>
         {
             var before = s[..m.Index].TrimEnd();
             if (before.EndsWith(ToolReport.Prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return m.Value;
+            }
+
+            // 2026-10-18 真机 E729：正文里**提到**一个 `<call>`（行内代码）⇒ 旧正则一路吃到后面真块的 `</call>`，
+            // 把「提及 + 真块」整体包成第二个 `[TOOL]` ⇒ 整篇拒。两条护栏：跨了真块 / 提及在行内代码里。
+            var first = m.Value.IndexOf("<call>", StringComparison.Ordinal);
+            if (first < 0 || m.Value.IndexOf("<call>", first + 1, StringComparison.Ordinal) >= 0)
+            {
+                return m.Value;
+            }
+
+            if (m.Index > 0 && s[m.Index - 1] == '`')
             {
                 return m.Value;
             }
@@ -224,11 +304,30 @@ public static class ToolSyntaxNormalizer
 
             sb.Append(s, cursor, inv.Index - cursor);          // 块外的正文照抄
             cursor = inv.Index + inv.Length;
+            var body = inv.Groups["body"].Value;
             var args = new List<string>();
-            foreach (Match p in ParamPattern.Matches(inv.Groups["body"].Value))
+            foreach (Match p in ParamPattern.Matches(body))
             {
                 args.Add($"\"{p.Groups["key"].Value}\":{Atomize(p.Groups["value"].Value)}");
             }
+
+            // **原生 invoke 里直接写成员元素**（没有 `parameter name=` 外壳）：
+            // 真机（I 系列 I6）模型交的是 `<invoke name="web_search_extract"><urls>…</urls>…</invoke>`
+            // ⇒ 旧路 args 为空 ⇒ 归出一个空参数块 ⇒ 被判「需要参数」白烧一轮。这里按元素名收进参数表。
+            if (args.Count == 0)
+            {
+                foreach (Match member in NativeMemberPattern.Matches(body))
+                {
+                    var key = member.Groups["key"].Value;
+                    if (key.Equals("risk", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    args.Add($"\"{key}\":{Atomize(member.Groups["value"].Value)}");
+                }
+            }
+
             var lineForm = ToLineForm(name, "{" + string.Join(",", args) + "}");
             sb.Append(lineForm ?? $"{ToolReport.Prefix} {name} {{{string.Join(",", args)}}}");
             sb.Append("\nrisk: none\n");                  // 声明随块走（行式：声明是单独一行）
@@ -238,17 +337,22 @@ public static class ToolSyntaxNormalizer
         sb.Append(s, cursor, s.Length - cursor);
 
         // **批 3 的计数**：归一了多少次“原生形” —— 用于看趋势（持续上升再议§十·47 的另一半）。
-        for (var i = 0; i < traces.Count; i++)
+        // 只统计「原生调用形」会漏掉 headerless / marker / name-only 三族（真机：计数恒 0，
+        // 与流里 289 条 tool-normalized 对不上）⇒ 按**已归一的轨迹条数**记账。
+        if (traces.Count > 0)
         {
-            if (traces[i].StartsWith("native-", StringComparison.Ordinal))
-            {
-                _ = Interlocked.Increment(ref _nativeCount);
-            }
+            _ = Interlocked.Add(ref _nativeCount, traces.Count);
         }
 
         var shaped = NormalizeBlockMarkers(sb.ToString(), traces);
         return (NormalizeCompactKeys(WrapLooseCalls(shaped)), traces);
     }
+
+    private static int _normalizedAnnounced;
+
+    /// <summary>归一公告**每进程只发一次**（同一句话重复 289 次 = 纯噪声 + 每轮白花 token）。</summary>
+    public static bool ShouldAnnounceNormalization() =>
+        Interlocked.Exchange(ref _normalizedAnnounced, 1) == 0;
 
     private static int _nativeCount;
 
@@ -320,7 +424,7 @@ public static class ToolSyntaxNormalizer
     /// <summary>
     /// **紧凑对象的跨行修复**（2026-10-14 真机得出来的 **Top1 病因**）。
     /// <para>
-    /// 现场（用户 23:04 会话 + 历史合计 16 次被拒、每次白烧一轮）：模型把整篇正文塞进 JSON 的
+    /// 现场（主人 23:04 会话 + 历史合计 16 次被拒、每次白烧一轮）：模型把整篇正文塞进 JSON 的
     /// <c>content</c>，而**正文里的换行没转义** ⇒ 行式归一按行切 ⇒ JSON 被切成十几行、括号深度不为 0
     /// ⇒ 归一放弃 ⇒ 解析器「取不出 XML 元素」⇒ **整篇拒**。而模型自己重试时用的就是 <c>键&lt;&lt;</c> 块
     /// （正是本方法能自动生成的那一种）—— 所以这一刀**本该运行时替它做**。
@@ -515,6 +619,15 @@ public static class ToolSyntaxNormalizer
         }
 
         var lineForm = ToLineForm(name, json);
+
+        // 值没带引号的紧凑写法（真机：`web_search{query: OpenClaw, count: 5}`）：
+        // 键已由 QuoteBareKeys 补好，值再补一轮（只补**无空白的裸标量**，复杂值原样交给解析器）。
+        if (lineForm is null && QuoteBareValues(json) is { } repaired && repaired != json)
+        {
+            lineForm = ToLineForm(name, repaired);
+            json = repaired;
+        }
+
         return lineForm is null
             ? string.Concat(line[..indent], ToolReport.Prefix, " ", name, " ", json)
             : string.Concat(line[..indent], lineForm, "\n");   // 尾随空行 = 段末（行式块不自定界）
@@ -572,6 +685,110 @@ public static class ToolSyntaxNormalizer
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 没带引号的**标量值**加引号（只处理顶层对象里、无空白的裸词；<c>"x"</c> / <c>{…}</c> / <c>[…]</c> 不动）。
+    /// <para>真机：模型把紧凑对象写成 <c>{query: OpenClaw, count: 5}</c>；键补好了、值没引号 ⇒ JSON 仍不合法。
+    /// 只补「模型显然想写字符串」的形态，不做表达式求值。</para>
+    /// </summary>
+    private static string? QuoteBareValues(string text)
+    {
+        if (text.Length == 0 || text[0] != '{')
+        {
+            return null;
+        }
+
+        var sb = new StringBuilder(text.Length + 16);
+        var inString = false;
+        var escaped = false;
+        var depth = 0;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (inString)
+            {
+                sb.Append(c);
+                if (escaped)
+                {
+                    escaped = false;
+                }
+                else if (c == '\\')
+                {
+                    escaped = true;
+                }
+                else if (c == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if (c == '"')
+            {
+                inString = true;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c is '{' or '[')
+            {
+                depth++;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c is '}' or ']')
+            {
+                depth--;
+                sb.Append(c);
+                continue;
+            }
+
+            if (c == ':' && depth == 1)
+            {
+                sb.Append(c);
+                var j = i + 1;
+                while (j < text.Length && (text[j] == ' ' || text[j] == '\t'))
+                {
+                    sb.Append(text[j]);
+                    j++;
+                }
+
+                if (j >= text.Length || text[j] is '"' or '{' or '[')
+                {
+                    i = j - 1;
+                    continue;
+                }
+
+                var start = j;
+                while (j < text.Length && text[j] is not (',' or '}' or ']' or '\n'))
+                {
+                    j++;
+                }
+
+                var token = text[start..j].Trim();
+                if (token.Length > 0
+                    && token is not ("true" or "false" or "null")
+                    && System.Text.RegularExpressions.Regex.IsMatch(token, "^[A-Za-z0-9_.:/@+-]+$"))
+                {
+                    sb.Append('"').Append(token).Append('"');
+                }
+                else
+                {
+                    sb.Append(token);
+                }
+
+                i = j - 1;
+                continue;
+            }
+
+            sb.Append(c);
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>没带引号的键加引号（判据：**不在字符串里的标识符后面紧跟冒号**）；不合法 ⇒ <c>null</c>。</summary>

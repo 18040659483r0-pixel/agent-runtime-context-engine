@@ -18,7 +18,7 @@ public sealed record ConversationEntry(string Kind, string Text);
 
 /// <summary>
 /// 一帧的**任务用量**（顶部框「会话」行：本 task **新增** + 缓存命中率；未知 = null ⇒ 写破折号）。
-/// <para><b>「本 task 新增」的口径（用户 2026-09-22 03:4x 定）</b>：它是**本次 task 往流里追加的正文字节 ÷ 4**
+/// <para><b>「本 task 新增」的口径（主人 2026-09-22 03:4x 定）</b>：它是**本次 task 往流里追加的正文字节 ÷ 4**
 /// （模型输出 + 工具结果 + 你的输入）—— 即「**这件事让上下文长了多少**」。
 /// <b>不再用任何 prompt 数据</b>：旧口径 <c>Σ(未命中输入) + Σ(输出)</c> 里的「未命中输入」缓存一冷
 /// 就等于整份 prompt，看上去像「总计 prompt」，而那个数没有价值（上下文是搬来搬去的）。
@@ -97,7 +97,7 @@ public sealed class SplitFrame
     public IReadOnlyList<SplitSelfReport> SelfReport { get; init; } = [];
 
     /// <summary>
-    /// **worker 池的事实**（用户 2026-09-25 令）：谁在跑、跑了多久、**sync 还是 async**、谁闲着。
+    /// **worker 池的事实**（主人 2026-09-25 令）：谁在跑、跑了多久、**sync 还是 async**、谁闲着。
     /// <para>**空 ⇒ 顶部带里根本没有「worker」那一行**（不占一个字节）——
     /// 这就是「无 worker 时界面与从前逐字节一致」（设计稿 W10/W12）。</para>
     /// </summary>
@@ -126,7 +126,7 @@ public sealed class SplitFrame
 
     /// <summary>
     /// **底部状态条上的「简短最终结果」**（v14）：最新一条会话事实的首行（宿主给；空 = 只显示用量）。
-    /// <para>为什么放这儿（用户 2026-09-22 00:1x）：「事实状态」有个**固定位置**，紧贴输入区上方；
+    /// <para>为什么放这儿（主人 2026-09-22 00:1x）：「事实状态」有个**固定位置**，紧贴输入区上方；
     /// 它不参与正文区高度计算 ⇒ 输入变长 / 输入法合成都不会让它动。</para>
     /// </summary>
     public string LastNote { get; init; } = string.Empty;
@@ -134,7 +134,7 @@ public sealed class SplitFrame
     /// <summary>
     /// **输入面板行数**（宿主给的值；<c>0</c> = 按内容自动算，仅测试用）。
     /// <para>v14：宿主一律给 <see cref="SplitLayout.InputPanelRows"/>（**恒定**）——
-    /// 行数一旦跟着内容走，整帧就会随输入重排（那正是用户报的「跳」）。内容超出面板时由渲染器
+    /// 行数一旦跟着内容走，整帧就会随输入重排（那正是主人报的「跳」）。内容超出面板时由渲染器
     /// **显示尾部**（光标行恒在最下），不再改帧结构。</para>
     /// </summary>
     public int InputRows { get; init; }
@@ -147,7 +147,7 @@ public sealed class SplitFrame
     public string TaskLabel { get; init; } = string.Empty;
 
     /// <summary>
-    /// **就地展开的区**（用户 2026-09-20 15:3x：白板 / 草稿 / 焦点**默认展开**，内容放在**原来那个展开图标下面**，
+    /// **就地展开的区**（主人 2026-09-20 15:3x：白板 / 草稿 / 焦点**默认展开**，内容放在**原来那个展开图标下面**，
     /// 不另占一块区域）。默认 = 空；宿主（SplitSession）把 R4/R5/R3 放进来。
     /// </summary>
     public IReadOnlyList<StackRegion> InlineExpanded { get; init; } = [];
@@ -176,7 +176,7 @@ public readonly record struct RegionColumns(
 {
     /// <summary>
     /// 按右列可用宽度挑档位。
-    /// <para>硬规则（用户 2026-09-16 01:0x 定）：<b>窄了就整列省，绝不截字</b>；
+    /// <para>硬规则（主人 2026-09-16 01:0x 定）：<b>窄了就整列省，绝不截字</b>；
     /// <b>次序 / 区 / 字节 / Δ 四列永不省</b>（它们是「哪一块变了」的答案）。
     /// 优先级从低到高省：指纹列 → 版本列 → （仍不够时）合计行的 token 估算。</para>
     /// </summary>
@@ -194,7 +194,7 @@ public readonly record struct RegionColumns(
 }
 
 /// <summary>
-/// **双栏几何（唯一算法处）** —— 用户 2026-09-16 00:53 定的硬约束：
+/// **双栏几何（唯一算法处）** —— 主人 2026-09-16 00:53 定的硬约束：
 /// <list type="bullet">
 /// <item><b>状态块固定右上角</b>，面积 ≈ 窗口 1/6（右列宽 ≈ 总宽 1/3 × 状态块高 ≈ 右列 1/2）。</item>
 /// <item>右列上 = 状态（固定行数）· 下 = 详细（展开正文 / 面板输出，可滚动）。</item>
@@ -204,10 +204,11 @@ public readonly record struct RegionColumns(
 /// </summary>
 public readonly record struct SplitLayout(int Width, int Height, int InputRows = 2 /* = InputPanelRows；主构造默认值不能引用本类型常量 */, int InlineRows = 0)
 {
-    /// <summary>输入区最多占几行（长输入不会把对话挤没；超过就**面板内向上滚**，见 <c>InputRows</c>）。</summary>
-    public const int MaxInputRows = 5;
+    /// <summary>输入区最多占几行（长输入不会把对话挤没；超过就**面板内向上滚**，见 <c>InputRows</c>）。
+    /// <para>2026-10-19：5 → 12（主人报「大段输入不会垒高」）；每屏再按 <c>height/2</c> 收紧。</para></summary>
+    public const int MaxInputRows = 12;
 
-    /// <summary>底部**状态条**占的行数（**恒定 1 行**：简短最终结果 + 上一轮用量；用户 2026-09-22 定）。</summary>
+    /// <summary>底部**状态条**占的行数（**恒定 1 行**：简短最终结果 + 上一轮用量；主人 2026-09-22 定）。</summary>
     public const int StripRows = 1;
 
     /// <summary>
@@ -220,7 +221,7 @@ public readonly record struct SplitLayout(int Width, int Height, int InputRows =
     /// **输入面板占的行数（恒定，v14）** —— 这是「输入法不再让框跳」的结构性前提。
     /// <para>旧版把「按内容算出的行数」直接喂给布局 ⇒ 输入一变高 <see cref="BodyRows"/> 跟着变 ⇒ **整帧重排**
     /// （右栏的「合计 / 上一轮」行还会跨越 18/20 阈值**整行消失**）⇒ 真机表现就是合成过程中框在跳
-    /// （用户 2026-09-22 00:1x 报）。现在面板与状态条**行数固定**，内容超出只在面板内向上滚
+    /// （主人 2026-09-22 00:1x 报）。现在面板与状态条**行数固定**，内容超出只在面板内向上滚
     /// （尾部可见、光标行恒在最下）：**帧的其余部分逐字节稳定**。
     /// </para>
     /// </summary>
@@ -242,7 +243,7 @@ public readonly record struct SplitLayout(int Width, int Height, int InputRows =
     public const int FixedStatusRows = 8;
 
     /// <summary>
-    /// **顶部信息框的内容行数（不含它的上下框线）** —— v15 **单栏**（用户 2026-09-22 02:2x）：
+    /// **顶部信息框的内容行数（不含它的上下框线）** —— v15 **单栏**（主人 2026-09-22 02:2x）：
     /// 右栏整块取消，区栈 / 自报 / 详细全部搬进顶部那个框。三档：≥28 行 = 5（会话 · 区栈 · 白板 · 草稿 · 焦点）·
     /// 22–27 行 = 3（会话 · 区栈压成合计 · 自报压成一行计数）· 更低 = 2（会话 · 区栈合计）。
     /// </summary>
@@ -256,7 +257,7 @@ public readonly record struct SplitLayout(int Width, int Height, int InputRows =
 
     /// <summary>
     /// 左列内宽（v15：**正文占满整宽**，右栏已取消）。
-    /// <para><b>2026-10-15 用户令</b>：文字左右各留 **1 格**边距（对称）⇒ 内容上限 = <c>Width − 2</c>。
+    /// <para><b>2026-10-15 主人令</b>：文字左右各留 **1 格**边距（对称）⇒ 内容上限 = <c>Width − 2</c>。
     /// 帧不变量仍是「每行显示宽 = Width」，由 <c>SplitView.Pad</c> 补足。</para>
     /// </summary>
     public int LeftWidth => Math.Max(1, Width - 2);
@@ -277,7 +278,7 @@ public readonly record struct SplitLayout(int Width, int Height, int InputRows =
 
     /// <summary>矮窗口整块省掉「自报区」—— 保状态表与对话（尺寸是资源预算，不是面子）。</summary>
     /// <summary>
-    /// 自报区（白板 R4 / 焦点 R3 / 草稿 R5）**几乎总是显示**：用户明确要求白板与草稿在右侧状态区看得见 ——
+    /// 自报区（白板 R4 / 焦点 R3 / 草稿 R5）**几乎总是显示**：主人明确要求白板与草稿在右侧状态区看得见 ——
     /// 原先 <c>BodyRows &gt;= 18</c> 会在矮窗口把整块省掉，于是「打开后没发现」。现在只在**极小窗口**才让位给对话。
     /// </summary>
     public bool ShowSelfReport => BodyRows >= 8;
@@ -405,7 +406,7 @@ public static class SplitRenderer
     /// <summary>
     /// 帧 → 布局（**唯一声明处**：渲染与光标定位共用同一把尺子，绝不各算一份）。
     /// <para>就地展开的正文行数先给详细块留够（<c>DetailMinRows</c>），不够就只展开前几行（与自报区同一纪律）。
-    /// v13-B（用户 2026-09-22 00:00 选 A）：**展开的正文归「详细区」**（下、可滚动），状态块恢复**固定行数** ——
+    /// v13-B（主人 2026-09-22 00:00 选 A）：**展开的正文归「详细区」**（下、可滚动），状态块恢复**固定行数** ——
     /// 右上角只留状态 + 目录 + tokens（不再被正文顶大、也不再挤掉 tokens 行）⇒ <c>InlineRows = 0</c>。</para>
     /// </summary>
     private static SplitLayout LayoutFor(SplitFrame frame) =>
@@ -417,7 +418,7 @@ public static class SplitRenderer
 
     /// <summary>
     /// **自绘光标（<see cref="CaretGlyph"/>）在帧上的行列**（**1-based**，直接喂终端 <c>\e[r;cH</c>）。
-    /// <para>为什么要有它（2026-09-22 用户报的「IME 第二刀」）：关掉 DECAWM 只治「越界折行 ⇒ 顶高 / 滚屏」；
+    /// <para>为什么要有它（2026-09-22 主人报的「IME 第二刀」）：关掉 DECAWM 只治「越界折行 ⇒ 顶高 / 滚屏」；
     /// 但**输入法的预编辑串与候选框画在「终端光标」处**（它不在我们的缓冲里、也不受我们控制），而我们从不移动
     /// 终端光标 ⇒ 它停在最后一次写入的位置（帧末尾），候选串就出现在帧底部而不是输入框里。把终端光标定位到
     /// **输入光标**处，两件事一起治。</para>
@@ -474,14 +475,14 @@ public static class SplitRenderer
             leftRows[i] = left[start + i];
         }
 
-        // v15 **单栏**（用户 2026-09-22 02:2x）：右栏整块取消 —— 区栈 / 自报 / 详细全部搬进**顶部那个框**；
+        // v15 **单栏**（主人 2026-09-22 02:2x）：右栏整块取消 —— 区栈 / 自报 / 详细全部搬进**顶部那个框**；
         // 正文占满整个宽度（卡与结果因此少折行、更好读）。面板输出由宿主塞进 Conversation（kind=panel）。
         var lines = new List<RichText>(frame.Height);
         lines.AddRange(TopBand(frame, layout));
 
         for (var i = 0; i < Math.Max(0, layout.BodyRows); i++)
         {
-            // **无边框版式**（用户 2026-10-14）：正文整宽、不画左右竖线；行宽靠 Pad 到 frame.Width 保住
+            // **无边框版式**（主人 2026-10-14）：正文整宽、不画左右竖线；行宽靠 Pad 到 frame.Width 保住
             // 「每行显示宽恰好 = Width」这条帧不变量；块间分割一律靠上面/下面的 `ⓘ` 提示行。
             lines.Add(Pad(leftRows[i] ?? RichText.Empty, frame.Width));
         }
@@ -499,7 +500,7 @@ public static class SplitRenderer
     /// 底部状态条那一行的**富文本**版：把提示段（<c>ⓘ …</c>）标成**海蓝**（<see cref="StyleRole.Hint"/>），
     /// 用量部分保持中性（它是读数，不是提示）。
     /// <para>正文与 <see cref="StripLine"/> **同源**（直接对它做字符串切段）——标记是零宽，
-    /// 帧宽与「纯文本帧 == 富文本帧正文」闸门照旧成立（2026-09-22 02:0x 用户定「这部分提示改成海蓝色」）。</para>
+    /// 帧宽与「纯文本帧 == 富文本帧正文」闸门照旧成立（2026-09-22 02:0x 主人定「这部分提示改成海蓝色」）。</para>
     /// </summary>
     private static RichText StripRow(SplitFrame frame, SplitLayout layout)
     {
@@ -519,7 +520,7 @@ public static class SplitRenderer
 
     /// <summary>
     /// **底部状态条**（v14：**固定 1 行**，紧贴输入区上方）：简短最终结果（左）+ 上一轮用量（右）。
-    /// <para>口径（用户 2026-09-22 00:1x）：「把最终结果**简短**放进输入框上面那一个**固定位置**」。
+    /// <para>口径（主人 2026-09-22 00:1x）：「把最终结果**简短**放进输入框上面那一个**固定位置**」。
     /// 它**不参与正文区高度计算** ⇒ 输入变长、输入法合成都不会让它（或它上面的区域）动。</para>
     /// <para>截断纪律：这里是**信息型**内容（放不下就截 + <c>…</c>）；决定型内容仍只走右栏详细区。</para>
     /// </summary>
@@ -531,7 +532,7 @@ public static class SplitRenderer
         var note = Markup.Strip(frame.LastNote).Replace('\n', ' ').Trim();
         var text = note.Length == 0 ? string.Empty : "ⓘ " + note;
 
-        // v15（用户 2026-09-22 02:2x）：右侧那组 `tokens ↑x ↓y` **取消** —— 与顶部框「会话」行是同一回事。
+        // v15（主人 2026-09-22 02:2x）：右侧那组 `tokens ↑x ↓y` **取消** —— 与顶部框「会话」行是同一回事。
         // 这一条从此只承载**提示**（信息型：放不下就截 + `…`，全文在 `/result`）。
         return Pad(RichText.From(text), contentWidth).Text;   // 截断与留白统一由 Pad 一处决定
     }
@@ -552,7 +553,7 @@ public static class SplitRenderer
         var lines = new List<RichText>();
         foreach (var entry in frame.Conversation)
         {
-            // 用户问的那一句：**上下各空一行** + 整行**斜体**（用户 2026-09-22 定：要一眼瞄到自己在问什么）。
+            // 用户问的那一句：**上下各空一行** + 整行**斜体**（主人 2026-09-22 定：要一眼瞄到自己在问什么）。
             var isYou = entry.Kind == "you";
             var (prefix, indent) = entry.Kind switch
             {
@@ -579,12 +580,12 @@ public static class SplitRenderer
 
             var inner = Math.Max(8, layout.LeftWidth - indent);
 
-            // **表格按当前宽度重绘**（用户 2026-10-14 令）：报告正文（卡上的「成品正文」）里的表若直接落到
+            // **表格按当前宽度重绘**（主人 2026-10-14 令）：报告正文（卡上的「成品正文」）里的表若直接落到
             // 下面那句 `Wrap`，会被**硬折** ⇒ 列错乱。这里先按 inner 重排一次（非表行**逐字节原样**，
             // 放得下的表也一个字节不改）⇒ 重排后的行都 ≤ inner，Wrap 不再动它们。
             // 早退判据必须**两种表都认**：Markdown 管表用 ASCII `|`，而**宿主 `TextTable.Render` 画的框线表
             // 用的是 `│`（U+2502）** —— 只查 `|` 会让「报告里只有一张宿主表」的卡**整张跳过重排**
-            // （2026-10-14 真机现场：用户报「类别/发现/锚 那张表还是没重绘」，就是这一行）。
+            // （2026-10-14 真机现场：主人报「类别/发现/锚 那张表还是没重绘」，就是这一行）。
             var mayHaveTable = entry.Text.Contains('|') || entry.Text.Contains('│');
             var text = entry.Kind == "you" || !mayHaveTable
                 ? entry.Text
@@ -597,7 +598,7 @@ public static class SplitRenderer
                 _ => Rich(text),
             };
             var wrapped = body.Wrap(inner);
-            // **整行一个角色的两类行**：用户问的那句（引语色）与「正在思考」行（**与「得解」同色** —— 用户 2026-09-22 17:2x 定：一眼认出）。
+            // **整行一个角色的两类行**：用户问的那句（引语色）与「正在思考」行（**与「得解」同色** —— 主人 2026-09-22 17:2x 定：一眼认出）。
             var uniform = isYou ? StyleRole.You : entry.Kind == "thinking" ? StyleRole.Done : (StyleRole?)null;
             for (var i = 0; i < wrapped.Count; i++)
             {
@@ -729,7 +730,7 @@ public static class SplitRenderer
 
     private static string StateHeader(SplitFrame frame, SplitLayout layout)
     {
-        // 口径（用户 2026-09-22 02:0x）：右上这块说的是**当前这一整个 task / 生命周期**，不是「上一次模型调用」
+        // 口径（主人 2026-09-22 02:0x）：右上这块说的是**当前这一整个 task / 生命周期**，不是「上一次模型调用」
         // ⇒ 写「本生命周期」（「轮」= 一次模型调用，是计算单位，只用在真的指模型调用处，如「上一轮 prompt」）。
         var header = frame.Focus == PaneFocus.Right ? $"▸ 状态 · 本生命周期" : $"  状态 · 本生命周期";
 
@@ -975,7 +976,7 @@ public static class SplitRenderer
 
     /// <summary>
     /// **顶部信息框**（v15 · 单栏）：把原先右栏的三块（区栈 / 自报 / 详细）压成**一行一行**的「标签 | 值 | 值」
-    /// —— 用户 2026-09-22 02:2x 定：不用表格、分隔符只用 `|`。
+    /// —— 主人 2026-09-22 02:2x 定：不用表格、分隔符只用 `|`。
     /// <para>区栈一律用 **≈token**（`字节 ÷ 4`，项目既定口径）；**变过的区**才带 `Δ+n`。
     /// 用量写「本 task +N tok | 缓存命中 M tok」。</para>
     /// <para>降级按 <see cref="SplitLayout.TopBandContentRows"/>；一行放不下就**整段从尾部丢**（宁可少说，不截字）。</para>
@@ -996,7 +997,7 @@ public static class SplitRenderer
             content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R5, "草稿", withText: true, inner)));
             content.Add(BandLine(inner, ReportSegments(frame, StackRegion.R3, "焦点", withText: true, inner)));
 
-            // 用户 2026-10-09 令：**工蜂搬到「焦点」下方**，**一个工蜂一行**（多个就追加一行）；
+            // 主人 2026-10-09 令：**工蜂搬到「焦点」下方**，**一个工蜂一行**（多个就追加一行）；
             // 首行点出 worker 协议区版本与模块数（与 master 那行同形）。
             for (var i = 0; i < frame.Workers.Count; i++)
             {
@@ -1072,11 +1073,11 @@ public static class SplitRenderer
     }
 
     /// <summary>
-    /// **「worker」行**（用户 2026-09-25 令）：本 session 的 worker 池里谁在跑、跑了多久、sync 还是 async。
+    /// **「worker」行**（主人 2026-09-25 令）：本 session 的 worker 池里谁在跑、跑了多久、sync 还是 async。
     /// <para>各 worker 以**整行同一分隔符 ` | `** 隔开（与其它行同规：放不下就从尾部整段丢，绝不截字）。</para>
     /// <para>时长是**每个 worker 自己的**（与卡的计时分开 —— W6）：卡回答「人等了多久」，它回答「这次派发值不值」。</para>
     /// </summary>
-    /// <summary>**「工蜂」行**（用户 2026-10-09 令）：**一个工蜂一行**（多个就追加）；首行带 worker 协议区版本 / 模块数。
+    /// <summary>**「工蜂」行**（主人 2026-10-09 令）：**一个工蜂一行**（多个就追加）；首行带 worker 协议区版本 / 模块数。
     /// <para>各段以整行同一分隔符 ` | ` 隔开（与其它行同规：放不下从尾部整段丢，绝不截字）。</para></summary>
     private static IReadOnlyList<string> WorkerLine(string fact, bool header)
     {
@@ -1105,7 +1106,7 @@ public static class SplitRenderer
 
         if (!withText)
         {
-            // **矮窗口也要看得出「它变了」**（用户 2026-10-15 00:28：「task 运行中如果改了白板或草稿，都应该
+            // **矮窗口也要看得出「它变了」**（主人 2026-10-15 00:28：「task 运行中如果改了白板或草稿，都应该
             // 刷新到 TUI，否则会引起我的误判」）：从前这里只印**计数**（「白板 7 行」）⇒ 内容改了但行数没变
             // ⇒ 屏上看着没刷（误判源）。现改为印**首行摘要**（= `Short`：白板优先给 `solve:` 行，草稿给首行），
             // 真拿不到摘要才退回计数（不凭空造）。
@@ -1115,9 +1116,9 @@ public static class SplitRenderer
 
         // **先给计数，再给正文**（2026-10-15 真机）：顶栏的宽度是**硬预算**，且放不下时**从尾部整段丢**
         //（纪律：宁可少说、不截字）⇒ 白板那种长串（solve + step）会**整段被丢** ⇒ 那一行只剩标签，
-        // 看着像「空的」（用户当场报「白板是空的」，实为 R4 有 89 token 内容）。
+        // 看着像「空的」（主人当场报「白板是空的」，实为 R4 有 89 token 内容）。
         // 把**计数放第一位** ⇒ 再窄也至少读到「N 行」（与状态表「窄了就换计数」同一条纪律）。
-        // **顶栏这一行必须永远有「可读内容」，且把宽度用满**（用户 2026-10-15 01:50：
+        // **顶栏这一行必须永远有「可读内容」，且把宽度用满**（主人 2026-10-15 01:50：
         //   「顶部显示纪律可以和表格重绘使用同一套规格，目前看上去宽度没有完全使用完」）：
         //   ⇒ 与表格重绘同一套「**先量后放**」——计数（短，恒放得下）先放；首行内容按**剩余预算**截断带 …，
         //   把这一行用满。信息型位面允许截断；决定型内容不在这里（全文在 /tail /draft）。
@@ -1163,7 +1164,7 @@ public static class SplitRenderer
     private static string BandText(string text, int inner) =>
         TerminalText.WidthOf(Markup.Strip(text)) <= inner ? text : TerminalText.TruncateTo(text, inner);
 
-    /// <summary>行高**收窄**的防抖窗口（**唯一声明处**；用户 2026-09-20 定 400ms）。
+    /// <summary>行高**收窄**的防抖窗口（**唯一声明处**；主人 2026-09-20 定 400ms）。
     /// <para>v13 修 BUG 后它**只管收窄**：长高是立刻的（内容一变就长），收窄要等停稳。</para>
     /// </summary>
     public const int InputSettleMs = 400;
@@ -1171,7 +1172,7 @@ public static class SplitRenderer
     /// <summary>
     /// 输入区占的行数（**单一口径，v13**）：按显示宽度**软换行**，上限 <see cref="SplitLayout.MaxInputRows"/>。
     /// <para>⚠️ **不再有「键入中 / 停稳」两段口径**（那是 2026-09-20 的防抖土方）：
-    /// 它换来的是「要等几百毫秒才长高」＋「再敲一个字又跳回一行」两个真机 BUG（用户 2026-09-21 报）。
+    /// 它换来的是「要等几百毫秒才长高」＋「再敲一个字又跳回一行」两个真机 BUG（主人 2026-09-21 报）。
     /// 现在行高**只跟着内容走**；「长高即时 / 收窄防抖」由宿主 <c>SplitSession.NextInputRows</c> 负责。</para>
     /// </summary>
     /// <param name="input">输入缓冲原文。</param>
@@ -1236,6 +1237,7 @@ public static class SplitRenderer
     {
         var caret = Math.Clamp(frame.Caret, 0, frame.Input.Length);
         var marker = frame.Focus == PaneFocus.Input ? string.Empty : "（右栏焦点）";
+
         var contentWidth = Math.Max(1, layout.Width);
         var textWidth = TextWidthFor(layout.Width);
 
@@ -1305,13 +1307,25 @@ public static class SplitRenderer
             rows.Add(new string(' ', PromptWidth));
         }
 
-        // 超过上限 ⇒ 显示**最后**几行（光标在末尾，必须看得见）。
-        var shown = rows.Count > layout.InputRows ? rows.Skip(rows.Count - layout.InputRows) : rows;
+        // 超过上限 ⇒ 显示**最后**几行（光标在末尾，必须看得见），但**提示符常驻第一行**：
+        // 2026-10-19 主人报「agent-runtime > 竟然可以被删除」—— 真因是长输入时提示符所在的第一行被滚出面板，
+        // 看上去像被删了。这里把第一可见行的前导空格换回提示符（输入缓冲本身从不含提示符，退格删不到它）。
+        var overflow = rows.Count > layout.InputRows;
+        var shown = overflow ? rows.Skip(rows.Count - layout.InputRows).ToList() : rows;
+        if (overflow && shown.Count > 0)
+        {
+            var first = shown[0];
+            if (first.Length >= PromptWidth && first.StartsWith(new string(' ', PromptWidth), StringComparison.Ordinal))
+            {
+                shown[0] = Prompt + first[PromptWidth..];
+            }
+        }
+
         return shown.Select(r => Pad(RichText.From(r), contentWidth).Text).ToArray();
     }
 
     /// <summary>
-    /// **文字型分割线**（用户 2026-10-14 令）：整行一条深蓝 <c>ⓘ …</c>，**不画任何框线** ——
+    /// **文字型分割线**（主人 2026-10-14 令）：整行一条深蓝 <c>ⓘ …</c>，**不画任何框线** ——
     /// 块与块之间靠它在**固定位置**分开（与底部状态条同一种「自然分割」）。整行补空到 <paramref name="width"/>，
     /// 保住「每行显示宽 = Width」的帧不变量。
     /// </summary>
@@ -1323,7 +1337,7 @@ public static class SplitRenderer
 
     /// <summary>
     /// 补到**整宽 <paramref name="width"/>**，但**内容只占中间 <c>width − 2</c>（左右各留 1 格，对称）**。
-    /// <para>为什么要留冗余（用户 2026-10-15 报「每一行总是会漏一个字」）：落屏时每行紧跟一句
+    /// <para>为什么要留冗余（主人 2026-10-15 报「每一行总是会漏一个字」）：落屏时每行紧跟一句
     /// <c>EraseToEndOfLine</c>（见 <c>AnsiScreen.Draw</c>），而旧写法 <c>TruncateTo(width).PadTo(width)</c>
     /// 让正文**顶到最后一列** ⇒ 光标正停在那格上，EL 从光标处起擦 ⇒ **把正文最后一个字擦掉**。
     /// 现在末列**永远是留白**，EL 只擦掉空白。</para>

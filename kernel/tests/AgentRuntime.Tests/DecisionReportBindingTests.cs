@@ -11,7 +11,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **决策报告的绑法**（协议 v21 第 12 条）—— 用户 2026-09-24 21:3x 真机报：卡 #11 / #12 **得解却没有报告**。
+/// **决策报告的绑法**（协议 v21 第 12 条）—— 主人 2026-09-24 21:3x 真机报：卡 #11 / #12 **得解却没有报告**。
 /// <para>
 /// 真因两条，各一组闸门：
 /// </para>
@@ -55,6 +55,23 @@ public sealed class DecisionReportBindingTests
 
         Assert.Equal(TaskLifecycleStatus.Done, lifecycle.Status);
         Assert.True(DecisionReportParser.Parse(lifecycle.ReportText).Accepted, "终局轮自带的那篇必须被认领");
+
+        var card = Card(flow);
+        Assert.Contains("一、这一轮要解决什么", card, StringComparison.Ordinal);
+        Assert.DoesNotContain("未提交决策报告", card, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 等待用户裁决_同轮自带报告也要认领()
+    {
+        var flow = Flow();
+        User(flow, "选哪个");
+        Say(flow, $"[NEED-USER] 选 A 还是 B？\n{Report}");
+
+        var lifecycle = LifecycleAggregator.Aggregate(flow).Current!;
+
+        Assert.Equal(TaskLifecycleStatus.WaitingForUser, lifecycle.Status);
+        Assert.True(DecisionReportParser.Parse(lifecycle.ReportText).Accepted, "NEED-USER 同轮报告必须被认领");
 
         var card = Card(flow);
         Assert.Contains("一、这一轮要解决什么", card, StringComparison.Ordinal);

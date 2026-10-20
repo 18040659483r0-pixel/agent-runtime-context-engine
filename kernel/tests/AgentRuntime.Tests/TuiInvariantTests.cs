@@ -288,6 +288,24 @@ public sealed class TuiInvariantTests
     // ---------------- 面板内容本身（P1 的六区账） ----------------
 
     [Fact]
+    public void 思考动画_单行Braille蛇形粒子链()
+    {
+        // 主人 2026-10-18 口径：单行、约 4 个汉字宽（8 个 Braille 字符），像素点在字符内部走。
+        var start = SplitSession.ThinkSnakeFrame(0);
+        Assert.Equal(8, start.Length);
+        Assert.DoesNotContain("\n", start, StringComparison.Ordinal);
+        Assert.NotEqual(' ', start[0]);                 // 第一列最下方有粒子
+
+        var next = SplitSession.ThinkSnakeFrame(200);
+        Assert.Equal(8, next.Length);
+        Assert.NotEqual(start, next);                   // 像素点在动
+
+        // 走到第二个像素列（约第 8 个像素步）时，第二个字符应出现粒子。
+        var across = SplitSession.ThinkSnakeFrame(8 * 100);
+        Assert.NotEqual(' ', across[1]);
+    }
+
+    [Fact]
     public async Task P1_区栈按规范序列出六个区_含字节指纹版本与次序()
     {
         using var h = new TuiHarness("tui-p1");
@@ -313,7 +331,7 @@ public sealed class TuiInvariantTests
         var protocol = layers.Single(l => l.Region == StackRegion.R1P);
         Assert.Equal(StackPanel.BytesOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Bytes);
         Assert.Equal(StackPanel.FingerprintOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Fingerprint);
-        Assert.Equal("v74", protocol.VersionLabel);   // v69（2026-10-16 13:30 · 用户令「rules 平时只读、收尾中收敛」）：新增第 15 条 —— 改 rules 只写 `whitebox/workspace/rules-changeOrder.md`（[open] 请求 + 水位线，收尾收敛）   // v68（2026-10-15 13:2x · 用户令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）；v67（2026-10-15 · 用户令「改协议」）：第 5 条回转 v64（[TAIL]/[DRAFT] 只在真变了时才写）；v66（2026-10-15 · 令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮说）；v65（2026-10-14 · 用户令「b 也要做」）：第 5 条补长正文纪律（长值用 `key: <<` 块）；v64（2026-10-14 · 用户令「过程中每一轮都刷」）：第 5 条回转 v62-B —— [TAIL]/[DRAFT] 每轮刷新；v63（2026-10-11 · 收尾退役）：第 7 条去 skills；v62（2026-10-11 · T2/G1）；v61（2026-10-10 · 拔掉 worker）：删第13条 + 去第2/5条 worker 句 + 不拼共用段；v60（2026-10-10 · 待办 3b）：新增第 14 条「按体量排工」；v59：master 协议口径统一「L1/L2/L3 only」→ L1/L2/L3/L4；v58（2026-10-09 · D3-A）：第 5 条补 [NOTE] 块；v38（2026-10-06）：共用段新增 [SPLIT]；v37：[DUTY]；v36：枚举含义入协议区   // v32（2026-09-30）；v31（2026-09-29 · 第 5 条键清单按角色渲染）；第 13 条补 ask: + 回执读数 + 地址绝对；v30：第 2/13 条把读原料/doing 归 Worker；v29：must:；v28：工具面改行式键值；v26~v27：工具面补 index/scope —— 用户 2026-09-27 定
+        Assert.Equal("v86", protocol.VersionLabel);   // v69（2026-10-16 13:30 · 主人令「rules 平时只读、收尾中收敛」）：新增第 15 条 —— 改 rules 只写 `whitebox/workspace/rules-changeOrder.md`（[open] 请求 + 水位线，收尾收敛）   // v68（2026-10-15 13:2x · 主人令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）；v67（2026-10-15 · 主人令「改协议」）：第 5 条回转 v64（[TAIL]/[DRAFT] 只在真变了时才写）；v66（2026-10-15 · 令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮说）；v65（2026-10-14 · 主人令「b 也要做」）：第 5 条补长正文纪律（长值用 `key: <<` 块）；v64（2026-10-14 · 主人令「过程中每一轮都刷」）：第 5 条回转 v62-B —— [TAIL]/[DRAFT] 每轮刷新；v63（2026-10-11 · 收尾退役）：第 7 条去 skills；v62（2026-10-11 · T2/G1）；v61（2026-10-10 · 拔掉 worker）：删第13条 + 去第2/5条 worker 句 + 不拼共用段；v60（2026-10-10 · 待办 3b）：新增第 14 条「按体量排工」；v59：master 协议口径统一「L1/L2/L3 only」→ L1/L2/L3/L4；v58（2026-10-09 · D3-A）：第 5 条补 [NOTE] 块；v38（2026-10-06）：共用段新增 [SPLIT]；v37：[DUTY]；v36：枚举含义入协议区   // v32（2026-09-30）；v31（2026-09-29 · 第 5 条键清单按角色渲染）；第 13 条补 ask: + 回执读数 + 地址绝对；v30：第 2/13 条把读原料/doing 归 Worker；v29：must:；v28：工具面改行式键值；v26~v27：工具面补 index/scope —— 主人 2026-09-27 定
 
         // R1 = 全部冻结段（与 FrozenPrefix 的拼接口径一致）。
         var frozen = layers.Single(l => l.Region == StackRegion.R1);
@@ -438,9 +456,9 @@ public sealed class TuiInvariantTests
         using var h = new TuiHarness("tui-p5-fork", autoSnapshot: false);
 
         // 快照停在游标 2；随后再跑 1 轮 ⇒ 流比快照多出 2 条孤儿尾部。
-        await h.Router.RunTurnAsync("第一轮", verbose: false, cancellationToken: Ct);   // 流 2 条
-        h.Host.WriteSnapshotOnce();                                                     // 快照游标 2
-        await h.Router.RunTurnAsync("第二轮", verbose: false, cancellationToken: Ct);   // 流 4 条
+        await h.Router.RunTurnAsync("第一轮", verbose: false, cancellationToken: Ct);   // 流 3 条（user + agent + 焦点提示）
+        h.Host.WriteSnapshotOnce();                                                     // 快照游标 3
+        await h.Router.RunTurnAsync("第二轮", verbose: false, cancellationToken: Ct);   // 流 6 条
 
         var forkPath = h.Workspace.File("fork.jsonl");
         var streamFile = h.Workspace.File("stream.jsonl");
@@ -456,7 +474,7 @@ public sealed class TuiInvariantTests
 
         // 原流一个字节未动（只读）；新流 = 原流前 2 条。
         Assert.Equal(streamBefore, File.ReadAllBytes(streamFile));
-        Assert.Equal(2, File.ReadAllLines(forkPath).Length);
+        Assert.Equal(3, File.ReadAllLines(forkPath).Length);
 
         // /fork 不切续写目标（config.Stream.Path 不变；续写是 /resume 的事）。
         Assert.Equal(streamPathBefore, h.Config.Stream.Path);
@@ -495,5 +513,36 @@ public sealed class TuiInvariantTests
         var restore = await h.Router.ExecuteAsync("/ablate dynamic-draft on", h.Stderr, Ct);
         Assert.False(restore.IsError, Flatten(restore.Lines));
         Assert.Contains("本会话已摘：（无）", Flatten(restore.Lines), StringComparison.Ordinal);
+    }
+}
+
+/// <summary>
+/// **退格 / 光标按「一个用户可见字符」走**（2026-10-18 真机：emoji 删一半 ⇒ 留下看不见、退格像没反应的孤立代理）。
+/// </summary>
+public sealed class TextCaretTests
+{
+    [Fact]
+    public void 退格跨过代理对整体()
+    {
+        var text = "a😀";               // 'a' + 高代理 + 低代理
+        var prev = AgentRuntime.Presentation.TerminalText.PrevIndex(text, text.Length);
+        Assert.Equal(1, prev);          // 一次退格跨到 'a' 之后，不落在半个 emoji 上
+        Assert.Equal(0, AgentRuntime.Presentation.TerminalText.PrevIndex(text, prev));
+    }
+
+    [Fact]
+    public void 右移跨过代理对整体()
+    {
+        var text = "a😀b";
+        var next = AgentRuntime.Presentation.TerminalText.NextIndex(text, 1);
+        Assert.Equal(3, next);          // 'a' 之后直接到 'b'
+    }
+
+    [Fact]
+    public void 组合附加符跟着基字符一起走()
+    {
+        var text = "e\u0301x";          // e + 声调 + x
+        Assert.Equal(0, AgentRuntime.Presentation.TerminalText.PrevIndex(text, 2));
+        Assert.Equal(2, AgentRuntime.Presentation.TerminalText.NextIndex("e\u0301x", 0));
     }
 }

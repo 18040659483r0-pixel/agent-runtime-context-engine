@@ -29,7 +29,7 @@ public sealed class ToolSyntaxNormalizerTests
     [Fact]
     public void 归一_标准形状_逐字节不变_且幂等()
     {
-        // B1（2026-09-29 用户定案）：**标准形状 = 行式键值（零转义）** —— 归一器对它必须逐字节不动。
+        // B1（2026-09-29 主人定案）：**标准形状 = 行式键值（零转义）** —— 归一器对它必须逐字节不动。
         var std = H + " read\npath: a.cs\n";
 
         Assert.Equal(std, ToolSyntaxNormalizer.Normalize(std));                       // 逐字节不变
@@ -189,7 +189,7 @@ public sealed class ToolSyntaxNormalizerTests
         Assert.Equal(good, ToolSyntaxNormalizer.Normalize(good));
     }
 
-    // ---------------- 真机两形态（2026-10-14 · 用户 23:04 会话；34 条事件含 DSML）----------------
+    // ---------------- 真机两形态（2026-10-14 · 主人 23:04 会话；34 条事件含 DSML）----------------
 
     [Fact]
     public void 真机_裸DSML开场标记_后面跟正确行式_标记连残行一起剥掉()
@@ -228,6 +228,40 @@ public sealed class ToolSyntaxNormalizerTests
         Assert.Equal(ToolParseStatus.Ok, result.Status);
         Assert.Equal("exec", result.Call!.Name);
         Assert.Equal("echo hi", ToolArgs.Parse(result.Call.ArgumentsJson).RequireString("command"));
+    }
+
+    [Fact]
+    public void 紧凑写法里值没引号也归一()
+    {
+        // I 系列 I5 真机：`[TOOL] web_search{query: OpenClaw, count: 5}` —— 键补好了、值没引号 ⇒ 旧路仍判非法 JSON。
+        var result = ToolReport.Parse(ToolSyntaxNormalizer.Normalize(H + " web_search{query: OpenClaw, count: 5}"));
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("web_search", result.Call!.Name);
+        var args = ToolArgs.Parse(result.Call.ArgumentsJson);
+        Assert.Equal("OpenClaw", args.RequireString("query"));
+        Assert.Equal(5, args.OptionalInt("count"));
+    }
+
+    [Fact]
+    public void 原生invoke里的裸成员元素也归一成参数()
+    {
+        // I 系列 I6 真机：模型发的是
+        //   ` invoke name="web_search_extract">` + `<urls>["a","b"]</urls>` + `<maxCharsPerPage>1200</maxCharsPerPage>` + `</invoke>`
+        // 旧路只认 `parameter name=` 外壳 ⇒ args 为空 ⇒ 归出空参数块 ⇒ 判「需要参数」白烧一轮。
+        var raw = " invoke name=\"web_search_extract\">\n"
+                  + "<urls>[\"https://example.com\",\"https://example.org\"]</urls>\n"
+                  + "<maxCharsPerPage>1200</maxCharsPerPage>\n"
+                  + "</invoke>";
+
+        var normalized = ToolSyntaxNormalizer.Normalize(raw);
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("web_search_extract", result.Call!.Name);
+        var args = ToolArgs.Parse(result.Call.ArgumentsJson);
+        Assert.Equal("[\"https://example.com\",\"https://example.org\"]", args.RequireString("urls"));
+        Assert.Equal(1200, args.OptionalInt("maxCharsPerPage"));
     }
 
     [Fact]
@@ -359,5 +393,95 @@ public sealed class ToolSyntaxNormalizerTests
         // 围栏内 = 示例，不得当调用
         const string fenced = "示例：\n```text\n<call><name>list</name><path>/tmp</path></call>\n```\n";
         Assert.Equal(ToolParseStatus.None, ToolReport.Parse(ToolSyntaxNormalizer.Normalize(fenced)).Status);
+    }
+
+    [Fact]
+    public void 归一_NAME打头但漏Call外壳_补壳后能解析()
+    {
+        // 2026-10-18 真机 E725：`<TOOL>` + `<name>exec</name><command>…</command>`（没有 <call>）
+        // ⇒ 旧路把 <name> 当根 ⇒「工具块没有 <name>」整篇拒。
+        var text = "<TOOL>\n<name>exec</name>\n<command>echo hi</command>\n</TOOL>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("exec", result.Call!.Name);
+        Assert.Equal("echo hi", ToolArgs.Parse(result.Call.ArgumentsJson).RequireString("command"));
+        Assert.Contains(traces, t => t.StartsWith("name-only-wrapped", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 正文里提到call_不会吃掉后面的真块()
+    {
+        // 2026-10-18 真机 E729：正文写「工具块漏了 `<call>` 包裹，重发。」——
+        // 旧正则从这处「提及」一路吃到真块的 </call> ⇒ 造出一个幻影块 ⇒ 整篇拒。
+        var text = "工具块漏了 `<call>` 包裹，重发。\n\n[TOOL] <call><name>exec</name><command>echo hi</command></call>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal(1, result.Calls.Count);            // 只有真块，没有幻影
+        Assert.Equal("exec", result.Call!.Name);
+        Assert.DoesNotContain(traces, t => t.StartsWith("headerless-call", StringComparison.Ordinal));
+}
+
+    [Fact]
+    public void 归一_XML块后的DSML收尾残形_剥除后不整篇拒()
+    {
+        // 2026-10-19 真机：模型交的是合规 XML 块，末尾却漏进 DSML 的闭合标记
+        //   </｜｜DSML｜｜ calls>（全角竖线）⇒ 严格解析把整篇判「元素不合语法」，一轮白烧。
+        var text = H + " <call><name>read</name><path>/abs/a.txt</path></call>\n</\uFF5C\uFF5CDSML\uFF5C\uFF5C calls>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("read", result.Call!.Name);
+        Assert.Contains(traces, t => t == "dsml-residue");
+        Assert.DoesNotContain("DSML", normalized);
+    }
+
+    [Fact]
+    public void 归一_重复的call收尾_不整篇拒()
+    {
+        // 2026-10-19 真机：模型在 </call></TOOL> 之后又补一行 </call>（或再补 </TOOL>）。
+        // 块自定界 ⇒ 块外孤立的 </call> 是残形；旧路整篇拒。
+        var text = H + " <call><name>exec</name><command>echo hi</command></call></TOOL>\n</call></TOOL>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("exec", result.Call!.Name);
+        Assert.Contains(traces, t => t == "stray-call-close");
+    }
+
+    [Fact]
+    public void 归一_命令里未转义的尖括号_不当整篇拒()
+    {
+        // 主人 2026-10-19 令「第三族要做归一」：shell 里合法的 `<`（重定向 / here-doc）
+        // 在 XML 文本里是未转义字符。旧路整篇拒 ⇒ 一轮白烧。
+        var text = H + " <call><name>exec</name><command>wc -c < /etc/hosts</command></call>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("exec", result.Call!.Name);
+        Assert.Equal("wc -c < /etc/hosts", ToolArgs.Parse(result.Call.ArgumentsJson).RequireString("command"));
+    }
+
+    [Fact]
+    public void 归一_块后孤立的外壳收尾parameter_剥除()
+    {
+        // 2026-10-19 真机：模型交 XML 块，末尾却跟一行 </parameter>（原生外壳残留）⇒ 整篇拒。
+        var text = H + " <call><name>exec</name><command>echo hi</command></call></TOOL>\n</parameter>";
+        var (normalized, traces) = ToolSyntaxNormalizer.NormalizeTraced(text);
+
+        var result = ToolReport.Parse(normalized);
+
+        Assert.Equal(ToolParseStatus.Ok, result.Status);
+        Assert.Equal("exec", result.Call!.Name);
+        Assert.Contains(traces, t => t == "stray-wrapper-close");
     }
 }

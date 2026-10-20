@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **回执组合**（用户 2026-10-07 令）：worker 交回的**收窄意图**，与 master 派发的 `intent:` 组合**同一形状** ——
+/// **回执组合**（主人 2026-10-07 令）：worker 交回的**收窄意图**，与 master 派发的 `intent:` 组合**同一形状** ——
 /// 都是「一个封闭的类 + 几个正交轴」，而不是一段自由文本。
 ///
 /// <para><b>为什么照派发来做</b>：master 派发 = <c>一句目的 + intent: &lt;KIND&gt; criteria= when= side_effects= + scope</c>；
@@ -11,7 +11,7 @@ namespace AgentRuntime.Core.Worker;
 ///
 /// <para><b>与人类语言的分工</b>：本类型只装**机器可锁死**的部分；「到底发现了什么」那句**人类语言**
 /// 另存（<see cref="MachineDecisionReport.Answer"/> / <c>evidence:</c>）—— 两者**同在一份报告**里，
-/// 机器看组合、人看句子（用户 2026-10-07 令：保留人类能理解的语言）。</para>
+/// 机器看组合、人看句子（主人 2026-10-07 令：保留人类能理解的语言）。</para>
 /// </summary>
 /// <param name="Kind">回执六类（封闭）。</param>
 /// <param name="Criteria">**复述派发的 criteria**（对账用）：<c>full</c> / <c>lines A-B</c> / <c>count N</c> / <c>members {…}</c> / <c>free "…"</c>；无派发意图时为空。</param>

@@ -9,7 +9,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker 产出汇流**（2026-10-06 用户令）：收尾时 master 读 worker 的坑集 + memory，
+/// **worker 产出汇流**（2026-10-06 主人令）：收尾时 master 读 worker 的坑集 + memory，
 /// 把新问题收敛进公共 L1/L2 与铁则区；收敛动作由 master 做，运行时**只负责让它不可能被漏掉 + 记账**。
 /// </summary>
 public sealed class WorkerFindingsTests

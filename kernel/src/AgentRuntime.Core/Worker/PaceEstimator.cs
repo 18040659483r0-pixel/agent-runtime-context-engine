@@ -2,7 +2,7 @@ namespace AgentRuntime.Core.Worker;
 
 /// <summary>
 /// **一次派发的节拍计划**（L2）：预计多久、中位多久、阈值多少、**该拆几块**、以及**切轴**。
-/// <para><b>提示口径（用户 2026-10-08 23:0x 定）</b>：<c>T_est &gt; k × 中位</c>（k=3）⇒ 提示 master 拆分；
+/// <para><b>提示口径（主人 2026-10-08 23:0x 定）</b>：<c>T_est &gt; k × 中位</c>（k=3）⇒ 提示 master 拆分；
 /// 同时给**合并下限**：每块不得低于中位 ⇒ 块数上限 = <c>floor(T_est / 中位)</c>（太碎反而更慢 —— 每块都要重发前缀）。</para>
 /// </summary>
 public sealed record PacePlan(

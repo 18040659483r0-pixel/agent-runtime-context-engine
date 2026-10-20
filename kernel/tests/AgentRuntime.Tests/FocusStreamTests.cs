@@ -148,8 +148,11 @@ public sealed class FocusStreamTests : IDisposable
         Assert.Equal(bytesAfterFirst, bytesAfterSecond.Take(bytesAfterFirst.Length).ToArray());
 
         var appended = new SessionStreamStore(path).Load();
-        Assert.Equal(5, appended.Count);                                            // user + agent，没有第三条
+        // v80 起：缺 [FOCUS] 的**每一轮**都由运行时报一次（按 turn 去重）⇒ user + agent + hint
+        Assert.Equal(6, appended.Count);
         Assert.NotEqual(SessionEventKind.FocusReport, appended.Events[^1].Kind);
+        Assert.Equal(SessionEventKind.Hint, appended.Events[^1].Kind);
+        Assert.Contains("第 17 条", appended.Events[^1].Text, StringComparison.Ordinal);
     }
 
     // ---------------- 额外：Tag 格式声明处唯一 ----------------

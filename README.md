@@ -1,4 +1,4 @@
-# Agent Runtime / Context Engine · Alpha 0.1.1
+# Agent Runtime / Context Engine · Alpha 0.1.2
 
 > [中文版](README.zh-CN.md)
 
@@ -14,9 +14,9 @@ Agent Runtime turns model collaboration into two engineering problems:
 
 The runtime performs **mechanical work only** — assembly, validation, accounting, fetching, closeout. Semantic judgement belongs to the model. Every reading is reproducible.
 
-## 0. Highlights (Alpha 0.1.1)
+## 0. Highlights (Alpha 0.1.2)
 
-- **Extreme token efficiency**: only L1 is resident (787 B); L2–L4 are fetched by id; within a session a node's body is assembled once and later fetches return a pointer. Frozen corpus: **8.1 KB ≈ 2,428 tokens**.
+- **Extreme token efficiency**: only L1 is resident (1,477 B); L2–L4 are fetched by id; within a session a node's body is assembled once and later fetches return a pointer. Public deployment corpus: **813 B** (rules + knowledge).
 - **Transparency**: append-only events, tags as identity; every fetch, prune, closeout, and release is recorded; readings come from structured sources and are byte-reproducible.
 - **Extensibility**: pluggable modules, declarative closeout requirements, a knowledge tree that grows by edges; rules, persona, user profile, knowledge, decisions, and principles are all plain text — changing text changes the world.
 - **Decision library + autonomous continuous work**: the decision library mirrors the knowledge tree with L1 resident; the bypass module may decide for the user only when both the library and the principles agree; at 80% it closes out, resets, and continues the same task, stopping only for a genuine gap.
@@ -96,6 +96,8 @@ Closeout is an **extensible module**: one declaration per requirement, split int
 - Core red = record and warn, **do not block** by default; Extension red is accounted only.
 - The convergence point records archive revision, code revision, pitfall counts, live↔archive parity, and a fingerprint.
 - A green closeout removes the previous red note; a red closeout leaves its name both in the convergence line and in the ledger.
+- **Receipt (0.1.2)**: every closeout writes `tools/closeout/receipt.xml` — convergence point / knowledge (version, L1–L4, orphans, unmarked L4) / decisions (entries, gaps, orphans) / deltas since the last receipt.
+- **Hard growth gates (0.1.2)**: live knowledge changed without a version bump, an L4 body without a node marker, or any decision gap/orphan — any one of these makes the closeout incomplete; a green check must not be passed off as growth.
 
 ## 3. Deployment
 
@@ -119,7 +121,7 @@ The deployment version is a **bare baseline**: 20 knowledge seeds (5 per layer) 
 
 ### 4.1 Regression
 
-- Unit/integration tests: **1339 / 1339**.
+- Unit/integration tests: **1411 / 1411**; TUI2 real-pty suite **20 / 20**.
 
 ### 4.2 Single-master performance suite (M1–M10)
 

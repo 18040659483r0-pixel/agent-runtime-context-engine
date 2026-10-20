@@ -7,7 +7,7 @@ namespace AgentRuntime.Core.Tooling;
 /// <summary>
 /// <c>exec</c> —— 在**本机**跑一条命令（**需批**）。
 /// <para>
-/// <b>为什么有它</b>（用户 2026-09-16 12:58 定）：[WB] 要**自持**，就得能自己跑 <c>svn</c> 与语料重建脚本；
+/// <b>为什么有它</b>（主人 2026-09-16 12:58 定）：[WB] 要**自持**，就得能自己跑 <c>svn</c> 与语料重建脚本；
 /// 先前的「论文里没有这一项」判断作废 —— <b>先跑通闭环，安全框架后补</b>。
 /// </para>
 /// <para>
@@ -26,7 +26,7 @@ namespace AgentRuntime.Core.Tooling;
 /// 语义与既有约定一致：**非 0 退出码是"结果"**（跑了但失败），不是"拒绝" —— 事实照原样回给模型。
 /// </para>
 /// </summary>
-public sealed class ExecTool : ToolBase
+public sealed class ExecTool : LocalToolBase
 {
     public override string Name => ToolNames.Exec;
 
@@ -34,7 +34,7 @@ public sealed class ExecTool : ToolBase
     public override ToolRisk Risk => ToolRisk.Mutating;
 
     /// <summary>
-    /// **按命令定档**（用户 2026-09-16 13:1x 定）：发布 / 不可逆命令 ⇒ <see cref="ToolRisk.Critical"/>（must-ask）。
+    /// **按命令定档**（主人 2026-09-16 13:1x 定）：发布 / 不可逆命令 ⇒ <see cref="ToolRisk.Critical"/>（must-ask）。
     /// <para>判据在唯一声明处 <see cref="ExecCommandRisk.Classify"/>；**判不出 ⇒ 需批**（不降为免批）。</para>
     /// </summary>
     public override ToolRisk RiskFor(ToolArgs args)
@@ -172,6 +172,9 @@ public sealed class ExecTool : ToolBase
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+
+        // 子进程 locale（唯一处见 ExecEnvironment）：漏了它 svn 一提交中文就 E000022。
+        ExecEnvironment.PinUtf8Locale(info);
 
         // 工作基准：配了就以它为准（null ⇒ 继承进程 cwd —— W1「关掉即逐字节不变」）。
         // 配了却不存在 ⇒ fail-closed 报错：静默回落会让「站错地方」伪装成「命令失败」。

@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// 回执闸门（2026-09-27，用户 B 项）：worker 回执**必须**由 master 按盘复算后才算数。
+/// 回执闸门（2026-09-27，主人 B 项）：worker 回执**必须**由 master 按盘复算后才算数。
 /// 用法：拿到 worker 结果后调用 <see cref="Judge"/>，它按 `evidence.path` / `changes` 路径做存在性三验；
 /// 不符即把该次结果改判为：ok=false · reason=EvidenceUncorroborated · retryable=true（④ 必带修正补发）。
 /// 与 `EvidenceVerifier` 同一判据（盘上事实），不采信回执自述。

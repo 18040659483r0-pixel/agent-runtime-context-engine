@@ -6,6 +6,7 @@
   <ApiKeyEnv>AGENTRUNTIME_API_KEY</ApiKeyEnv>
   <ApiKeyFile>~/.agentruntime/api_key</ApiKeyFile>
   <TimeoutSeconds>1200</TimeoutSeconds>
+  <ConnectTimeoutSeconds>15</ConnectTimeoutSeconds>
   <Temperature xsi:nil="true" />
   <ReasoningEffort>low</ReasoningEffort>
   <Modules>
@@ -35,8 +36,8 @@
   <Lifecycle>
     <Workspace>../../whitebox/workspace</Workspace>
     <Window>always</Window>
-    <Pitfalls>docs/PITFALLS.md</Pitfalls>
-    <PitfallsInbox>docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
+    <Pitfalls>../../docs/PITFALLS.md</Pitfalls>
+    <PitfallsInbox>../../docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
     <Pipeline />
     <Handover>state/handover.xml</Handover>
     <NativeCloseout>true</NativeCloseout>
@@ -102,4 +103,27 @@
       <FallbackOverheadSeconds>3</FallbackOverheadSeconds>
     </Pace>
   </Worker>
+  <!-- 网络工具第一批（v75）：搜索用无密钥 wikipedia；下载落在工作区 downloads -->
+  <Network>
+    <SearchBackend>wikipedia</SearchBackend>
+    <SearchEndpoint />
+    <SearchApiKeyEnv />
+    <TimeoutSeconds>30</TimeoutSeconds>
+    <MaxResponseBytes>2000000</MaxResponseBytes>
+    <MaxRedirects>5</MaxRedirects>
+    <MaxConcurrency>4</MaxConcurrency>
+    <CacheTtlSeconds>300</CacheTtlSeconds>
+    <DownloadRoots>
+      <string>../../whitebox/workspace/downloads</string>
+    </DownloadRoots>
+    <AllowedDownloadTypes>
+      <string>application/pdf</string>
+      <string>image/png</string>
+      <string>image/jpeg</string>
+      <string>text/plain</string>
+      <string>text/html</string>
+      <string>application/json</string>
+    </AllowedDownloadTypes>
+    <Credentials />
+  </Network>
 </RuntimeConfiguration>

@@ -4,7 +4,7 @@ using AgentRuntime.Core.Persistence;
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
-/// **工具调用 = 一个类型**（用户 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
+/// **工具调用 = 一个类型**（主人 2026-10-07 令：解析走 XML 序列化，不手写行扫描）。
 ///
 /// <para><b>为什么换成它</b>：旧路是"行扫描 + 切段 + 拼 JSON 再解析" —— 段落**没有自定界**，
 /// 于是抄来的上下文行会被一起切进去（真机：回声里的 <c>timeoutSeconds: 30</c> ⇒ 判"参数重复" ⇒ 整条命令被拒）。</para>
@@ -32,6 +32,24 @@ public sealed class ToolCallXml
     [DataMember(Name = "risk", EmitDefaultValue = false)] public string? Risk { get; init; }
     [DataMember(Name = "task", EmitDefaultValue = false)] public string? Task { get; init; }
 
+    // ---- 网络工具第一批（2026-10-18）：**强类型成员**，不靠行式微格式 ----
+    [DataMember(Name = "url", EmitDefaultValue = false)] public string? Url { get; init; }
+    [DataMember(Name = "method", EmitDefaultValue = false)] public string? Method { get; init; }
+    [DataMember(Name = "headers", EmitDefaultValue = false)] public string? Headers { get; init; }
+    [DataMember(Name = "query", EmitDefaultValue = false)] public string? Query { get; init; }
+    [DataMember(Name = "body", EmitDefaultValue = false)] public string? Body { get; init; }
+    [DataMember(Name = "contentType", EmitDefaultValue = false)] public string? ContentType { get; init; }
+    [DataMember(Name = "authRef", EmitDefaultValue = false)] public string? AuthRef { get; init; }
+    [DataMember(Name = "maxChars", EmitDefaultValue = false)] public int MaxChars { get; init; }
+    [DataMember(Name = "format", EmitDefaultValue = false)] public string? Format { get; init; }
+    [DataMember(Name = "count", EmitDefaultValue = false)] public int Count { get; init; }
+    [DataMember(Name = "recency", EmitDefaultValue = false)] public string? Recency { get; init; }
+    [DataMember(Name = "maxBytes", EmitDefaultValue = false)] public int MaxBytes { get; init; }
+    [DataMember(Name = "conflict", EmitDefaultValue = false)] public string? Conflict { get; init; }
+    [DataMember(Name = "urls", EmitDefaultValue = false)] public string? Urls { get; init; }
+    [DataMember(Name = "maxCharsPerPage", EmitDefaultValue = false)] public int MaxCharsPerPage { get; init; }
+    [DataMember(Name = "concurrency", EmitDefaultValue = false)] public int Concurrency { get; init; }
+
     /// <summary>本类型的**块头**（唯一声明处；与协议区同一份）。</summary>
     public const string Marker = "[TOOL]";
 
@@ -41,6 +59,9 @@ public sealed class ToolCallXml
     [
         "call", "name", "path", "symbol", "content", "command", "timeoutSeconds",
         "oldText", "newText", "maxLines", "offset", "limit", "risk", "task",
+        "url", "method", "headers", "query", "body", "contentType", "authRef",
+        "maxChars", "format", "count", "recency", "maxBytes", "conflict",
+        "urls", "maxCharsPerPage", "concurrency",
     ];
 
     /// <summary>本族元素的**根标签**（`call` 或工具名本身）—— 判「漏写块头」用。</summary>
@@ -97,16 +118,32 @@ public sealed class ToolCallXml
             Name = XmlBlock.Member(r, "name") ?? string.Empty,
             Path = XmlBlock.Text(r, "path"),
             Symbol = XmlBlock.Text(r, "symbol"),
-            Content = XmlBlock.Text(r, "content"),
-            Command = XmlBlock.Text(r, "command"),
+            Content = XmlBlock.TextWithComments(r, "content"),
+            Command = XmlBlock.TextWithComments(r, "command"),
             TimeoutSeconds = XmlBlock.Int(r, "timeoutSeconds"),
-            OldText = XmlBlock.Text(r, "oldText"),
-            NewText = XmlBlock.Text(r, "newText"),
+            OldText = XmlBlock.TextWithComments(r, "oldText"),
+            NewText = XmlBlock.TextWithComments(r, "newText"),
             MaxLines = XmlBlock.Int(r, "maxLines"),
             Offset = XmlBlock.Int(r, "offset"),
             Limit = XmlBlock.Int(r, "limit"),
             Risk = XmlBlock.Text(r, "risk"),
             Task = XmlBlock.Text(r, "task"),
+            Url = XmlBlock.Text(r, "url"),
+            Method = XmlBlock.Text(r, "method"),
+            Headers = XmlBlock.Text(r, "headers"),
+            Query = XmlBlock.Text(r, "query"),
+            Body = XmlBlock.TextWithComments(r, "body"),
+            ContentType = XmlBlock.Text(r, "contentType"),
+            AuthRef = XmlBlock.Text(r, "authRef"),
+            MaxChars = XmlBlock.Int(r, "maxChars"),
+            Format = XmlBlock.Text(r, "format"),
+            Count = XmlBlock.Int(r, "count"),
+            Recency = XmlBlock.Text(r, "recency"),
+            MaxBytes = XmlBlock.Int(r, "maxBytes"),
+            Conflict = XmlBlock.Text(r, "conflict"),
+            Urls = XmlBlock.Text(r, "urls"),
+            MaxCharsPerPage = XmlBlock.Int(r, "maxCharsPerPage"),
+            Concurrency = XmlBlock.Int(r, "concurrency"),
         };
     }
 

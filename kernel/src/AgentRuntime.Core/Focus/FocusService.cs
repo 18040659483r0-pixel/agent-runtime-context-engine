@@ -99,8 +99,18 @@ public static class FocusService
                 continue;
             }
 
-            tags = ParseTags(line[BandPrefix.Length..]);
-            return tags.Count > 0;
+            var rest = line[BandPrefix.Length..].Trim().TrimStart(':').Trim();
+            tags = ParseTags(rest);
+            if (tags.Count > 0)
+            {
+                return true;
+            }
+
+            // 显式空焦点：`[FOCUS]` / `[FOCUS] none` / `[FOCUS] -` —— **合规**（没有可关注的就直说）。
+            // 为什么要收：不给空形状，模型只能「编 id」或「干脆不写」；两者都会让焦点机制失真。
+            return rest.Length == 0
+                || string.Equals(rest, "none", StringComparison.OrdinalIgnoreCase)
+                || rest is "-" or "无";
         }
 
         return false;

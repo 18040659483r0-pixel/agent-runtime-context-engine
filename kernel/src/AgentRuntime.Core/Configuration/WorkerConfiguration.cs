@@ -20,7 +20,7 @@ public sealed class WorkerConfiguration
     [DataMember]
     public bool Enabled { get; set; }
 
-    /// <summary>Provider 名（**worker 落点按它分子目录** —— 用户 2026-09-25 定）。</summary>
+    /// <summary>Provider 名（**worker 落点按它分子目录** —— 主人 2026-09-25 定）。</summary>
     [DataMember]
     public string ProviderName { get; set; } = "";
 
@@ -28,12 +28,13 @@ public sealed class WorkerConfiguration
     [DataMember]
     public WorkerProviderConfiguration Provider { get; set; } = new();
 
-    /// <summary>受限工具面（白名单）。用户 2026-09-25 定：**写类直接开放**。</summary>
-    /// <summary>受限工具面（白名单）—— **默认 = 引擎注册的全集**（<see cref="ToolSet.Default"/>），
-    /// 所以「契约承诺的工具」天然 ⊆ 「装配给它的工具」；要收窄时由配置显式列名字。
-    /// 用户 2026-09-25 定：写类直接开放。</summary>
+    /// <summary>受限工具面（白名单）。主人 2026-09-25 定：**写类直接开放**。</summary>
+    /// <summary>受限工具面（白名单）—— **默认 = Worker 面**（<see cref="ToolNames.WorkerFace"/>）。
+    /// <para>2026-10-18：不再通过 <see cref="ToolSet.Default"/> 造一遍工具来取名字（那会顺手 new 一个网络网关）；
+    /// 面本身就是唯一声明处，直接读它。</para>
+    /// 主人 2026-09-25 定：写类直接开放。</summary>
     [DataMember]
-    public List<string> Tools { get; set; } = ToolSet.For(ToolNames.Role.Worker).Select(t => t.Name).ToList();
+    public List<string> Tools { get; set; } = [.. ToolNames.WorkerFace];
 
     /// <summary>单次派生最多几轮（防它自己长跑）。</summary>
     [DataMember]
@@ -47,16 +48,16 @@ public sealed class WorkerConfiguration
     [DataMember]
     public string? Home { get; set; }
 
-    /// <summary>一次回复最多几个派发（协议第 13 条声明 ≤2；用户 2026-09-25 定）。</summary>
+    /// <summary>一次回复最多几个派发（协议第 13 条声明 ≤2；主人 2026-09-25 定）。</summary>
     [DataMember]
     public int MaxDispatchesPerReply { get; set; } = 2;
 
-    /// <summary>池上限（用户 2026-09-25 定：**目前只允许 2 条异步 worker**）。</summary>
+    /// <summary>池上限（主人 2026-09-25 定：**目前只允许 2 条异步 worker**）。</summary>
     [DataMember]
     public int MaxWorkers { get; set; } = 2;
 
     /// <summary>
-    /// **「该派了」的量阈值**（token；用户 2026-09-25 15:5x 定：**收紧到 3,000**）。
+    /// **「该派了」的量阈值**（token；主人 2026-09-25 15:5x 定：**收紧到 3,000**）。
     /// <para>
     /// 用途有二：① 运行时在上下文超过它时**提醒**模型按第 13 条把原料活交出去（零协议代价，走 Hint）；
     /// ② v24 协议草案里「Dispatch BY DEFAULT」那句判据的同锚（两边必须同一个数，否则一个说该派、一个不说话）。
@@ -66,7 +67,7 @@ public sealed class WorkerConfiguration
     public int BulkTokens { get; set; } = 3000;
 
     /// <summary>
-    /// **累计阈值**（token；A1′，用户 2026-09-25 20:36 定「累计阈值接着做掉」）。
+    /// **累计阈值**（token；A1′，主人 2026-09-25 20:36 定「累计阈值接着做掉」）。
     /// <para>
     /// A1 防的是「**单次**大结果」；但模型会**用小窗口多次读**绕过它 —— 而多次小结果累积
     /// 在 append-only 流里**同样**把 master 撑大，而且**更贵**（每轮重读全部历史）。
@@ -77,7 +78,7 @@ public sealed class WorkerConfiguration
     [DataMember]
     public int BulkCumulativeTokens { get; set; } = 6000;
 
-    /// <summary>**节拍（pace）**：默认关；开了才在派发前算「预计多久 / 该不该拆」（用户 2026-10-08 定）。</summary>
+    /// <summary>**节拍（pace）**：默认关；开了才在派发前算「预计多久 / 该不该拆」（主人 2026-10-08 定）。</summary>
     [DataMember]
     public WorkerPaceConfiguration Pace { get; set; } = new();
 
@@ -108,7 +109,7 @@ public sealed class WorkerConfiguration
     public string? ApprovalLedgerPath { get; set; }
 
     /// <summary>
-    /// **worker 的 memory 家**（③，2026-09-28 用户定：**要有稳定的家，不按派发实例分家**）。
+    /// **worker 的 memory 家**（③，2026-09-28 主人定：**要有稳定的家，不按派发实例分家**）。
     /// <para>留空 ⇒ <c>&lt;home&gt;/&lt;provider&gt;/memory</c> —— **按 provider 标识分家（providerName；缺省回落 model 名），不按派发实例分家**：
     /// 同一 provider 的所有派生共用一份 memory（白板 / 草稿 / 产出），换一个派发不会把它丢掉。</para>
     /// <para>为什么不是 <c>&lt;home&gt;/&lt;provider&gt;/&lt;workerId&gt;/memory</c>：那是「按实例分家」——
@@ -126,7 +127,7 @@ public sealed class WorkerConfiguration
     public string? Watermark { get; set; }
 
     /// <summary>
-    /// **worker 的持续事件流**（用户 2026-09-29 定）：它不再是「每派发新建一份」，而是**派生自同一台
+    /// **worker 的持续事件流**（主人 2026-09-29 定）：它不再是「每派发新建一份」，而是**派生自同一台
     /// engine 的第二个会话**该有的那条**持续流**（与 master 同一套会话指针 / 水位线续接）。
     /// <para>留空 ⇒ <c>&lt;home&gt;/&lt;provider&gt;/stream.xml</c>（**按 provider 分家，不按派发实例分家**
     /// —— 与 <see cref="MemoryRoot"/> 同一条纪律）。同 provider 的两个异步派发由执行器**串行化**
@@ -166,7 +167,7 @@ public sealed class WorkerConfiguration
 }
 
 /// <summary>
-/// **节拍闸门**（L2 · 用户 2026-10-08 23:0x 定）：<c>T_est &gt; k × 该端点中位时长</c> ⇒ 提示 master 拆分；
+/// **节拍闸门**（L2 · 主人 2026-10-08 23:0x 定）：<c>T_est &gt; k × 该端点中位时长</c> ⇒ 提示 master 拆分；
 /// 并给**合并下限**（每块不得低于中位 ⇒ 太碎反而更慢）。**默认关** ⇒ 行为逐字不变。
 /// </summary>
 [DataContract(Namespace = "")]
@@ -175,18 +176,18 @@ public sealed class WorkerPaceConfiguration
     [DataMember]
     public bool Enabled { get; set; }
 
-    /// <summary>阈值倍数（用户定 **3**）—— 旧口径（相对中位）；新口径走下面的常数换算。</summary>
+    /// <summary>阈值倍数（主人定 **3**）—— 旧口径（相对中位）；新口径走下面的常数换算。</summary>
     [DataMember]
     public double KMedian { get; set; } = 3;
 
-    /// <summary>换算常数（用户 2026-10-09 22:2x 定）：**提到 30000**（= 上一版 25175 再抬一档）。
+    /// <summary>换算常数（主人 2026-10-09 22:2x 定）：**提到 30000**（= 上一版 25175 再抬一档）。
     /// <para>上一版锚点：56.7 tok/s ⇒ 444s ⇒ `C ≈ 25175`；现行 `C = 30000` ⇒ 56.7 tok/s ⇒ **≈529s**、70 ⇒ ≈429s、40 ⇒ 750s（上界 900）。
-    /// 用户口径（2026-10-09 22:2x）：*复杂活本来就要十几分钟*，该拆信号变晚不要紧。</para></summary>
+    /// 主人口径（2026-10-09 22:2x）：*复杂活本来就要十几分钟*，该拆信号变晚不要紧。</para></summary>
     [DataMember]
     public double ConstantTokens { get; set; } = 30000;
 
     /// <summary>闸门**直接值**（秒）：&gt; 0 ⇒ 本端点用这个固定闸门（**不看速度公式**）；≤ 0 ⇒ 回落到 `clamp(常数/速度, 下界, 上界)`。
-    /// <para>2026-10-09 用户令：一次派发 = **N 次** provider 请求，按「一次生成」折算的闸门会**误停多轮派发** ⇒ 给一个可直接定的值（先放 **216s**）。</para></summary>
+    /// <para>2026-10-09 主人令：一次派发 = **N 次** provider 请求，按「一次生成」折算的闸门会**误停多轮派发** ⇒ 给一个可直接定的值（先放 **216s**）。</para></summary>
     [DataMember]
     public double GateSeconds { get; set; }
 
@@ -202,7 +203,7 @@ public sealed class WorkerPaceConfiguration
     [DataMember]
     public double HardBelowTokPerSec { get; set; } = 15;
 
-    /// <summary>上界模式：`max`（默认，用 <see cref="MaxSeconds"/>）/ `600` / `off`（不设 timeout 硬抗，用户授权时用）。</summary>
+    /// <summary>上界模式：`max`（默认，用 <see cref="MaxSeconds"/>）/ `600` / `off`（不设 timeout 硬抗，主人授权时用）。</summary>
     [DataMember]
     public string CeilingMode { get; set; } = "max";
 
@@ -248,14 +249,14 @@ public sealed class WorkerProviderConfiguration
     public int TimeoutSeconds { get; set; } = 90;
 
     /// <summary>
-    /// **请求档位**（DeepInfra 的 <c>service_tier</c>；**2026-10-07 用户令：默认标准档** —— flex 排队/429 不可靠）。
+    /// **请求档位**（DeepInfra 的 <c>service_tier</c>；**2026-10-07 主人令：默认标准档** —— flex 排队/429 不可靠）。
     /// <para>
     /// <c>flex</c> = −20% 价、代价是**排队**（官方口径：忙时最长等 10 分钟，或直接 429）——
-    /// worker 干的是执行半边、不追 TTFT，接得起排队；用户 2026-09-27 18:31 定「现在开始使用 flex」。
+    /// worker 干的是执行半边、不追 TTFT，接得起排队；主人 2026-09-27 18:31 定「现在开始使用 flex」。
     /// </para>
     /// <para>空串 / null ⇒ **不发该字段**（回标准档；用于对照 / 回退，不必改代码）。</para>
     /// <para>⚠️ 上游对**不支持**的档位会静默按标准价计费且不报错 ⇒ 实收档位由客户端核对并落账（规格 03）。</para>
     /// </summary>
     [DataMember]
-    public string? ServiceTier { get; set; } = "";   // 2026-10-07 用户令：**默认不走 flex**（flex 排队/429 不可靠；要省价显式写 "flex"）
+    public string? ServiceTier { get; set; } = "";   // 2026-10-07 主人令：**默认不走 flex**（flex 排队/429 不可靠；要省价显式写 "flex"）
 }

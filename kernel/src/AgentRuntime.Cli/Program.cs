@@ -38,7 +38,7 @@ internal static class Program
         string? configPath = null;
         var verbose = false;
         var chat = false;
-        // 2026-10-07（用户令）：CLI 与 TUI **同口径 —— 默认开**（协议第 6 条：默认续，停由远端显式选三模式）。
+        // 2026-10-07（主人令）：CLI 与 TUI **同口径 —— 默认开**（协议第 6 条：默认续，停由远端显式选三模式）。
         //   `--auto-continue 0` / `--no-auto-continue` 仍然关得掉；未指定 = Default.MaxRounds。
         var autoContinue = AgentRuntime.Hosting.ContinuationSettings.Default.MaxRounds;   // 0 = 关
         string? modulesOverride = null;
@@ -116,13 +116,13 @@ internal static class Program
         string? knowledgeUse = null;
         var message = new List<string>();
 
-        // **pacer 子命令**（用户 2026-10-09 定）：账本 show / reset / calib / probe —— 先于选项解析截下。
+        // **pacer 子命令**（主人 2026-10-09 定）：账本 show / reset / calib / probe —— 先于选项解析截下。
         if (args.Length > 0 && string.Equals(args[0], "pacer", StringComparison.OrdinalIgnoreCase))
         {
             return await PacerCli.RunAsync(args[1..]);
         }
 
-        // **worker 子命令**（用户 2026-10-10 令）：把 worker 模块**从运行时拔掉 / 装回**的正规入口 ——
+        // **worker 子命令**（主人 2026-10-10 令）：把 worker 模块**从运行时拔掉 / 装回**的正规入口 ——
         // status / off / on（定向改配置里的 worker.enabled，其余字节不动）。同样先于选项解析截下。
         if (args.Length > 0 && string.Equals(args[0], "worker", StringComparison.OrdinalIgnoreCase))
         {
@@ -615,7 +615,7 @@ internal static class Program
             }
 
             // 装配（客户端 + 引擎 + 模块集）与 TUI 共用同一段代码：RuntimeHost.Boot。
-            // v13：不再有审批闸门（用户 2026-09-21 定「放弃 runtime 的硬闸门」）——
+            // v13：不再有审批闸门（主人 2026-09-21 定「放弃 runtime 的硬闸门」）——
             // 本该问人的动作由 ToolRunner **留档 + 放行**，CLI 不再逐项问 y/N。
             using var host = RuntimeHost.Boot(config, overrides, apiKey);
 
@@ -644,6 +644,11 @@ internal static class Program
         catch (ModelClientException ex)
         {
             Console.Error.WriteLine($"[provider] {ex.Message}");
+            if (ex.ProviderUnreachable)
+            {
+                Console.Error.WriteLine("[provider] 网络恢复后重发上一句；TUI 里可直接输入 /retry。");
+            }
+
             if (!string.IsNullOrEmpty(ex.ResponseBody))
             {
                 Console.Error.WriteLine($"[provider:body] {ex.ResponseBody}");
@@ -1233,7 +1238,7 @@ internal static class Program
     /// </summary>
     private static async Task<int> AutoContinueAsync(RuntimeHost host, bool verbose, int budget, int cursor)
     {
-        // 2026-10-07（用户令）：**续跑只有一个实现** —— 这里改成与 TUI 同一条 `TurnContinuation`，
+        // 2026-10-07（主人令）：**续跑只有一个实现** —— 这里改成与 TUI 同一条 `TurnContinuation`，
         // 不再手写第二份循环（同族教训：两处各写一套 ⇒ 必然分叉）。
         var settings = budget == 0
             ? AgentRuntime.Hosting.ContinuationSettings.Off
@@ -1328,6 +1333,10 @@ internal static class Program
             catch (ModelClientException ex)
             {
                 Console.Error.WriteLine($"[provider] {ex.Message}");
+                if (ex.ProviderUnreachable)
+                {
+                    Console.Error.WriteLine("[provider] 网络恢复后重发上一句；TUI 里可直接输入 /retry。");
+                }
             }
         }
 

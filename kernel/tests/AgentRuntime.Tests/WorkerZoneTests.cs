@@ -5,7 +5,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker 的 R1 = 铁则区 + 知识区（L1+L2）**（2026-10-06 用户令 · 方案 A：与 master **逐字节同一份**）。
+/// **worker 的 R1 = 铁则区 + 知识区（L1+L2）**（2026-10-06 主人令 · 方案 A：与 master **逐字节同一份**）。
 /// <para>闸门要有牙：成员与次序的**唯一声明处**是 <see cref="ModuleRegistry.WorkerModules"/> ——
 /// 有人把两区拿掉、或把「随派发物走的知识块」加回来，本组必须红。</para>
 /// </summary>
@@ -16,7 +16,7 @@ public sealed class WorkerZoneTests
     {
         Assert.Contains("rules", ModuleRegistry.WorkerModules);
         Assert.Contains("knowledge", ModuleRegistry.WorkerModules);
-        // 2026-10-07（用户令）：R1 的第三个区必须装上 —— 少了它 worker 会**乱引用已发生过的内容**（潜在漏洞）。
+        // 2026-10-07（主人令）：R1 的第三个区必须装上 —— 少了它 worker 会**乱引用已发生过的内容**（潜在漏洞）。
         Assert.Contains("memory-index", ModuleRegistry.WorkerModules);
         Assert.DoesNotContain("worker-knowledge", ModuleRegistry.WorkerModules);
     }

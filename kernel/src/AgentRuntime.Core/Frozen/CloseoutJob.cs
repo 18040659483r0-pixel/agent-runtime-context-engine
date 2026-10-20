@@ -4,7 +4,7 @@ using AgentRuntime.Models;
 namespace AgentRuntime.Core.Frozen;
 
 /// <summary>
-/// **收尾（内置）** —— 用户 2026-10-11 定的形态：
+/// **收尾（内置）** —— 主人 2026-10-11 定的形态：
 /// <list type="number">
 /// <item><b>原料</b>（只读）：**水位线之后「新出现」的内容** —— <c>memory</c> 日记 · 踩坑集条目 · handoff 条目
 /// （**三者同类，都是原料**；memory 还承载「用户对铁则区的改动意图」）。</item>
@@ -152,7 +152,7 @@ public static class CloseoutJob
     }
 
     /// <summary>
-    /// **一次成型问法**（用户点名「问法很重要」）：两问 ——
+    /// **一次成型问法**（主人点名「问法很重要」）：两问 ——
     /// ① 有没有值得固化到顶部知识库的（有 ⇒ 凝练成 L1/L2/L3/L4 条目）；② 有没有铁则要新增/改动（给文件名 + 编号）。
     /// </summary>
     public static string BuildAsk(IReadOnlyList<CloseoutSlice> material, IReadOnlyList<ICloseoutSink> sinks)
@@ -297,7 +297,7 @@ public static class CloseoutJob
         }
 
         // **水位线由运行时提高到最新位置**（不是模型给的 —— 机械事实归运行时）。
-        // **但材料被截断时绝不推进**（2026-10-11 用户令）：上限之外的部分会被静默跳过 ⇒ 推进水位 = 假干净。
+        // **但材料被截断时绝不推进**（2026-10-11 主人令）：上限之外的部分会被静默跳过 ⇒ 推进水位 = 假干净。
         var truncated = material.Where(s => s.Truncated).Select(s => s.Id).ToArray();
         if (!string.IsNullOrWhiteSpace(context.WatermarkFile) && File.Exists(context.WatermarkFile))
         {

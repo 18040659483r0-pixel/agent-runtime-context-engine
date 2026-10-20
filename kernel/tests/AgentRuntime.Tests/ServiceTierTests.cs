@@ -47,7 +47,7 @@ public sealed class ServiceTierTests
     [Fact]
     public void 配置_默认档位是标准档_不再默认flex()
     {
-        // 2026-10-07 用户令：**默认不走 flex**（flex 排队/429 不可靠；要省价显式写 "flex"）。
+        // 2026-10-07 主人令：**默认不走 flex**（flex 排队/429 不可靠；要省价显式写 "flex"）。
         Assert.Equal(string.Empty, new WorkerProviderConfiguration().ServiceTier);
         Assert.Equal("flex", new WorkerProviderConfiguration { ServiceTier = "flex" }.ServiceTier);   // 显式才走 flex
     }
@@ -57,7 +57,7 @@ public sealed class ServiceTierTests
         Assert.Equal(string.Empty, new WorkerProviderConfiguration { ServiceTier = string.Empty }.ServiceTier);
 
     /// <summary>
-    /// **临时口径（用户 2026-09-29 23:38）**：flex 太慢（真机单次派发 359.8s、连吃两次 90s 超时）
+    /// **临时口径（主人 2026-09-29 23:38）**：flex 太慢（真机单次派发 359.8s、连吃两次 90s 超时）
     /// ⇒ 两处 JSON 的 worker 段**显式写空串**回标准档。
     /// <para>⚠️ **删键不等于去掉 flex**：<see cref="WorkerProviderConfiguration.ServiceTier"/> 的**默认值就是 "flex"**
     /// ⇒ 删掉 JSON 里的那个键只会回落到默认、照旧发 <c>service_tier: flex</c>（2026-09-30 真机实测：4 次派发全是 flex）。

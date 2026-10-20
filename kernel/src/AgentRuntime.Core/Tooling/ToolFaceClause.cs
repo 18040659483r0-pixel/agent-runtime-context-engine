@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Tooling;
 
 /// <summary>
-/// **工具面口径的唯一来源**（2026-09-29 用户令：worker 与 master 口径必须对齐，
+/// **工具面口径的唯一来源**（2026-09-29 主人令：worker 与 master 口径必须对齐，
 /// 「只给一段典型用法」证明不够 —— 教就得照 master 那边怎么教的教）。
 ///
 /// <para><b>为什么要有这个类</b>：同一套「怎么写 <c>[TOOL]</c>」此前**有两份文本** ——
@@ -25,6 +25,7 @@ public static class ToolFaceClause
         "形状：**一个 XML 元素**（例：`[TOOL] <call><name>read</name><path>/abs/a.txt</path></call>`）——"
         + "成员按**名**取、顺序无关；多行正文直接写在成员里（**逐字**，换行 / 引号 / 正则元字符 / 中日文都不必转义；只有 `&` 与 `<` 要写成 `&amp;` / `&lt;`）；"
         + "很长或很复杂的正文**直接写到文件、把路径传进来**（`<path>…</path>`）；"
+        + "**正文里含 `<` 或 `&` 时改用行式零转义写法**：`[TOOL] write` 换行 `path: …` 换行 `content<<` … `>>`（块内逐字，不转义）；"
         + "`<risk>none</risk>`（或 `<risk>可能弄坏什么</risk>`）是可选成员；"
         + "一次回复最多 4 个块；**元素自定界** —— `</call>` 之后的东西不属于它（**别把上下文行抄进回复**）；"
         // 2026-10-15：真机实测模型仍按 JSON 先验写 `[TOOL] read {"path": /abs}`（值没引号）⇒ 整篇拒。
@@ -44,6 +45,13 @@ public static class ToolFaceClause
             [ToolNames.Exec] = ["command", "timeoutSeconds"],
             [ToolNames.Index] = ["symbol"],
             [ToolNames.Scope] = ["task"],
+
+            // 网络工具第一批（协议 v75）：键与各工具 ArgumentNames **逐字同一份**（有闸门钉住）。
+            [ToolNames.WebFetch] = ["url", "maxChars", "offset", "format"],
+            [ToolNames.WebSearch] = ["query", "count", "recency"],
+            [ToolNames.HttpRequest] = ["method", "url", "headers", "query", "body", "contentType", "authRef", "timeoutSeconds"],
+            [ToolNames.WebDownload] = ["url", "path", "maxBytes", "conflict"],
+            [ToolNames.WebSearchExtract] = ["urls", "maxCharsPerPage", "concurrency"],
         };
 
     /// <summary>

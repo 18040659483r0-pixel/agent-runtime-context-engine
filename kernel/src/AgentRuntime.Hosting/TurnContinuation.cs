@@ -29,7 +29,7 @@ public sealed record ContinuationSettings
     public static ContinuationSettings Off { get; } = new() { Enabled = false };
 
     /// <summary>默认：开，**100 轮** / 30 分钟兜底（正常情形根本用不到两条边界）。
-    /// <para>25 → 100（用户 2026-09-24 21:4x 定）：长任务不该被 25 轮切断；而且到边界**不再静默停** ——
+    /// <para>25 → 100（主人 2026-09-24 21:4x 定）：长任务不该被 25 轮切断；而且到边界**不再静默停** ——
     /// 宿主会进流请它**收口出终局**（见 <see cref="RuntimeHost.NoteContinuationCapped"/>）。</para></summary>
     public static ContinuationSettings Default { get; } = new()
     {
@@ -53,7 +53,7 @@ public delegate Task<TurnOutcome> ContinuationStep(CancellationToken cancellatio
 /// <para><b>触发判据只看流</b>：<see cref="RuntimeHost.HasToolOutcomeSince"/>（真落了工具结果 / 被拒事件），
 /// 不看模型自述 —— 被拒也是结果，也要让模型知道。</para>
 /// <para><b>停下由模型决定</b>：下一轮它不再点工具 ⇒ 判据为假 ⇒ 循环结束。上限与预算只兜底。</para>
-/// <para><b>到边界不再静默停</b>（用户 2026-09-24 21:4x 定）：进流请它**收口出终局**，再给它
+/// <para><b>到边界不再静默停</b>（主人 2026-09-24 21:4x 定）：进流请它**收口出终局**，再给它
 /// <see cref="CapCloseoutRounds"/> 轮把话说圆 —— 终局一落地，决策报告就照发（那篇里要写清
 /// 「这个方法有没有效 / 要不要继续 / 还剩多少」）。以前到边界悄无声息：卡停在「● 进行中」，
 /// 人看不出为什么，也永远不会有人来问「还要不要继续」。</para>
@@ -166,7 +166,7 @@ public static class TurnContinuation
                 ran++;
             }
 
-            // —— 到边界 ⇒ **收口轮**（用户 2026-09-24 21:4x 定）——
+            // —— 到边界 ⇒ **收口轮**（主人 2026-09-24 21:4x 定）——
             // 以前到这里**静默停**：痕只给 --verbose、不进流 ⇒ 卡停在「● 进行中」，人看不出为什么，
             // 也永远不会有终局与决策报告（一个已在原地烧轮的方法就那样无声地烧下去，没人被问到「还要不要继续」）。
             // 现在：进流说清「到边界了，现在就收口」，再给它**有限几轮**把话说圆。
@@ -191,7 +191,7 @@ public static class TurnContinuation
                     ran++;
                 }
 
-                // 收口轮走完**还是没终局** ⇒ 那篇报告**也要**（用户 2026-09-24 21:5x：
+                // 收口轮走完**还是没终局** ⇒ 那篇报告**也要**（主人 2026-09-24 21:5x：
                 // 「30 分钟没给终局的，也直接出决策报告」）—— 人正是此刻最需要知道「这方法行不行、还剩多少」。
                 if (!host.LastTerminal.IsTerminal && host.RequestDecisionReport(interrupted: true))
                 {
@@ -231,7 +231,7 @@ public static class TurnContinuation
                 }
             }
 
-            // —— 报告轮（协议 v21 第 12 条 · 用户 2026-09-24 定）：终局之后，宿主**请求一次**决策报告 ——
+            // —— 报告轮（协议 v21 第 12 条 · 主人 2026-09-24 定）：终局之后，宿主**请求一次**决策报告 ——
             // 只此一轮：报告轮不点工具（没东西可续）、也不再带终局块（它是收尾后的独立回复）⇒ 不会再循环。
             if (!cancellationToken.IsCancellationRequested && host.RequestDecisionReport())
             {

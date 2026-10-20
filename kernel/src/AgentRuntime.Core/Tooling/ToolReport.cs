@@ -37,7 +37,7 @@ public enum RiskClaimStatus
 
 /// <summary>
 /// 解析结局。
-/// <para><b>v14（2026-09-22 用户定）</b>：一次回复**允许最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 次**调用
+/// <para><b>v14（2026-09-22 主人定）</b>：一次回复**允许最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 次**调用
 /// （旧口径 = <c>one call per reply</c>）。为什么改：真机实测一场简单提问烧 9 轮，其中 4 轮是「读一点、看一点、再读一点」
 /// —— 一次只准点一个动作，取证就只能一轮一轮地挤。结果**按发出顺序**逐个回，一一对应不变。</para>
 /// </summary>
@@ -123,7 +123,7 @@ public static class ToolReport
             return ToolParseResult.Empty;
         }
 
-        // —— 新形状（用户 2026-10-07）：**块头 + 一个 XML 元素** ——
+        // —— 新形状（主人 2026-10-07）：**块头 + 一个 XML 元素** ——
         //    元素自定界 ⇒ 块外的文本（抄来的上下文行）**进不来** ⇒ 幻影重复参数从结构上消失。
         // 严格取不到 ⇒ **归一后重试**（裸 `&` / 未转义 `<`；§十·47 归一优先、拒绝是最后手段）。
         // 真机 2026-10-08：worker 交出完全合规的 `<call>…<command>a && b</command>…</call>`，
@@ -335,7 +335,7 @@ public static class ToolReport
             return (null, $"多行块没有收尾：需要在单独一行写 `{ToolArgs.BlockEndLine}`。{ToolArgs.ShapeHint}");
         }
 
-        // 用户 2026-09-29 19:56 令（缺口 A②）：**登记过的工具、零参数也要跑得通**（如 `[TOOL] index`）。
+        // 主人 2026-09-29 19:56 令（缺口 A②）：**登记过的工具、零参数也要跑得通**（如 `[TOOL] index`）。
         // 判据收紧到「连名字都没有 / 名字没登记」才算空块：名字合法 ⇒ 这是一次**零参调用**，
         // 该不该给参数由**工具自己**响亮报（解析层不替它判，也不静默降级）。
         if (body.Count == 0 && !ToolNames.IsZeroArgCallable(name))
@@ -380,7 +380,7 @@ public static class ToolReport
 
         var firstInline = space < 0 ? string.Empty : payload[(space + 1)..].Trim();
 
-        // B1（2026-09-29 用户定案）：**行式键值**是新形状 —— 不走 JSON 配平那条路。
+        // B1（2026-09-29 主人定案）：**行式键值**是新形状 —— 不走 JSON 配平那条路。
         // 判据只看一件事：同一行参数是不是以 `{` 起（那才是旧 JSON 形状）。
         if (!firstInline.StartsWith('{'))
         {

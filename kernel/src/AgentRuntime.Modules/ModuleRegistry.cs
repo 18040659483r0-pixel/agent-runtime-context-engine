@@ -8,6 +8,7 @@ using AgentRuntime.Core.Knowledge;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Core.Tail;
 using AgentRuntime.Core.Tooling;
+using AgentRuntime.Core.Tooling.Network;
 using AgentRuntime.Core.Worker;
 using AgentRuntime.Modules.Worker;
 
@@ -48,7 +49,7 @@ public static class ModuleRegistry
         }
 
         // 冻结区的内容来源与选择（拉起前定）。
-        // ** 2026-10-10（用户令 · 去重 A）**：**不再**在冻结源上追加「技能常驻层」（<c>L12ResidentContentSource</c>）
+        // ** 2026-10-10（主人令 · 去重 A）**：**不再**在冻结源上追加「技能常驻层」（<c>L12ResidentContentSource</c>）
         // —— 冻结语料的 <c>knowledge/global.md</c> **块二**本来就是同一份 L1+L2（<c>knowledge-l12</c> 这一 mode 读的
         // 正是同一组 <c>.derived/l1.xml</c> / <c>l2.xml</c>）⇒ 追加 = **同一份装两遍**。
         // 实测（master 装配）：Knowledge/Global **104,536 → 119,967 字符**，**白付 15,431 字符 ≈ 3,858 tok / 每轮**。
@@ -151,7 +152,7 @@ public static class ModuleRegistry
                     var draftStore = string.IsNullOrWhiteSpace(config.DynamicDraft.StorePath)
                         ? null
                         : new DraftStore(config.DynamicDraft.StorePath);
-                    // 同上：草稿也承接（用户：新会话白板与草稿都该有东西）。
+                    // 同上：草稿也承接（主人：新会话白板与草稿都该有东西）。
                     _ = draftStore?.CarryFromNewest(sessionId);
                     var draftOptions = new DraftOptions
                     {
@@ -177,7 +178,7 @@ public static class ModuleRegistry
                     break;
 
                 case DecisionBypassModule.ModuleName:
-                    // 旁路决策（热插拔 · 用户 2026-10-17）：需要**事件落点**才能把 [DECISION] 落成事件
+                    // 旁路决策（热插拔 · 主人 2026-10-17）：需要**事件落点**才能把 [DECISION] 落成事件
                     // ⇒ 与 note/tool 同一手法：留到循环后按原位装配（零注入以外不加任何副作用）。
                     decisionSlots.Add(modules.Count);
                     modules.Add(null);
@@ -251,7 +252,7 @@ public static class ModuleRegistry
                            $"模块 \"{ToolModule.ModuleName}\" 需要事件落点：请同时挂 \"{AppendStreamModule.ModuleName}\" —— " +
                            "工具结果必须按 V3 只追加流记成事件（F2：行号即地址、可重放），没有流就没有兑现处。");
 
-            // A1 结果凝结（用户 2026-09-25 20:3x 定）：**配了 worker 才装饰** ——
+            // A1 结果凝结（主人 2026-09-25 20:3x 定）：**配了 worker 才装饰** ——
             // 超阈值的工具结果不进 master 的流，先交 worker 凝结（原文留 worker 落点）。
             // 没配 ⇒ 直接用原 sink ⇒ 行为逐字节不变。
             IEventSink toolSink = workerRunner is null
@@ -265,15 +266,24 @@ public static class ModuleRegistry
                 ? new PendingToolQueue()
                 : new PendingToolQueue(new PendingToolQueueStore(config.ToolQueue.StorePath));
 
+            // 网络能力（第一批）：**同一个网关**注入所有网络工具（唯一出网口）。
+            // 搜索后端按配置装配；没配 ⇒ NoneSearchBackend（工具 fail-closed，不偷偷退回抓网页）。
+            var networkCredentials = CredentialResolver.FromConfiguration(config.Network);
+            var networkGateway = new NetworkGateway(config.Network.ToLimits(), credentials: networkCredentials);
+            var searchBackend = HttpSearchBackend.Create(config.Network, networkGateway, networkCredentials);
+
             foreach (var slot in toolSlots)
             {
                 // **Master 的真实工具面在这里定**（唯一给面处）：默认 = 教义面（只有两张地图）；
-                // **收尾窗口**开着 ⇒ 全量面（用户 2026-09-30：收尾 master 自己做完，start 后自动归位）。
+                // **收尾窗口**开着 ⇒ 全量面（主人 2026-09-30：收尾 master 自己做完，start 后自动归位）。
                 modules[slot] = new ToolModule(
                     toolSink,
                     toolLimits,
                     toolLedger,
-                    tools: ToolSet.Subset(closeoutWindow ? ToolNames.All : ToolNames.MasterFace),
+                    tools: ToolSet.Subset(
+                        closeoutWindow ? ToolNames.All : ToolNames.MasterFace,
+                        networkGateway,
+                        searchBackend),
                     security: SecurityGateway.ForRuntime(),
                     pending: pendingQueue,
                     pitfallsInbox: config.Lifecycle.PitfallsInbox);
@@ -327,10 +337,10 @@ public static class ModuleRegistry
     /// <summary>
     /// **worker 档模块清单**（08 §二 · 唯一声明处）：master 有的默认就有，**只有显式列出的才不要**。
     /// <para>不装：<c>worker-dispatch</c>（不能再派）。
-    /// <para><b>2026-10-07（用户令）</b>：**补装 <c>memory-index</c>（R1 的第三个区）** —— 与 master 同一份源、同一选择器。
+    /// <para><b>2026-10-07（主人令）</b>：**补装 <c>memory-index</c>（R1 的第三个区）** —— 与 master 同一份源、同一选择器。
     /// 为什么：R1 = 铁则区 + 知识区 + **记忆索引区**三段；少了它，worker 不知道「过去发生过什么」⇒
     /// **会乱引用已发生过的内容**（潜在漏洞）。索引只给**指针**，正文由 worker 用工具按 id 下探（与 L3 同一条路）。</para>
-    /// <para>2026-10-06（用户令 · 方案 A）：**改装** <c>rules</c>（铁则区）+ <c>knowledge</c>（L1+L2）——
+    /// <para>2026-10-06（主人令 · 方案 A）：**改装** <c>rules</c>（铁则区）+ <c>knowledge</c>（L1+L2）——
     /// 与 master **同一份源、同一选择器**（逐字节同一份）；L3/L4 由 worker 自己按 id 下探。</para>
     /// <para><c>system-rules</c> 不单列（顶端人格文本）：worker 的「必须遵守什么」＝铁则区（<c>rules</c>）+ worker 协议区。</para>
     /// <para><c>worker-knowledge</c>（派发物随带的知识块）**已废**：知识不再随派发物走。</para>
@@ -397,13 +407,13 @@ public static class ModuleRegistry
         ArgumentNullException.ThrowIfNull(stream);
 
         // 工具三件套（08 §三）：留档 + 只读白名单档 + 待决队列 —— 与 master **同一套类型**。
-        // ⚠️ **不许加渲染窗口**（2026-10-09 用户纠正）：R2 是 append-only 流 —— 自 start 后从 0 开始、只能追加；
+        // ⚠️ **不许加渲染窗口**（2026-10-09 主人纠正）：R2 是 append-only 流 —— 自 start 后从 0 开始、只能追加；
         // 只放「最近 N 条」= 破坏 append-only ⇒ 前缀不再稳定 ⇒ **缓存必失**。R2 的长度问题由「reset/start 时归零」治，不是截它。
         var append = new AppendStreamModule(stream, store, loadKnowledgeReports: false);
         var pending = new PendingToolQueue();
         // 参数形状照 ToolModule 的定义给（**命名参数**）：位置错了编译器只会说"转不过去"，
         // 命名参数让「哪个东西进哪个槽」在源码里就是显式的。
-        // **角色 = Worker**（2026-09-29 用户令）：同一套运行时要按角色取面 ——
+        // **角色 = Worker**（2026-09-29 主人令）：同一套运行时要按角色取面 ——
         // 读原料 / 摸目录 / 跑命令 / 改文件都是这一侧的活，所以它拿 WorkerFace；
         // 剥 master 那几把时**本侧逐字不受影响**（回归保护靠这条 + 单测钉住）。
         var tool = new ToolModule(
@@ -432,12 +442,12 @@ public static class ModuleRegistry
         {
             new Worker.WorkerProtocolModule(),
 
-            // R1：铁则区 + 知识区（L1+L2）—— **与 master 同一份源、同一选择器**（2026-10-06 用户令 · 方案 A）。
+            // R1：铁则区 + 知识区（L1+L2）—— **与 master 同一份源、同一选择器**（2026-10-06 主人令 · 方案 A）。
             // 空源 ⇒ 快照空 ⇒ **一条消息都不产生**（零注入，行为逐字回到「只有worker 协议区」）。
             // L3/L4 由 worker 自己按 id 下探（它的工具面能读 base 下的文件）。
             new RulesModule(frozen ?? FrozenContentSource.Empty, selection),
             new KnowledgeModule(frozen ?? FrozenContentSource.Empty, selection),
-            // 2026-10-07（用户令）：R1 的**第三个区**——记忆索引；与 master 同一份源、同一选择器。
+            // 2026-10-07（主人令）：R1 的**第三个区**——记忆索引；与 master 同一份源、同一选择器。
             new MemoryIndexModule(frozen ?? FrozenContentSource.Empty, selection),
 
             append,

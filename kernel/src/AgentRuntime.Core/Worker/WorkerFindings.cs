@@ -6,7 +6,7 @@ using System.Linq;
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// **worker 产出的收尾汇流**（用户 2026-10-06 令）：收尾时 master 读 worker 的**踩坑集**
+/// **worker 产出的收尾汇流**（主人 2026-10-06 令）：收尾时 master 读 worker 的**踩坑集**
 /// （<c>worker.pitfallsInbox</c>）+ **memory**，把 worker 遇到的新问题**收敛进公共 L1/L2 与铁则区**。
 ///
 /// <para><b>为什么要机械读</b>：worker 不自收尾（契约第 8 条），它报的坑只进回执就**等于没记**；

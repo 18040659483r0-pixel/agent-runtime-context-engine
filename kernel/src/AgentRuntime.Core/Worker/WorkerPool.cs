@@ -2,7 +2,7 @@ using System.Text;
 
 namespace AgentRuntime.Core.Worker;
 
-/// <summary>Worker 的状态（用户 2026-09-25 定：**与 session 挂钩、有状态、存活到收尾前**）。</summary>
+/// <summary>Worker 的状态（主人 2026-09-25 定：**与 session 挂钩、有状态、存活到收尾前**）。</summary>
 public enum WorkerState
 {
     /// <summary>空闲（上次任务已结算）—— **可以接任务**（优先复用：它还记得之前干过什么）。</summary>
@@ -18,7 +18,7 @@ public enum WorkerState
 /// <summary>
 /// **Worker 池（session 作用域）** —— 一个 session 一个池；worker 活在池里，可**重复接任务**。
 /// <para>
-/// 用户 2026-09-25 原话：「worker 应该**直接对应 session 常驻**……确保在本 session 中出现的 worker 是**有状态的**，
+/// 主人 2026-09-25 原话：「worker 应该**直接对应 session 常驻**……确保在本 session 中出现的 worker 是**有状态的**，
 /// 并且**可以存活到收尾前**……远端模型要能够**查询**对应的 worker 处于什么情况下、是否可以接任务、还是还在工作中。」
 /// </para>
 /// <para><b>本类的边界（重要）</b>：它<b>只陈述事实</b>（谁闲着、谁在忙、忙多久、池满没满），
@@ -27,7 +27,7 @@ public enum WorkerState
 public sealed class WorkerPool
 {
     /// <summary>池里一个 worker 的可见状态（对外只读；计时是**它自己**的，不与卡的计时混 —— W6）。
-    /// <para>2026-10-09（用户令）：加 <see cref="Usage"/>（**结算后**带上这次派发的用量与轮数）——
+    /// <para>2026-10-09（主人令）：加 <see cref="Usage"/>（**结算后**带上这次派发的用量与轮数）——
     /// 头部那行要报「当前 task 新增 tok / 缓存命中率 / 上下文 tok / 第 N 轮」。</para></summary>
     public sealed record Entry(string Id, WorkerState State, string? CurrentTask, long ElapsedMs, string Mode = "sync")
     {
@@ -43,10 +43,10 @@ public sealed class WorkerPool
         /// <summary>最近一次派发的**机器决策报告**（已压成人读几行；结算后带上）。</summary>
         public string? LastDecision { get; init; }
 
-        /// <summary>**逐轮正文**（2026-10-09 用户令）：本派发每一轮的产出摘要（新轮追加）—— 工蜂卡逐轮 append。</summary>
+        /// <summary>**逐轮正文**（2026-10-09 主人令）：本派发每一轮的产出摘要（新轮追加）—— 工蜂卡逐轮 append。</summary>
         public IReadOnlyList<string> Trace { get; init; } = [];
 
-        /// <summary>**本次生命周期（= 本派发）的开始时刻**（TickCount64；用来算**实时**读秒 —— 2026-10-09 用户令）。</summary>
+        /// <summary>**本次生命周期（= 本派发）的开始时刻**（TickCount64；用来算**实时**读秒 —— 2026-10-09 主人令）。</summary>
         public long StartedAtMs { get; init; }
     };
 
@@ -56,10 +56,10 @@ public sealed class WorkerPool
 
     public WorkerPool(int maxWorkers) => MaxWorkers = maxWorkers <= 0 ? 2 : maxWorkers;
 
-    /// <summary>池上限（用户定：async ≤ 2）。</summary>
+    /// <summary>池上限（主人定：async ≤ 2）。</summary>
     public int MaxWorkers { get; }
 
-    /// <summary>**本 session 已开过多少次 worker 生命周期**（= 派发次数）—— 2026-10-09 用户令：
+    /// <summary>**本 session 已开过多少次 worker 生命周期**（= 派发次数）—— 2026-10-09 主人令：
     /// 「第 17 轮」指的是 worker 的**第 17 次生命周期**（一次派发 = 一轮），不是引擎内部轮次。</summary>
     public int Lifecycles { get; private set; }
 
@@ -120,7 +120,7 @@ public sealed class WorkerPool
         }
     }
 
-    /// <summary>**实时进度回填**（2026-10-09 用户令）：worker 每跑一轮把 {轮次, 耗时, 到此用量} 归位到**它自己**那条 ——
+    /// <summary>**实时进度回填**（2026-10-09 主人令）：worker 每跑一轮把 {轮次, 耗时, 到此用量} 归位到**它自己**那条 ——
     /// 多 worker 异步交叉在飞时按 id 各归各位，互不串。
     /// <para><b>只改 Working 的那条</b>：已结算的不被迟到的回调改写（round/usage 停在末态）。</para></summary>
     public void Report(string id, WorkerProgress progress)

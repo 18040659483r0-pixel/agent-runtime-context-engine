@@ -24,6 +24,8 @@ public sealed record FocusReport
     /// <summary>是否无可入流的内容（模型没配合 ⇒ 不报错，只回落）。</summary>
     public bool IsEmpty => Tags.Count == 0;
 
-    /// <summary>入流正文（与 band 同格式：<c>E004 E007</c>）—— 编号格式与流一致。</summary>
-    public string Text => FocusService.RenderTags(Tags);
+    /// <summary>入流正文（与 band 同格式：<c>E004 E007</c>）—— 编号格式与流一致。
+    /// <para>空自报也要**有正文**（流的不变量是「正文非空」）：记成 <c>[FOCUS] none</c>，
+    /// 与「根本没报」在形状上分得开（后者不产生事件）。</para></summary>
+    public string Text => Tags.Count == 0 ? FocusService.BandPrefix + " none" : FocusService.RenderTags(Tags);
 }

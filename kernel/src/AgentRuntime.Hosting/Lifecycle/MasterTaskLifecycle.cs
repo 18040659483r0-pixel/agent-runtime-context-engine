@@ -64,6 +64,17 @@ public sealed class MasterTaskLifecycle : TaskLifecycleBase
         + "**必须写清三件**：这个方法有没有效 · 要不要继续 · 大概还剩多少没做。"
         + "写给人读：不铺事件、不铺原文、不写表格；整块 ≤30 行；能核验的行在行尾带 (E###)。";
 
+    /// <summary>
+    /// **[NEED-USER] 的报告请求原文**（2026-10-18 主人令：待你决定时也要一篇决策报告，且必须给“建议处理方式 + 后果”）。
+    /// </summary>
+    public const string NeedUserReportRequestText =
+        "你现在在**等用户裁决** —— 先交一篇**决策报告**：一个 [REPORT] 块，依次写 "
+        + "need:（到底要用户裁决什么，一句话）；step <n>:（已做到哪一步，≤6 行）；"
+        + "outcome:（现在什么是真的 / 已做到哪，一到两行）；"
+        + "next [rec]:（1~3 条**建议处理方式**；每条必须写清**后果**：选了会发生什么、不选会怎样；推荐的那条标 rec）。"
+        + "found [blocked|failed|noticed]:（可选，≤3 行）。"
+        + "写给人读：不要铺事件、不要铺原文、不要写表格；整块 ≤30 行；能核验的行在行尾带 (E###)。";
+
     /// <summary>报告请求的**原文**（给模型看的那一句 —— 唯一声明处，与协议第 12 条同一形状）。</summary>
     public const string ReportRequestText =
         "本 task 已了结 —— 按协议第 12 条交**决策报告**：一个 [REPORT] 块，依次写 "

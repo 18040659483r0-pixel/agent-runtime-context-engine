@@ -1,7 +1,7 @@
 namespace AgentRuntime.Core.Worker;
 
 /// <summary>
-/// ok=false 且 retryable ⇒ **必须带修正补发**（2026-09-27 用户令④）。
+/// ok=false 且 retryable ⇒ **必须带修正补发**（2026-09-27 主人令④）。
 /// 两条纪律：不许 master 自己顶上、不许静默自己干。
 /// 实证（E828 引号错 / E840 缺命令 / E847 超时 / E880 **回空**）：
 /// 四次同形失败 ⇒ 补发必须**显式带修正内容**，否则等于重发同一个错。
@@ -26,7 +26,7 @@ public static class RetryPolicy
         result.Ok && (result.Kind == ReceiptKind.Partial
                       || (result.Covered ?? string.Empty).Contains("partial", System.StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>证据必须可被 master **独立复算**（用户 2026-09-27 令①）。
+    /// <summary>证据必须可被 master **独立复算**（主人 2026-09-27 令①）。
     /// 判据：master 亲跑同一条命令，逐字/数值比对；不符 ⇒ 判失败（假证据比空手更贵）。</summary>
     public static bool Corroborates(string workerValue, string masterValue)
         => !string.IsNullOrWhiteSpace(workerValue)
@@ -54,7 +54,7 @@ public static class RetryPolicy
         WorkerFailureReason.ToolNotAllowed => $"只用受允许的工具（本轮起：优先 exec）（缺：{result.Missing}）",
         WorkerFailureReason.ContractUnsatisfied => $"收紧任务描述 + 要求交回合格 [WORKER] 块（缺：{result.Missing}）",
         WorkerFailureReason.ProviderUnreachable => $"重试或换端点（缺：{result.Missing}）",
-        // 2026-10-09（用户令 · 停即拆）：超时的处置是**停 + 拆小**，不再是「再试一次」（重发同块）。
+        // 2026-10-09（主人令 · 停即拆）：超时的处置是**停 + 拆小**，不再是「再试一次」（重发同块）。
         // IsRetryable(ProviderTimeout)=false ⇒ MustResend=false ⇒ 这条路只在「给下一条派发的 NOTE」时用到。
         WorkerFailureReason.ProviderTimeout => $"**该拆小**（缺：{result.Missing}）—— 它是**慢**，不是不可达；已停，**不再重发同一块**",
 

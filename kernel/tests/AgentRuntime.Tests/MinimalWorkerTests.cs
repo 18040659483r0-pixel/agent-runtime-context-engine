@@ -106,7 +106,7 @@ public sealed class MinimalWorkerTests
         }
     }
 
-    // ------------------------------------------------------------------ F4（面已迁到 Worker · 用户 2026-09-29 20:0x）
+    // ------------------------------------------------------------------ F4（面已迁到 Worker · 主人 2026-09-29 20:0x）
 
     [Fact]
     public async Task Worker面_需批动作_留档后照跑_且真的写了()
@@ -263,7 +263,7 @@ public sealed class MinimalWorkerTests
     // ------------------------------------------------------------------ 契约与配置
 
     /// <summary>
-    /// **口径对齐闸门**（用户 2026-09-29 令：worker 就照 master 那边怎么教的教）。
+    /// **口径对齐闸门**（主人 2026-09-29 令：worker 就照 master 那边怎么教的教）。
     /// <para>钉两件事：① 工具面形状与 master 侧拒绝话术**逐字同一份**（`ToolFaceClause.Shape`，唯一来源）；
     /// ② 每把工具的键枚举与**主协议第 5 条同一批字面**（两处枚举一旦分叉，这里当场红）。</para>
     /// </summary>
@@ -280,7 +280,7 @@ public sealed class MinimalWorkerTests
         Assert.Contains(AgentRuntime.Core.Tooling.ToolFaceClause.Keys, worker, StringComparison.Ordinal);
         Assert.Contains(AgentRuntime.Core.Tooling.ToolFaceClause.MasterKeys,
                         AgentRuntime.Core.Protocol.ProtocolText.Text, StringComparison.Ordinal);
-        // 2026-10-10（用户令「把工具交回 master」）：master 面 = **全量** ⇒ 正文第 5 条列出全部 7 把。
+        // 2026-10-10（主人令「把工具交回 master」）：master 面 = **全量** ⇒ 正文第 5 条列出全部 7 把。
         Assert.Contains("read{path", AgentRuntime.Core.Protocol.ProtocolText.Text, StringComparison.Ordinal);
 
         // ③ 节奏与省字（主协议第 2/11 条的口径）也在卡里：结果带指针 / 先定位再读窗口 / risk 声明
@@ -293,11 +293,11 @@ public sealed class MinimalWorkerTests
     public void worker协议区_在预算内_且只说怎么回话()
     {
         Assert.True(WorkerProtocolText.LineCount <= WorkerProtocolText.DeclaredMaxLines, $"worker 协议区 {WorkerProtocolText.LineCount} 行，超了就是在塞私货（v22：补 worker 侧五条 + 共用段 [SPLIT]；v39：[PACE]）");
-        // v13（2026-09-29 · 用户 19:59 令）：`answer:` 语义按工具分级（write/edit ⇒ 改/写了什么的概括）⇒ 实测后预算 2600 → 2800。
-        // v14（2026-09-30 01:3x · 用户令「worker 的协议区也要改，让 worker 也理解 master 是怎么使用它的」）：
+        // v13（2026-09-29 · 主人 19:59 令）：`answer:` 语义按工具分级（write/edit ⇒ 改/写了什么的概括）⇒ 实测后预算 2600 → 2800。
+        // v14（2026-09-30 01:3x · 主人令「worker 的协议区也要改，让 worker 也理解 master 是怎么使用它的」）：
         //      补第 9 条（回执是 master 的唯一视图：它会复算你的 evidence、按 MUST 核 covered、读 open；
         //      回执薄 ⇒ 下次派发更具体；强 ⇒ 按意图派）⇒ 实测 3,167 字符 ⇒ 预算 2800 → 3200（先量后定）。
-        // v15（2026-09-30 · 用户令「改协议区让 worker 不再犯病」）：① 锚只能引**本轮**工具回执（未实测 ⇒ unknown / open:）；
+        // v15（2026-09-30 · 主人令「改协议区让 worker 不再犯病」）：① 锚只能引**本轮**工具回执（未实测 ⇒ unknown / open:）；
         //      ② 读数用**键**给（bytes=/lines=/sha256=/at=）且以运行时 `measured:` 行为准；③ 带副作用的步骤**先查后做**。
         //      实测 4,007 字符 ⇒ 预算 3200 → 4400（先量后定；留 ~10% 余量）。
         // v16（2026-09-30）：新增第 11 条「工具被拒不是 done」（配套运行时：ToolDenied + open 为空 ⇒ Ok=false）
@@ -391,7 +391,7 @@ public sealed class MinimalWorkerTests
             ["10"] = "063fe814a955a80e54d2894bcdd50defff9ddcf1adf480e4352f90e3954be314",
             // v11（2026-09-29）：回执加 `answer:`（结论正文）+ `evidence` 明确为锚 + ASK 段。
             ["11"] = "fd63eaaad4781612c795fa7beff6ae8333f42f7a784ccc1d28f105eed8401d77",
-            // v13（2026-09-29 · 用户 19:59）：`answer:` 语义**按工具分级** —— write/edit ⇒ 改/写了什么的概括（不写 diff）；
+            // v13（2026-09-29 · 主人 19:59）：`answer:` 语义**按工具分级** —— write/edit ⇒ 改/写了什么的概括（不写 diff）；
             // exec ⇒ 执行了什么/结果；read/list ⇒ 发现/结论。
             ["14"] = "d39a9c084609dbe7cf4a6d730be1e2fc1d7ddb74e7c3f242bdbff329696ab501",
             // v15（2026-09-30）：把「重放 + 读数时点差」写进契约 —— 锚只能引本轮工具回执（未实测 ⇒ unknown / open:）、
@@ -399,10 +399,10 @@ public sealed class MinimalWorkerTests
             ["16"] = "9fc68377b908440412ff21eef50ff659b283dc616db30f40a4dafa7c1b54288b",
             // v17（2026-09-30）：回执改 [RESULT] 句 + kind= + 按类取字段（解「失败回执活不过终局」）；预算 4400 → 5400。
             ["17"] = "5520473d9c33566ba5c8e9bc25d51d0f08e65e42459544ce156234b57013550a",
-            // v18（2026-09-30 16:47 用户口径）：`done` 必须给出**该 ASK 种类的交付键** + `basis=`；缺 ⇒ 不算 done、退回；
+            // v18（2026-09-30 16:47 主人口径）：`done` 必须给出**该 ASK 种类的交付键** + `basis=`；缺 ⇒ 不算 done、退回；
             // 没有"不需要"这一档（键不适用 = 选错了类或 criteria）；形状：一行一键，键与分隔符之间可有空白。
             ["18"] = "573892f0bc38f20e6ed07e90e1a10b68f22f25ab5b9579b9139b5b361b6421af",
-            // v19（2026-09-30 16:58 用户令）：master-worker 模式协议**两边同一份**（MasterWorkerProtocol 渲染）。
+            // v19（2026-09-30 16:58 主人令）：master-worker 模式协议**两边同一份**（MasterWorkerProtocol 渲染）。
             ["20"] = "418c057faa3c14aeb4bfb1d90308da2a562c48d0c99af10905f3f0658ea312a2",
             // v21（2026-10-06）：共用段新增 `[DUTY]` 节 —— 形状 vs 实质的分工（Worker 自证 / master 最小代价复算 /
             // 运行时只管形状层，**不得 infer/兜底实质**）。worker 协议区与 master 协议两侧逐字同一份。
@@ -444,13 +444,15 @@ public sealed class MinimalWorkerTests
             ["44"] = "f64a546024c8bb40c947ff37e978270aff25706c7a1656068400ff3cf3aca3cc",
             // v45（2026-10-12 · A4 尾）：派生层 JSON→XML —— 契约里点的模型可见路径改 `.derived/l3.xml` / `l4.xml`。
             ["45"] = "53c33ab8b0dd749d3262b71e3bc223da46af1e343fde0808c8cc9755a7290ed0",
-            // v46（2026-10-14）：用户令「最长允许的闸门时间 → 1200s」—— `[PACE] ceiling` 白名单加 `1200`。
+            // v46（2026-10-14）：主人令「最长允许的闸门时间 → 1200s」—— `[PACE] ceiling` 白名单加 `1200`。
             ["46"] = "fdbdd9dbf6270056abecc44f8c78f23479e3bed5c41bcb368f11ae3f6b106f34",
             // v47（2026-10-15 13:2x）：ToolFaceClause.Shape 去「旧行式/JSON 仍会被归一」那句（改成直接说不许写 JSON）⇒ 正文变。
             ["47"] = "71e5f468a42ce9b7ee6b9c89e05d43bd131fb1a9dc055265916a5c21f41242ef",
             ["15"] = "fc0cda634abe76a0779602704b4d94287130f394ae19e894cb397fa1a2d62d63",
             ["13"] = "eca820b5760203da7c0070ff51aebef2f49d3aff0db45d25604a12fbd7c3a18c",
             ["48"] = "74c27e06eac65052bb6396cb77e78ebb4cfc8df0aff6eca0f341b7abfc756a68",
+            // v49（2026-10-18）：工具面 Shape 补「正文含 < / & ⇒ 行式 content<< 零转义」。
+            ["49"] = "552c8ba64821aef45adb6116accac4fa9505be0d4168eafd208f1b24840f2e02",
         };
 
     [Fact]
@@ -465,7 +467,7 @@ public sealed class MinimalWorkerTests
     }
 
     [Fact]
-    public void 写类工具默认开放_与用户20260925的裁决一致()
+    public void 写类工具默认开放_与主人20260925的裁决一致()
     {
         var cfg = new WorkerConfiguration();
         Assert.Contains("write", cfg.Tools);

@@ -89,7 +89,7 @@ public sealed class ModulePipelineTests
     [Fact]
     public async Task 消融_移除某模块后_其余模块贡献与移除前逐字一致()
     {
-        var rules = ChatMessage.System("你是助手。");
+        var rules = ChatMessage.System("你是樱桃。");
         var history = new[] { ChatMessage.User("我叫张总"), ChatMessage.Assistant("记住了") };
         var client = FakeModelClient.Returning("ok");
 
@@ -176,12 +176,12 @@ public sealed class ModulePipelineTests
     [Fact]
     public async Task 铁则模块_把system文本放在最前()
     {
-        var engine = new AgentRuntimeEngine(FakeModelClient.Returning("ok"), Options(), [new SystemRulesModule("你是助手。")]);
+        var engine = new AgentRuntimeEngine(FakeModelClient.Returning("ok"), Options(), [new SystemRulesModule("你是樱桃。")]);
 
         var result = await engine.ChatAsync("hi", TestContext.Current.CancellationToken);
 
         Assert.Equal(["system", "user"], result.Request.Messages.Select(m => m.Role));
-        Assert.Equal("你是助手。", result.Request.Messages[0].Content);
+        Assert.Equal("你是樱桃。", result.Request.Messages[0].Content);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public sealed class ModulePipelineTests
             BaseUrl = "https://x/v1",
             Model = "m",
             Modules = ["system-rules", "session"],
-            SystemRules = "你是助手。",
+            SystemRules = "你是樱桃。",
             SessionMaxTurns = 3,
         };
 

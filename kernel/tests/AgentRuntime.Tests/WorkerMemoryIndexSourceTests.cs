@@ -4,7 +4,7 @@ using Xunit;
 namespace AgentRuntime.Tests;
 
 /// <summary>
-/// **worker 自己的记忆索引源**（2026-10-10 用户令 · 治水位待办 ①）：<c>memory-index</c> 一区改指
+/// **worker 自己的记忆索引源**（2026-10-10 主人令 · 治水位待办 ①）：<c>memory-index</c> 一区改指
 /// <b>worker 自己的家</b>；**铁则区 / 知识区仍与 master 同一份**。
 /// <para>两半都要（§十·30）：① 换了源 ⇒ worker 那份**真的被读到**；② 只换一格 ⇒ 别的区**不许**跟着换；
 /// ③ 没写 worker 索引 ⇒ 该段**不存在**（不冒充 master 的）。</para>

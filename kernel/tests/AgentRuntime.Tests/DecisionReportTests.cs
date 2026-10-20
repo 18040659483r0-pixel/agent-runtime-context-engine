@@ -350,4 +350,51 @@ public sealed class DecisionReportTests
         Assert.Equal("乙（第 3 行）", parsed.Report!.Steps[0].What);
         Assert.Null(parsed.Report.Steps[0].Evidence);
     }
+
+    // ---------------- v85：术语表 + step 的 why ----------------
+
+    [Fact]
+    public void v85_术语表与步骤原因_按新形状解析()
+    {
+        var parsed = DecisionReportParser.Parse(Text(
+            "[REPORT]",
+            "need: 让人能裁决",
+            "term ABC: Alpha Beta Contract（授权接口）",
+            "step 1: 整理输入 -- 先消除歧义 -- (E123)",
+            "outcome: 可以裁决",
+            "found noticed: 报告里原先只有代号 -- 读者无法判断 -- (E124)",
+            "next rec: 按术语表理解 -- 选 1 即可 -- (E125)"));
+
+        Assert.True(parsed.Accepted, parsed.RejectReason);
+        var report = Assert.IsType<DecisionReport>(parsed.Report);
+        Assert.Single(report.Terms);
+        Assert.Equal("ABC", report.Terms[0].Key);
+        Assert.Contains("授权接口", report.Terms[0].Meaning, StringComparison.Ordinal);
+        Assert.Equal("整理输入", report.Steps[0].What);
+        Assert.Equal("先消除歧义", report.Steps[0].Why);
+        Assert.Equal("E123", report.Steps[0].Evidence);
+        Assert.Equal("读者无法判断", report.Found[0].Impact);
+        Assert.Equal("选 1 即可", report.Next[0].Consequence);
+    }
+
+    [Fact]
+    public void v85_报告渲染_术语与步骤原因可见()
+    {
+        var parsed = DecisionReportParser.Parse(Text(
+            "[REPORT]",
+            "need: 让人能裁决",
+            "term ABC: Alpha Beta Contract（授权接口）",
+            "step 1: 整理输入 -- 先消除歧义 -- (E123)",
+            "outcome: 可以裁决",
+            "next rec: 按术语表理解 -- 选 1 即可 -- (E125)"));
+
+        var brief = AgentRuntime.Hosting.Panels.LifecyclePresenter.Brief(
+            parsed.Report,
+            new DecisionReportFrame(1, TaskLifecycleStatus.Done, false, [], "1 轮 · 工具 0"));
+
+        Assert.Contains(brief.Lines, line => line.Contains("术语", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, line => line.Contains("ABC =", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, line => line.Contains("为什么：先消除歧义", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, line => line.Contains("→ 选 1 即可", StringComparison.Ordinal));
+    }
 }

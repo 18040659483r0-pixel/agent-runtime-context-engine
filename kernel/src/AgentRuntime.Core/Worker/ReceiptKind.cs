@@ -6,7 +6,7 @@ namespace AgentRuntime.Core.Worker;
 
 /// <summary>
 /// **回执结论**（封闭 6 类 · 设计稿 <c>docs/DESIGN-INTENT-TYPES.md</c> §四）。
-/// <para>用户 2026-09-30 15:34 令："master 想收到的结论也应该是固定的几种情况"。
+/// <para>主人 2026-09-30 15:34 令："master 想收到的结论也应该是固定的几种情况"。
 /// 每类有**自己的必需字段集** ⇒ 终局自验按 <c>kind</c> 取字段，不再要求"四字段齐"
 /// （这一条从构造上解掉"失败回执永远满足不了终局判据 ⇒ 死循环"）。</para>
 /// </summary>
@@ -64,7 +64,7 @@ public static class ReceiptKinds
 
     /// <summary>
     /// 该类的**必需字段**。
-    /// <para><b>用户 2026-09-30 16:44 口径</b>：交付形状由**意图唯一决定**（枚举区声明，worker **无裁量**）⇒
+    /// <para><b>主人 2026-09-30 16:44 口径</b>：交付形状由**意图唯一决定**（枚举区声明，worker **无裁量**）⇒
     /// <c>done</c> 的必需集 = **该意图的交付形状键 + <c>basis=</c>**；传 <paramref name="intent"/> 即按类核。
     /// 「不需要某个真值」不是省略的理由 —— 那是**选错了意图/criteria**（枚举里表达），运行时**不兜底**。</para></summary>
     public static IReadOnlyList<string> RequiredFields(ReceiptKind kind, DispatchIntent? intent = null) => kind switch

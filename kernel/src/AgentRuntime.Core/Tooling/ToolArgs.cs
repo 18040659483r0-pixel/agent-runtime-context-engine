@@ -8,7 +8,7 @@ namespace AgentRuntime.Core.Tooling;
 /// <summary>
 /// **一次工具调用的参数** —— 形状 = **行式键值（零转义）**。
 ///
-/// <para><b>为什么不再用 JSON</b>（用户 2026-09-29 定案，handoff/40 §7.1 B1）：JSON 要求转义
+/// <para><b>为什么不再用 JSON</b>（主人 2026-09-29 定案，handoff/40 §7.1 B1）：JSON 要求转义
 /// ⇒ 多行正文必炸、自然写法要归一 —— 当晚两类拒绝（worker 紧凑写法、master 多行 exec）都源于此。
 /// 新形状里**不存在需要转义的字符**。</para>
 ///
@@ -72,7 +72,7 @@ public sealed class ToolArgs
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            // 用户 2026-09-29 19:56 令（缺口 A②）：**允许零参调用的工具**（如 `index` —— 它的 symbol 本就可选，
+            // 主人 2026-09-29 19:56 令（缺口 A②）：**允许零参调用的工具**（如 `index` —— 它的 symbol 本就可选，
             // 缺省就是全量摘要）⇒ 空参数不算错，交给工具自己解释；其余工具仍响亮拒（fail-closed 不变）。
             if (ToolNames.IsZeroArgCallable(toolName))
             {
@@ -103,7 +103,7 @@ public sealed class ToolArgs
     }
 
     /// <summary>
-    /// **XML 形状的参数**（新；用户 2026-10-07 令）：元素里的成员 ⇒ 参数表。
+    /// **XML 形状的参数**（新；主人 2026-10-07 令）：元素里的成员 ⇒ 参数表。
     /// <para>为什么它从构造上治了病：元素**自定界** —— 块外的回声行**不属于这个元素**，
     /// 所以不会再出现"同一个键被算了两次"那种幻影重复。键名与工具面同源（`path`/`command`/`timeoutSeconds`/…）。</para>
     /// </summary>
@@ -143,6 +143,27 @@ public sealed class ToolArgs
             }
         }
 
+        // 2026-10-18（主人令）：新工具的参数也必须走**强类型 XML 成员** ——
+        // 先按工具面校验「有没有未声明的成员」，再逐项落表（不静默丢键）。
+        var allowedMembers = new HashSet<string>(StringComparer.Ordinal) { "name", "risk" };
+        var declaredTool = string.IsNullOrWhiteSpace(toolName) ? call.Name : toolName;
+        if (!string.IsNullOrWhiteSpace(declaredTool)
+            && ToolFaceClause.ToolKeys.TryGetValue(declaredTool, out var declaredKeys))
+        {
+            allowedMembers.UnionWith(declaredKeys);
+        }
+
+        var root = ToolCallXmlRoot(xml);
+        foreach (var member in root.Elements())
+        {
+            var name = member.Name.LocalName;
+            if (!allowedMembers.Contains(name))
+            {
+                throw new ToolUsageException(
+                    $"XML 元素里有未声明的成员 <{name}>（{declaredTool} 允许：{string.Join(", ", allowedMembers.OrderBy(x => x, StringComparer.Ordinal))}）。");
+            }
+        }
+
         Add("path", call.Path);
         Add("symbol", call.Symbol);
         Add("task", call.Task);
@@ -155,6 +176,24 @@ public sealed class ToolArgs
         AddInt("offset", call.Offset);
         AddInt("limit", call.Limit);
 
+        // 网络工具第一批（协议 v75）：强类型成员 → 参数表。
+        Add("url", call.Url);
+        Add("method", call.Method);
+        Add("headers", call.Headers);
+        Add("query", call.Query);
+        Add("body", call.Body);
+        Add("contentType", call.ContentType);
+        Add("authRef", call.AuthRef);
+        AddInt("maxChars", call.MaxChars);
+        Add("format", call.Format);
+        AddInt("count", call.Count);
+        Add("recency", call.Recency);
+        AddInt("maxBytes", call.MaxBytes);
+        Add("conflict", call.Conflict);
+        Add("urls", call.Urls);
+        AddInt("maxCharsPerPage", call.MaxCharsPerPage);
+        AddInt("concurrency", call.Concurrency);
+
         if (values.Count == 0)
         {
             throw new ToolUsageException($"XML 元素里没有任何参数成员。{ShapeHint}");
@@ -162,6 +201,10 @@ public sealed class ToolArgs
 
         return new ToolArgs(raw, CanonicalOf(values), values);
     }
+
+    /// <summary>取 XML 根（成员校验用；不用 XmlBlock 的内部细节）。</summary>
+    private static System.Xml.Linq.XElement ToolCallXmlRoot(string xml) =>
+        System.Xml.Linq.XElement.Parse(xml, System.Xml.Linq.LoadOptions.PreserveWhitespace);
 
     /// <summary>行式解析（唯一实现）。</summary>
     private static Dictionary<string, string> ParseLines(string text)

@@ -16,7 +16,7 @@ public sealed class IntentReceiptKindTests
     [Fact]
     public void 共用协议段_master_与_worker_两侧逐字同一份()
     {
-        // 2026-10-10（用户令「协议区拔干净 worker」）：共用段**只**在 worker 协议区里；master 协议区已拔出
+        // 2026-10-10（主人令「协议区拔干净 worker」）：共用段**只**在 worker 协议区里；master 协议区已拔出
         // （逐字留档见 docs/BACKUP-WORKER-PROTOCOL.md，回插后本条断言再改回去）。
         var shared = MasterWorkerProtocol.Text;
         Assert.DoesNotContain(shared, AgentRuntime.Core.Protocol.ProtocolText.Text, System.StringComparison.Ordinal);
@@ -36,7 +36,7 @@ public sealed class IntentReceiptKindTests
             Assert.Contains(ReceiptKinds.Name(kind), shared, System.StringComparison.Ordinal);
         }
 
-        // 用户 2026-10-07 令：**回执组合**照派发的 modifiers 一样进共用段（收窄意图的方式，两侧同一份）。
+        // 主人 2026-10-07 令：**回执组合**照派发的 modifiers 一样进共用段（收窄意图的方式，两侧同一份）。
         // 每一项都从唯一声明处（ReceiptCombination 的取值域）渲染，不是手写。
         Assert.Contains("Receipt modifiers mirror the dispatch", shared, System.StringComparison.Ordinal);
         Assert.Contains("covered=", shared, System.StringComparison.Ordinal);
@@ -101,7 +101,7 @@ public sealed class IntentReceiptKindTests
         Assert.Equal(ReceiptKind.Partial, WorkerReceiptShape.KindOf("[RESULT] 只做了一半 kind=partial"));
         Assert.Equal(ReceiptKind.NeedHuman, WorkerReceiptShape.KindOf("[RESULT] 需要你定 kind=need_human"));
 
-        // 没声明 / 声明了清单外的值 ⇒ null = **形状缺项**（**运行时绝不替它判类** · 用户 2026-10-06 口径）。
+        // 没声明 / 声明了清单外的值 ⇒ null = **形状缺项**（**运行时绝不替它判类** · 主人 2026-10-06 口径）。
         Assert.Null(WorkerReceiptShape.KindOf("[RESULT] 做完了"));                 // 旧形状：只有结论词
         Assert.Null(WorkerReceiptShape.KindOf("[RESULT] x kind=很难说"));
         Assert.Null(WorkerReceiptShape.KindOf("[RESULT] x kind=failed"));          // 含混词不是类别
@@ -131,9 +131,9 @@ public sealed class IntentReceiptKindTests
     [Fact]
     public void 形状语法提示_必须带_改对后记进踩坑集_的闭环()
     {
-        // 用户 2026-10-06：运行时可以做语法检查，但要**提示**远端，并让它改对后**记进踩坑集**
+        // 主人 2026-10-06：运行时可以做语法检查，但要**提示**远端，并让它改对后**记进踩坑集**
         // ⇒ 同一条语法错不再重复（知识库修，而不是运行时一次次拦）。
-        // 2026-10-06 用户令：**两套反馈严格区分**（同一基类两个派生）——
+        // 2026-10-06 主人令：**两套反馈严格区分**（同一基类两个派生）——
         // ① 语法/格式类 = 协议区的补充 ⇒ 只给规范，**不许提踩坑集**；② 实打实错误 ⇒ 才提醒写踩坑集。
         var syntax = new SyntaxFeedback("回执缺 basis=");
         var pitfall = new PitfallFeedback("路径不存在");
@@ -153,7 +153,7 @@ public sealed class IntentReceiptKindTests
     public void 回执_每类有自己的必需字段_done_不许带未决()
     {
         Assert.Equal(["basis="], ReceiptKinds.RequiredFields(ReceiptKind.Done));
-        // v0.5（用户 16:44 口径）：交付形状由意图唯一决定 ⇒ done 的必需集 = 该意图的键 + basis=
+        // v0.5（主人 16:44 口径）：交付形状由意图唯一决定 ⇒ done 的必需集 = 该意图的键 + basis=
         var read = new DispatchIntent(DispatchIntentKind.Read, ["/a"], "full", "sync", "none");
         Assert.Equal(["addr=", "bytes=", "lines=", "sha256=", "basis="], ReceiptKinds.RequiredFields(ReceiptKind.Done, read));
         // 唯一性：DeliveryKeys 的每个键都必须出现在 DeliveryShape 里（两处声明由本夹具钉住一致）

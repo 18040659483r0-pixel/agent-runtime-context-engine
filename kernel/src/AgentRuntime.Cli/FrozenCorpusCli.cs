@@ -184,7 +184,7 @@ public static class FrozenCorpusCli
                 return 1;
             }
 
-            // 用户 2026-10-17 令（只警告不阻断 + 真问题不能被淹没）：**跳过的文件不算绿**。
+            // 主人 2026-10-17 令（只警告不阻断 + 真问题不能被淹没）：**跳过的文件不算绿**。
             // 真机：`knowledge/global.md`（最大的一份语料）因源根缺失被**整份跳过**，汇总却照样印
             // 「✅ 产物与源一致」⇒ 它从未被校验，而所有人以为它是绿的。
             if (skipped.Count > 0)
@@ -192,7 +192,7 @@ public static class FrozenCorpusCli
                 Console.Error.WriteLine($"[校验] ⚠️ 仍有 {skipped.Count} 个文件**未被校验**（跳过）：{string.Join("、", skipped)}");
                 Console.Error.WriteLine("         ⇒ **这不等于「产物与源一致」**：上述文件本次既没比字节、也没验版本纪律。");
                 Console.Error.WriteLine("         修法：把源根指到含 `projects/` 的那一层（本地布局已无该根），或修源根推导。");
-                return 0;   // 只警告、不阻断（用户令）；但**绝不印 ✅**
+                return 0;   // 只警告、不阻断（主人令）；但**绝不印 ✅**
             }
 
             Console.WriteLine("[校验] ✅ 产物与源一致、版本纪律成立");

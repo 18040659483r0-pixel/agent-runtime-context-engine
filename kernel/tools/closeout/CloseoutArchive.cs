@@ -7,14 +7,14 @@ namespace CloseoutTool;
 
 // ================================================================ 收尾的「扩展环节」
 //
-// 用户 2026-10-16 12:2x 定下的口径：
+// 主人 2026-10-16 12:2x 定下的口径：
 //   · **CORE 收尾（标准模式）对 VCS 零引用** —— 「版本库 / 存档区」这件事整个属于下面的实现；
 //   · **不使用任何 SVN / GIT 是一个合法实现**（`NoArchive`），**不是降级分支**；
 //   · 我们自己的机器用 SVN，那只是 **CORE 收尾的一个扩展选项**（`SvnArchive`）。
 //
 // 为什么要有这一刀（旧形态的病，都是真机实测）：
 //   ① 模式用一个全局布尔 `SvnLinked`（从“有没有 `.svn`”**推断**）表达 ⇒ 判据靠猜：
-//      家目录游离的 `/home/user/Documents/.svn` 让它**恒真**，跳过逻辑永不生效。
+//      家目录游离的 `/home/user/wazi/Documents/.svn` 让它**恒真**，跳过逻辑永不生效。
 //   ② 〈没有 VCS〉只能靠**按 check 名把红改成绿**的归一表达（`R()` 里 `n.Contains("存档")‖…`）
 //      ⇒ **用字符串当类型**（违反铁则 8「能用一个类型表达清楚的，绝不写成一串分支」）。
 //   ③ 于是「有没有存档区」在两个地方各判一次，**必然分叉**：
@@ -102,13 +102,65 @@ internal sealed class SvnArchive : ICloseoutArchive
     private static double SvnTimeout =>
         double.TryParse(Environment.GetEnvironmentVariable("CLOSEOUT_SVN_TIMEOUT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 45;
 
-    /// <summary>存档区根（`Project/../../whitebox-workspace`）—— **只属于扩展**，CORE 不再知道它。</summary>
-    public static readonly string ArchiveRootPath =
-        Path.GetFullPath(Path.Combine(CloseoutCli.Project, "..", "..", "whitebox-workspace"));
+    /// <summary>存档区根 —— **只属于扩展**，CORE 不再知道它。
+    /// <para>2026-10-19 起：活版 `whitebox/whitebox/workspace` 本身已在公共 SVN 中，
+    /// 不再有独立的 `software-company/whitebox-workspace` ⇒ **存档区 = 活版**（同一棵 WC）。</para></summary>
+    public static readonly string ArchiveRootPath = CloseoutCli.Live;
 
     public string Name => "svn";
 
     public string? ArchiveRoot => ArchiveRootPath;
+
+    /// <summary>
+    /// **快速可达性探针**（主人 2026-10-18 令：连不上一次 SVN 就立即退化为不用 SVN）。
+    /// <para>每边只给 3 秒（可用 `CLOSEOUT_SVN_PROBE_TIMEOUT` 调）：`svn info` 拿 URL + `svn log -l1`
+    /// 拿 r 号；任一失败 ⇒ false。**不**走 45 秒的常规超时，避免一次收尾被一个断网拖几分钟。</para>
+    /// </summary>
+    internal bool ProbeFast(double seconds, out string why)
+    {
+        if (!Directory.Exists(ArchiveRootPath))
+        {
+            why = $"存档区不存在（{ArchiveRootPath}）";
+            return false;
+        }
+
+        if (!ProbeOne(CloseoutCli.Project, seconds, out var projectWhy))
+        {
+            why = $"代码仓：{projectWhy}";
+            return false;
+        }
+
+        if (!ProbeOne(ArchiveRootPath, seconds, out var archiveWhy))
+        {
+            why = $"存档区：{archiveWhy}";
+            return false;
+        }
+
+        why = string.Empty;
+        return true;
+    }
+
+    private static bool ProbeOne(string path, double seconds, out string why)
+    {
+        var (rc, output) = CloseoutCli.Run("svn", ["info", "--show-item", "url", path], timeoutSec: seconds);
+        var url = output.Trim();
+        if (rc != 0 || !IsRepoUrl(url))
+        {
+            why = $"svn info 失败（rc={rc}）：{(url.Length > 100 ? url[..100] : url)}";
+            return false;
+        }
+
+        var (rc2, log) = CloseoutCli.Run("svn", ["log", "-l", "1", "-q", url], timeoutSec: seconds);
+        if (rc2 != 0 || !Regex.IsMatch(log, @"^r\d+", RegexOptions.Multiline))
+        {
+            var tail = CloseoutCli.TailLines(log, 1);
+            why = $"svn log 失败（rc={rc2}）：{(tail.Count > 0 ? tail[0] : "无输出")}";
+            return false;
+        }
+
+        why = string.Empty;
+        return true;
+    }
 
     public string KnowledgeRoot => Path.Combine(ArchiveRootPath, "knowledge");
 
@@ -176,17 +228,13 @@ internal sealed class SvnArchive : ICloseoutArchive
     /// </summary>
     public string? Prove()
     {
-        var wc = Path.Combine(CloseoutCli.Project, ".svn");
-        if (!Directory.Exists(wc))
-        {
-            return $"本仓不是 SVN 工作副本（{wc} 不存在）";
-        }
-
+        // 工作副本根不一定是 PROJECT 本身（新库：整仓检出在上一级）。
+        // 判据交给 `svn info` 自己向上找 WC —— 比「PROJECT/.svn 是否存在」更准。
         var (rc, outText) = CloseoutCli.Run("svn", ["info", "--show-item", "url", CloseoutCli.Project], timeoutSec: SvnTimeout);
         var url = outText.Trim();
         if (rc != 0 || !IsRepoUrl(url))
         {
-            return $"读不到仓库 URL（rc={rc}）：{(url.Length > 120 ? url[..120] : url)}";
+            return $"本仓不在 SVN 工作副本内 / 读不到仓库 URL（rc={rc}）：{(url.Length > 120 ? url[..120] : url)}";
         }
 
         return null;
@@ -280,11 +328,18 @@ internal sealed class SvnArchive : ICloseoutArchive
     {
         var offenders = new List<string>();
         var unreadable = new List<string>();
-        foreach (var (label, root, allow) in new[]
-                 {
-                     ("代码仓", CloseoutCli.Project, UnverAllowProject),
-                     ("存档区", ArchiveRootPath, UnverAllowArchive),
-                 })
+        // 存档区 = 代码仓 / 活版（同一棵 WC）时**只判一次**：否则同一条未纳版会被两套白名单各判一遍
+        // ⇒ 正例（`benchmark/runs` 属代码仓豁免）被存档区的白名单误伤（2026-10-20 真机自测）。
+        var roots = new List<(string Label, string Root, string[] Allow)>
+        {
+            ("代码仓", CloseoutCli.Project, UnverAllowProject),
+        };
+        if (!string.Equals(ArchiveRootPath, CloseoutCli.Project, StringComparison.Ordinal))
+        {
+            roots.Add(("存档区", ArchiveRootPath, UnverAllowArchive));
+        }
+
+        foreach (var (label, root, allow) in roots)
         {
             var (rc, outText) = CloseoutCli.Run("svn", ["status", root]);
             if (rc != 0)
@@ -334,6 +389,16 @@ internal sealed class SvnArchive : ICloseoutArchive
     /// <summary>活版 ⇄ 存档区逐件比对（整树，非白名单）。</summary>
     private static CloseoutCli.Res CheckCopyParity()
     {
+        // 2026-10-19 起存档区 = 活版（同一棵 WC）⇒ 自比自没有意义。**印 N/A，不冒充绿**
+        // （§十·57：分母 0 不算绿；否则夹具「改活版 ⇒ 应该红」永远拦不住）。
+        if (string.Equals(ArchiveRootPath, CloseoutCli.Live, StringComparison.Ordinal))
+        {
+            return CloseoutCli.R("活版 ↔ 存档区", "block", true,
+                "不适用：存档区 = 活版（同一棵工作副本，无第二副本）",
+                ["跨副本一致性由 SVN 本身负责；等重新引入独立存档区时本条自动恢复逐件比对"],
+                "两副本同步才需要逐件比对；同一棵树自比自恒绿，是假绿");
+        }
+
         var a = TreeFiles(CloseoutCli.Live);
         var b = TreeFiles(ArchiveRootPath);
         var diff = new List<string>();
@@ -376,7 +441,7 @@ internal sealed class SvnArchive : ICloseoutArchive
     /// <summary>
     /// 「拿到的是一个**仓库 URL**、不是一句报错」—— **唯一声明处**。
     /// <para>scheme 三族都要认：`http(s)://`（内网 VisualSVN）· `svn://` / `svn+ssh://`（svnserve）·
-    /// `file://`（**本机仓库** —— 2026-10-15 用户令：给本地版配一份本地 SVN 作存档区）。</para>
+    /// `file://`（**本机仓库** —— 2026-10-15 主人令：给本地版配一份本地 SVN 作存档区）。</para>
     /// </summary>
     private static bool IsRepoUrl(string url) =>
         url.StartsWith("http", StringComparison.Ordinal)
@@ -481,7 +546,7 @@ internal sealed class CloseoutArchiveConfig
 /// <param name="Note">给人看的说明（推断出来的话要说出来）。</param>
 internal sealed record ArchiveSelection(ICloseoutArchive Impl, string Kind, bool Declared, string Note);
 
-/// <summary>扩展实现的**选择**（用户 2026-10-16 12:2x：模式由**声明**决定，不再从 `.svn` 猜）。</summary>
+/// <summary>扩展实现的**选择**（主人 2026-10-16 12:2x：模式由**声明**决定，不再从 `.svn` 猜）。</summary>
 internal static class CloseoutArchiveFactory
 {
     /// <summary>仅自证用：强制按「连 SVN」算（只影响**未声明时**的推断）。</summary>
@@ -490,6 +555,49 @@ internal static class CloseoutArchiveFactory
     private static readonly ICloseoutArchive None = new NoArchive();
 
     private static readonly ICloseoutArchive Svn = new SvnArchive();
+
+    private static bool _probed;
+
+    private static ArchiveSelection? _fallback;
+
+    /// <summary>测试用：清掉进程内的「已探针 / 降级」状态。</summary>
+    internal static void ResetProbe()
+    {
+        _probed = false;
+        _fallback = null;
+    }
+
+    /// <summary>
+    /// **一次探针 + 自动退化**（主人 2026-10-18 令）：
+    /// 声明 svn 但第一次探不到 ⇒ 本进程**立即改走 `NoArchive`**（标准的「不用任何 VCS」模式），
+    /// 之后的收尾不再问 SVN、不再等超时；降级理由写在「存档声明」这一项里（可见，不静默）。
+    /// </summary>
+    public static ArchiveSelection ResolveWithFallback(double probeSeconds = 3)
+    {
+        // 自证 / 负例需要「强制按 svn 语义」跑：显式关掉自动降级（只有测试会设这个变量）。
+        if (Environment.GetEnvironmentVariable("CLOSEOUT_NO_SVN_FALLBACK") == "1")
+        {
+            return Resolve();
+        }
+
+        if (!_probed)
+        {
+            _probed = true;
+            var selected = Resolve();
+            if (selected.Kind == "svn"
+                && selected.Impl is SvnArchive svn
+                && !svn.ProbeFast(probeSeconds, out var why))
+            {
+                _fallback = new ArchiveSelection(
+                    None,
+                    "none",
+                    true,
+                    $"SVN 不可达 ⇒ 本次收尾自动降级为 none（{why}）");
+            }
+        }
+
+        return _fallback ?? Resolve();
+    }
 
     /// <summary>声明文件（**唯一一处**）：`tools/closeout/archive.xml` —— 随工具走（副本也带着）。</summary>
     public static string DeclarationPath => Path.Combine(CloseoutCli.Project, "tools", "closeout", "archive.xml");

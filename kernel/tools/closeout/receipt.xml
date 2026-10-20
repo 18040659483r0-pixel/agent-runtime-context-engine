@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CloseoutReceipt schema="1" at="2026-10-20 22:29:50">
+  <Convergence archive="119" project="119" fingerprint="d933d46d64bb" />
+  <Knowledge version="14" file="versions/knowledge-v0014.md" bytes="7530" sha256="f2d5a072ee4ee6e1ee18190bc8a09dfcb9d829e1ca87bb5b131e87579d269071" liveSha="f2d5a072ee4ee6e1ee18190bc8a09dfcb9d829e1ca87bb5b131e87579d269071" l1="8" l2="8" l3="8" l4="8" orphans="0" unmarkedL4="0" promoted="true" />
+  <Decision entries="7" converged="7" gaps="0" orphans="0" l1="7" l2="7" l3="7" l4="7" />
+  <Vcs archiveRev="119" projectRev="119" />
+  <Growth sinceReceipt="none" knowledgeVersionDelta="14" l1Delta="8" decisionGapDelta="0" />
+</CloseoutReceipt>

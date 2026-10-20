@@ -8,7 +8,7 @@ namespace AgentRuntime.Core.Security;
 public sealed record CloseoutWindowItem(Capability Capability, string Target, string Why);
 
 /// <summary>
-/// **收尾窗口**（用户 2026-09-20 14:5x 定）：「这部分在收尾阶段默认放行 —— 这已经是用户明确授权的一个 tasklife 收尾动作…
+/// **收尾窗口**（主人 2026-09-20 14:5x 定）：「这部分在收尾阶段默认放行 —— 这已经是用户明确授权的一个 tasklife 收尾动作…
 /// **整个收尾都应该是一气呵成，用户授权一次，就全部自动静默走完**」。
 /// <para>
 /// 做法：收尾开始时，把「收尾**必须**动的那些东西」按既有**范围授权**机制一次性记下（会话级、易失）——
@@ -91,7 +91,7 @@ public static class CloseoutWindow
                 continue;
             }
 
-            gateway.OnHumanApprovedScope(scope);   // ← 「用户授权一次」就是这里：授权来自用户的明确指示
+            gateway.OnHumanApprovedScope(scope);   // ← 「用户授权一次」就是这里：授权来自主人的明确指示
             opened++;
             lines.Add($"[收尾窗口] ✅ {GrantScopes.Describe(scope)}（{item.Why}）");
         }
