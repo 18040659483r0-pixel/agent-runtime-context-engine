@@ -242,8 +242,11 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
 
         // §6.3 判据 2：无 worker 的告知插在**流首**（会话起点）—— 不是每轮。
         // 每轮插会改「宿主 vs 纯内核」的字节对称（TuiInvariantTests.T2）与流条数（T1/P5 族）。
+        // 长命令事实与路径基准一样是**每节会话**的事实 ⇒ 会话起点显式复位（`/reset`+`/start` 同一进程时也能重发）。
+        _execFactsNoted = false;
         NoteWorkerAbsenceOnce();
         NotePathBaseOnce();
+        NoteExecFactsOnce();
     }
 
     /// <summary>已解析（路径全部绝对化、命令行覆盖已生效）的配置。</summary>
@@ -658,6 +661,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         // §6：换装配 = 换一套「有没有 worker」的事实 ⇒ 可用性告知跟着重发一次（否则摘掉 worker 后没人被告知）。
         _workerAvailabilityNoted = false;
         _pathBaseNoted = false;
+        _execFactsNoted = false;   // 换会话 ⇒ 长命令/平台事实也跟着重发一次（同一份「本节事实」）
     }
 
     /// <summary>
@@ -792,6 +796,35 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
                 : $" 也可用**命名根**：{AgentRuntime.Core.Tooling.ToolPaths.NamedRootsText}。"),
             "path-base");
     }
+
+    /// <summary>
+    /// **长命令 / 平台命令的事实**（2026-10-22，真机事故：exec 前台起站点 ⇒ 60s 超时、孙进程占地、链静默停）。
+    /// <para>只发一次、走 Hint 通道（不进前缀、零缓存代价）—— 比改进协议区便宜：协议区只剩 17 token 余量。</para>
+    /// </summary>
+    private bool _execFactsNoted;
+
+    private void NoteExecFactsOnce()
+    {
+        if (_execFactsNoted)
+        {
+            return;
+        }
+
+        _execFactsNoted = true;
+        AppendHint(
+            "[长命令] 常驻服务/服务器**必须后台起**：`nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，"
+            + "再用端口探针（`lsof -nP -iTCP:<port> -sTCP:LISTEN`）验证；**不要前台跑** —— 前台跑会把 exec 耗到超时，"
+            + "而且超时后子进程可能还活着。重启一条命令做完：`kill 旧 PID → 起新的 → sleep 1 → 探针`。"
+            + " exec 超时 = 命令还在等，**不是**失败；看到超时就拆小或改后台，别原样重试。"
+            + " macOS 命令事实：`xargs -r` 不存在（用 `xargs`）· `sed -i` 要写 `sed -i ''` · `cat -A` 不可用（用 `sed -n l`）。",
+            "exec-facts");
+    }
+
+    /// <summary>
+    /// **UI 侧失败落流**（2026-10-22）：TUI 的 `[错误]` / `[中断]` 过去只进屏、不进流 ⇒
+    /// 事后只能看到「链停了却没有下一轮」，猜不出原因。现在同样一条进流（source=<paramref name="source"/>）。
+    /// </summary>
+    public void NoteUiFailure(string text, string source = "ui-error") => AppendHint(text, source);
 
     public async Task<TurnOutcome> RunTurnAsync(
         string message,
@@ -1284,6 +1317,24 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         {
             AppendHint(handover.ContinuationNote());
         }
+    }
+
+    /// <summary>
+    /// **台面已销账**（2026-10-22 主人令）：收尾确认后 R4/R5 清空；交接里那几行只是**档案**。
+    /// <para>为什么要说一句：模型看不到 [TAIL]/[DRAFT] 段时会去翻交接文件，容易把档案当成「当前待办」
+    /// ⇒ 正好又回到「分不清销没销账」。这条把两件事分开说清（档案可读 ≠ 台面还挂着）。</para>
+    /// </summary>
+    public void NoteBoardCleared(HandoverSnapshot? handover)
+    {
+        if (handover is { Tail.Length: 0, Draft.Length: 0 })
+        {
+            return;
+        }
+
+        AppendHint(
+            "[台面] 本会话的白板 R4 / 草稿 R5 **从空开始**（上一轮收尾已销账）。"
+            + "交接快照里那几行是**档案**（只作回溯，不是当前待办）—— 要接着做，请以本轮用户消息为准，别把档案当待办。",
+            "board-cleared");
     }
 
     /// <summary>立即写一次恢复点（<c>--snapshot</c> / <c>/snapshot</c> 同一入口）。</summary>

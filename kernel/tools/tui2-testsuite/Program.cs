@@ -287,7 +287,7 @@ internal static class Program
             Thread.Sleep(400);
             var screen = t.Capture();
             Check(screen.Contains("意图：整理 TUI 输入层"), "第一段意图上屏");
-            Check(screen.Contains("操作：exec×1 · read×2"), "第一段操作上屏");
+            Check(screen.Contains("意图：整理 TUI 输入层(exec×1 · read×2)"), "第一段操作以灰括号挂在意图行尾");
             Check(screen.Contains("结果：已确认 poll(2) 返回 POLLNVAL（E001）"), "第一段结果 + E### 锚上屏");
             Check(screen.Contains("意图：补齐决策卡"), "第二段意图上屏（turn 顺序）");
             Check(screen.Contains("决策报告 #1"), "末尾决策报告上屏");

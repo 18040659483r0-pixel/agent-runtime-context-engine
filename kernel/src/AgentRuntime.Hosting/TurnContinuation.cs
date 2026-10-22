@@ -249,7 +249,12 @@ public static class TurnContinuation
             // 卡停在「● 进行中」、人看不出原因、也永远等不到终局与决策报告。落点是**流**，不是 --verbose 的痕。
             // 只在**真的接过轮**（ran > 0）时才算「停因」：单轮不点工具、也没有终局，那是「等下一句」的正常态，
             // 不是静默停 —— 把它也报出来只会让每次普通问答都多一条噪声 Hint。
-            if (!cancellationToken.IsCancellationRequested && ran > 0 && !host.LastTerminal.IsTerminal)
+            // **v90 补**（2026-10-22，真机事故）：只有 `ran > 0` 才算停因 ⇒ 漏掉了另一种真实静默停 ——
+            // 本轮自己落了工具结果（ran 还没开始数），链却没接下一轮就退出（超时/异常/取消）。
+            // 现场：exec 60s 超时后流里最后一条就是 ToolResult，之后既无下一轮也无 `[停因]`，人只能猜。
+            // 判据改成「接过轮 **或** 还有没被消费的结果」⇒ 只要不是「模型自己没话说」，就必须报停因。
+            var unconsumed = ran == 0 && host.HasToolOutcomeSince(cursorBeforeTurn);
+            if (!cancellationToken.IsCancellationRequested && (ran > 0 || unconsumed) && !host.LastTerminal.IsTerminal)
             {
                 host.NoteStopCause(ran, stoppedByLimit, stoppedByBudget);
             }

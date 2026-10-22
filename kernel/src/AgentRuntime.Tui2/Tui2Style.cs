@@ -122,10 +122,10 @@ public static class Tui2Style
                 .Concat(Whole(line[headEnd..], role));
         }
 
-        // 报告章节标题。
-        if (Regex.IsMatch(line, "^[一二三四五六]、", RegexOptions.CultureInvariant))
+        // 报告章节标题 / 「术语」小节：**深黄（专名色）**，与深色正文区分开。
+        if (line.Trim() == "术语" || Regex.IsMatch(line, "^[一二三四五六]、", RegexOptions.CultureInvariant))
         {
-            return Whole(line, StyleRole.Strong);
+            return Whole(line, StyleRole.Noun);
         }
 
         // 页脚 / 指针：灰。

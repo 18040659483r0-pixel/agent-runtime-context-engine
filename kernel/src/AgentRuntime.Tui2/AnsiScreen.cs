@@ -22,7 +22,9 @@ public sealed class AnsiScreen
     {
         if (_entered) return;
         _entered = true;
-        Write("\u001b[?1049h\u001b[2J\u001b[?25l\u001b[?2004h\u001b[?1000h\u001b[?1006h");
+        // 1000 = 按下/抬起；**1002 = 按住拖动也上报**（只开 1000 时终端不会发 motion ⇒ 选区永远只有一个锚点）；
+        // 1006 = SGR 坐标（列/行 1 基，宽终端不溢出）。
+        Write("\u001b[?1049h\u001b[2J\u001b[?25l\u001b[?2004h\u001b[?1000h\u001b[?1002h\u001b[?1006h");
     }
 
     /// <summary>退备用屏 + 显光标 + 关括号粘贴（异常路径也必须走到）。</summary>
@@ -30,7 +32,7 @@ public sealed class AnsiScreen
     {
         if (!_entered) return;
         _entered = false;
-        Write("\u001b[?1006l\u001b[?1000l\u001b[?2004l\u001b[?25h\u001b[?1049l");
+        Write("\u001b[?1006l\u001b[?1002l\u001b[?1000l\u001b[?2004l\u001b[?25h\u001b[?1049l");
     }
 
     /// <summary>整屏落一帧，并把光标摆到 <paramref name="caretRow"/>/<paramref name="caretCol"/>（1 基）。</summary>

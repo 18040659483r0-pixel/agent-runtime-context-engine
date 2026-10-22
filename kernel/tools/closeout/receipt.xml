@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<CloseoutReceipt schema="1" at="2026-10-20 22:29:50">
-  <Convergence archive="119" project="119" fingerprint="d933d46d64bb" />
-  <Knowledge version="14" file="versions/knowledge-v0014.md" bytes="7530" sha256="f2d5a072ee4ee6e1ee18190bc8a09dfcb9d829e1ca87bb5b131e87579d269071" liveSha="f2d5a072ee4ee6e1ee18190bc8a09dfcb9d829e1ca87bb5b131e87579d269071" l1="8" l2="8" l3="8" l4="8" orphans="0" unmarkedL4="0" promoted="true" />
-  <Decision entries="7" converged="7" gaps="0" orphans="0" l1="7" l2="7" l3="7" l4="7" />
-  <Vcs archiveRev="119" projectRev="119" />
-  <Growth sinceReceipt="none" knowledgeVersionDelta="14" l1Delta="8" decisionGapDelta="0" />
+<CloseoutReceipt schema="1" at="2026-10-22 21:46:51">
+  <Convergence archive="136" project="137" fingerprint="38b6c21686b2" />
+  <Knowledge version="19" file="versions/knowledge-v0019.md" bytes="14157" sha256="ff82f6efdd988985c7df1724d4efefe484782096937aadb15865148f215fb98c" liveSha="ff82f6efdd988985c7df1724d4efefe484782096937aadb15865148f215fb98c" l1="10" l2="10" l3="10" l4="10" orphans="0" unmarkedL4="0" promoted="true" />
+  <Decision entries="8" converged="8" gaps="0" orphans="0" l1="8" l2="8" l3="8" l4="8" />
+  <Vcs archiveRev="136" projectRev="137" />
+  <Growth sinceReceipt="2026-10-22 09:21:52" knowledgeVersionDelta="0" l1Delta="0" decisionGapDelta="0" />
 </CloseoutReceipt>

@@ -505,7 +505,12 @@ public static class CloseoutCli
             ok
                 ? $"声明 {decls.Count} 条（gate {gates} / resident {resident} / human {human} / todo {todos}，todo 基线 {todosMax}）· 新坑 0 条未声明"
                 : string.Join("；", problems),
-            ok ? null : ["规则：新坑必须声明落点类别；确定性坑应做成闸门（gate）"],
+            ok ? null :
+            [
+                "规则：新坑必须声明落点类别；确定性坑应做成闸门（gate）",
+                // 2026-10-22：把「该去哪声明、谁能改」直接印出来（真机为此白查了 2 轮）。
+                $"声明落在：{Path.GetRelativePath(Project, PlacementFile)}（tools/ 属 OC 面 ⇒ WB 不改它，只在公告板提请求）",
+            ],
             "「写错那一刻模型看得见什么」要有机器判据（坑 #130 / §十·51）");
     }
 
@@ -839,11 +844,14 @@ public static class CloseoutCli
     }
 
     /// <summary>收尾回执（4 组事实 + 与上次的增量）—— OC 只核这几个字段，不重读全文。</summary>
-    internal static XElement BuildReceipt()
+    internal static XElement BuildReceipt(string? archiveOverride = null, string? projectOverride = null)
     {
         var k = ReadKnowledge();
         var a = DecisionConverge.Analyze(Live);
-        var readings = Vcs.Read();
+        // 两个版本都给全 ⇒ 不探远端（--receipt 用它，避免断网时 2×45s 白等）。
+        ArchiveReadings? readings = archiveOverride is null || projectOverride is null ? Vcs.Read() : null;
+        var aRev = archiveOverride ?? readings?.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        var pRev = projectOverride ?? readings?.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
 
         string? prevAt = null;
         string? prevLiveSha = null;
@@ -866,8 +874,8 @@ public static class CloseoutCli
             new XAttribute("schema", "1"),
             new XAttribute("at", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
             new XElement("Convergence",
-                new XAttribute("archive", readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
-                new XAttribute("project", readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
+                new XAttribute("archive", aRev),
+                new XAttribute("project", pRev),
                 new XAttribute("fingerprint", FingerprintParts()[..12])),
             new XElement("Knowledge",
                 new XAttribute("version", k.Version),
@@ -892,8 +900,8 @@ public static class CloseoutCli
                 new XAttribute("l3", a.L3),
                 new XAttribute("l4", a.L4)),
             new XElement("Vcs",
-                new XAttribute("archiveRev", readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none"),
-                new XAttribute("projectRev", readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none")),
+                new XAttribute("archiveRev", aRev),
+                new XAttribute("projectRev", pRev)),
             new XElement("Growth",
                 new XAttribute("sinceReceipt", prevAt ?? "none"),
                 new XAttribute("knowledgeVersionDelta", prevVersion is int before ? k.Version - before : k.Version),
@@ -901,10 +909,21 @@ public static class CloseoutCli
                 new XAttribute("decisionGapDelta", a.Gaps - prevGaps)));
     }
 
+    /// <summary>水位里的收敛点版本（读不到 ⇒ ("","")，由调用方回退到远端读数）。</summary>
+    private static (string Archive, string Project) WatermarkRevs()
+    {
+        if (!File.Exists(WaterLive)) return (string.Empty, string.Empty);
+        var m = Regex.Match(File.ReadAllText(WaterLive, Encoding.UTF8),
+            @"- \*\*收敛点（机器可判）\*\*：存档 r(\d+)[^\n]*?代码仓 r(\d+)", RegexOptions.Multiline);
+        return m.Success ? (m.Groups[1].Value, m.Groups[2].Value) : (string.Empty, string.Empty);
+    }
+
     /// <summary>`--receipt`：打印回执；`--write` 同时落 `tools/closeout/receipt.xml`（收尾基线）。</summary>
     internal static int Receipt(bool write)
     {
-        var receipt = BuildReceipt();
+        // 只读回执：版本号取**水位里已盖章的收敛点**，不为了两个数字去等远端探针。
+        var (aRev, pRev) = WatermarkRevs();
+        var receipt = BuildReceipt(aRev, pRev);
         Console.WriteLine(receipt.ToString());
         if (write)
         {
@@ -1017,6 +1036,35 @@ public static class CloseoutCli
         var coreRed = results.Count(r => r.Sev == "block" && !r.Ok && r.Class == "core");
         var extRed = results.Count(r => !r.Ok && r.Class == "extension");
         Console.WriteLine($"汇总：block 红 {blockRed} 项（**Core {coreRed}** 项阻断 · 扩展 {extRed} 项仅上账）· report 红 {reportRed} 项 ⇒ {(coreRed > 0 ? $"未全绿（带 {coreRed} 条 Core block 红；--close **仍会写**，但会在水位行 + 账本记账）" : "阻塞项全绿（可 --close）")}");
+
+        // **非绿项一行给全**（省掉「再翻一遍全文找红项」的那一轮）。
+        var redNames = results.Where(r => !r.Ok).Select(r => r.Name).Distinct().ToArray();
+        if (redNames.Length > 0)
+        {
+            Console.WriteLine($"非绿项（{redNames.Length}）：{string.Join(" · ", redNames)}");
+        }
+
+        // **命令与落点直接给全**（2026-10-22 真机：模型为找 `--promote` 的正确调用与坑集真实落点，白烧 7 轮）。
+        // 协议第 23 条要求「收尾=固定流水线、每条一次、不读源码猜 flag」——那就必须把可照抄的命令印在这里。
+        Console.WriteLine();
+        Console.WriteLine("[WB] 收尾命令（照抄；每条只跑一次；下面全是绝对路径）");
+        Console.WriteLine($"  1) dotnet {SelfDll} --check");
+        Console.WriteLine("  2) 写正文（一律绝对路径，写完回读字节）");
+        Console.WriteLine($"      坑集：{Path.Combine(Project, "docs", "PITFALLS.md")}");
+        Console.WriteLine($"      知识：{KnowledgeMd}（四层；写完跑 --promote 才升版本）");
+        Console.WriteLine($"      日记：{Path.Combine(Live, "memory", DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".md")}");
+        Console.WriteLine($"  3) dotnet {SelfDll} --apply");
+        Console.WriteLine($"  4) dotnet {SelfDll} --promote");
+        Console.WriteLine($"  5) dotnet {SelfDll} --close");
+        Console.WriteLine($"  6) dotnet {SelfDll} --check");
+        Console.WriteLine($"  （路径拿不准：dotnet {SelfDll} --where）");
+
+        if (results.Any(r => r.Name == "存档声明" && r.Summary.Contains("自动降级", StringComparison.Ordinal)))
+        {
+            Console.WriteLine("⛔ 本轮 SVN 降级：**不要执行 svn commit / svn update**；跳过提交与存档区，记为 blocked 即可。");
+            Console.WriteLine("   （服务器恢复后重跑一次 `--check` 即自动退出降级，再按正常顺序补提交。）");
+        }
+
         if (reportRed > 0)
         {
             Console.WriteLine("（report 项红色属**已知欠账/变化**，已上账；本轮不阻断，但不得悄悄变多）");
@@ -1034,6 +1082,12 @@ public static class CloseoutCli
         }
 
         Console.WriteLine();
+        Console.WriteLine("  正文落点（**都在这里，别去活版猜**）：");
+        Console.WriteLine($"     坑集  {Path.Combine(Project, "docs", "PITFALLS.md")}");
+        Console.WriteLine($"     知识  {KnowledgeMd}");
+        Console.WriteLine($"     日记  {Path.Combine(Live, "memory", DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".md")}");
+        Console.WriteLine($"     水位  {WaterLevel}");
+        Console.WriteLine();
         Console.WriteLine("  规范调用（绝对路径，任何 cwd 都能跑）：");
         Console.WriteLine($"     dotnet {SelfDll} --check");
         Console.WriteLine();
@@ -1042,10 +1096,91 @@ public static class CloseoutCli
     }
 
     // ================================================================ actions
+
+    /// <summary>
+    /// **知识晋级**（`--promote`）：把活版 `knowledge.md` 拍成 `versions/knowledge-vNNNN.md` 并更新账本
+    /// 的 `Current` 与 `Versions`（只增不删）。
+    /// <para>幂等：活版 sha == Current.sha ⇒ 直接 no-op。收尾流程用它，**不靠人手工改 XML**。</para>
+    /// </summary>
+    public static int Promote(bool dry)
+    {
+        var ledgerPath = Path.Combine(KnowledgeRoot, ".ledger.xml");
+        if (!File.Exists(KnowledgeMd) || !File.Exists(ledgerPath))
+        {
+            Console.Error.WriteLine($"[KN] 缺文件：{KnowledgeMd} / {ledgerPath}");
+            return 2;
+        }
+
+        var doc = XDocument.Load(ledgerPath);
+        var current = doc.Root?.Element("Current") ?? throw new InvalidDataException("知识账本缺 <Current>");
+        var version = int.Parse(current.Element("Version")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var currentSha = current.Element("Sha256")?.Value ?? string.Empty;
+        var liveSha = Sha256File(KnowledgeMd);
+        var bytes = new FileInfo(KnowledgeMd).Length;
+
+        if (string.Equals(liveSha, currentSha, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"[KN] 活版与 v{version} 逐字节一致 ⇒ 无需晋级（no-op）");
+            return 0;
+        }
+
+        var next = version + 1;
+        var relative = $"versions/knowledge-v{next:0000}.md";
+        var target = Path.Combine(KnowledgeRoot, relative);
+        var note = KnowledgeNote();
+
+        Console.WriteLine($"[KN] 晋级 v{version} → v{next}：{relative}（{bytes} B · sha {liveSha[..12]}）");
+        if (dry) return 0;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(KnowledgeMd, target, overwrite: true);
+
+        current.SetElementValue("Version", next);
+        current.SetElementValue("File", relative);
+        current.SetElementValue("Sha256", liveSha);
+        current.SetElementValue("Bytes", bytes);
+        current.SetElementValue("At", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        current.SetElementValue("Source", "promote");
+        current.SetElementValue("Origin", "closeout --promote");
+        current.SetElementValue("Note", note);
+
+        var versions = doc.Root!.Element("Versions");
+        versions?.Add(new XElement("Version",
+            new XElement("Version", next),
+            new XElement("File", relative),
+            new XElement("Sha256", liveSha),
+            new XElement("Bytes", bytes),
+            new XElement("At", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+            new XElement("Source", "promote"),
+            new XElement("Origin", "closeout --promote"),
+            new XElement("Note", note)));
+
+        doc.Save(ledgerPath);
+        Console.WriteLine("[KN] 账本已更新（Current + Versions 两处）");
+        return 0;
+    }
+
+    private static string KnowledgeNote()
+    {
+        var summary = Path.Combine(KnowledgeRoot, ".derived", "summary.xml");
+        if (!File.Exists(summary)) return string.Empty;
+        try
+        {
+            var root = XDocument.Load(summary).Root;
+            return $"L1 {root?.Element("L1")?.Value} / L2 {root?.Element("L2")?.Value} / L3 {root?.Element("L3")?.Value} / L4 {root?.Element("L4")?.Value}"
+                   + $" · 边 {root?.Element("Edges")?.Value} · Orphans {root?.Element("Orphans")?.Value}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     /// <summary>幂等重生派生物：坑集索引 / 公开变体 / 水位索引区 + worker 自己的记忆索引。</summary>
     public static int Apply()
     {
         Console.WriteLine("[WB] 收尾流水线 --apply（幂等重生派生物）");
+        CompactToolFaceInbox();
         if (!File.Exists(CsDll))
         {
             Console.WriteLine($"  ❌ C# CLI 未构建：{Path.GetRelativePath(Project, CsDll)}");
@@ -1058,6 +1193,9 @@ public static class CloseoutCli
             ("坑集索引", ["--pitfalls-index", PitfallsSrc]),
             ("公开坑集变体", ["--pitfalls-public", PitfallsSrc]),
             ("水位/知识索引区", ["--doc-index", Live]),
+            // 2026-10-22：知识树派生**也归 --apply**（真机：收尾写完四层却没重派生 ⇒ 复检红「派生层与重算不一致」，
+            // 模型得再花一轮 `--kn-build`）。它是纯确定性重生 ⇒ 与上面几步同一性质。
+            ("知识树派生", ["--kn-build", Live]),
             // 主人 2026-10-14 令：改源码语料（USER.md 等）⇒ 收尾时**自动重生 + 漏账 auto-bump**，
             // 免得「改了源忘了重生」让 R1 停在旧副本（`--bump all` 只 bump 真变了的 key，无变化 = 幂等）。
             ("冻结语料重生", ["--frozen-corpus", Live, "--bump", "all"]),
@@ -1107,6 +1245,32 @@ public static class CloseoutCli
         var outPath = Path.Combine(memoryDir, "index.md");
         File.WriteAllText(outPath, string.Join('\n', body) + "\n", new UTF8Encoding(false));
         return outPath;
+    }
+
+    /// <summary>工具面拒绝收件箱：同一条拒因只留一行（带次数），总量封顶 40 —— 防 189 条同类噪声淹没真缺陷。</summary>
+    private static void CompactToolFaceInbox()
+    {
+        var path = Path.Combine(Project, "docs", "TOOLFACE-PITFALLS.md");
+        if (!File.Exists(path)) return;
+
+        var lines = File.ReadAllLines(path, Encoding.UTF8).Where(l => l.Trim().Length > 0).ToList();
+        var groups = new Dictionary<string, (string At, int Count)>(StringComparer.Ordinal);
+        var order = new List<string>();
+        foreach (var line in lines)
+        {
+            var m = Regex.Match(line, @"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[[^\]]+\] (.*)$");
+            var key = m.Success ? m.Groups[2].Value : line;
+            var at = m.Success ? m.Groups[1].Value : string.Empty;
+            if (groups.TryGetValue(key, out var cur)) groups[key] = (at, cur.Count + 1);
+            else { groups[key] = (at, 1); order.Add(key); }
+        }
+
+        var output = order.TakeLast(40).Select(k => $"{groups[k].At} [toolface-rejection] {k}" + (groups[k].Count > 1 ? $"（共 {groups[k].Count} 次）" : string.Empty)).ToList();
+        if (output.Count != lines.Count || lines.Any(l => l.Contains("（共 ", StringComparison.Ordinal)))
+        {
+            File.WriteAllLines(path, output, new UTF8Encoding(false));
+            Console.WriteLine($"[WB] 工具面收件箱：{lines.Count} 行 → {output.Count} 行（同类合并）");
+        }
     }
 
     private static int RebuildWorkerIndex()
@@ -1189,18 +1353,38 @@ public static class CloseoutCli
         File.WriteAllText(path, string.Join('\n', outp).TrimEnd('\n') + "\n", new UTF8Encoding(false));
     }
 
+    /// <summary>降级不得抹掉更精确的既有读数（坑 #343）：读不到 ⇒ 保留上一轮 rX/rY，并标「本轮未复核」。</summary>
+    internal static (string Archive, string Project, bool Kept) PreserveConverge(string archive, string project)
+    {
+        static bool Missing(string v) => v is "none" or "?" || string.IsNullOrWhiteSpace(v);
+        if (!Missing(archive) && !Missing(project)) return (archive, project, false);
+        if (!File.Exists(WaterLive)) return (archive, project, false);
+
+        var text = File.ReadAllText(WaterLive, Encoding.UTF8);
+        var m = Regex.Match(text, @"- \*\*收敛点（机器可判）\*\*：存档 r(\d+)[^\n]*?代码仓 r(\d+)", RegexOptions.Multiline);
+        if (!m.Success) return (archive, project, false);
+
+        var a = Missing(archive) ? m.Groups[1].Value : archive;
+        var p = Missing(project) ? m.Groups[2].Value : project;
+        return (a, p, true);
+    }
+
     private static string RevLabel(string value) =>
         value is "none" or "?" || string.IsNullOrWhiteSpace(value) ? "none" : $"r{value}";
 
     private static string WriteConvergeLine(string archiveRev, string projectRev, int src, int idx, int parityOk, int parityTotal, string fingerprint, int blockRed = 0,
-        int knowledgeVersion = 0, int knowledgeL1 = 0, int knowledgeL4 = 0, int decisionConverged = 0, int decisionEntries = 0)
+        int knowledgeVersion = 0, int knowledgeL1 = 0, int knowledgeL4 = 0, int decisionConverged = 0, int decisionEntries = 0,
+        bool unverified = false)
     {
         // block 红**不再拒写**，但必须留在收敛点行里（主人 2026-10-17 令「留一点牙」：真问题不许被淹没）。
         var redMark = blockRed > 0 ? $" · ⚠️ block 红 {blockRed}（未收敛就收的尾）" : string.Empty;
+        var keptMark = unverified
+            ? $" · 沿用上次已复核 {RevLabel(archiveRev)}/{RevLabel(projectRev)}（本轮远端不可达，未复核；非降级覆盖）"
+            : string.Empty;
         var libs = knowledgeVersion > 0
             ? $" · 知识 v{knowledgeVersion}（L1 {knowledgeL1}/L4 {knowledgeL4}）· 决策 {decisionConverged}/{decisionEntries}"
             : string.Empty;
-        var line = $"{ConvergeMark}存档 {RevLabel(archiveRev)} · 代码仓 {RevLabel(projectRev)} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}{libs}{redMark}";
+        var line = $"{ConvergeMark}存档 {RevLabel(archiveRev)} · 代码仓 {RevLabel(projectRev)} · 坑集 {src}/{idx} · 活版↔存档区 {parityOk}/{parityTotal} · 指纹 {fingerprint[..12]}{libs}{redMark}{keptMark}";
         InsertConvergeLine(WaterLive, line);   // CORE 只写**自己那份**；第二副本交给 `Vcs.Sync`。
         return line;
     }
@@ -1248,20 +1432,22 @@ public static class CloseoutCli
         var total = readings.ParityTotal ?? 0;
         var aRev = readings.ArchiveRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
         var pRev = readings.ProjectRev?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        // 坑 #343：探针超时 ⇒ 不覆盖上一轮已复核的 rX/rY，改成「保留 + 本轮未复核」。
+        var (aEff, pEff, kept) = PreserveConverge(aRev, pRev);
 
         if (dry)
         {
-            Console.WriteLine($"[dry-run] 将写入收敛点：存档 {RevLabel(aRev)} · 代码仓 {RevLabel(pRev)} · 坑集 {src}/{idxLines} · 活版↔存档区 {total}/{total} · 指纹 {fp[..12]} · 知识 v{know.Version}（L1 {know.L1}/L4 {know.L4}）· 决策 {dec.Converged}/{dec.Entries}");
+            Console.WriteLine($"[dry-run] 将写入收敛点：存档 {RevLabel(aEff)} · 代码仓 {RevLabel(pEff)} · 坑集 {src}/{idxLines} · 活版↔存档区 {total}/{total} · 指纹 {fp[..12]} · 知识 v{know.Version}（L1 {know.L1}/L4 {know.L4}）· 决策 {dec.Converged}/{dec.Entries}");
             return 0;
         }
 
         // v86 收尾回执：4 组事实 + 与上次的增量；OC 只核这几行。
-        var receipt = BuildReceipt();
+        var receipt = BuildReceipt(aEff, pEff);
         receipt.Save(ReceiptPath);
         Console.WriteLine($"   回执：{ReceiptPath}（知识 v{know.Version} · 决策 {dec.Converged}/{dec.Entries} · 空档 {dec.Gaps}）");
 
-        var line = WriteConvergeLine(aRev, pRev, src, idxLines, total, total, fp, blockRed.Count,
-            know.Version, know.L1, know.L4, dec.Converged, dec.Entries);
+        var line = WriteConvergeLine(aEff, pEff, src, idxLines, total, total, fp, blockRed.Count,
+            know.Version, know.L1, know.L4, dec.Converged, dec.Entries, kept);
 
         var existing = LoadLedger();
         var debt = existing?.ReportDebt is { Count: > 0 } ex
@@ -1271,6 +1457,13 @@ public static class CloseoutCli
                 new() { Name = "知识树", Why = "派生落后于活版 ⇒ 跑 `AgentRuntime.Cli --kn-build <workspace>` 一条命令即可修" },
                 new() { Name = "冻结语料", Why = "主人 2026-09-23 令：语料 bump 属记账项、不阻断收尾" },
             };
+
+        // 欠账按**当前红绿**重算：已经变绿的项不再挂账（#332/#333 这类“历史欠账”不能永远漂着）。
+        debt = debt.Where(d =>
+        {
+            var same = results.FirstOrDefault(r => string.Equals(r.Name, d.Name, StringComparison.Ordinal));
+            return same is null || !same.Ok;
+        }).ToList();
 
         // 带着红的 block 项也记进账本（与水位行同一份事实的第二个落点 —— 不许只写一处）。
         foreach (var r in blockRed)
@@ -1285,8 +1478,9 @@ public static class CloseoutCli
         {
             Schema = 1,
             Fingerprint = fp,
-            LastCloseoutRev = readings.ArchiveRev,
-            LastCloseoutRevProject = readings.ProjectRev,
+            // 降级时也保留已复核的版本号（同 #343：账本不得比水位更模糊）。
+            LastCloseoutRev = int.TryParse(aEff, out var aLedger) ? aLedger : readings.ArchiveRev,
+            LastCloseoutRevProject = int.TryParse(pEff, out var pLedger) ? pLedger : readings.ProjectRev,
             MaxPitfallId = (int)maxid,
             PitfallsSrc = src,
             PitfallsIndex = idxLines,
@@ -1566,7 +1760,16 @@ public static class CloseoutCli
             passed++;
         }
 
-        var total = cases.Count(c => Applicable(c.Expect)) + 4;
+        // --- 单项：降级不得抹掉更精确的既有读数（坑 #343）---
+        var (keepA, keepP, keepKept) = CloseoutCli.PreserveConverge("none", "none");
+        var (exactA, exactP, exactKept) = CloseoutCli.PreserveConverge("136", "137");
+        var preserveOk = keepKept && !exactKept
+                         && keepA is not ("none" or "?") && keepP is not ("none" or "?")
+                         && exactA == "136" && exactP == "137";
+        Console.WriteLine($"  {(preserveOk ? "✅" : "❌")} {"降级保留既有收敛点",-24} 期望「none ⇒ 保留 rX/rY；已有真值 ⇒ 不标未复核」 → {(preserveOk ? $"保留 r{keepA}/r{keepP}" : "没保住")}");
+        if (preserveOk) passed++;
+
+        var total = cases.Count(c => Applicable(c.Expect)) + 5;
         Console.WriteLine($"汇总：{passed}/{total} 负例按预期变红{(passed == total ? "" : "  ← 有负例没拦住")}");
         if (Environment.GetEnvironmentVariable("KEEP_SELFTEST") == "1")
         {

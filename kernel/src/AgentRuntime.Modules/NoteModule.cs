@@ -117,12 +117,60 @@ public sealed class NoteModule : RuntimeModuleBase
             Directory.CreateDirectory(dir);
             var body = (File.Exists(path) ? string.Empty : $"# {name}\n") + "\n" + note.TrimEnd() + "\n";
             File.AppendAllText(path, body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            _sink?.Append(SessionEventKind.Hint, $"[笔记] 已落盘 {path}（{note.Length} 字符）");
+            var indexed = AppendIndexLine(name, note);
+            _sink?.Append(SessionEventKind.Hint,
+                $"[笔记] 已落盘 {path}（{note.Length} 字符）" + (indexed ? " · 索引已追加" : " · 索引未变"));
         }
         catch (Exception ex)
         {
             // 落盘失败**必须响亮**（不静默）——但**不阻断**本轮（记笔记不是关键路径）。
             _sink?.Append(SessionEventKind.Hint, $"[笔记] 落盘失败（{ex.GetType().Name}：{ex.Message}）—— 未记入 {path}");
+        }
+    }
+
+    /// <summary>
+    /// **[NOTE] 同时记入记忆索引**（主人 2026-10-22：「都记入 memory 和 memory-index」）。
+    /// <para>只追加到文件末尾一个**稳定的自动区**（`## 附：[NOTE] 自动追加`），不往主时间线里插行 ——
+    /// 主表由收尾维护（按日期排序），自动追加不该改它的次序。同一条（同日期 + 同首行）不重复写。</para>
+    /// <para>失败**不阻断**记笔记（索引是派生视图；正文已落盘才算数），但要在流里说清。</para>
+    /// </summary>
+    /// <returns>真的追加了才 true（重复 ⇒ false）。</returns>
+    private bool AppendIndexLine(string day, string note)
+    {
+        try
+        {
+            var indexPath = Path.Combine(_workspace, MemoryIndexLiveModule.RelativePath);
+            var dir = Path.GetDirectoryName(indexPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            const string Heading = "## 附：[NOTE] 自动追加（按日）";
+            var head = First(note).Replace('|', '/').Trim();
+            if (head.Length > 80)
+            {
+                head = head[..80] + "…";
+            }
+
+            var line = $"- {day} {DateTimeOffset.Now:HH:mm} — {head}（`memory/{day}.md`）";
+            var existing = File.Exists(indexPath) ? File.ReadAllText(indexPath, Encoding.UTF8) : string.Empty;
+            if (existing.Contains(line, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            var prefix = existing.Length == 0
+                ? "# MEMORYINDEX（记忆索引）\n"
+                : existing.TrimEnd() + "\n\n";
+            var section = existing.Contains(Heading, StringComparison.Ordinal) ? string.Empty : Heading + "\n\n";
+            File.WriteAllText(indexPath, prefix + section + line + "\n", new UTF8Encoding(false));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _sink?.Append(SessionEventKind.Hint, $"[笔记] 索引追加失败（{ex.GetType().Name}：{ex.Message}）—— 正文已落盘，索引下次收尾补");
+            return false;
         }
     }
 

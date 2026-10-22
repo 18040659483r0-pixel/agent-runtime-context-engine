@@ -62,10 +62,10 @@ public sealed record DecisionReport : TaskDecisionReport
     /// </summary>
     public IReadOnlyList<string> Body { get; init; } = [];
 
-    /// <summary>四、**过程发现**（0~3 条：撞到的问题 / 顺手注意到的隐患）。</summary>
+    /// <summary>四、**过程发现**（0~3 条：撞到的问题 / 顺手注意到的隐患；默认逐条成行，`Tabular` 才排表格）。</summary>
     public IReadOnlyList<DecisionReportFinding> Found { get; init; } = [];
 
-    /// <summary>五、**接下来**（1~3 条编号建议，可点选 —— 与 L3 决策卡同一条链路）。</summary>
+    /// <summary>五、**接下来**（0~3 条：有真建议或**剩余待办怎么处理**才写；没有就整节省略，不倒空话）。</summary>
     public IReadOnlyList<DecisionReportNext> Next { get; init; } = [];
 }
 
@@ -79,7 +79,7 @@ public sealed record DecisionReportStep(int Index, string What, string? Evidence
 /// <param name="Kind">类别（<c>blocked</c> 卡住 / <c>failed</c> 失败 / <c>noticed</c> 顺手发现；缺省 <c>noticed</c>）。</param>
 /// <param name="What">一句话。</param>
 /// <param name="Evidence">证据锚（可空）。</param>
-public sealed record DecisionReportFinding(string Kind, string What, string? Evidence, string? Impact = null);
+public sealed record DecisionReportFinding(string Kind, string What, string? Evidence, string? Impact = null, bool Tabular = false);
 
 /// <summary>报告术语表的一条（v85）：缩写 / 类型名 / 别名 → 全称 + 一句人话。</summary>
 public sealed record DecisionReportTerm(string Key, string Meaning);

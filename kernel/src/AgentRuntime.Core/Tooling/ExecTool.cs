@@ -247,21 +247,43 @@ public sealed class ExecTool : LocalToolBase
         catch (OperationCanceledException)
         {
             killedByTimeout = true;
-            try
+            // **超时收尾必须两件事都做到**（2026-10-22 真机事故：exec 起的常驻服务在超时后仍活着，
+            // 继续占着终端并让调用方以为「停下了」）：
+            // ① 杀整棵树（两次：第一次后仍有残党就再杀一次 —— .NET 的树枚举是快照，孙进程可能晚一拍才出现）；
+            // ② 取消输出读取，**不让等待排空死锁**（管道还被孙进程持有时，排空会拖到远超超时）。
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                process.Kill(entireProcessTree: true);
+                try
+                {
+                    if (process.HasExited)
+                    {
+                        break;
+                    }
+
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(new CancellationTokenSource(2000).Token).ConfigureAwait(false);
+                    break;
+                }
+                catch (InvalidOperationException)
+                {
+                    // 已经自己退了 —— 无所谓。
+                    break;
+                }
+                catch (OperationCanceledException)
+                {
+                    // 2s 内没退 ⇒ 再杀一次，然后交给下面取消读取。
+                }
             }
-            catch (InvalidOperationException)
-            {
-                // 已经自己退了 —— 无所谓。
-            }
+
+            try { process.CancelOutputRead(); } catch (InvalidOperationException) { }
+            try { process.CancelErrorRead(); } catch (InvalidOperationException) { }
         }
 
         var exit = killedByTimeout ? (int?)null : process.ExitCode;
         var body = BuildBody(command, stdout.ToString(), stderr.ToString(), exit, killedByTimeout, context.Limits);
 
         return killedByTimeout
-            ? ToolOutcome.Failure($"{body}\n（超时 {timeout.TotalSeconds:0}s ⇒ 已终止；改 timeoutSeconds 或把命令拆小。）", body.Length >= context.Limits.MaxOutputChars)
+            ? ToolOutcome.Failure($"{body}\n（超时 {timeout.TotalSeconds:0}s ⇒ 已终止；改 timeoutSeconds 或把命令拆小。常驻服务/服务器请后台启动：`nohup <cmd> > /tmp/x.log 2>&1 < /dev/null &`，再用端口探针验证。）", body.Length >= context.Limits.MaxOutputChars)
             : exit == 0
                 ? ToolOutcome.Success(body, body.Length >= context.Limits.MaxOutputChars)
                 : ToolOutcome.Failure(body, body.Length >= context.Limits.MaxOutputChars);

@@ -14,12 +14,13 @@ namespace AgentRuntime.Tui2;
 /// **决策卡 · 按 turn 顺序显示**（TUI2 版）。
 /// <para>
 /// 一段 = 一个 <c>AgentOutput</c>（内部一轮）：<br/>
-/// <c>意图：</c>这一轮要做什么（<c>[TAIL]</c> 的 solve，沿用上一轮）<br/>
+/// <c>意图：</c>这一轮要做什么（solve / step / 计划式正文 / **由本轮工具调用合成**；都没有才沿用）<br/>
 /// <c>操作：</c>这一轮真正跑过的工具（<c>tool×N</c>，被拒单列）<br/>
-/// <c>结果：</c>这一轮切掉自报块后的正文首行（带 <c>E###</c> 锚）<br/>
+/// <c>结果：</c>正文首行；工具轮没有正文 ⇒ 本轮最后一条工具结果的首行<br/>
 /// 段与段之间空一行；全部跑完后，再接 TUI1 同款的**决策报告**。
 /// </para>
-/// <para>措辞 / 字段口径复刻 TUI1：solve 走 <see cref="SolveHeader"/>，正文切块走 <see cref="ProseCut"/>，
+/// <para><b>每段两行</b>：<c>意图：… (操作)</c>（操作灰色括号挂行尾）+ <c>结果：…</c>。<br/>
+/// 措辞 / 字段口径复刻 TUI1：solve 走 <see cref="SolveHeader"/>，正文切块走 <see cref="ProseCut"/>，
 /// 报告走 <see cref="DecisionReportParser"/> + <see cref="LifecyclePresenter.Brief"/>。</para>
 /// </summary>
 public static class TurnCardView
@@ -35,30 +36,42 @@ public static class TurnCardView
 
         var blocks = new List<TurnBlock>();
         var operations = new List<LifecycleTraceEntry>();
-        var intent = string.Empty;
-        var first = true;
         var lastOutput = lifecycle.Trace.LastOrDefault(static e => e.Kind == SessionEventKind.AgentOutput);
+        TurnBlock? open = null;
 
         foreach (var entry in lifecycle.Trace)
         {
             if (entry.Kind == SessionEventKind.AgentOutput)
             {
-                // 本轮意图 = **远端模型自己的语义**：
-                // ① 本轮 [TAIL] solve（模型原话）；② 第一轮没 solve 时用本轮正文首行（模型对指示的整理）；
-                // ③ 都没有才沿用上一轮。**绝不再回填用户请求**（那会把用户命令重复到每一段）。
-                var prose = ProseCut.BeforeFirstBlock(entry.Text);
-                var current = IntentOf(entry);
-                if (current.Length > 0)
+                // **上一段先收口**：工具结果跟在「发起它的那一轮」后面，归上一段（不能记到下一段头上）。
+                if (open is not null)
                 {
-                    intent = current;
-                }
-                else if (first && intent.Length == 0)
-                {
-                    var candidate = FirstLine(prose);
-                    if (IsSemantic(candidate)) intent = candidate;
+                    // v88：上一轮的结果由**模型自己**用一句人话交代（[RESULT]），比运行时拼工具串更可读。
+                    var said = ResultOf(entry.Text);
+                    if (said.Length > 0) open = open with { Result = said, Tag = string.Empty };
+                    blocks.Add(Finish(open, operations, lifecycle.IsSettled));
+                    operations.Clear();
                 }
 
-                first = false;
+                var prose = ProseOf(entry.Text);
+                var callsNow = ToolCallsOf(entry.Text);
+
+                // 本轮语义（按「像不像计划」排序）：
+                // ① [TAIL] solve ② step 行 ③ 计划式正文（"我先/接下来/需要…"）
+                // ④ **由本轮工具调用合成**（think=low 没有思维链，工具+参数就是它的计划）
+                // ⑤ 没有工具 ⇒ "汇总结果并作答"；都没有才沿用上一轮。
+                var current = PlanOf(entry.Text);       // v87：模型自己的每轮白话意图
+                if (current.Length == 0) current = IntentOf(entry);
+                if (current.Length == 0) current = StepOf(entry);
+                if (current.Length == 0)
+                {
+                    var candidate = FirstLine(prose);
+                    if (IsPlanLike(candidate)) current = candidate;
+                }
+
+                if (current.Length == 0) current = DeriveIntent(callsNow);
+                if (current.Length == 0 && IsSemantic(FirstLine(prose))) current = "汇总结果并作答";
+
                 var result = FirstLine(prose);
                 var fromTerminal = false;
                 // 终局块被 ProseCut 切掉了；最后一轮的「结果」要用 life.Result（否则只剩「—」）。
@@ -70,14 +83,7 @@ public static class TurnCardView
 
                 // 正文里已经带了 E### 锚（模型自己写的）⇒ 不再追加本轮 Tag，避免「（E046）。（E048）」。
                 var tag = fromTerminal || HasAnchor(result) ? string.Empty : entry.Tag;
-                blocks.Add(new TurnBlock(
-                    intent,
-                    FormatOperations(operations),
-                    result,
-                    tag));
-
-                operations.Clear();
-                if (current.Length > 0) intent = current;
+                open = new TurnBlock(current, string.Empty, result, tag);
             }
             else if (entry.Kind is SessionEventKind.ToolResult or SessionEventKind.ToolDenied)
             {
@@ -85,22 +91,18 @@ public static class TurnCardView
             }
         }
 
-        // 还在跑、且最后一批工具已经落地但还没有下一轮正文 ⇒ 给一个「进行中」段。
-        if (operations.Count > 0 && !lifecycle.IsSettled)
+        if (open is not null)
         {
-            blocks.Add(new TurnBlock(intent, FormatOperations(operations), "（进行中）", string.Empty));
+            blocks.Add(Finish(open, operations, lifecycle.IsSettled));
+        }
+        else if (operations.Count > 0 && !lifecycle.IsSettled)
+        {
+            // 一条 AgentOutput 都没有、但工具跑了（极端）：仍给一段。
+            blocks.Add(new TurnBlock(string.Empty, FormatOperations(operations), "（进行中）", string.Empty));
         }
 
         // 纯报告轮 / 空输出不占段落：三样都空的 block 没有可读内容。
         blocks.RemoveAll(static b => b.Intent.Length == 0 && b.Operation.Length == 0 && b.Result.Length == 0);
-
-        // 后续段没有新 solve ⇒ 沿用上一段的意图（同一 task 的方向不变）。
-        var carried = blocks.Count > 0 ? blocks[0].Intent : string.Empty;
-        for (var i = 1; i < blocks.Count; i++)
-        {
-            if (blocks[i].Intent.Length == 0) blocks[i] = blocks[i] with { Intent = carried };
-            else carried = blocks[i].Intent;
-        }
 
         // 极端情形：只有终局、没有任何 AgentOutput 正文 ⇒ 仍给一段，别让卡空着。
         if (blocks.Count == 0 && lifecycle.Result.Length > 0)
@@ -122,8 +124,9 @@ public static class TurnCardView
         foreach (var block in blocks)
         {
             if (lines.Count > 0) lines.Add(string.Empty);
-            lines.Add("意图：" + (block.Intent.Length == 0 ? "—" : block.Intent));
-            lines.Add("操作：" + (block.Operation.Length == 0 ? "—" : block.Operation));
+            // 操作不占一行：灰色括号挂在意图行尾（省一行；没有就什么都不挂）。
+            var operation = block.Operation.Length == 0 ? string.Empty : "[[dim]](" + block.Operation + ")[[/]]";
+            lines.Add("意图：" + (block.Intent.Length == 0 ? "-" : block.Intent) + operation);
             lines.Add("结果：" + (block.Result.Length == 0 ? "—" : block.Result)
                       + (block.Tag.Length == 0 ? string.Empty : $"（{block.Tag}）"));
         }
@@ -153,6 +156,143 @@ public static class TurnCardView
             "   意图 / 操作 / 结果三段一组，段间空行。",
         ]);
 
+    /// <summary>收口一段：补操作 + 工具轮的结果摘要；未结束且没结果时标「进行中」。</summary>
+    private static TurnBlock Finish(TurnBlock block, IReadOnlyList<LifecycleTraceEntry> operations, bool settled)
+    {
+        var operation = FormatOperations(operations);
+        var result = block.Result;
+        var tag = block.Tag;
+        if (result.Length == 0)
+        {
+            result = OutcomeOf(operations);
+            tag = string.Empty;   // 结果来自工具结果 ⇒ 不再挂发起轮的 E###（避免「结果（E020）」张冠李戴）
+        }
+
+        if (operation.Length > 0 && !settled && result.Length == 0) result = "（进行中）";
+        return block with { Operation = operation, Result = result, Tag = tag };
+    }
+
+    /// <summary>工具轮的结果摘要（模型没写 [RESULT] 时的兜底）：尽量说成人话，不直接贴工具串。</summary>
+    private static string OutcomeOf(IReadOnlyList<LifecycleTraceEntry> operations)
+    {
+        var results = operations.Where(static e => e.Kind == SessionEventKind.ToolResult).ToList();
+        if (results.Count == 0) return string.Empty;
+
+        var last = results[^1];
+        var text = Describe(last.Source ?? string.Empty, last.Text);
+        return results.Count == 1 ? text : $"{results.Count} 条工具结果；最后：{Clip(text, 70)}";
+    }
+
+    private static string Describe(string tool, string raw)
+    {
+        var text = (raw ?? string.Empty).Replace("\r\n", "\n").Trim();
+        if (tool == "exec")
+        {
+            var m = Regex.Match(text, @"^exec\s+(.*?)\s+→\s+exit\s+(-?\d+)(?:\n--- stdout ---\n(.*))?$", RegexOptions.Singleline);
+            if (m.Success)
+            {
+                var cmd = Clip(FirstLine(m.Groups[1].Value), 30);
+                var code = m.Groups[2].Value;
+                var stdout = m.Groups[3].Success ? FirstLine(m.Groups[3].Value) : string.Empty;
+                return "已运行 " + cmd + (code == "0" ? string.Empty : $"（exit {code}）")
+                       + (stdout.Length > 0 ? "：" + Clip(stdout, 60) : string.Empty);
+            }
+        }
+
+        return tool switch
+        {
+            "read" => $"已读取文件（{text.Length} 字）",
+            "write" => "已写入文件",
+            "edit" => "已修改文件",
+            "index" => "已取到定义",
+            "list" => $"已列出目录（{text.Length} 字）",
+            _ => Clip(FirstLine(text), 90),
+        };
+    }
+
+    private sealed record PlannedCall(string Tool, string Target);
+
+    /// <summary>从本轮输出里的工具块取出「打算做什么」（think=low 时唯一可靠的语义来源）。</summary>
+    private static List<PlannedCall> ToolCallsOf(string text)
+    {
+        var list = new List<PlannedCall>();
+        if (string.IsNullOrEmpty(text)) return list;
+
+        foreach (Match call in Regex.Matches(text, @"<call>(.*?)</call>", RegexOptions.Singleline))
+        {
+            var body = call.Groups[1].Value;
+            var name = Regex.Match(body, @"<name>\s*([^<]+?)\s*</name>");
+            if (!name.Success) continue;
+
+            var target = string.Empty;
+            foreach (var member in new[] { "path", "command", "symbol", "query", "url", "dir", "task", "content" })
+            {
+                var m = Regex.Match(body, "<" + member + ">(.*?)</" + member + ">", RegexOptions.Singleline);
+                if (m.Success)
+                {
+                    target = m.Groups[1].Value.Trim();
+                    break;
+                }
+            }
+
+            list.Add(new PlannedCall(name.Groups[1].Value.Trim(), target));
+        }
+
+        return list;
+    }
+
+    /// <summary>把「计划」合成一句人读的意图；没有工具调用就返回空（交给上一轮沿用）。</summary>
+    private static string DeriveIntent(IReadOnlyList<PlannedCall> calls)
+    {
+        if (calls.Count == 0) return string.Empty;
+
+        var parts = new List<string>();
+        foreach (var call in calls)
+        {
+            var phrase = call.Tool switch
+            {
+                "read" => "读取 " + ShortName(call.Target),
+                "list" => "列出 " + ShortName(call.Target),
+                "write" => "写入 " + ShortName(call.Target),
+                "edit" => "修改 " + ShortName(call.Target),
+                "index" => "检索符号 " + Clip(call.Target, 28),
+                "exec" => "运行 " + Clip(FirstLine(call.Target), 36),
+                "web_fetch" or "web_download" => "抓取 " + Clip(call.Target, 36),
+                "web_search" => "检索 " + Clip(call.Target, 28),
+                "http_request" => "发 HTTP 请求 " + Clip(call.Target, 32),
+                "scope" => "定位任务范围",
+                _ => call.Tool,
+            };
+
+            if (phrase.Length > 0 && !parts.Contains(phrase)) parts.Add(phrase);
+            if (parts.Count == 3) break;
+        }
+
+        return parts.Count == 0 ? string.Empty : string.Join("，", parts);
+    }
+
+    private static string ShortName(string path)
+    {
+        var value = Clip(FirstLine(path), 60);
+        if (value.Length == 0) return "文件";
+        var slash = value.LastIndexOf('/');
+        return slash >= 0 && slash + 1 < value.Length ? value[(slash + 1)..] : value;
+    }
+
+    private static string Clip(string text, int max)
+    {
+        var value = (text ?? string.Empty).Replace("\r", string.Empty).Replace("\n", " ").Trim();
+        return value.Length <= max ? value : value[..max] + "…";
+    }
+
+    /// <summary>本轮的 <c>[TAIL] step:</c> 行（模型自己写的「这一步做什么」）。</summary>
+    private static string StepOf(LifecycleTraceEntry entry)
+    {
+        if (!CurrentTailService.TryParseReport(entry.Text, out var tailLines)) return string.Empty;
+        var m = Regex.Match(string.Join("\n", tailLines), @"(?m)^\s*step:\s*(?:\d+\s*[-—]+\s*)?(.+?)\s*$");
+        return m.Success ? m.Groups[1].Value.Trim() : string.Empty;
+    }
+
     private static string IntentOf(LifecycleTraceEntry entry)
     {
         if (!CurrentTailService.TryParseReport(entry.Text, out var tail)) return string.Empty;
@@ -173,6 +313,48 @@ public static class TurnCardView
         }
 
         return FirstLine(value);
+    }
+
+    /// <summary><c>[PLAN]</c> 一行的正文（v87：每轮白话意图）。</summary>
+    private static string PlanOf(string text) => ReportLine(text, ProtocolText.PlanPrefix);
+
+    /// <summary><c>[RESULT]</c> 一行的正文（v88：上一轮做了什么、得到什么）。</summary>
+    private static string ResultOf(string text) => ReportLine(text, ProtocolText.ResultPrefix);
+
+    private static string ReportLine(string text, string prefix)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed[prefix.Length..].TrimStart('：', ':', ' ', '-');
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>正文（先剥掉 <c>[PLAN]</c> / <c>[RESULT]</c> 两行，再按块头切；否则结果会被它们吃掉）。</summary>
+    private static string ProseOf(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        var cleaned = string.Join('\n', text.Replace("\r\n", "\n").Split('\n')
+            .Where(static l =>
+            {
+                var t = l.TrimStart();
+                return !t.StartsWith(ProtocolText.PlanPrefix, StringComparison.OrdinalIgnoreCase)
+                       && !t.StartsWith(ProtocolText.ResultPrefix, StringComparison.OrdinalIgnoreCase);
+            }));
+        return ProseCut.BeforeFirstBlock(cleaned);
+    }
+
+    /// <summary>像「计划」的句子（rather than 结果陈述）。</summary>
+    private static bool IsPlanLike(string text)
+    {
+        if (!IsSemantic(text)) return false;
+        return Regex.IsMatch(text, "^(我?先|接下来|现在|将要|准备|让我|我需要|需要|打算|计划|检查|确认|读取|查看|运行|修改|写入|定位|核对|搜索|检索|列出)");
     }
 
     private static bool IsSemantic(string text) =>
@@ -221,7 +403,7 @@ public static class TurnCardView
         var parts = order.Select(tool => $"{tool}×{counts[tool]}").ToList();
         if (denied > 0) parts.Add($"被拒 {denied}");
         var text = string.Join(" · ", parts);
-        if (paths.Count > 0) text += $"（改动 {paths.Count} 个路径）";
+        if (paths.Count > 0) text += $" · 改动 {paths.Count} 路径";
         return text;
     }
 
@@ -254,6 +436,64 @@ public static class TurnCardView
             Ledger: LifecyclePresenter.Footer(lifecycle));
 
         var brief = LifecyclePresenter.Brief(parsed.Accepted ? parsed.Report : null, frame);
-        return brief.Lines.Select(Markup.Strip).ToArray();
+        return DecorateReport(brief.Lines);
+    }
+
+    /// <summary>
+    /// 报告排版（TUI2）：**段落之间空一行**（标题前插空行；段内不动）、标题与**概念**用深黄（Noun）。
+    /// <para>概念清单从「术语」小节取（`名字 = 解释`）—— 中文概念也能被点名着色，不靠猜词性。</para>
+    /// </summary>
+    internal static IReadOnlyList<string> DecorateReport(IReadOnlyList<string> lines)
+    {
+        // ① 收集术语名（术语小节里的 `名字 = …` 左侧）。
+        var terms = new List<string>();
+        var inTerms = false;
+        foreach (var raw in lines)
+        {
+            var line = Markup.Strip(raw).TrimEnd();
+            if (line.Trim() == "术语") { inTerms = true; continue; }
+            if (inTerms && Regex.IsMatch(line, @"^[一二三四五六]、\s*")) break;
+            if (inTerms)
+            {
+                var m = Regex.Match(line, @"^\s{2,}(.+?)\s+=\s+");
+                if (m.Success) terms.Add(m.Groups[1].Value.Trim());
+            }
+        }
+
+        terms = terms.Distinct(StringComparer.Ordinal).OrderByDescending(static x => x.Length).ToList();
+
+        // ② 排版 + 上色。
+        var output = new List<string>();
+        foreach (var raw in lines)
+        {
+            var line = Markup.Strip(raw);
+            var trimmed = line.Trim();
+
+            if (trimmed == "术语" || Regex.IsMatch(trimmed, @"^[一二三四五六]、\s*"))
+            {
+                if (output.Count > 0 && output[^1].Length > 0) output.Add(string.Empty);
+                output.Add("[[noun]]" + line + "[[/]]");
+                continue;
+            }
+
+            var def = Regex.Match(line, @"^(\s{2,})(.+?)(\s+=\s+.*)$");
+            if (def.Success)
+            {
+                output.Add(def.Groups[1].Value + "[[noun]]" + def.Groups[2].Value + "[[/]]" + def.Groups[3].Value);
+                continue;
+            }
+
+            // 正文里的概念：把术语名替换成深黄（长词优先，避免子串先吃）。
+            var styled = line;
+            foreach (var term in terms)
+            {
+                if (term.Length < 2) continue;
+                styled = styled.Replace(term, "[[noun]]" + term + "[[/]]", StringComparison.Ordinal);
+            }
+
+            output.Add(styled);
+        }
+
+        return output;
     }
 }

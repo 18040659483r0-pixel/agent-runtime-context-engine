@@ -167,11 +167,12 @@ public sealed class ProtocolZoneTests
         // 旧 TAIL/DRAFT 不反复自证 / 含 shell 元字符的脚本走单块 + 文件）；实测 **12,106 字符 ⇒ 3,027 token**、
         // 16 行 ⇒ 预算按先量后定为 **≤3,250**（v79 再补“不得复用坏路径名”）。
         // v86（2026-10-20）：新增第 20 条「收尾回执 + 两库生长硬闸门」⇒ 实测 15,714 字符 ⇒ 3,929 token、20 行。
-        Assert.Equal(3929, ProtocolText.EstimatedTokens);
-        Assert.Equal(4300, ProtocolText.DeclaredMaxTokens);
+        // v87（2026-10-20 23:5x）：新增第 21 条「每轮一行 [PLAN] 白话意图」。
+        Assert.Equal(4499, ProtocolText.EstimatedTokens);
+        Assert.Equal(4500, ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.EstimatedTokens <= ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.MaxTokens >= ProtocolText.DeclaredMaxTokens);
-        Assert.Equal(4300, ProtocolText.MaxTokens);
+        Assert.Equal(4500, ProtocolText.MaxTokens);
         Assert.Equal(110, ProtocolText.DeclaredMaxLines);
         Assert.True(ProtocolText.Lines.Count <= ProtocolText.DeclaredMaxLines);
 
@@ -182,9 +183,9 @@ public sealed class ProtocolZoneTests
         // v20（2026-09-22 17:0x）：第 6 条补负向口径（没结束不发终局块；[NO-SOLUTION] 只表示已证此路不通），版本号升 "20"。
         // v21（2026-09-24 19:4x）：新增第 12 条**决策报告**（[REPORT] 块，块 ≤30 行，必交、缺失即「未提交」），版本号升 "21"。
         // v24（2026-09-25）：第 13 条【派发给 Worker】口径落地；v25（同日夜）：第 5 条队列口径 + 第 12 条报告轮，版本号升 "25"。v26（2026-09-27）：第 5 条工具面补 index{symbol}（协议正文与工具面同一份渲染），版本号升 "26"。v27（2026-09-27）：第 5 条工具面补 scope{task}（任务地址表入口），版本号升 "27"。v28（2026-09-29）：第 5 条工具面形状改**行式键值**（去 JSON —— 与运行时工具面 / worker worker 协议区同一口径），版本号升 "28"。v64（2026-10-14）：第 5 条 [TAIL]/[DRAFT] 回转**每轮刷新**（v62-B 作废）。v65：长正文纪律。v66：task closeout 当轮说。v67（2026-10-15）：第 5 条回转 v64 —— **[TAIL]/[DRAFT] 只在真变了时才写**（没变就一个块都不写），版本号升 "67"。
-        Assert.EndsWith("86", ProtocolText.Version, StringComparison.Ordinal);
+        Assert.EndsWith("92", ProtocolText.Version, StringComparison.Ordinal);
         // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v86（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.Matches(@"^v92（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
         Assert.Contains(ProtocolText.DraftPrefix, ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.DraftMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.TailMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
@@ -229,8 +230,10 @@ public sealed class ProtocolZoneTests
         Assert.Contains(ProtocolText.ReportPrefix, ProtocolText.ReportBlockHeaders);
         Assert.Contains($"<={ProtocolText.ReportMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
 
-        Assert.Equal(13, ProtocolText.ReportBlockHeaders.Length);  // + [DISPATCH]（v23）+ [INTENT]（v33）+ [NOTE]（v58 · D3-A）+ [KN]（v74）
+        Assert.Equal(15, ProtocolText.ReportBlockHeaders.Length);  // + [DISPATCH]（v23）+ [INTENT]（v33）+ [NOTE]（v58 · D3-A）+ [KN]（v74）+ [PLAN]（v87）+ [RESULT]（v88）
         Assert.Contains(ProtocolText.DispatchPrefix, ProtocolText.ReportBlockHeaders);
+        Assert.Contains(ProtocolText.PlanPrefix, ProtocolText.ReportBlockHeaders);
+        Assert.Contains(ProtocolText.ResultPrefix, ProtocolText.ReportBlockHeaders);
     }
 
     // ---------------- P1：来源只能是代码 ----------------
@@ -263,9 +266,9 @@ public sealed class ProtocolZoneTests
 
         // 协议文本的唯一声明处是代码常量：改代码才能改协议。
         Assert.False(string.IsNullOrWhiteSpace(ProtocolText.Text));
-        Assert.EndsWith("86", ProtocolText.Version, StringComparison.Ordinal);
+        Assert.EndsWith("92", ProtocolText.Version, StringComparison.Ordinal);
         // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v86（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.Matches(@"^v92（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
 
         // 知识树配置只允许「**路径**」：Repo = 地址表。
         // 不得出现行数 / 上限 / **协议开关**这些「用户改协议」的口子。
@@ -776,6 +779,18 @@ public sealed class ProtocolZoneTests
         ["85"] = "c62c18af5ddeb6637f1e96ff9a5ea715dce0f262b513b4118e375403f6fdfdd6",
         // v86（2026-10-20 22:30 · 主人令）：新增第 20 条「收尾回执 + 两库生长硬闸门」。
         ["86"] = "46c7e48db5db9f5b57bb386e76e61e85a567456da99407c5fbba6148df4a8588",
+        // v87（2026-10-20 23:5x · 主人令「加协议 + 说人话」）：第 21 条 [PLAN] 每轮白话意图。
+        ["87"] = "78d283d13ef358f31f169b6d1a64fa5d3586513e64267e927c4b01fa5f8a9e0d",
+        // v88（2026-10-21 00:1x）：第 22 条 [RESULT] 白话结果（上一轮做了什么/得到什么）。
+        ["88"] = "05b6d82f6fd81b66b874fa64b98edd84dd437612f3f89f60a03dd29328e10d00",
+        // v89（2026-10-21 20:4x）：第 23 条收尾固定流水线（≤8 轮，不探索）。
+        ["89"] = "4822adf195ca770345ebae01298c9224c9794fe399787b8244f3f70c5af1cd2e",
+        // v90（2026-10-22 09:3x）：第 12 条 —— found 默认逐条成行（` | ` 才排表）· next 0~3 条可选（没建议整节省略，剩余待办要带处理建议）· 术语表保留。
+        ["90"] = "e0ca924c8614d9e2436a8093d7d961f4c0738a154f7528de96fe485e1c069cf4",
+        // v91（2026-10-22 21:5x）：第 12 条补「用户裸引用解析顺序」——先上一条报告的显示编号（1 / 2.x / 4.x / T1:Lx），再当日记忆索引，再三处其它位置。
+        ["91"] = "d057fd4163491f6e70cc7194a5f7fcca35bb5bd40985302ae231e6941b046c97",
+        // v92（2026-10-22 22:2x）：第 9 条 —— reset 收尾确认后**清空** [TAIL]/[DRAFT]（已办完的事不得出现在下一流）；未结的事进交接。
+        ["92"] = "651724357dc9480b1cab4a5b887d3347b6f9faa2c10906b274ac325fb23ac336",
     };
 
     /// <summary>找出「无主」的块形 token（去重、排序，便于断言）。</summary>

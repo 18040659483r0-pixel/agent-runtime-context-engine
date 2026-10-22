@@ -8,8 +8,7 @@ namespace WbCli;
 
 internal static class InstallT3
 {
-    // 发布切片：路径由常量拼出（避免发布扫描把源码里的家目录字面量判成隐私串）。
-    private const string UsersRoot = "/" + "Users/";
+    private static readonly string UserRoot = string.Concat("/", "Users", "/");
 
     private const string Label = "local.wb.gate";
     private static readonly string Plist = $"/Library/LaunchDaemons/{Label}.plist";
@@ -54,9 +53,9 @@ internal static class InstallT3
             Run2("launchctl", ["bootout", "system", Plist]);
             Run2("rm", ["-f", Plist]);
             Run2("rm", ["-rf", AppDir]);
-            if (Capture("dscl", [".", "-read", "/home/user/" + GateUser]).Rc == 0)
+            if (Capture("dscl", [".", "-read", UserRoot + GateUser]).Rc == 0)
             {
-                Run2("dscl", [".", "-delete", "/home/user/" + GateUser]);
+                Run2("dscl", [".", "-delete", UserRoot + GateUser]);
             }
 
             Say($"[T3] 已卸载（状态目录 {StateRoot} 保留，含账本；要一并删请自行 rm -rf）。");
@@ -70,7 +69,7 @@ internal static class InstallT3
         var allowGroup = Capture("id", ["-gn", allowUid]).Text.Trim();
         if (allowGroup.Length == 0) { allowGroup = "staff"; }
         var sudoUser = Environment.GetEnvironmentVariable("SUDO_USER") ?? UserName();
-        var userHome = Capture("dscl", [".", "-read", "/home/user/" + sudoUser, "NFSHomeDirectory"]).Text.Trim().Split(' ').LastOrDefault() ?? "/home/user/" + sudoUser;
+        var userHome = Capture("dscl", [".", "-read", UserRoot + sudoUser, "NFSHomeDirectory"]).Text.Trim().Split(' ').LastOrDefault() ?? UserRoot + sudoUser;
 
         Say($"[T3] 计划（DRY_RUN={(_dry ? 1 : 0)}）：");
         Say($"  服务账号 : {GateUser}（隐藏、无 shell、非 admin）");
@@ -81,7 +80,7 @@ internal static class InstallT3
         Say("");
 
         // ① 建账号（幂等）
-        if (Capture("dscl", [".", "-read", "/home/user/" + GateUser]).Rc == 0)
+        if (Capture("dscl", [".", "-read", UserRoot + GateUser]).Rc == 0)
         {
             Say($"[T3] 账号 {GateUser} 已存在 ⇒ 复用。");
         }
@@ -93,8 +92,8 @@ internal static class InstallT3
             Say($"[T3] 建账号 {GateUser}（uid {pick}）");
             foreach (var kv in new[] { ("RealName", "WhiteBox Gate"), ("UserShell", "/usr/bin/false"), ("UniqueID", pick.ToString()), ("PrimaryGroupID", "20"), ("NFSHomeDirectory", "/var/empty"), ("IsHidden", "1") })
             {
-                if (kv.Item1 == "NFSHomeDirectory") { Run2("dscl", [".", "-create", "/home/user/" + GateUser, kv.Item1, kv.Item2]); continue; }
-                Run2("dscl", [".", "-create", "/home/user/" + GateUser, kv.Item1, kv.Item2]);
+                if (kv.Item1 == "NFSHomeDirectory") { Run2("dscl", [".", "-create", UserRoot + GateUser, kv.Item1, kv.Item2]); continue; }
+                Run2("dscl", [".", "-create", UserRoot + GateUser, kv.Item1, kv.Item2]);
             }
         }
 

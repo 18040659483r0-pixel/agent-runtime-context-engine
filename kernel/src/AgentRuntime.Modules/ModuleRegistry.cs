@@ -199,7 +199,9 @@ public static class ModuleRegistry
                     break;
 
                 case MemoryIndexModule.ModuleName:
-                    modules.Add(new MemoryIndexModule(source, selection));
+                    // **master 走活版索引**（2026-10-22 主人令）：索引是「memory 的指针表」，每轮现读，
+                    // 不进 R1（否则每次收尾多一行 = 整段前缀换掉、缓存全归零）。worker 仍用冻结版（CreateWorker）。
+                    modules.Add(new MemoryIndexLiveModule(config.Lifecycle.Workspace));
                     break;
 
                 case DecisionModule.ModuleName:

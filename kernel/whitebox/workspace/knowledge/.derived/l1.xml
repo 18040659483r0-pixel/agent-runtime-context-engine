@@ -1,5 +1,10 @@
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-bak-001</Id><Text>**全量备份的成本由最大的那一件决定**：判「存下来要多大」不能看改了多少，要看占比前几名是什么；数据库、录音、压缩包、编译产物这类「每次重生成都是整份新内容」的东西，必须先挡在全量单位之外，否则每存一次就再付一整份。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-byp-001</Id><Text>**人机闸门必有机器等价通道**：凡「只有人能过」的闸门（图形验证码、人工审批、手工点选），必须在同一处提供一条仅限隔离环境、可审计、默认关闭的机器通道；用完必须复验通道已关闭。缺这条通道的直接后果是端到端验收降级成「看源文件」。**且通道用过一次就必须固化成脚本**：手工跑通的路径若不能一键重现，下次只能重做，还得再冒一次「忘了复位」的险；固化的脚本本身就是复算方式，且必须做到「不碰生产实例、不留需人收尾的状态」。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-clm-001</Id><Text>**现象不冒称机制**：读数只能证明「与什么相关」；说出机制名必须指得出「哪条读数排除了其它解释」，否则只许写现象。</Text></KnL1>
 <KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-err-001</Id><Text>**坏数据报错**：不可重建的数据（地址表/账本）必须抛错；可重建的缓存才允许降级。</Text></KnL1>
 <KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-evd-001</Id><Text>**证据优先**：说「完成」必须给出可复算的证据（命令 + 读数 + 复算方式），不接受自陈。</Text></KnL1>
 <KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-gate-001</Id><Text>**闸门留牙**：用「应该红」的负例证明；分母 0 印 N/A 并计欠账，不许印 PASS；豁免默认不豁免。</Text></KnL1>
 <KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-iso-001</Id><Text>**产物隔离**：为运行服务的中间产物放系统缓存/临时区，不进用户可见区；自产目录必须进自身扫描排除名单。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-oop-001</Id><Text>**一处实现**：同一条规则只允许有一个实现处。多态替代分支 —— 新增一类能力等于新增一个类型，不改旧类型里的条件分支；判据是「新增时你动了哪里」。</Text></KnL1>
 <KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-pfx-001</Id><Text>**稳定前缀**：改头部一个字节 ⇒ 缓存整段作废；内容只追加；动态内容永不前置。</Text></KnL1>
+<KnL1 xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Id>L1-side-001</Id><Text>**探测会写**：判定「这条探测安不安全」不能看探测者的意图，只能看被探测系统会为它写什么。凡带写入副作用的状态（绑定、计数、审计），探测输入必须是必然失败且无副作用的那一类。</Text></KnL1>

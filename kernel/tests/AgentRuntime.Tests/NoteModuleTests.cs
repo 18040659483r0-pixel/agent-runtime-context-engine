@@ -81,4 +81,30 @@ public sealed class NoteModuleTests
         Assert.Empty(messages);
         Assert.Equal("note", m.Name);
     }
+
+    [Fact]
+    public async Task 笔记同时进记忆索引_同一条不重复()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "note-index-" + Guid.NewGuid().ToString("N"));
+        var sink = new Sink();
+        var m = new NoteModule(dir, sink);
+        try
+        {
+            await ObserveAsync(m, "[NOTE] 索引也要有这一条");
+            await ObserveAsync(m, "[NOTE] 索引也要有这一条");   // 同文重复 ⇒ 索引不重复写
+
+            var index = Path.Combine(dir, NoteIndexFile);
+            Assert.True(File.Exists(index), "索引文件应被创建");
+            var body = File.ReadAllText(index);
+            Assert.Contains("索引也要有这一条", body, StringComparison.Ordinal);
+            Assert.Equal(1, body.Split("索引也要有这一条").Length - 1);
+            Assert.Contains(sink.Events, e => e.Contains("索引已追加", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private const string NoteIndexFile = "MEMORYINDEX.md";
 }

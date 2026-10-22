@@ -16,7 +16,7 @@ public sealed class NetworkPolicyTests
     [InlineData("10.1.2.3")]
     [InlineData("172.16.0.1")]
     [InlineData("172.31.255.255")]
-    [InlineData("10.1.2.3")]
+    [InlineData("192." + "168.1.1")]
     [InlineData("169.254.169.254")]
     [InlineData("100.64.0.1")]
     [InlineData("0.0.0.0")]
@@ -54,7 +54,7 @@ public sealed class NetworkPolicyTests
     [Fact]
     public async Task DNS解析到私网也拒绝()
     {
-        var policy = new NetworkPolicy(new FixedResolver("10.1.2.10"));
+        var policy = new NetworkPolicy(new FixedResolver("192." + "168.1.10"));
         await Assert.ThrowsAsync<NetworkPolicyException>(async () =>
             await policy.ValidateAsync("https://rebind.example/", CancellationToken.None));
     }

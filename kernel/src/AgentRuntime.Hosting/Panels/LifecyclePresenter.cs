@@ -592,14 +592,18 @@ public static class LifecyclePresenter
             }
         }
 
+        // **节号按「实际出现的节」顺排**（2026-10-22：四/五 变可选后，空节会留下断号 ⇒ 一/二/三 跳跃不连贯）
+        var sectionNo = 0;
+        string NextSection() => SectionNumbers[sectionNo++];
+
         // —— 一、这一轮要解决什么 ——
-        lines.Add($"[[strong]]{SectionNumbers[0]}、这一轮要解决什么[[/]]");
+        lines.Add($"[[strong]]{NextSection()}、这一轮要解决什么[[/]]");
         lines.AddRange(Paragraph(report.Need));
 
         // —— 二、怎么解的（按解步推进；编号是**宿主的**显示键，与模型的 step 号无关）——
         if (report.Steps.Count > 0)
         {
-            lines.Add($"[[strong]]{SectionNumbers[1]}、怎么解的[[/]]");
+            lines.Add($"[[strong]]{NextSection()}、怎么解的[[/]]");
             for (var i = 0; i < report.Steps.Count; i++)
             {
                 var step = report.Steps[i];
@@ -618,49 +622,58 @@ public static class LifecyclePresenter
         }
 
         // —— 三、结果（一段；不截断）——
-        lines.Add($"[[strong]]{SectionNumbers[2]}、结果[[/]]");
+        lines.Add($"[[strong]]{NextSection()}、结果[[/]]");
         lines.AddRange(Paragraph(report.Outcome));
 
-        // —— 四、过程发现（≥2 条排表格；否则项目符）——
-        if (report.Found.Count >= FoundTableThreshold)
+        // —— 四、过程发现（**默认逐条成行**；只有作者用 ` | ` 明确排字段时才排表格）——
+        // 主人 2026-10-22：表格是**手段**，不是默认形态；只有内容天然成表（同类字段并排对比）时才用。
+        // 判据交给作者：协议第 12 条允许在 found 行里用 " | " 分字段 ⇒ 全部条目都这么写才排表。
+        if (report.Found.Count > 0)
         {
-            lines.Add($"[[strong]]{SectionNumbers[3]}、过程发现[[/]]");
-            var rows = new List<IReadOnlyList<string>>(report.Found.Count);
-            for (var i = 0; i < report.Found.Count; i++)
+            var foundSection = NextSection();
+            lines.Add($"[[strong]]{foundSection}、过程发现[[/]]");
+            var tabular = report.Found.Count >= FoundTableThreshold && report.Found.All(static f => f.Tabular);
+            if (tabular)
             {
-                var finding = report.Found[i];
-                var key = $"T1:L{i + 1}";
-                if (!string.IsNullOrEmpty(finding.Evidence))
+                var rows = new List<IReadOnlyList<string>>(report.Found.Count);
+                for (var i = 0; i < report.Found.Count; i++)
                 {
-                    anchors.Add(new ReportAnchor(key, finding.Evidence!));
+                    var finding = report.Found[i];
+                    var key = $"T1:L{i + 1}";
+                    if (!string.IsNullOrEmpty(finding.Evidence))
+                    {
+                        anchors.Add(new ReportAnchor(key, finding.Evidence!));
+                    }
+
+                    rows.Add([FindingLabel(finding.Kind), Collapse(finding.What), Collapse(finding.Impact ?? ""), finding.Evidence ?? ""]);
                 }
 
-                rows.Add([FindingLabel(finding.Kind), Collapse(finding.What), Collapse(finding.Impact ?? ""), finding.Evidence ?? ""]);
+                lines.Add("   T1 过程发现");
+                var foundHeaders = report.Found.Any(f => !string.IsNullOrWhiteSpace(f.Impact))
+                    ? new[] { "类别", "发现", "影响", "锚" }
+                    : new[] { "类别", "发现", "锚" };
+                var foundRows = foundHeaders.Length == 4
+                    ? rows
+                    : rows.Select(r => (IReadOnlyList<string>)new[] { r[0], r[1], r[3] }).ToList();
+                lines.AddRange(TextTable.Render(foundHeaders, foundRows).Select(static line => "   " + line.ToMarkup()));
             }
-
-            lines.Add("   T1 过程发现");
-            var foundHeaders = report.Found.Any(f => !string.IsNullOrWhiteSpace(f.Impact))
-                ? new[] { "类别", "发现", "影响", "锚" }
-                : new[] { "类别", "发现", "锚" };
-            var foundRows = foundHeaders.Length == 4
-                ? rows
-                : rows.Select(r => (IReadOnlyList<string>)new[] { r[0], r[1], r[3] }).ToList();
-            lines.AddRange(TextTable.Render(foundHeaders, foundRows).Select(static line => "   " + line.ToMarkup()));
-        }
-        else if (report.Found.Count == 1)
-        {
-            lines.Add($"[[strong]]{SectionNumbers[3]}、过程发现[[/]]");
-            var finding = report.Found[0];
-            var key = "§4.1";
-            if (!string.IsNullOrEmpty(finding.Evidence))
+            else
             {
-                anchors.Add(new ReportAnchor(key, finding.Evidence!));
-            }
+                for (var i = 0; i < report.Found.Count; i++)
+                {
+                    var finding = report.Found[i];
+                    var key = $"§{sectionNo}.{i + 1}";
+                    if (!string.IsNullOrEmpty(finding.Evidence))
+                    {
+                        anchors.Add(new ReportAnchor(key, finding.Evidence!));
+                    }
 
-            lines.Add($"   4.1 {FindingLabel(finding.Kind)}：{Collapse(finding.What)}{InlineAnchor(finding.Evidence)}");
-            if (!string.IsNullOrWhiteSpace(finding.Impact))
-            {
-                lines.Add($"      影响：{Collapse(finding.Impact)}");
+                    lines.Add($"   4.{i + 1} {FindingLabel(finding.Kind)}：{Collapse(finding.What)}{InlineAnchor(finding.Evidence)}");
+                    if (!string.IsNullOrWhiteSpace(finding.Impact))
+                    {
+                        lines.Add($"      影响：{Collapse(finding.Impact)}");
+                    }
+                }
             }
         }
 
@@ -668,9 +681,9 @@ public static class LifecyclePresenter
         if (report.Next.Count > 0)
         {
             var nextHeading = frame.Status == TaskLifecycleStatus.WaitingForUser
-                ? "五、建议处理方式与后果（回 1 / 2 / 3，或直接说）"
-                : "五、接下来（回 1 / 2 / 3，或直接说）";
-            lines.Add($"[[strong]]{nextHeading}[[/]]");
+                ? "建议处理方式与后果（回 1 / 2 / 3，或直接说）"
+                : "接下来（回 1 / 2 / 3，或直接说）";
+            lines.Add($"[[strong]]{NextSection()}、{nextHeading}[[/]]");
             foreach (var item in report.Next)
             {
                 var mark = item.Recommended ? " [[dim]]（它建议）[[/]]" : string.Empty;
@@ -688,7 +701,7 @@ public static class LifecyclePresenter
         // （与结果区同一口径：「决定型内容不截断」）。
         if (report.Body.Count > 0)
         {
-            lines.Add($"[[strong]]{SectionNumbers[5]}、成品正文（可直接使用）[[/]]");
+            lines.Add($"[[strong]]{NextSection()}、成品正文（可直接使用）[[/]]");
             foreach (var line in report.Body)
             {
                 lines.Add("   " + line);

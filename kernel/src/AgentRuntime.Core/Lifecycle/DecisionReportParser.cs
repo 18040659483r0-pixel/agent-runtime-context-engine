@@ -200,7 +200,20 @@ public static class DecisionReportParser
 
                     var (foundText, foundEvidence) = SplitEvidence(value);
                     var (foundWhat, foundImpact) = SplitWhy(foundText);
-                    found.Add(new DecisionReportFinding(NormalizeFindingKind(qualifier), foundWhat, foundEvidence, foundImpact));
+                    // **表格是手段，不是默认**（v90）：作者用 " | " 分字段 ⇒ 才排表格；否则逐条成行。
+                    var tabular = foundWhat.Contains(" | ", StringComparison.Ordinal);
+                    if (tabular)
+                    {
+                        var parts = foundWhat.Split(" | ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 1)
+                        {
+                            foundWhat = parts[0];
+                            var rest = string.Join(" | ", parts.Skip(1));
+                            foundImpact = string.IsNullOrWhiteSpace(foundImpact) ? rest : rest + "；" + foundImpact;
+                        }
+                    }
+
+                    found.Add(new DecisionReportFinding(NormalizeFindingKind(qualifier), foundWhat, foundEvidence, foundImpact, tabular));
                     appendTo = merged =>
                     {
                         var last = found[^1];

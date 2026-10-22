@@ -153,9 +153,11 @@ public sealed class ReceiptDeclaredReadingsTests
     public void 截断的路径_不当候选_不产假红()
     {
         // 真机 2026-10-07：渲染行把长值缩成 `…/acc-…txt`，扫描把它当候选 ⇒ File.Exists 必假 ⇒ **假「路径不存在」补偿**。
-        Assert.Null(ReceiptGate.JudgeIfClaimed("changes: /home/user/…/AgentRuntime/…/acc-…txt"));
+        Assert.Null(ReceiptGate.JudgeIfClaimed("changes: /home/…/AgentRuntime/…/acc-…txt"));
         // 真路径仍然认（闸门没被削弱）
-        Assert.NotNull(ReceiptGate.JudgeIfClaimed("changes: /home/user/wazi/.openclaw/workspace/AGENTS.md"));
+        var existing = Path.GetTempFileName();
+        try { Assert.NotNull(ReceiptGate.JudgeIfClaimed("changes: " + existing)); }
+        finally { File.Delete(existing); }
     }
 
     [Fact]

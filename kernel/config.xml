@@ -6,59 +6,75 @@
   <ApiKeyEnv>AGENTRUNTIME_API_KEY</ApiKeyEnv>
   <ApiKeyFile>~/.agentruntime/api_key</ApiKeyFile>
   <TimeoutSeconds>1200</TimeoutSeconds>
+  <ConnectTimeoutSeconds>15</ConnectTimeoutSeconds>
   <Temperature xsi:nil="true" />
+  <ReasoningEffort>low</ReasoningEffort>
   <Modules>
+    <string>system-rules</string>
     <string>rules</string>
     <string>knowledge</string>
+    <string>decision</string>
+    <string>decision-bypass</string>
     <string>memory-index</string>
     <string>append-stream</string>
     <string>tool</string>
-    <string>worker-dispatch</string>
+    <string>note</string>
     <string>current-tail</string>
     <string>dynamic-draft</string>
     <string>focus</string>
   </Modules>
   <SystemRules />
   <SessionMaxTurns>0</SessionMaxTurns>
-  <ContextWindow>0</ContextWindow>
+  <!-- 窗口是模型事实；此值待主人确认（2026-10-17 [OC] 按 128K 假设置入，仅为让 80% 判据有分母） -->
+  <ContextWindow>128000</ContextWindow>
   <Frozen>
-    <Root>../../frozen</Root>
+    <Root>frozen-private</Root>
     <Domains />
     <Project />
   </Frozen>
   <Stream>
-    <Path />
+    <Path>state/stream.xml</Path>
     <MaxEvents>0</MaxEvents>
   </Stream>
   <Lifecycle>
-    <Window>closeout</Window>
+    <Workspace>whitebox/workspace</Workspace>
+    <Window>always</Window>
+    <Pitfalls>docs/PITFALLS.md</Pitfalls>
+    <PitfallsInbox>docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
     <Pipeline />
-    <NativeCloseout>false</NativeCloseout>
+    <Handover>state/handover.xml</Handover>
+    <NativeCloseout>true</NativeCloseout>
   </Lifecycle>
   <Snapshot>
+    <Path>state/snapshot.xml</Path>
     <Enabled>true</Enabled>
   </Snapshot>
   <Focus>
+    <Path>state/focus.xml</Path>
     <Policy>report</Policy>
     <TopK>16</TopK>
     <MinWeight>0.95</MinWeight>
     <HalfLifeTurns>40</HalfLifeTurns>
   </Focus>
-  <CurrentTail />
-  <DynamicDraft />
+  <CurrentTail>
+    <StorePath>state/tail</StorePath>
+  </CurrentTail>
+  <DynamicDraft>
+    <StorePath>state/draft</StorePath>
+  </DynamicDraft>
   <ToolQueue />
   <Knowledge>
-    <Repo>../../whitebox/workspace/knowledge/.derived/nodes.xml</Repo>
+    <Repo>whitebox/workspace/knowledge/.derived/nodes.xml</Repo>
   </Knowledge>
   <Worker>
-    <Enabled>true</Enabled>
-    <ProviderName>deepinfra</ProviderName>
+    <Enabled>false</Enabled>
+    <ProviderName />
     <Provider>
       <BaseUrl>https://api.deepinfra.com/v1/openai</BaseUrl>
       <Model>deepseek-ai/DeepSeek-V4-Flash-0731</Model>
       <ApiKeyEnv>AGENTRUNTIME_WORKER_API_KEY</ApiKeyEnv>
       <ApiKeyFile>~/.agentruntime/deepinfra_worker_key</ApiKeyFile>
-      <TimeoutSeconds>120</TimeoutSeconds>
+      <TimeoutSeconds>1200</TimeoutSeconds>
       <ServiceTier />
     </Provider>
     <Tools>
@@ -66,16 +82,17 @@
       <string>list</string>
       <string>write</string>
       <string>edit</string>
+      <string>exec</string>
     </Tools>
-    <MaxTurns>8</MaxTurns>
+    <MaxTurns>100</MaxTurns>
     <MaxPromptTokens>80000</MaxPromptTokens>
-    <Home>/home/user/wazi/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/whitebox/workspace/worker</Home>
+    <Home>../../whitebox/workspace/worker</Home>
     <MaxDispatchesPerReply>2</MaxDispatchesPerReply>
     <MaxWorkers>2</MaxWorkers>
     <BulkTokens>3000</BulkTokens>
     <BulkCumulativeTokens>6000</BulkCumulativeTokens>
     <Pace>
-      <Enabled>false</Enabled>
+      <Enabled>true</Enabled>
       <KMedian>3</KMedian>
       <ConstantTokens>30000</ConstantTokens>
       <GateSeconds>0</GateSeconds>
@@ -88,7 +105,26 @@
       <FallbackDecodeTokPerSec>25</FallbackDecodeTokPerSec>
       <FallbackOverheadSeconds>3</FallbackOverheadSeconds>
     </Pace>
-    <PitfallsInbox>/home/user/wazi/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/docs/WORKER-PITFALLS.md</PitfallsInbox>
-    <ApprovalLedgerPath>/home/user/wazi/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/whitebox/workspace/worker/approval-ledger.xml</ApprovalLedgerPath>
   </Worker>
+  <!-- 网络工具（第一批 5 个）：搜索后端 / 限额 / 下载目录 / authRef 声明（不写密钥值） -->
+  <Network>
+    <SearchBackend>none</SearchBackend>
+    <SearchEndpoint />
+    <SearchApiKeyEnv />
+    <TimeoutSeconds>30</TimeoutSeconds>
+    <MaxResponseBytes>2000000</MaxResponseBytes>
+    <MaxRedirects>5</MaxRedirects>
+    <MaxConcurrency>4</MaxConcurrency>
+    <CacheTtlSeconds>300</CacheTtlSeconds>
+    <DownloadRoots>
+      <string>whitebox/workspace/downloads</string>
+    </DownloadRoots>
+    <AllowedDownloadTypes>
+      <string>application/pdf</string>
+      <string>image/png</string>
+      <string>image/jpeg</string>
+      <string>text/plain</string>
+    </AllowedDownloadTypes>
+    <Credentials />
+  </Network>
 </RuntimeConfiguration>

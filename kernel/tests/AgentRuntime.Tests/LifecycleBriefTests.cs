@@ -76,14 +76,39 @@ public sealed class LifecycleBriefTests
         // 结果不截断
         Assert.Contains(brief.Lines, l => l.Contains("三处代号已统一；未动其它文件", StringComparison.Ordinal));
 
-        // 过程发现 ≥2 条 ⇒ 表格 T1（类别 / 发现 / 锚）
-        Assert.Contains(brief.Lines, l => l.Contains("T1 过程发现", StringComparison.Ordinal));
-        Assert.Contains(brief.Lines, l => l.Contains("失败", StringComparison.Ordinal) && l.Contains("edit 被锁", StringComparison.Ordinal));
+        // 过程发现**默认逐条成行**（v90：表格是手段不是默认）—— 没用 ` | ` 分字段就不排表
+        Assert.DoesNotContain(brief.Lines, l => l.Contains("T1 过程发现", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, l => l.Contains("4.1 失败：edit 被锁", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, l => l.Contains("4.2 发现：顺手发现 README 里也有一处", StringComparison.Ordinal));
 
         // 接下来：编号项 + 「它建议」标记 + 兜底通道行 + 账
         Assert.Contains(brief.Lines, l => l.Contains("1.", StringComparison.Ordinal) && l.Contains("我接着扫剩下的 2 处", StringComparison.Ordinal) && l.Contains("它建议", StringComparison.Ordinal));
         Assert.Contains(brief.Lines, l => l.Contains("/trace", StringComparison.Ordinal) && l.Contains("/result", StringComparison.Ordinal));
         Assert.Contains(brief.Lines, l => l.Contains("账：3 轮", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 过程发现_用竖线分字段时才排表格()
+    {
+        var report = Report(
+            "found failed: edit 被锁 | 改道 write 绕过 (E011)",
+            "found noticed: README 有一处 | 未影响运行 (E005)");
+
+        var brief = LifecyclePresenter.Brief(report, Frame());
+
+        Assert.Contains(brief.Lines, l => l.Contains("T1 过程发现", StringComparison.Ordinal));
+        Assert.Contains(brief.Lines, l => l.Contains("类别", StringComparison.Ordinal) && l.Contains("影响", StringComparison.Ordinal));
+        Assert.DoesNotContain(brief.Lines, l => l.Contains("4.1 失败", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 没有建议时_接下来整节省略()
+    {
+        var report = Report("found noticed: 一切正常 (E001)");
+
+        var brief = LifecyclePresenter.Brief(report, Frame());
+
+        Assert.DoesNotContain(brief.Lines, l => l.Contains("五、接下来", StringComparison.Ordinal));
     }
 
     [Fact]

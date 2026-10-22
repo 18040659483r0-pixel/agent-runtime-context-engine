@@ -119,7 +119,7 @@ public sealed class DecisionReportFlowTests
 
         Assert.Contains("决策报告 #1", card, StringComparison.Ordinal);
         Assert.Contains("⏳ 等人", card, StringComparison.Ordinal);
-        Assert.Contains("五、建议处理方式与后果", card, StringComparison.Ordinal);
+        Assert.Contains("建议处理方式与后果", card, StringComparison.Ordinal);   // 节号按实际出现顺排（v90 起四/五可缺）
         Assert.Contains("① 改现有层", card, StringComparison.Ordinal);
         Assert.Contains("后果：", card, StringComparison.Ordinal);
         Assert.Equal(2, session.Conversation.Count(static e => e.Kind is "you" or "lifecycle"));

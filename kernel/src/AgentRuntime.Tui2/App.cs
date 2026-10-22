@@ -58,6 +58,13 @@ public static class App
             conversation.Add("[会话] 配置 " + configPath);
             conversation.Add("[会话] Enter 提交 · Ctrl+J/Alt+Enter 换行 · Ctrl+C 两下退出 · Ctrl+L 重画");
 
+            // **按会话指针收口**（与 TUI1 同一条路）：running ⇒ 接上那一卷；closed ⇒ 自动 start 一条**全新空流**。
+            // 少了这一步，reset 之后重启会把配置里那条旧流（整段 R2）重新装进来 —— 看起来像「一上来就 105k tokens」。
+            foreach (var line in SessionLifecycle.StartAtBoot(host)) conversation.Add(line);
+
+            // 停因 / 运行时提示也要上屏（TUI1 的便利机制）：只追新落进流里的 stop-cause 事件。
+            var hintCursor = StreamEvents(host).Count;
+
             var doc = new Terminal.Gui.Editor.Document.TextDocument(string.Empty);
             var bridge = new EditorBridge(doc);
             var paste = new PasteModel();
@@ -156,8 +163,12 @@ public static class App
 
                         // /reset、/start 会换会话/流：卡、用量、账本与滚动都归零。
                         var head = FirstWord(commandLine ?? string.Empty);
-                        if (head is "/reset" or "/start")
+                        if ((head is "/reset" or "/start") && !result.IsError)
                         {
+                            // 会话边界 = 显示也要换卷：旧 R2 的正文不许留在屏上（否则会被当成新会话的内容）。
+                            // 只在**成功**时清屏；被拒（如会话未收尾就 /start）保留原文，免得把报错也一起擦掉。
+                            conversation.Clear();
+                            if (head == "/reset") conversation.Add("[会话] 已收尾、待 start（/start 开新会话）");
                             card.Clear();
                             cardSince = -1;
                             lastCardStream = -1;
@@ -211,10 +222,14 @@ public static class App
                     catch (OperationCanceledException)
                     {
                         conversation.Add("[中断] 当前轮已取消。");
+                        // **进流**（2026-10-22）：屏上的字关掉就没了；停因要能事后回查。
+                        try { host.NoteUiFailure("[中断] 当前轮已取消（用户 Ctrl+C 或进程取消）。", "ui-cancel"); } catch { }
                     }
                     catch (Exception ex)
                     {
-                        conversation.Add("[错误] " + ex.GetType().Name + ": " + ex.Message);
+                        var line = "[错误] " + ex.GetType().Name + ": " + ex.Message;
+                        conversation.Add(line);
+                        try { host.NoteUiFailure(line); } catch { }
                     }
                     finally
                     {
@@ -353,6 +368,23 @@ public static class App
                     topBand.RefreshIfDue(ScreenSize.Get().Cols);
                 }
 
+                // [停因] 落流 ⇒ 当轮就贴进会话区（TUI1 同款）：判据要人一眼看见，事后还能回查。
+                var eventsNow = StreamEvents(host);
+                if (eventsNow.Count != hintCursor)
+                {
+                    foreach (var e in eventsNow.Skip(hintCursor))
+                    {
+                        if (string.Equals(e.Source, RuntimeHost.StopCauseSource, StringComparison.Ordinal))
+                        {
+                            if (conversation.Count > 0 && conversation[^1].Length > 0) conversation.Add(string.Empty);
+                            conversation.Add(e.Text);
+                            conversationScroll = 0;
+                        }
+                    }
+
+                    hintCursor = eventsNow.Count;
+                }
+
                 var display = new List<string>(conversation.Count + card.Count + 1);
                 display.AddRange(conversation);
                 display.AddRange(card);
@@ -361,7 +393,13 @@ public static class App
                 var state = busy ? (commandPending is not null ? "执行中" : "运行中") : "就绪";
                 if (activeLifecycleId is int lifecycleId) state += " · 第" + lifecycleId + "生命周期";
                 var summary = taskSummary;
-                if (selectionCtl.RecentNotice() is { } copyNotice)
+                if (selectionCtl.Selection.Active)
+                {
+                    var picked = Selection.Extract(TuiRenderer.LastConversationTexts, selectionCtl.Selection.Range);
+                    summary = (string.IsNullOrEmpty(summary) ? string.Empty : summary + " · ")
+                              + (picked.Length > 0 ? $"选区 {picked.Length} 字 · 松开复制" : "拖选正文");
+                }
+                else if (selectionCtl.RecentNotice() is { } copyNotice)
                 {
                     summary = string.IsNullOrEmpty(summary) ? copyNotice : summary + " · " + copyNotice;
                 }
@@ -507,6 +545,10 @@ public static class App
         var end = trimmed.IndexOfAny([' ', '\t']);
         return end < 0 ? trimmed : trimmed[..end];
     }
+
+    private static IReadOnlyList<AgentRuntime.Core.Stream.SessionEvent> StreamEvents(RuntimeHost host) =>
+        host.Modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream.Snapshot()
+        ?? (IReadOnlyList<AgentRuntime.Core.Stream.SessionEvent>)Array.Empty<AgentRuntime.Core.Stream.SessionEvent>();
 
     private static TaskLifecycle? CurrentLifecycle(RuntimeHost host, IReadOnlyList<LifecycleTurnUsage> usages)
     {

@@ -21,10 +21,10 @@ public sealed class WorkerReceiptNormalizationTests
     private const string RealBlankMarkerReceipt =
         "[RESULT] <receipt><kind>done</kind>"
         + "<answer>文件前三行已逐字交回，sha256 为实算值。</answer>"
-        + "<addr>/home/user/wazi/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/docs/PITFALLS.md</addr>"
+        + "<addr>/home/user/repo/docs/PITFALLS.md</addr>"
         + "<sha256>f8d7f6365e23b37d3ed09e98745110b71447cedfb4c891bad06454ee6dc3dc35</sha256>"
         + "<text># AgentRuntime 踩坑集（L3 最细颗粒度，素材层）\n<blank>\n> 通用方法论查 `workspace/METHODOLOGY.md`（L1/L2）；本文件只记本项目具体坑。</text>"
-        + "<basis>/home/user/wazi/Documents/AgentWorkFlow/software-company/projects/AgentRuntime/docs/PITFALLS.md:1-3 | shasum -a 256 rc=0</basis></receipt>";
+        + "<basis>/home/user/repo/docs/PITFALLS.md:1-3 | shasum -a 256 rc=0</basis></receipt>";
 
     [Fact]
     public void 未转义标签的回执_归一后读出全部成员_且报留痕()

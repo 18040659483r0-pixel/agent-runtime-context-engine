@@ -142,7 +142,7 @@ public sealed class ContinuityTests
     // ---------------- I4 / I5 ----------------
 
     [Fact]
-    public async Task reset定格_start继承_双区逐字节相同()
+    public async Task reset收尾后清空台面_下一流从干净台面开始()
     {
         using var b = new Bench();
         await b.Host.RunTurnAsync("开始", cancellationToken: Ct);
@@ -152,21 +152,22 @@ public sealed class ContinuityTests
 
         SessionLifecycle.Reset(b.Host, T0);
 
-        // I4：磁盘末态与收尾那刻逐字节相同。
+        // 2026-10-22 主人令：**收尾确认后台面一律销账** —— 已办完的事不得出现在下一流
+        // （否则人分不清「到底销没销账」）。真未结的事由收尾写进交接，不靠台面挂着。
+        Assert.Empty(b.Tail.Current.Lines);
+        Assert.Empty(b.Draft.Current.Lines);
+
+        // 交接快照仍保留这几行（档案：可回看「上一轮停在哪」），但它是**档案**不是活台面。
         var handover = new HandoverStore(b.Config.Lifecycle.Handover!).TryLoad();
         Assert.NotNull(handover);
         Assert.Equal(new[] { "solve: 甲", "step: 3 -- 收尾" }, handover!.Tail);
         Assert.Equal(new[] { "待定：乙" }, handover.Draft);
         Assert.True(b.Host.SessionClosed);
 
-        // I5：先清掉存储态 —— start 必须从末态装载，而不是「碰巧还在」。
-        b.Tail.Clear();
-        b.Draft.Clear();
-
         SessionLifecycle.Start(b.Host, T0.AddMinutes(1));
 
-        Assert.Equal(new[] { "solve: 甲", "step: 3 -- 收尾" }, b.Tail.Current.Lines);
-        Assert.Equal(new[] { "待定：乙" }, b.Draft.Current.Lines);
+        Assert.Empty(b.Tail.Current.Lines);
+        Assert.Empty(b.Draft.Current.Lines);
     }
 
     // ---------------- I6 ----------------
@@ -208,15 +209,16 @@ public sealed class ContinuityTests
         var lines = SessionLifecycle.StartAtBoot(hostB);
 
         Assert.Contains(lines, l => l.Contains("自动 start", StringComparison.Ordinal));
-        Assert.Equal(new[] { "solve: 甲", "step: 1 -- 起步" }, hostB.Modules.OfType<CurrentTailModule>().First().Current.Lines);
-        Assert.Equal(new[] { "未定一" }, hostB.Modules.OfType<DynamicDraftModule>().First().Current.Lines);
+        // 2026-10-22：收尾已销账 ⇒ 新宿主接手时台面是空的（不把上一轮已办完的事带进来）。
+        Assert.Empty(hostB.Modules.OfType<CurrentTailModule>().First().Current.Lines);
+        Assert.Empty(hostB.Modules.OfType<DynamicDraftModule>().First().Current.Lines);
         hostB.Dispose();
     }
 
     // ---------------- I7 ----------------
 
     [Fact]
-    public async Task 新会话首个prompt已含台面与交接线索_无需点工具()
+    public async Task 新会话首个prompt含交接线索_台面已销账()
     {
         using var b = new Bench();
         await b.Host.RunTurnAsync("开始", cancellationToken: Ct);
@@ -229,9 +231,10 @@ public sealed class ContinuityTests
         b.Reply = "接着做";
         await b.Host.RunTurnAsync("继续", cancellationToken: Ct);
 
-        // 题眼：新会话**首个 prompt** 里就已经有台面正文 —— 不必再去翻上一会话的遗留。
-        Assert.Contains("solve: 甲", b.PromptText, StringComparison.Ordinal);
-        Assert.Contains("step: 1 -- 起步", b.PromptText, StringComparison.Ordinal);
-        Assert.Contains("未定一", b.PromptText, StringComparison.Ordinal);
+        // 新口径（2026-10-22）：**台面不跨流** —— 已办完的 TAIL/DRAFT 不得再出现在首个 prompt 里；
+        // 但「上一会话最后一条用户消息」这条接续线索仍在（那是交接，不是台面）。
+        Assert.DoesNotContain("solve: 甲", b.PromptText, StringComparison.Ordinal);
+        Assert.DoesNotContain("未定一", b.PromptText, StringComparison.Ordinal);
+        Assert.Contains("上一会话最后一条用户消息", b.PromptText, StringComparison.Ordinal);
     }
 }

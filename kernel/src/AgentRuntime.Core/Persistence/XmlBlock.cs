@@ -202,7 +202,7 @@ public static class XmlBlock
 
             at = i + marker.Length;
             var slice = text[i..];
-            var element = Take(slice, marker) ?? TakeLenient(slice, marker, knownTags);
+            var element = Take(slice, marker) ?? TakeLenient(slice, marker, knownTags) ?? TakeSalvage(slice, marker, knownTags);
             if (element is not null)
             {
                 result.Add(element);
@@ -214,6 +214,60 @@ public static class XmlBlock
         }
 
         return (result, missed);
+    }
+
+    /// <summary>
+    /// **缺闭合标签的抢救**（2026-10-22 真机）：模型写完整成员、也写了 <c>[TOOL]</c>，却**漏掉 <c>&lt;/call&gt;</c>** ——
+    /// 严格与归一都取不出，整篇被拒（同一会话连拒 3 次，每次白烧一轮）。
+    /// <para>判据是**结构**而不是「猜」：块头到下一个块头（或正文结束）之间就是这一块；去掉尾随的 <c>&lt;/TOOL&gt;</c> 后，
+    /// 若根元素**只有开标签没有闭标签**，就补一个 <c>&lt;/root&gt;</c> 再解析。补完仍不合语法 ⇒ 仍算 missed（不静默放行）。</para>
+    /// <para>为什么安全：补的是一个**已被块边界定死**的闭合符，不会把块外正文吞进来；且只对「单个根元素」生效。</para>
+    /// </summary>
+    public static string? TakeSalvage(string? text, string marker, IReadOnlyCollection<string> knownTags)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        var at = text.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0 || !FollowedByElement(text, at + marker.Length))
+        {
+            return null;
+        }
+
+        // 块边界 = 下一个块头（没有就到最后）。
+        var next = text.IndexOf(marker, at + marker.Length, StringComparison.Ordinal);
+        var block = next < 0 ? text[(at + marker.Length)..] : text[(at + marker.Length)..next];
+
+        block = block.TrimEnd();
+        if (block.EndsWith("</TOOL>", StringComparison.Ordinal))
+        {
+            block = block[..^"</TOOL>".Length].TrimEnd();
+        }
+
+        var start = block.IndexOf('<');
+        if (start < 0)
+        {
+            return null;
+        }
+
+        block = block[start..];
+        var m = Regex.Match(block, "^<([A-Za-z_][A-Za-z0-9_.-]*)");
+        if (!m.Success)
+        {
+            return null;
+        }
+
+        var root = m.Groups[1].Value;
+        if (block.Contains("</" + root + ">", StringComparison.Ordinal))
+        {
+            return null;   // 已有闭合 ⇒ 不是这一族，交给前面的路
+        }
+
+        var escaped = Regex.Replace(block, "<(?!/?(?:" + string.Join("|", knownTags) + @")\b)", "&lt;");
+        escaped = EscapeBareAmpersands(escaped) + "</" + root + ">";
+        return Take(marker + escaped, marker);
     }
 
     /// <summary>

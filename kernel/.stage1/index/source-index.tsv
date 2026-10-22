@@ -207,7 +207,7 @@ T	src/AgentRuntime.Core/Knowledge/KnowledgeTree.cs	450	class	AgentRuntime.Core.K
 T	src/AgentRuntime.Core/Knowledge/KnowledgeTree.cs	463	class	AgentRuntime.Core.Knowledge.KnL1Row
 T	src/AgentRuntime.Core/Knowledge/KnowledgeTree.cs	470	class	AgentRuntime.Core.Knowledge.KnNodeRow
 T	src/AgentRuntime.Core/Knowledge/KnowledgeTree.cs	483	class	AgentRuntime.Core.Knowledge.KnSummaryRow
-F	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	7928	ac49b182ffc7	8
+F	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	8024	19f8a1e84927	8
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	18	record	AgentRuntime.Core.Lifecycle.DecisionReport
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	76	record	AgentRuntime.Core.Lifecycle.DecisionReportStep
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	82	record	AgentRuntime.Core.Lifecycle.DecisionReportFinding
@@ -216,7 +216,7 @@ T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	91	record	AgentRuntime.Core.
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	94	record	AgentRuntime.Core.Lifecycle.ReportAnchor
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	104	record	AgentRuntime.Core.Lifecycle.DecisionReportFrame
 T	src/AgentRuntime.Core/Lifecycle/DecisionReport.cs	118	record	AgentRuntime.Core.Lifecycle.DecisionReportParse
-F	src/AgentRuntime.Core/Lifecycle/DecisionReportParser.cs	19547	87fa8d5f0f19	1
+F	src/AgentRuntime.Core/Lifecycle/DecisionReportParser.cs	20329	f796595156e9	1
 T	src/AgentRuntime.Core/Lifecycle/DecisionReportParser.cs	33	class	AgentRuntime.Core.Lifecycle.DecisionReportParser
 F	src/AgentRuntime.Core/Lifecycle/LifecycleAggregator.cs	21330	75223a1deb8b	2
 T	src/AgentRuntime.Core/Lifecycle/LifecycleAggregator.cs	30	class	AgentRuntime.Core.Lifecycle.LifecycleAggregator
@@ -248,7 +248,7 @@ T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	648	record	AgentRunt
 F	src/AgentRuntime.Core/Persistence/DataContractXml.cs	15041	a4a5422f6021	2
 T	src/AgentRuntime.Core/Persistence/DataContractXml.cs	24	class	AgentRuntime.Core.Persistence.DataContractXml
 T	src/AgentRuntime.Core/Persistence/DataContractXml.cs	140	class	AgentRuntime.Core.Persistence.Cache
-F	src/AgentRuntime.Core/Persistence/XmlBlock.cs	15998	18629eec4af4	1
+F	src/AgentRuntime.Core/Persistence/XmlBlock.cs	18370	1c81ac31e236	1
 T	src/AgentRuntime.Core/Persistence/XmlBlock.cs	23	class	AgentRuntime.Core.Persistence.XmlBlock
 F	src/AgentRuntime.Core/Persistence/XmlList.cs	1147	5c491197bb73	1
 T	src/AgentRuntime.Core/Persistence/XmlList.cs	14	class	AgentRuntime.Core.Persistence.XmlList
@@ -264,7 +264,7 @@ F	src/AgentRuntime.Core/Protocol/ProseCut.cs	4560	b99c07875f85	1
 T	src/AgentRuntime.Core/Protocol/ProseCut.cs	14	class	AgentRuntime.Core.Protocol.ProseCut
 F	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	2073	e6fadee32e42	1
 T	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	14	class	AgentRuntime.Core.Protocol.ProtocolBudget
-F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	65164	86cf79c7ec99	1
+F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	69060	45f983d8d7d7	1
 T	src/AgentRuntime.Core/Protocol/ProtocolText.cs	30	class	AgentRuntime.Core.Protocol.ProtocolText
 F	src/AgentRuntime.Core/Protocol/TerminalReport.cs	9404	ac28971f171a	2
 T	src/AgentRuntime.Core/Protocol/TerminalReport.cs	11	enum	AgentRuntime.Core.Protocol.TerminalState
@@ -386,7 +386,7 @@ T	src/AgentRuntime.Core/Tooling/ExecCommandRisk.cs	23	class	AgentRuntime.Core.To
 T	src/AgentRuntime.Core/Tooling/ExecCommandRisk.cs	130	class	AgentRuntime.Core.Tooling.ExecMessageFiles
 F	src/AgentRuntime.Core/Tooling/ExecEnvironment.cs	1953	c1bb7ea3798e	1
 T	src/AgentRuntime.Core/Tooling/ExecEnvironment.cs	9	class	AgentRuntime.Core.Tooling.ExecEnvironment
-F	src/AgentRuntime.Core/Tooling/ExecTool.cs	13638	c8a0e5f04385	1
+F	src/AgentRuntime.Core/Tooling/ExecTool.cs	15012	5786fb8c97e1	1
 T	src/AgentRuntime.Core/Tooling/ExecTool.cs	29	class	AgentRuntime.Core.Tooling.ExecTool
 F	src/AgentRuntime.Core/Tooling/FileEvidence.cs	2301	81e581836ec8	1
 T	src/AgentRuntime.Core/Tooling/FileEvidence.cs	17	class	AgentRuntime.Core.Tooling.FileEvidence
@@ -480,7 +480,7 @@ T	src/AgentRuntime.Core/Tooling/ToolNames.cs	52	class	AgentRuntime.Core.Tooling.
 T	src/AgentRuntime.Core/Tooling/ToolNames.cs	164	enum	AgentRuntime.Core.Tooling.Role
 F	src/AgentRuntime.Core/Tooling/ToolPaths.cs	9545	050ed9c2ebbb	1
 T	src/AgentRuntime.Core/Tooling/ToolPaths.cs	28	class	AgentRuntime.Core.Tooling.ToolPaths
-F	src/AgentRuntime.Core/Tooling/ToolReport.cs	34091	4eb7630963ae	5
+F	src/AgentRuntime.Core/Tooling/ToolReport.cs	34226	87641638ce6a	5
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	16	record	AgentRuntime.Core.Tooling.ToolCall
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	26	enum	AgentRuntime.Core.Tooling.RiskClaimStatus
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	44	enum	AgentRuntime.Core.Tooling.ToolParseStatus
@@ -666,7 +666,7 @@ F	src/AgentRuntime.Hosting/Panels/FocusPanel.cs	3646	bf033b58f846	1
 T	src/AgentRuntime.Hosting/Panels/FocusPanel.cs	12	class	AgentRuntime.Hosting.Panels.FocusPanel
 F	src/AgentRuntime.Hosting/Panels/LifecyclePanel.cs	5827	dadcfdf8c8ab	1
 T	src/AgentRuntime.Hosting/Panels/LifecyclePanel.cs	19	class	AgentRuntime.Hosting.Panels.LifecyclePanel
-F	src/AgentRuntime.Hosting/Panels/LifecyclePresenter.cs	34604	6a7ce2de5bd1	3
+F	src/AgentRuntime.Hosting/Panels/LifecyclePresenter.cs	35524	28fa6d982b20	3
 T	src/AgentRuntime.Hosting/Panels/LifecyclePresenter.cs	12	record	AgentRuntime.Hosting.Panels.DecisionOption
 T	src/AgentRuntime.Hosting/Panels/LifecyclePresenter.cs	20	record	AgentRuntime.Hosting.Panels.DecisionReportBrief
 T	src/AgentRuntime.Hosting/Panels/LifecyclePresenter.cs	34	class	AgentRuntime.Hosting.Panels.LifecyclePresenter
@@ -689,19 +689,19 @@ F	src/AgentRuntime.Hosting/PromptComposition.cs	2185	42d742bbdb2c	1
 T	src/AgentRuntime.Hosting/PromptComposition.cs	14	class	AgentRuntime.Hosting.PromptComposition
 F	src/AgentRuntime.Hosting/ResumeSupport.cs	10783	9a7a28272735	1
 T	src/AgentRuntime.Hosting/ResumeSupport.cs	20	class	AgentRuntime.Hosting.ResumeSupport
-F	src/AgentRuntime.Hosting/RuntimeHost.cs	80231	abdc174a37f2	4
+F	src/AgentRuntime.Hosting/RuntimeHost.cs	83182	4813ed1d7698	4
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	27	class	AgentRuntime.Hosting.HostOverrides
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	80	class	AgentRuntime.Hosting.HostUsageException
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	95	class	AgentRuntime.Hosting.RuntimeHost
-T	src/AgentRuntime.Hosting/RuntimeHost.cs	1529	record	AgentRuntime.Hosting.TurnOutcome
+T	src/AgentRuntime.Hosting/RuntimeHost.cs	1580	record	AgentRuntime.Hosting.TurnOutcome
 F	src/AgentRuntime.Hosting/RuntimePaths.cs	8059	ec5ab237f9a4	1
 T	src/AgentRuntime.Hosting/RuntimePaths.cs	13	class	AgentRuntime.Hosting.RuntimePaths
-F	src/AgentRuntime.Hosting/SessionLifecycle.cs	40563	d36ff4248bec	4
+F	src/AgentRuntime.Hosting/SessionLifecycle.cs	42191	7b426d18153b	4
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	19	record	AgentRuntime.Hosting.CloseoutReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	89	record	AgentRuntime.Hosting.ResetReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	134	record	AgentRuntime.Hosting.StartReport
-T	src/AgentRuntime.Hosting/SessionLifecycle.cs	205	class	AgentRuntime.Hosting.SessionLifecycle
-F	src/AgentRuntime.Hosting/TurnContinuation.cs	15240	b6b35ec51aea	2
+T	src/AgentRuntime.Hosting/SessionLifecycle.cs	207	class	AgentRuntime.Hosting.SessionLifecycle
+F	src/AgentRuntime.Hosting/TurnContinuation.cs	15892	f27723f4b4dd	2
 T	src/AgentRuntime.Hosting/TurnContinuation.cs	14	record	AgentRuntime.Hosting.ContinuationSettings
 T	src/AgentRuntime.Hosting/TurnContinuation.cs	64	class	AgentRuntime.Hosting.TurnContinuation
 F	src/AgentRuntime.Hosting/TurnPulse.cs	7075	4a954992c583	3
@@ -750,9 +750,11 @@ T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	106	class	AgentRuntime.Module
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	121	class	AgentRuntime.Modules.KnowledgeModule
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	138	class	AgentRuntime.Modules.MemoryIndexModule
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	161	class	AgentRuntime.Modules.DecisionModule
-F	src/AgentRuntime.Modules/ModuleRegistry.cs	32097	ee4d76e9bf60	1
+F	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	3241	0897a52ffe23	1
+T	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	21	class	AgentRuntime.Modules.MemoryIndexLiveModule
+F	src/AgentRuntime.Modules/ModuleRegistry.cs	32392	51f14d2e5702	1
 T	src/AgentRuntime.Modules/ModuleRegistry.cs	29	class	AgentRuntime.Modules.ModuleRegistry
-F	src/AgentRuntime.Modules/NoteModule.cs	5457	dfb954aa3351	1
+F	src/AgentRuntime.Modules/NoteModule.cs	7806	55e50c50597e	1
 T	src/AgentRuntime.Modules/NoteModule.cs	19	class	AgentRuntime.Modules.NoteModule
 F	src/AgentRuntime.Modules/ProtocolModule.cs	2718	026347e17a86	1
 T	src/AgentRuntime.Modules/ProtocolModule.cs	25	class	AgentRuntime.Modules.ProtocolModule
@@ -812,7 +814,7 @@ T	src/AgentRuntime.Tui/InputExit.cs	14	class	AgentRuntime.Tui.InputDisconnectedE
 T	src/AgentRuntime.Tui/InputExit.cs	35	class	AgentRuntime.Tui.InputExit
 F	src/AgentRuntime.Tui/LifecycleCardView.cs	3387	28e5ffae3d17	1
 T	src/AgentRuntime.Tui/LifecycleCardView.cs	19	class	AgentRuntime.Tui.LifecycleCardView
-F	src/AgentRuntime.Tui/PanelRouter.cs	38371	c50cb31a56e3	2
+F	src/AgentRuntime.Tui/PanelRouter.cs	38362	2907721f4f03	2
 T	src/AgentRuntime.Tui/PanelRouter.cs	15	record	AgentRuntime.Tui.PanelOutcome
 T	src/AgentRuntime.Tui/PanelRouter.cs	27	class	AgentRuntime.Tui.PanelRouter
 F	src/AgentRuntime.Tui/Program.cs	24948	aaaefb4492db	1
@@ -843,9 +845,9 @@ T	src/AgentRuntime.Tui/UiMode.cs	27	record	AgentRuntime.Tui.struct
 T	src/AgentRuntime.Tui/UiMode.cs	30	record	AgentRuntime.Tui.struct
 F	src/AgentRuntime.Tui/WebUi.cs	9541	4c6defd76976	1
 T	src/AgentRuntime.Tui/WebUi.cs	17	class	AgentRuntime.Tui.WebUi
-F	src/AgentRuntime.Tui2/AnsiScreen.cs	2207	ec2a2ddf1da0	1
+F	src/AgentRuntime.Tui2/AnsiScreen.cs	2453	560483c6e374	1
 T	src/AgentRuntime.Tui2/AnsiScreen.cs	16	class	AgentRuntime.Tui2.AnsiScreen
-F	src/AgentRuntime.Tui2/App.cs	23886	3c18eb44d694	1
+F	src/AgentRuntime.Tui2/App.cs	26887	6de7f7d28e3d	1
 T	src/AgentRuntime.Tui2/App.cs	30	class	AgentRuntime.Tui2.App
 F	src/AgentRuntime.Tui2/CellModel.cs	7450	0d68c5cdb0e1	1
 T	src/AgentRuntime.Tui2/CellModel.cs	20	class	AgentRuntime.Tui2.CellModel
@@ -882,7 +884,7 @@ T	src/AgentRuntime.Tui2/Selection.cs	10	class	AgentRuntime.Tui2.Selection
 T	src/AgentRuntime.Tui2/Selection.cs	113	class	AgentRuntime.Tui2.Clipboard
 F	src/AgentRuntime.Tui2/SelectionController.cs	1975	637bf7ccf81e	1
 T	src/AgentRuntime.Tui2/SelectionController.cs	7	class	AgentRuntime.Tui2.SelectionController
-F	src/AgentRuntime.Tui2/SelfTest.cs	19768	77f949a38c2d	1
+F	src/AgentRuntime.Tui2/SelfTest.cs	23984	91b1aba08bc5	1
 T	src/AgentRuntime.Tui2/SelfTest.cs	16	class	AgentRuntime.Tui2.SelfTest
 F	src/AgentRuntime.Tui2/TaskClock.cs	2478	9bbe75070fbf	1
 T	src/AgentRuntime.Tui2/TaskClock.cs	9	class	AgentRuntime.Tui2.TaskClock
@@ -892,15 +894,16 @@ F	src/AgentRuntime.Tui2/TopBand.cs	7576	6d5c26848b94	1
 T	src/AgentRuntime.Tui2/TopBand.cs	23	class	AgentRuntime.Tui2.TopBandProvider
 F	src/AgentRuntime.Tui2/Tui2Options.cs	5935	1e2252af8ce6	1
 T	src/AgentRuntime.Tui2/Tui2Options.cs	4	class	AgentRuntime.Tui2.Tui2Options
-F	src/AgentRuntime.Tui2/Tui2Style.cs	8242	85ca2327ce14	1
+F	src/AgentRuntime.Tui2/Tui2Style.cs	8343	4ce191c87c8b	1
 T	src/AgentRuntime.Tui2/Tui2Style.cs	12	class	AgentRuntime.Tui2.Tui2Style
 F	src/AgentRuntime.Tui2/TuiExitTrace.cs	1753	38a0f57e7886	1
 T	src/AgentRuntime.Tui2/TuiExitTrace.cs	11	class	AgentRuntime.Tui2.TuiExitTrace
 F	src/AgentRuntime.Tui2/TuiRenderer.cs	9853	60b97fd263cf	1
 T	src/AgentRuntime.Tui2/TuiRenderer.cs	13	class	AgentRuntime.Tui2.TuiRenderer
-F	src/AgentRuntime.Tui2/TurnCardView.cs	11067	fc1ec04dc31d	2
-T	src/AgentRuntime.Tui2/TurnCardView.cs	25	class	AgentRuntime.Tui2.TurnCardView
-T	src/AgentRuntime.Tui2/TurnCardView.cs	29	record	AgentRuntime.Tui2.TurnBlock
+F	src/AgentRuntime.Tui2/TurnCardView.cs	22098	a35fadc2e870	3
+T	src/AgentRuntime.Tui2/TurnCardView.cs	26	class	AgentRuntime.Tui2.TurnCardView
+T	src/AgentRuntime.Tui2/TurnCardView.cs	30	record	AgentRuntime.Tui2.TurnBlock
+T	src/AgentRuntime.Tui2/TurnCardView.cs	213	record	AgentRuntime.Tui2.PlannedCall
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusBlock
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusManifest
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusSection
@@ -1401,6 +1404,7 @@ E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.KnowledgeModule
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.MemoryIndexModule
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.RulesModule
+E	Contains	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Modules.MemoryIndexLiveModule
 E	Contains	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.ModuleRegistry
 E	Contains	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Modules.NoteModule
 E	Contains	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Modules.ProtocolModule
@@ -1492,6 +1496,7 @@ E	Contains	src/AgentRuntime.Tui2/Tui2Options.cs	AgentRuntime.Tui2.Tui2Options
 E	Contains	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Tui2.Tui2Style
 E	Contains	src/AgentRuntime.Tui2/TuiExitTrace.cs	AgentRuntime.Tui2.TuiExitTrace
 E	Contains	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.TuiRenderer
+E	Contains	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Tui2.PlannedCall
 E	Contains	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Tui2.TurnBlock
 E	Contains	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Tui2.TurnCardView
 E	DependsOn	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Core.Persistence.DataContractXml
@@ -2991,6 +2996,11 @@ E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Core.R
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Core.RuntimeModuleBase
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Tui2.Selection
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.Frozen.IFrozenZoneModule
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.RuntimeContext
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.RuntimeModuleBase
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Models.ChatMessage
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Modules.MemoryIndexModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Configuration.RuntimeConfiguration
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Configuration.VacuumMode
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Draft.DraftOptions
@@ -3034,6 +3044,7 @@ E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.Dyna
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.FocusModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.FrozenZoneModuleBase
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.KnowledgeModule
+E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.MemoryIndexLiveModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.MemoryIndexModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.NoteModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.ProtocolModule
@@ -3051,6 +3062,7 @@ E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Core.Stream.Sess
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatRequest
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatResponse
+E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Modules.MemoryIndexLiveModule
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Configuration.RuntimeConfiguration
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Frozen.CloseoutService
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Frozen.FrozenLayer
@@ -3397,12 +3409,14 @@ E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.ContinuationBudget
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Lifecycle.LifecycleTurnUsage
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Stream.SessionEvent
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Tooling.Result
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Worker.Mode
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.ContinuationSettings
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.HostOverrides
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.Panels.TurnLedger
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.RuntimeHost
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.SessionLifecycle
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.TurnContinuation
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.TurnOutcome
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Modules.AppendStreamModule
@@ -3564,6 +3578,7 @@ E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.Li
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.ReportAnchor
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Protocol.ProseCut
+E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Protocol.ProtocolText
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Stream.SessionEventKind
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Tail.CurrentTailService
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Tail.SolveHeader

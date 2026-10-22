@@ -253,14 +253,12 @@ public static class SelfTest
         };
 
         var lines = TurnCardView.Build(life);
-        Check(o, lines.Count >= 9, $"两轮 = 两段 + 报告（实得 {lines.Count} 行）");
-        Check(o, lines[0] == "意图：做 A", $"第一段意图（实得 [{lines[0]}]）");
-        Check(o, lines[1] == "操作：—", $"第一段无操作（实得 [{lines[1]}]）");
-        Check(o, lines[2].StartsWith("结果：我先说明。", StringComparison.Ordinal), $"第一段结果（实得 [{lines[2]}]）");
-        Check(o, lines[3] == string.Empty, "两段之间空一行");
-        Check(o, lines[4] == "意图：做 B", $"第二段用本轮自己的 solve（实得 [{lines[4]}]）");
-        Check(o, lines[5] == "操作：exec×1 · write×1（改动 1 个路径）", $"第二段操作聚合（实得 [{lines[5]}]）");
-        Check(o, lines[6].StartsWith("结果：完成了。", StringComparison.Ordinal), $"第二段结果（实得 [{lines[6]}]）");
+        Check(o, lines.Count >= 6, $"两轮 = 两段（每段两行）+ 报告（实得 {lines.Count} 行）");
+        Check(o, lines[0] == "意图：做 A[[dim]](exec×1 · write×1 · 改动 1 路径)[[/]]", $"第一段意图 + 灰色操作（实得 [{lines[0]}]）");
+        Check(o, lines[1].StartsWith("结果：我先说明。", StringComparison.Ordinal), $"第一段结果（实得 [{lines[1]}]）");
+        Check(o, lines[2] == string.Empty, "两段之间空一行");
+        Check(o, lines[3] == "意图：做 B", $"第二段用本轮自己的 solve（实得 [{lines[3]}]）");
+        Check(o, lines[4].StartsWith("结果：完成了。", StringComparison.Ordinal), $"第二段结果（实得 [{lines[4]}]）");
         Check(o, lines.Any(l => l.StartsWith("决策报告 #1", StringComparison.Ordinal)), "末尾出决策报告头");
         Check(o, lines.Any(l => l.Contains("未提交决策报告", StringComparison.Ordinal)), "未交报告只贴框（fail-closed）");
 
@@ -311,12 +309,95 @@ public static class SelfTest
         };
 
         var proseLines = TurnCardView.Build(proseOnly);
-        Check(o, proseLines[0] == "意图：我先把 A 拆成两步，再逐步执行。", $"无 [TAIL] 时用模型正文首行当意图（实得 [{proseLines[0]}]）");
+        Check(o, proseLines[0].StartsWith("意图：我先把 A 拆成两步，再逐步执行。[[dim]](exec×1)[[/]]", StringComparison.Ordinal),
+            $"无 [TAIL] 时用模型正文首行当意图 + 操作挂行尾（实得 [{proseLines[0]}]）");
         Check(o, !proseLines[0].Contains("请把 A 做完", StringComparison.Ordinal), "意图不回填用户命令");
 
+        var planned = new TaskLifecycle
+        {
+            Id = 4,
+            UserMessages = ["看看现在在哪"],
+            AnswersId = null,
+            Status = TaskLifecycleStatus.Running,
+            Turns = 1,
+            ToolCalls = 1,
+            Denied = 0,
+            RiskClaims = 0,
+            TerminalConflicts = 0,
+            Decisions = [],
+            Result = string.Empty,
+            FirstSeq = 20,
+            LastSeq = 22,
+            Usage = null,
+            Trace =
+            [
+                new LifecycleTraceEntry("E020", SessionEventKind.AgentOutput,
+                    "[PLAN] 我先确认当前所在目录。\n[TOOL] <call><name>exec</name><command>pwd</command></call>"),
+                new LifecycleTraceEntry("E021", SessionEventKind.ToolResult, "/tmp", "exec"),
+            ],
+            ReportRequested = false,
+            ReportText = string.Empty,
+        };
+
+        var planLines = TurnCardView.Build(planned);
+        Check(o, planLines[0] == "意图：我先确认当前所在目录。[[dim]](exec×1)[[/]]",
+            $"v87 [PLAN] 白话意图 + 灰色操作（实得 [{planLines[0]}]）");
+        Check(o, planLines[1] == "结果：/tmp", $"工具轮结果取最后一条 ToolResult（实得 [{planLines[1]}]）");
+
+        var reported = new TaskLifecycle
+        {
+            Id = 5,
+            UserMessages = ["看看现在在哪"],
+            AnswersId = null,
+            Status = TaskLifecycleStatus.Done,
+            Turns = 2,
+            ToolCalls = 1,
+            Denied = 0,
+            RiskClaims = 0,
+            TerminalConflicts = 0,
+            Decisions = [],
+            Result = "[DONE] 完成",
+            FirstSeq = 30,
+            LastSeq = 33,
+            Usage = null,
+            Trace =
+            [
+                new LifecycleTraceEntry("E030", SessionEventKind.AgentOutput,
+                    "[PLAN] 我先跑一次 pwd 看当前目录。\n[TOOL] <call><name>exec</name><command>pwd</command></call>"),
+                new LifecycleTraceEntry("E031", SessionEventKind.ToolResult, "/tmp", "exec"),
+                new LifecycleTraceEntry("E032", SessionEventKind.AgentOutput,
+                    "[RESULT] 我跑了 pwd，看到当前目录是 /tmp。\n[DONE] 完成"),
+            ],
+            ReportRequested = false,
+            ReportText = string.Empty,
+        };
+
+        var reportedLines = TurnCardView.Build(reported);
+        Check(o, reportedLines[1] == "结果：我跑了 pwd，看到当前目录是 /tmp。",
+            $"v88 [RESULT] 覆盖拼装式工具结果（实得 [{reportedLines[1]}]）");
+        Check(o, reportedLines[4].StartsWith("结果：完成", StringComparison.Ordinal),
+            $"终局轮结果正常（实得 [{reportedLines[4]}]）");
+
+        var decorated = TurnCardView.DecorateReport(
+        [
+            "决策报告 #1 ✓ 得解",
+            "术语",
+            "  AppRuntime = 运行时本体；中文也叫「运行时」。",
+            "一、这一轮要解决什么",
+            "  把 AppRuntime 的读数报出来。",
+            "二、怎么解的",
+            "  2.1 先看 AppRuntime 的状态",
+        ]);
+        Check(o, decorated.Contains("[[noun]]术语[[/]]"), "「术语」标题用深黄（Noun）");
+        Check(o, decorated.Contains("[[noun]]一、这一轮要解决什么[[/]]"), "章节标题用深黄（Noun）");
+        Check(o, decorated.Any(l => l.Contains("[[noun]]AppRuntime[[/]]")), $"术语名用深黄（实得 [{string.Join(" | ", decorated)}]）");
+        Check(o, decorated.Any(l => l.Contains("[[noun]]AppRuntime[[/]] 的读数")), "正文里的概念也染色");
+        var idxOne = decorated.ToList().IndexOf("[[noun]]一、这一轮要解决什么[[/]]");
+        Check(o, idxOne > 0 && decorated[idxOne - 1] == string.Empty, "段落之间空一行");
+
         var terminalLines = TurnCardView.Build(terminalOnly);
-        Check(o, terminalLines.Count == 3, $"只有终局输出也成一段（实得 {terminalLines.Count} 行）");
-        Check(o, terminalLines[2] == "结果：测试完成", $"终局结果不被 ProseCut 吃掉、且不重复追加 E###（实得 [{terminalLines[2]}]）");
+        Check(o, terminalLines.Count == 2, $"只有终局输出也成一段 · 两行（实得 {terminalLines.Count} 行）");
+        Check(o, terminalLines[1] == "结果：测试完成", $"终局结果不被 ProseCut 吃掉、且不重复追加 E###（实得 [{terminalLines[1]}]）");
     }
 
     // ---------- ⑥ 配色：直接复用 TUI1 的 StyleTable ----------
@@ -328,6 +409,11 @@ public static class SelfTest
         var intent = Tui2Style.Paint("意图：做 A", StyleTable.Standard);
         Check(o, intent.Contains("\u001b[38;5;117m", StringComparison.Ordinal), "意图用 Attention 色（TUI1 色号 117）");
         Check(o, intent.Contains("\u001b[0m", StringComparison.Ordinal), "SGR 有复位");
+
+        var heading = Tui2Style.Paint("一、这一轮要解决什么", StyleTable.Standard);
+        Check(o, heading.Contains("38;5;221", StringComparison.Ordinal), "章节标题用 Noun 深黄（色号 221）");
+        var concept = Tui2Style.Paint("[[noun]]AppRuntime[[/]] 是运行时", StyleTable.Standard);
+        Check(o, concept.Contains("38;5;221", StringComparison.Ordinal), "内联概念用 Noun 深黄");
 
         var result = Tui2Style.Paint("结果：完成（E046）", StyleTable.Standard);
         Check(o, result.Contains("\u001b[38;5;115m", StringComparison.Ordinal), "结果用 Done 色（TUI1 色号 115）");
@@ -350,9 +436,9 @@ public static class SelfTest
         var operation = Tui2Style.Paint("操作：exec×1", StyleTable.Standard);
         Check(o, operation.Contains("\u001b[38;5;222m", StringComparison.Ordinal), "操作（命令/工具）用 Path 土黄");
 
-        var path = Tui2Style.ToRich("见 /home/user/wazi/a.cs");
+        var path = Tui2Style.ToRich("见 /home/user/a.cs");
         Check(o, path.Spans.Any(sp => sp.Role == StyleRole.Path), "绝对路径自动标成 Path（土黄色）");
-        var pathPainted = Tui2Style.Paint("见 /home/user/wazi/a.cs", StyleTable.Standard);
+        var pathPainted = Tui2Style.Paint("见 /home/user/a.cs", StyleTable.Standard);
         Check(o, pathPainted.Contains("\u001b[38;5;222m", StringComparison.Ordinal), "路径用 Path 色号 222");
 
         var frame1 = ThinkSnake.Frame(0);
@@ -386,7 +472,7 @@ public static class SelfTest
         Check(o, PanelRouter.IsCommand("/reset"), "/reset 被识别为命令");
         Check(o, PanelRouter.IsCommand("/reset --start"), "/reset --start 被识别为命令");
         Check(o, PanelRouter.IsCommand("/help"), "/help 被识别为命令");
-        Check(o, !PanelRouter.IsCommand("/home/user/wazi/file.cs"), "绝对路径仍当普通文本（不被命令吃掉）");
+        Check(o, !PanelRouter.IsCommand("/home/user/file.cs"), "绝对路径仍当普通文本（不被命令吃掉）");
         Check(o, !PanelRouter.IsCommand("//help"), "//help 是转义文本，不是命令");
         Check(o, PanelRouter.Unescape("//help") == "/help", "//help 发送时还原成 /help");
     }

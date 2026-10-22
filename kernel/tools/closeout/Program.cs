@@ -29,6 +29,11 @@ if (args.Contains("--apply"))
     return CloseoutCli.Apply();
 }
 
+if (args.Contains("--promote"))
+{
+    return CloseoutCli.Promote(args.Contains("--dry-run"));
+}
+
 if (args.Contains("--where"))
 {
     return CloseoutCli.Where();
@@ -65,6 +70,7 @@ static void PrintHelp()
     Console.WriteLine("  --check      只读：逐项重算并报红绿（block 红 ⇒ 退出码 1）");
     Console.WriteLine("  --xml        机器可读输出（强类型 XML；与 --check 合用）");
     Console.WriteLine("  --apply      幂等重生**确定派生物**（坑集索引 / 公开变体 / 水位索引区 / worker 索引）");
+    Console.WriteLine("  --promote    知识晋级：活版 → versions/knowledge-vNNNN.md + 账本两处（已在 = no-op；--dry-run 只报）");
     Console.WriteLine("  --close      顺序闸门：先 --check（block 全绿）→ 才写「收敛点」到水位 + 账本");
     Console.WriteLine("  --dry-run    与 --close 合用：只打印不写");
     Console.WriteLine("  --selftest   负例自证：注入缺陷断言闸门变红（在 /tmp 副本上跑）");

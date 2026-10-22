@@ -1469,5 +1469,26 @@
       <Why>正文含裸尖括号/与号的工具块被整篇拒且不落盘；三次以为已写入。常驻法则 L1-evd-001「证据优先」：我发了与它写了是两件事，凡后续判断依赖文件存在处必须有读数。同族 #157/#210/#133。原文 docs/PITFALLS.md #342。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
-  </Declarations>
+      <Decl>
+      <Id>343</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutCli.cs::PreserveConverge</Pointer>
+      <Why>探针超时 ⇒ 降级写入不得覆盖上一轮已复核的收敛点（#343）：读不到就保留 rX/rY 并标「本轮未复核」，不得写 none；降级值也不能让事实层倒退。闸门 = PreserveConverge 负例（none ⇒ 保留真值；已有真值 ⇒ 不标）。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>344</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/ToolBlockSalvageTests.cs::漏写闭合的write块_按块边界补全后可解析且正文完整</Pointer>
+      <Why>长正文工具块连拒三次（裸 &amp; / 未转义 &gt; / 多写一行收尾标签）⇒ 以前整篇拒、同一条回复里能用的块也一起丢。闸门 = 块边界抢救：成员齐全但漏 `&lt;/call&gt;` 时必须解析成功且正文完整；真乱码仍须响亮拒（不许硬吞）。同族 #157/#167/#342。原文 docs/PITFALLS.md #344。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>345</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 345. **两条读数都对，退出码却在喊错**</Pointer>
+      <Why>「最后一跳的退出码」不等于「这条命令测的事对不对」：探针里混了 grep 计数（命中 0 返回 1）时，好结果会被读成失败。属写法纪律，没有单一路径可闸门化 ⇒ 只给人看：判成败取被测那条的码，或拆两条；计数另断言后显式 exit 0。原文 docs/PITFALLS.md #345。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+</Declarations>
 </GateLedger>

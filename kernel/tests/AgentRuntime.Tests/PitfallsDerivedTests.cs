@@ -66,12 +66,12 @@ public sealed class PitfallsDerivedTests
     public void 公开变体_路径与人名换中性占位()
     {
         var (text, _) = PublicPitfalls.Render(
-            "# 标题\n\n- /home/user/wazi/x 与 主人 和 樱桃\n", []);
+            "# 标题\n\n- /home/user/x 与 主人 和 樱桃\n", []);
 
         Assert.Contains("<home>", text, StringComparison.Ordinal);
         Assert.Contains("作者", text, StringComparison.Ordinal);
         Assert.Contains("助手", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("/home/user/wazi", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("/home/user", text, StringComparison.Ordinal);
         Assert.StartsWith("# 标题\n\n> **本文件是公开变体**", text, StringComparison.Ordinal);
     }
 }

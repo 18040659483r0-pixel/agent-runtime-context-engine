@@ -106,7 +106,7 @@ public sealed record ResetReport(
             ArchivedStream is null
                 ? "[重开] 旧事件流：无（本会话本来就没落盘）"
                 : $"[重开] 旧事件流**原地归档**（没删、没改）：{ArchivedStream}（可用 --stream 指定它回到那一次会话）",
-            $"[重开] **末态已定格**（白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行）：{Closeout.Handover.Describe()}",
+            $"[重开] **台面已销账**（白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行随收尾清空，不跨流）：{Closeout.Handover.Describe()}",
             ClearedFocusTags == 0
                 ? "[重开] 焦点 R3：本来就是空的"
                 : $"[重开] 焦点 R3：已清空（{ClearedFocusTags} 条旧标签在新流里必然悬空 ⇒ 只能重来；旧值在归档的流里）",
@@ -162,7 +162,9 @@ public sealed record StartReport(
             {
                 lines.Add($"[开始] 上一卷做到哪：{solve.Describe()}（**接着做，不用重述上下文**）");
             }
-            lines.Add($"[开始] 已装载：白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行 —— **接着往下做就行**（不用重述上下文）。");
+            lines.Add(TailLines == 0 && DraftLines == 0
+                ? "[开始] 白板 R4 / 草稿 R5 均为空（上一会话收尾已销账）—— 这一节从干净台面开始。"
+                : $"[开始] 已装载：白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行 —— **接着往下做就行**（不用重述上下文）。");
         }
 
         // **worker 集合逐个宣告**（主人 2026-09-29 18:50）：有几家就报几家 —— 不是只报「当前那一个」。
@@ -375,6 +377,17 @@ public static class SessionLifecycle
         // ④ 清焦点：旧标签在新流里必然悬空（R3 的真源是流）。**显式做、显式报**，不静默留个悬空账。
         var resetFocus = ClearFocus(config, focusTags);
 
+        // ④·五 **白板 / 草稿销账**（2026-10-22 主人令）：收尾确认之后，上一会话的 TAIL/DRAFT
+        //   **一律清空** —— 否则下一流开局就带着已办完的事，人分不清「到底销没销账」。
+        //   两处都要动：① 存储区（新模块启动时照读它）② 交接快照（否则 start 会原样搬回来）。
+        //   还没做的事由收尾收敛进 handoff / 坑集 / 记忆，不靠台面挂着；台面只表达「本轮还在做什么」。
+        var clearedTailLines = tail?.Current.LineCount ?? 0;
+        var clearedDraftLines = draft?.Current.LineCount ?? 0;
+        tail?.Clear();
+        draft?.Clear();
+        // **交接快照照旧保留这几行**（它是归档证据：想回看「上一轮台面停在哪」随时可读），
+        // 但它们是**档案**，不是下一流的活台面 —— 见 Start：不再把它们装回 R4/R5。
+
         // ⑤ 重建模块集：新流（空）+ 同一套稳定前缀 + 同一套白板/草稿存储键；审批闸门/账本照旧带上。
         // **收尾面窗口在重置时失效**（本会话结束了）⇒ 这一次重装就按默认面装（下一次**收尾命令**再强制打开）。
         host.NoteCloseoutFaceConsumed();
@@ -400,8 +413,8 @@ public static class SessionLifecycle
         return new ResetReport(
             host.ResetCount,
             archived,
-            tail?.Current.LineCount ?? 0,
-            draft?.Current.LineCount ?? 0,
+            clearedTailLines,
+            clearedDraftLines,
             resetFocus,
             archivedResumePoint,
             closeout,
@@ -476,8 +489,11 @@ public static class SessionLifecycle
         // **空承接不许把台面清空**（2026-10-15 真机）：`/start` 把末态里的**空**台面 Override 进去 ⇒
         // 白板/草稿当场变空。主人的口径：**只要更新过一次就永远不可能是空的** ⇒
         // **空 ⇒ 不覆盖**（保留现有那份 —— 就是 `CarryFromNewest` 抄来的最近一份）。
-        var tailState = handover is null || handover.Tail.Length == 0 ? null : tail?.Override(handover.Tail);
-        var draftState = handover is null || handover.Draft.Length == 0 ? null : draft?.Override(handover.Draft);
+        // **不再把末态装回台面**（2026-10-22 主人令）：收尾已销账 ⇒ 新流从空台面开始。
+        // 末态那几行仍在交接快照里（档案，可读），但**不进活台面**——否则下一流一开局就带着上一轮已办完的事，
+        // 人分不清「到底销没销账」。真未结的事由收尾写进 handoff / 坑集。
+        var tailState = handover is null || handover.Tail.Length == 0 ? null : tail?.Current;
+        var draftState = handover is null || handover.Draft.Length == 0 ? null : draft?.Current;
 
         // ③·五 **接续线索**（主人 2026-09-22 23:1x 报）：把「上一会话最后一条用户消息 + 它是否答完」作为
         // **新流的第一条 Hint** 交给模型 —— 否则中断/重开之后那句“接续”会被当成全新问题（模型只能满仓库猜题意）。
@@ -485,6 +501,9 @@ public static class SessionLifecycle
         {
             host.NoteHandoverContinuation(handover);
         }
+
+        // 台面销账的事实（有档案在交接里时才说一句，避免模型把档案当待办）。
+        host.NoteBoardCleared(handover);
 
         host.NoteSessionStarted();
 
