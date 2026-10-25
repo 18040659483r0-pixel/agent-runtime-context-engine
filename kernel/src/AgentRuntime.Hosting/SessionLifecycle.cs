@@ -407,7 +407,15 @@ public static class SessionLifecycle
         if (config.Lifecycle.HandoverExplicit)
         {
             new SessionPointerStore(SessionPointerStore.PathFor(config.Lifecycle.Handover!))
-                .Save(new SessionPointer(null, Closed: true, now, host.ResetCount, closeout.Handover.At.ToString("O")));
+                .Save(new SessionPointer(
+                    archived,                      // 归档后的流路径：收尾没做成时，下次要接回它
+                    Closed: true,
+                    now,
+                    host.ResetCount,
+                    closeout.Handover.At.ToString("O"),
+                    // 判据 = **收尾真的盖章了**（水位推进）。清单里剩的欠账（如工具面收件箱）只记账，
+                    // 不该让下一次进入把「已收尾的流」当成没做完再接回来（2026-10-24 真机）。
+                    CloseoutComplete: !string.IsNullOrWhiteSpace(closeout.WatermarkId)));
         }
 
         return new ResetReport(
@@ -463,6 +471,38 @@ public static class SessionLifecycle
     /// </para>
     /// <para><b>会话还在跑时 start 会被拒绝</b>：那会把一条没归档的历史丢掉（先 <c>/reset</c>）。</para>
     /// </summary>
+    /// <summary>把上一节台账的「目标 / 终局 / 未决」种进新流（只读归档流；失败响亮说出来）。</summary>
+    private static void SeedLedgerHandover(RuntimeHost host, string? previousStream)
+    {
+        if (string.IsNullOrWhiteSpace(previousStream) || !File.Exists(previousStream))
+        {
+            return;
+        }
+
+        try
+        {
+            var stream = new SessionStreamStore(previousStream).LoadOrRecover(out _);
+            var records = TaskLedgerProjection.Build(stream);
+            if (records.Count == 0)
+            {
+                return;
+            }
+
+            var pointer = new SessionPointerStore(SessionPointerStore.PathFor(host.Config.Frozen.Watermark)).TryLoad();
+            var sessionNumber = pointer?.SessionNumber ?? 1;
+
+            // **概要 + 具体**（主人 2026-10-25 10:1x）：摘要给「每个 task 干了什么」，
+            // 逐轮台账给「每一轮要干什么 / 做出什么」—— 后者才是跨 session 连续性的载体（白板/草稿只是概要）。
+            var summary = TaskLedgerProjection.Summarize(records, sessionNumber);
+            var rows = TaskLedgerProjection.RenderForHandoff(records, sessionNumber);
+            host.NoteLedgerHandover(summary + "\n\n[上一节逐轮台账]\n" + rows);
+        }
+        catch (Exception ex)
+        {
+            host.NoteUiFailure("[交接] 上一节台账种入失败：" + ex.GetType().Name + ": " + ex.Message, "handoff-ledger");
+        }
+    }
+
     public static StartReport Start(RuntimeHost host, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -501,6 +541,10 @@ public static class SessionLifecycle
         {
             host.NoteHandoverContinuation(handover);
         }
+
+        // **上一节的台账摘要**（2026-10-25）：把「目标 / 终局 / 未决」一行一个 task 带进新流 ——
+        // 这是「报告质量跨 session 延续」的载体。读的是**归档流**（原文不动），失败要响（不静默）。
+        SeedLedgerHandover(host, handover?.StreamPath ?? baseline);
 
         // 台面销账的事实（有档案在交接里时才说一句，避免模型把档案当待办）。
         host.NoteBoardCleared(handover);
@@ -544,6 +588,9 @@ public static class SessionLifecycle
                 ? []
                 : [$"[会话] 接上上一节的会话（{pointer.Describe()}）—— 想回别的卷：--stream <那次的流文件>"];
         }
+
+        // **closed ⇒ 自动 start 新流**（2026-10-24 主人裁定：`/reset` 是关流的唯一命令；
+        // 收尾清单剩的欠账只记录，不再把已 reset 的流接回来）。
 
         try
         {

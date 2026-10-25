@@ -1,0 +1,127 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "AgentRuntime.Cli/0.1.1": {
+        "dependencies": {
+          "AgentRuntime.Core": "0.1.1",
+          "AgentRuntime.Hosting": "0.1.1",
+          "AgentRuntime.Models": "0.1.1",
+          "AgentRuntime.Modules": "0.1.1",
+          "AgentRuntime.Presentation": "0.1.1",
+          "AgentRuntime.Providers": "0.1.1"
+        },
+        "runtime": {
+          "AgentRuntime.Cli.dll": {}
+        }
+      },
+      "AgentRuntime.Core/0.1.1": {
+        "dependencies": {
+          "AgentRuntime.Models": "0.1.1"
+        },
+        "runtime": {
+          "AgentRuntime.Core.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      },
+      "AgentRuntime.Hosting/0.1.1": {
+        "dependencies": {
+          "AgentRuntime.Core": "0.1.1",
+          "AgentRuntime.Models": "0.1.1",
+          "AgentRuntime.Modules": "0.1.1",
+          "AgentRuntime.Presentation": "0.1.1",
+          "AgentRuntime.Providers": "0.1.1"
+        },
+        "runtime": {
+          "AgentRuntime.Hosting.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      },
+      "AgentRuntime.Models/0.1.1": {
+        "runtime": {
+          "AgentRuntime.Models.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      },
+      "AgentRuntime.Modules/0.1.1": {
+        "dependencies": {
+          "AgentRuntime.Core": "0.1.1",
+          "AgentRuntime.Models": "0.1.1"
+        },
+        "runtime": {
+          "AgentRuntime.Modules.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      },
+      "AgentRuntime.Presentation/0.1.1": {
+        "runtime": {
+          "AgentRuntime.Presentation.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      },
+      "AgentRuntime.Providers/0.1.1": {
+        "dependencies": {
+          "AgentRuntime.Core": "0.1.1",
+          "AgentRuntime.Models": "0.1.1"
+        },
+        "runtime": {
+          "AgentRuntime.Providers.dll": {
+            "assemblyVersion": "0.1.1.0",
+            "fileVersion": "0.1.1.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "AgentRuntime.Cli/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Core/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Hosting/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Models/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Modules/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Presentation/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AgentRuntime.Providers/0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

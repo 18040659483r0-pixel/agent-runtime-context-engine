@@ -23,6 +23,20 @@ internal static class Program
     private static int _failures;
     private static int _cases;
 
+    private static string RunCapture(string file, params string[] args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo(file) { RedirectStandardOutput = true, UseShellExecute = false };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            using var p = Process.Start(psi)!;
+            var text = p.StandardOutput.ReadToEnd();
+            p.WaitForExit(2000);
+            return text;
+        }
+        catch { return string.Empty; }
+    }
+
     private static int Main(string[] args)
     {
         _root = FindRepoRoot();
@@ -306,7 +320,10 @@ internal static class Program
             t.SendBytes(Encoding.ASCII.GetBytes("\u001b[<0;14;1m"));
             Thread.Sleep(500);
             var screen = t.Capture();
-            Check(screen.Contains("已复制", StringComparison.Ordinal), "松开后状态栏出现「已复制 N 字」");
+            // 2026-10-23 新口径：松开后**保留高亮**（像网页），复制已在松开那一刻完成 ⇒ 状态栏显示「已选中」。
+            Check(screen.Contains("已选中", StringComparison.Ordinal), "松开后选区保留（状态栏显示「已选中 N 字」）");
+            var clip = RunCapture("pbpaste");
+            Check(clip.Trim().Length > 0, "松开即已写入剪贴板（⌘V 可直接粘贴）");
             t.SendFd();
             t.WaitDump();
         });
@@ -336,6 +353,21 @@ internal static class Program
             var e = t.WaitDump();
             Check(e.Expanded == "resize中文OK", "80×30 → 60×20 之后输入不丢、不花");
             Check(!e.HasReplacementChar, "resize 后不含 U+FFFD");
+        });
+
+        Case("resize-redraw", (t, d) =>
+        {
+            // 主人 2026-10-25：resize 后屏幕长时间不按新尺寸重画（旧实现尺寸缓存 30s + 每 10 帧才刷）。
+            // 判据：0.5 秒内状态栏必须出现在**新尺寸的最后一行**（= 已按新行列布局重画）。
+            t.SendText("x");
+            Thread.Sleep(300);
+            t.Resize(56, 18);
+            Thread.Sleep(500);
+            var lines = t.Capture().Replace("\r", string.Empty).Split('\n');
+            var nonEmpty = lines.Where(l => l.Trim().Length > 0).ToArray();
+            var last = nonEmpty.Length > 0 ? nonEmpty[^1] : string.Empty;
+            Check(last.Contains("Tab 切模块区", StringComparison.Ordinal),
+                $"resize 后 0.5s 内状态栏按新尺寸重画（末行=[{(last.Length > 70 ? last[..70] : last)}]）");
         });
 
         Case("soak-" + soakSeconds + "s", (t, d) =>

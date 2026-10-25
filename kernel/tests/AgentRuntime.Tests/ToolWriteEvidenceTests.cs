@@ -137,4 +137,19 @@ public sealed class ToolWriteEvidenceTests
             }
         }
     }
+
+    [Fact]
+    public async Task 改_内容等价_判空编辑_不写()
+    {
+        using var work = new SnapshotTestWorkspace("edit-noop");
+        var target = Path.Combine(work.Root, "a.txt");
+        await File.WriteAllTextAsync(target, "甲\n乙\n", Ct);
+
+        var outcome = await new EditTool().ExecuteAsync(
+            Context(), ToolArgs.Parse($"{{\"path\":\"{target}\",\"oldText\":\"乙\",\"newText\":\"乙\"}}"), Ct);
+
+        Assert.False(outcome.Ok);
+        Assert.Contains("完全相同", outcome.Text, StringComparison.Ordinal);
+        Assert.Equal("甲\n乙\n", await File.ReadAllTextAsync(target, Ct));   // 一个字节没动
+    }
 }

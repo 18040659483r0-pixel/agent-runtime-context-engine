@@ -151,3 +151,15 @@ public sealed class InputController
         }
     }
 }
+
+/// <summary>
+/// **哪些动作属于「滚动」**（唯一声明处，2026-10-23）。
+/// <para>真机事故：空闲分支只认 PgUp/PgDn、漏了滚轮 ⇒ 滚轮上翻**不重绘**、看不到历史。
+/// 把「是不是滚动」收到一个判据里，两处分支都问它 —— 再加一种滚动动作时不会只改一处。</para>
+/// </summary>
+public static class ScrollActions
+{
+    public static bool IsScroll(InputAction action) =>
+        action is InputAction.ScrollUp or InputAction.ScrollDown
+            or InputAction.WheelUp or InputAction.WheelDown;
+}

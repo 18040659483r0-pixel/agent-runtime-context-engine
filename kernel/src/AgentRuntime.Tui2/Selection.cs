@@ -112,6 +112,13 @@ public sealed class Selection
 /// <summary>把选中文本放上剪贴板：NSPasteboard（原生，不起进程）+ OSC 52（终端原生，SSH 可用）。</summary>
 public static class Clipboard
 {
+    /// <summary>
+    /// OSC 52 的**写入口**：UI 在跑时由宿主接到屏幕的写线程（<c>AnsiScreen.WriteControl</c>）——
+    /// 终端读得慢时不能把主循环堵在 <c>Console.Out.Write</c> 上（与整屏帧同一类故障）。
+    /// null ⇒ 直接写 stdout（无 UI 的测试/工具场景）。
+    /// </summary>
+    public static Action<string>? OscSink { get; set; }
+
     public static void Copy(string text)
     {
         if (string.IsNullOrEmpty(text)) return;
@@ -123,8 +130,16 @@ public static class Clipboard
         try
         {
             var payload = Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
-            Console.Out.Write("\u001b]52;c;" + payload + "\u0007");
-            Console.Out.Flush();
+            var sequence = "\u001b]52;c;" + payload + "\u0007";
+            if (OscSink is { } sink)
+            {
+                sink(sequence);
+            }
+            else
+            {
+                Console.Out.Write(sequence);
+                Console.Out.Flush();
+            }
         }
         catch (Exception)
         {

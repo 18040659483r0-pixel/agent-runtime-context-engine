@@ -1,0 +1,14 @@
+/private/tmp/slice81/kernel/tools/ms-suite/bin/Release/net10.0/ms-suite
+/private/tmp/slice81/kernel/tools/ms-suite/bin/Release/net10.0/ms-suite.deps.json
+/private/tmp/slice81/kernel/tools/ms-suite/bin/Release/net10.0/ms-suite.runtimeconfig.json
+/private/tmp/slice81/kernel/tools/ms-suite/bin/Release/net10.0/ms-suite.dll
+/private/tmp/slice81/kernel/tools/ms-suite/bin/Release/net10.0/ms-suite.pdb
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/MsSuite.GeneratedMSBuildEditorConfig.editorconfig
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/MsSuite.AssemblyInfoInputs.cache
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/MsSuite.AssemblyInfo.cs
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/MsSuite.csproj.CoreCompileInputs.cache
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/ms-suite.dll
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/refint/ms-suite.dll
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/ms-suite.pdb
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/MsSuite.genruntimeconfig.cache
+/private/tmp/slice81/kernel/tools/ms-suite/obj/Release/net10.0/ref/ms-suite.dll

@@ -368,7 +368,13 @@ public static class TaskTerminalAssertions
             else
             {
                 verdict = TerminalVerdict.Violated;
-                reason = $"改动过文档但最后一次生成器 / --check 不在其后（最后文档改动 index={lastDoc}·seq={facts[lastDoc].Seq}；最后生成器 index={(lastGen < 0 ? "无" : lastGen.ToString())}）⇒ 派生物可能落后";
+                {
+                    var root = Environment.GetEnvironmentVariable("WB_ROOT");
+                    var hint = string.IsNullOrWhiteSpace(root)
+                        ? "跑一次收尾引擎的 `--check`（路径见仓库根 tools/closeout）"
+                        : $"跑 `dotnet {root}/tools/closeout/bin/Release/net10.0/Closeout.dll --check`（用 $WB_ROOT，别自己改它的值）";
+                    reason = $"改动过文档但最后一次生成器 / --check 不在其后（最后文档改动 index={lastDoc}·seq={facts[lastDoc].Seq}；最后生成器 index={(lastGen < 0 ? "无" : lastGen.ToString())}）⇒ 派生物可能落后；{hint}";
+                }
             }
 
             result.Add(new TerminalAssertion(TaskClassKind.DocChange, verdict, reason));

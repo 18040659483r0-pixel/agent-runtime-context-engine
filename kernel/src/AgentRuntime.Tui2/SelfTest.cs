@@ -29,6 +29,8 @@ public static class SelfTest
         StyleTests(output);
         CommandTests(output);
         SelectionTests(output);
+        MeterTests(output);
+        OutputWriterTests(output);
 
         output.WriteLine();
         output.WriteLine(_failures == 0
@@ -69,6 +71,11 @@ public static class SelfTest
     {
         o.WriteLine("[Selection/Clock]");
         var rows = new List<string> { "abcdef", "中文🙂xy", "第三行" };
+        Check(o, ScrollActions.IsScroll(InputAction.WheelUp) && ScrollActions.IsScroll(InputAction.WheelDown)
+                 && ScrollActions.IsScroll(InputAction.ScrollUp) && ScrollActions.IsScroll(InputAction.ScrollDown),
+            "滚轮/PgUp/PgDn 都属于「滚动」（空闲时也要重绘）");
+        Check(o, !ScrollActions.IsScroll(InputAction.Submit), "提交不算滚动");
+
         Check(o, Selection.Extract(rows, (0, 1, 1, 4)) == "bcdef\n中文",
             "跨行选区：行内起点 + 行首到 4 列（CJK 整字）");
 
@@ -84,7 +91,61 @@ public static class SelfTest
         clock.Stop();
         clock.BeginLifecycle();
         Check(o, clock.ElapsedClock == "00:00", $"新生命周期读秒归零（实得 {clock.ElapsedClock}）");
+        var label = clock.Label(7);
+        Check(o, label.StartsWith("T7", StringComparison.Ordinal), $"Task 标签用 T（实得 [{label}]）");
+        Check(o, !label.Contains("生命周期", StringComparison.Ordinal), "叫 Task、不叫「生命周期」（主人 2026-10-24 令）");
         clock.Stop();
+    }
+
+    // ---------- 写盘线程：主循环不许被终端堵住（2026-10-25 中文输入法卡死根因） ----------
+
+    private static void OutputWriterTests(TextWriter o)
+    {
+        o.WriteLine("[Writer]");
+
+        var gate = new object();
+        var written = new List<string>();
+        var screen = new AnsiScreen(s =>
+        {
+            Thread.Sleep(150);          // 模拟「终端在读 IME 组词、暂时不读 pty」
+            lock (gate)
+            {
+                written.Add(s);
+            }
+        });
+
+        var started = Environment.TickCount64;
+        for (var i = 1; i <= 5; i++)
+        {
+            screen.Draw("frame-" + i, 24, 1, 1);
+        }
+
+        var elapsed = Environment.TickCount64 - started;
+        Check(o, elapsed < 100, $"写盘慢时 Draw 必须立即返回（实得 {elapsed}ms）");
+
+        Thread.Sleep(600);
+        lock (gate)
+        {
+            Check(o, written.Count <= 2, $"同屏旧帧应被合并丢弃（实得写了 {written.Count} 次）");
+            Check(o, written.Count > 0 && written[^1].Contains("frame-5", StringComparison.Ordinal),
+                "最后一帧必须是屏幕最新状态（frame-5）");
+        }
+    }
+
+    // ---------- 状态栏计数（T = 本 task / S = 整个 session） ----------
+
+    private static void MeterTests(TextWriter o)
+    {
+        o.WriteLine("[TaskMeter]");
+        var meter = new TaskMeter(TaskTurns: 11, TaskEvents: 52, SessionTurns: 206, SessionEvents: 1083);
+        Check(o, meter.Counts() == "T 轮 11（S 轮 206）",
+            $"T/S 计数格式（实得 [{meter.Counts()}]）");
+        Check(o, !meter.Counts().Contains("事件", StringComparison.Ordinal),
+            "状态栏不报事件数（主人 2026-10-25：用户不需要这个数据）");
+        Check(o, !meter.Counts().Contains("tok", StringComparison.Ordinal),
+            "状态栏不报 session 的消耗（token 归顶栏，且须标 scope）");
+        Check(o, meter.TaskTurns <= meter.SessionTurns && meter.TaskEvents <= meter.SessionEvents,
+            "本 task 的计数不可能超过 session 总数（口径自洽）");
     }
 
     // ---------- ② PasteModel：原子块 ----------
@@ -388,12 +449,19 @@ public static class SelfTest
             "二、怎么解的",
             "  2.1 先看 AppRuntime 的状态",
         ]);
-        Check(o, decorated.Contains("[[noun]]术语[[/]]"), "「术语」标题用深黄（Noun）");
-        Check(o, decorated.Contains("[[noun]]一、这一轮要解决什么[[/]]"), "章节标题用深黄（Noun）");
-        Check(o, decorated.Any(l => l.Contains("[[noun]]AppRuntime[[/]]")), $"术语名用深黄（实得 [{string.Join(" | ", decorated)}]）");
-        Check(o, decorated.Any(l => l.Contains("[[noun]]AppRuntime[[/]] 的读数")), "正文里的概念也染色");
-        var idxOne = decorated.ToList().IndexOf("[[noun]]一、这一轮要解决什么[[/]]");
+        Check(o, decorated.Contains("[[keyword]]术语[[/]]"), "「术语」标题用金（Keyword）");
+        Check(o, decorated.Contains("[[keyword]]一、这一轮要解决什么[[/]]"), "章节标题用金（Keyword）");
+        Check(o, decorated.Any(l => l.Contains("[[keyword]]AppRuntime[[/]]")), $"术语名用金（实得 [{string.Join(" | ", decorated)}]）");
+        Check(o, decorated.Any(l => l.Contains("[[keyword]]AppRuntime[[/]] 的读数")), "正文里的概念也染色");
+        var idxOne = decorated.ToList().IndexOf("[[keyword]]一、这一轮要解决什么[[/]]");
         Check(o, idxOne > 0 && decorated[idxOne - 1] == string.Empty, "段落之间空一行");
+
+        // 意图 / 结果里的关键词（2026-10-25 主人报「卡上一直没看到 keyword」）：术语名必须也染到那两行。
+        var wrapped = TurnCardView.WrapTerms("查清 科目浮层 的结构，别动 `科目浮层` 那段代码", ["科目浮层"]);
+        Check(o, wrapped.Contains("[[keyword]]科目浮层[[/]] 的结构", StringComparison.Ordinal),
+            $"意图 / 结果里出现关键词（实得 [{wrapped}]）");
+        Check(o, wrapped.Contains("`科目浮层`", StringComparison.Ordinal),
+            "反引号里的代码段不嵌关键词标记");
 
         var terminalLines = TurnCardView.Build(terminalOnly);
         Check(o, terminalLines.Count == 2, $"只有终局输出也成一段 · 两行（实得 {terminalLines.Count} 行）");
@@ -411,9 +479,9 @@ public static class SelfTest
         Check(o, intent.Contains("\u001b[0m", StringComparison.Ordinal), "SGR 有复位");
 
         var heading = Tui2Style.Paint("一、这一轮要解决什么", StyleTable.Standard);
-        Check(o, heading.Contains("38;5;221", StringComparison.Ordinal), "章节标题用 Noun 深黄（色号 221）");
-        var concept = Tui2Style.Paint("[[noun]]AppRuntime[[/]] 是运行时", StyleTable.Standard);
-        Check(o, concept.Contains("38;5;221", StringComparison.Ordinal), "内联概念用 Noun 深黄");
+        Check(o, heading.Contains("38;5;221", StringComparison.Ordinal), "章节标题用 Keyword 金（色号 221）");
+        var concept = Tui2Style.Paint("[[keyword]]AppRuntime[[/]] 是运行时", StyleTable.Standard);
+        Check(o, concept.Contains("38;5;221", StringComparison.Ordinal), "内联概念用 Keyword 金");
 
         var result = Tui2Style.Paint("结果：完成（E046）", StyleTable.Standard);
         Check(o, result.Contains("\u001b[38;5;115m", StringComparison.Ordinal), "结果用 Done 色（TUI1 色号 115）");
@@ -433,13 +501,16 @@ public static class SelfTest
         Check(o, user.Text == "you > 你好" && user.Spans.Count == 1 && user.Spans[0].Role == StyleRole.You,
             "用户行 `you > ` 整行 You（斜体）");
 
-        var operation = Tui2Style.Paint("操作：exec×1", StyleTable.Standard);
-        Check(o, operation.Contains("\u001b[38;5;222m", StringComparison.Ordinal), "操作（命令/工具）用 Path 土黄");
+        var tui2 = Tui2Style.Detect("always", "256");
+        var operation = Tui2Style.Paint("操作：exec×1", tui2);
+        Check(o, operation.Contains("\u001b[38;5;71m", StringComparison.Ordinal), "操作（指令/工具）用 Command 薄荷（色号 71）");
 
         var path = Tui2Style.ToRich("见 /home/user/a.cs");
-        Check(o, path.Spans.Any(sp => sp.Role == StyleRole.Path), "绝对路径自动标成 Path（土黄色）");
-        var pathPainted = Tui2Style.Paint("见 /home/user/a.cs", StyleTable.Standard);
-        Check(o, pathPainted.Contains("\u001b[38;5;222m", StringComparison.Ordinal), "路径用 Path 色号 222");
+        Check(o, path.Spans.Any(sp => sp.Role == StyleRole.Path), "绝对路径自动标成 Path");
+        var pathPainted = Tui2Style.Paint("见 /home/user/a.cs", tui2);
+        Check(o, pathPainted.Contains("\u001b[38;5;221m", StringComparison.Ordinal), "TUI2 路径回到金（色号 221）");
+        var ocPath = Tui2Style.Paint("见 /home/user/a.cs", StyleTable.Standard);
+        Check(o, ocPath.Contains("\u001b[38;5;222m", StringComparison.Ordinal), "OC 的表不受影响（仍是 222 土黄）");
 
         var frame1 = ThinkSnake.Frame(0);
         var frame2 = ThinkSnake.Frame(300);

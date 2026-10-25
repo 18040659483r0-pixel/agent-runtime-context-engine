@@ -181,14 +181,15 @@ public static class XmlBlock
     /// </summary>
     /// <param name="Elements">取到的元素（按出现次序）。</param>
     /// <param name="Missed">块头后面**确实跟着一个元素**、但连归一也取不出的块数（0 = 无遗漏）。</param>
-    public static (IReadOnlyList<string> Elements, int Missed) TakeAllWithMisses(
+    public static (IReadOnlyList<string> Elements, int Missed, string? FirstError) TakeAllWithMisses(
         string? text, string marker, IReadOnlyCollection<string> knownTags, int limit = 64)
     {
         var result = new List<string>();
         var missed = 0;
+        string? firstError = null;
         if (string.IsNullOrEmpty(text))
         {
-            return (result, missed);
+            return (result, missed, firstError);
         }
 
         var at = 0;
@@ -210,10 +211,36 @@ public static class XmlBlock
             else if (FollowedByElement(slice, marker.Length))
             {
                 missed++;   // 块头后面真有元素却取不出 ⇒ **记一笔**（不许静默丢）
+                firstError ??= ParseErrorOf(slice, marker);
             }
         }
 
-        return (result, missed);
+        return (result, missed, firstError);
+    }
+
+    /// <summary>取「这一块为什么解析不了」的第一句（给拒因话术用；取不到 ⇒ null）。</summary>
+    private static string? ParseErrorOf(string slice, string marker)
+    {
+        var at = slice.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0) return null;
+        try
+        {
+            using var reader = XmlReader.Create(new StringReader(slice[(at + marker.Length)..]), Settings);
+            while (reader.Read())
+            {
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    _ = reader.ReadOuterXml();
+                    return "元素能读出但结构不完整（检查起止标签是否配对）";
+                }
+            }
+        }
+        catch (XmlException ex)
+        {
+            return ex.Message;
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RuntimeConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Provider>openai-compatible</Provider>
+  <BaseUrl>https://api.deepseek.com</BaseUrl>
+  <Model>deepseek-v4-flash</Model>
+  <ApiKeyEnv>AGENTRUNTIME_API_KEY</ApiKeyEnv>
+  <ApiKeyFile>~/.agentruntime/api_key</ApiKeyFile>
+  <TimeoutSeconds>1200</TimeoutSeconds>
+  <ConnectTimeoutSeconds>15</ConnectTimeoutSeconds>
+  <Temperature xsi:nil="true" />
+  <ReasoningEffort>low</ReasoningEffort>
+  <Modules>
+    <string>system-rules</string>
+    <string>rules</string>
+    <string>knowledge</string>
+    <string>memory-index</string>
+    <string>append-stream</string>
+    <string>task-ledger</string>
+    <string>tool</string>
+    <string>note</string>
+    <string>current-tail</string>
+    <string>dynamic-draft</string>
+    <string>focus</string>
+  </Modules>
+  <SystemRules />
+  <SessionMaxTurns>0</SessionMaxTurns>
+  <ContextWindow>1000000</ContextWindow>
+  <Frozen>
+    <Root>../../frozen-private</Root>
+    <Domains />
+    <Project />
+  </Frozen>
+  <Stream>
+    <Path>/tmp/t2demo/stream.xml</Path>
+    <MaxEvents>0</MaxEvents>
+  </Stream>
+  <Lifecycle>
+    <Workspace>../../whitebox/workspace</Workspace>
+    <Window>always</Window>
+    <Pitfalls>../../docs/PITFALLS.md</Pitfalls>
+    <PitfallsInbox>../../docs/TOOLFACE-PITFALLS.md</PitfallsInbox>
+    <Pipeline />
+    <Handover>state/handover.xml</Handover>
+    <NativeCloseout>true</NativeCloseout>
+  </Lifecycle>
+  <Snapshot>
+    <Path>state/snapshot.xml</Path>
+    <Enabled>true</Enabled>
+  </Snapshot>
+  <Focus>
+    <Path>state/focus.xml</Path>
+    <Policy>report</Policy>
+    <TopK>16</TopK>
+    <MinWeight>0.95</MinWeight>
+    <HalfLifeTurns>40</HalfLifeTurns>
+  </Focus>
+  <CurrentTail>
+    <StorePath>state/tail</StorePath>
+  </CurrentTail>
+  <DynamicDraft>
+    <StorePath>state/draft</StorePath>
+  </DynamicDraft>
+  <ToolQueue />
+  <Knowledge>
+    <Repo>../../whitebox/workspace/knowledge/.derived/nodes.xml</Repo>
+  </Knowledge>
+  <Worker>
+    <Enabled>false</Enabled>
+    <ProviderName />
+    <Provider>
+      <BaseUrl>https://api.deepinfra.com/v1/openai</BaseUrl>
+      <Model>deepseek-ai/DeepSeek-V4-Flash-0731</Model>
+      <ApiKeyEnv>AGENTRUNTIME_WORKER_API_KEY</ApiKeyEnv>
+      <ApiKeyFile>~/.agentruntime/deepinfra_worker_key</ApiKeyFile>
+      <TimeoutSeconds>1200</TimeoutSeconds>
+      <ServiceTier />
+    </Provider>
+    <Tools>
+      <string>read</string>
+      <string>list</string>
+      <string>write</string>
+      <string>edit</string>
+      <string>exec</string>
+    </Tools>
+    <MaxTurns>100</MaxTurns>
+    <MaxPromptTokens>80000</MaxPromptTokens>
+    <Home>../../whitebox/workspace/worker</Home>
+    <MaxDispatchesPerReply>2</MaxDispatchesPerReply>
+    <MaxWorkers>2</MaxWorkers>
+    <BulkTokens>3000</BulkTokens>
+    <BulkCumulativeTokens>6000</BulkCumulativeTokens>
+    <Pace>
+      <Enabled>true</Enabled>
+      <KMedian>3</KMedian>
+      <ConstantTokens>30000</ConstantTokens>
+      <GateSeconds>0</GateSeconds>
+      <MinSeconds>100</MinSeconds>
+      <MaxSeconds>1200</MaxSeconds>
+      <HardBelowTokPerSec>15</HardBelowTokPerSec>
+      <CeilingMode>max</CeilingMode>
+      <MinSamples>20</MinSamples>
+      <FallbackPrefillTokPerSec>8000</FallbackPrefillTokPerSec>
+      <FallbackDecodeTokPerSec>25</FallbackDecodeTokPerSec>
+      <FallbackOverheadSeconds>3</FallbackOverheadSeconds>
+    </Pace>
+  </Worker>
+  <!-- 网络工具第一批（v75）：搜索用无密钥 wikipedia；下载落在工作区 downloads -->
+  <Network>
+    <SearchBackend>wikipedia</SearchBackend>
+    <SearchEndpoint />
+    <SearchApiKeyEnv />
+    <TimeoutSeconds>30</TimeoutSeconds>
+    <MaxResponseBytes>2000000</MaxResponseBytes>
+    <MaxRedirects>5</MaxRedirects>
+    <MaxConcurrency>4</MaxConcurrency>
+    <CacheTtlSeconds>300</CacheTtlSeconds>
+    <DownloadRoots>
+      <string>../../whitebox/workspace/downloads</string>
+    </DownloadRoots>
+    <AllowedDownloadTypes>
+      <string>application/pdf</string>
+      <string>image/png</string>
+      <string>image/jpeg</string>
+      <string>text/plain</string>
+      <string>text/html</string>
+      <string>application/json</string>
+    </AllowedDownloadTypes>
+    <Credentials />
+  </Network>
+</RuntimeConfiguration>

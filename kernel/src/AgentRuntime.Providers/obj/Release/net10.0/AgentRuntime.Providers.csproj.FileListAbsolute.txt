@@ -1,0 +1,17 @@
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Providers.deps.json
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Providers.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Providers.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Core.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Models.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Core.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/bin/Release/net10.0/AgentRuntime.Models.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.csproj.AssemblyReference.cache
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.GeneratedMSBuildEditorConfig.editorconfig
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.AssemblyInfoInputs.cache
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.AssemblyInfo.cs
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.csproj.CoreCompileInputs.cache
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRun.0BB6EC8C.Up2Date
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/refint/AgentRuntime.Providers.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/AgentRuntime.Providers.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Providers/obj/Release/net10.0/ref/AgentRuntime.Providers.dll

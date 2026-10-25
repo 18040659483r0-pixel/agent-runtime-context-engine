@@ -117,9 +117,14 @@ public sealed class NoteModule : RuntimeModuleBase
             Directory.CreateDirectory(dir);
             var body = (File.Exists(path) ? string.Empty : $"# {name}\n") + "\n" + note.TrimEnd() + "\n";
             File.AppendAllText(path, body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            var indexed = AppendIndexLine(name, note);
+            var indexLine = AppendIndexLine(name, note);
             _sink?.Append(SessionEventKind.Hint,
-                $"[笔记] 已落盘 {path}（{note.Length} 字符）" + (indexed ? " · 索引已追加" : " · 索引未变"));
+                $"[笔记] 已落盘 {path}（{note.Length} 字符）" + (indexLine is not null ? " · 索引已追加" : " · 索引未变"));
+            if (indexLine is not null)
+            {
+                // 索引新增**同时进 R2**（2026-10-24 主人令）：新条目不必再重读整份索引就能被看见。
+                _sink?.Append(SessionEventKind.Memory, "[记忆索引·新增] " + indexLine, "memory-index");
+            }
         }
         catch (Exception ex)
         {
@@ -134,12 +139,12 @@ public sealed class NoteModule : RuntimeModuleBase
     /// 主表由收尾维护（按日期排序），自动追加不该改它的次序。同一条（同日期 + 同首行）不重复写。</para>
     /// <para>失败**不阻断**记笔记（索引是派生视图；正文已落盘才算数），但要在流里说清。</para>
     /// </summary>
-    /// <returns>真的追加了才 true（重复 ⇒ false）。</returns>
-    private bool AppendIndexLine(string day, string note)
+    /// <returns>新写进去的那一行（重复/失败 ⇒ null）。</returns>
+    private string? AppendIndexLine(string day, string note)
     {
         try
         {
-            var indexPath = Path.Combine(_workspace, MemoryIndexLiveModule.RelativePath);
+            var indexPath = Path.Combine(_workspace, MemoryIndexPagerModule.RelativePath);
             var dir = Path.GetDirectoryName(indexPath);
             if (!string.IsNullOrEmpty(dir))
             {
@@ -157,7 +162,7 @@ public sealed class NoteModule : RuntimeModuleBase
             var existing = File.Exists(indexPath) ? File.ReadAllText(indexPath, Encoding.UTF8) : string.Empty;
             if (existing.Contains(line, StringComparison.Ordinal))
             {
-                return false;
+                return null;
             }
 
             var prefix = existing.Length == 0
@@ -165,12 +170,12 @@ public sealed class NoteModule : RuntimeModuleBase
                 : existing.TrimEnd() + "\n\n";
             var section = existing.Contains(Heading, StringComparison.Ordinal) ? string.Empty : Heading + "\n\n";
             File.WriteAllText(indexPath, prefix + section + line + "\n", new UTF8Encoding(false));
-            return true;
+            return line;
         }
         catch (Exception ex)
         {
             _sink?.Append(SessionEventKind.Hint, $"[笔记] 索引追加失败（{ex.GetType().Name}：{ex.Message}）—— 正文已落盘，索引下次收尾补");
-            return false;
+            return null;
         }
     }
 

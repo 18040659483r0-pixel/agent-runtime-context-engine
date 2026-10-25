@@ -237,4 +237,34 @@ public sealed class ContinuityTests
         Assert.DoesNotContain("未定一", b.PromptText, StringComparison.Ordinal);
         Assert.Contains("上一会话最后一条用户消息", b.PromptText, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task 终局没写台面_宿主补一行_并如实标注合成()
+    {
+        using var b = new Bench();
+        b.Reply = "[DONE] 双栏改造写完了";
+        await b.Host.RunTurnAsync("把资产负债表改成左右双栏", cancellationToken: Ct);
+
+        // 2026-10-23：真机 202/202 轮零自报 ⇒ 终局时宿主兜底，保证下一会话能接上。
+        Assert.Equal(2, b.Tail.Current.Lines.Count);
+        Assert.StartsWith("solve: 把资产负债表改成左右双栏", b.Tail.Current.Lines[0], StringComparison.Ordinal);
+        Assert.StartsWith("step: 1 -- 双栏改造写完了", b.Tail.Current.Lines[1], StringComparison.Ordinal);
+        Assert.Contains(Hints(b.Host), h => h.Contains("tail-synth", StringComparison.Ordinal) || h.Contains("补两行", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task 模型自己写了台面_宿主不覆盖()
+    {
+        using var b = new Bench();
+        b.Reply = "[DONE] 做完了\n[TAIL]\nsolve: 自己的解\nstep: 1 -- 自己的步";
+        await b.Host.RunTurnAsync("随便做点事", cancellationToken: Ct);
+
+        Assert.Equal(new[] { "solve: 自己的解", "step: 1 -- 自己的步" }, b.Tail.Current.Lines);
+    }
+
+    private static IReadOnlyList<string> Hints(RuntimeHost host) =>
+        host.Modules.OfType<AppendStreamModule>().First().Stream.Snapshot()
+            .Where(e => e.Kind == SessionEventKind.Hint)
+            .Select(e => e.Text)
+            .ToArray();
 }

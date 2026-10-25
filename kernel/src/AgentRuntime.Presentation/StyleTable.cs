@@ -67,6 +67,8 @@ public sealed class StyleTable
     private static readonly Dictionary<StyleRole, (string Hex, string TrueColor, string Color256, string Basic)> Palette = new()
     {
         [StyleRole.Noun] = ("#F6C453", "38;2;246;196;83", "38;5;221", "93"),      // OC accent（金）
+        [StyleRole.Keyword] = ("#F6C453", "38;2;246;196;83", "38;5;221", "93"),   // 关键词（主人 2026-10-25 20:3x：改回金）
+        [StyleRole.Command] = ("#3FB950", "38;2;63;185;80", "38;5;71", "92"),     // 指令 / 工具调用（薄荷；TUI2 用）
         [StyleRole.Path] = ("#F0C987", "38;2;240;201;135", "38;5;222", "93"),     // OC code（浅金）
         [StyleRole.Attention] = ("#8CC8FF", "38;2;140;200;255", "38;5;117", "94"), // OC quote（柔蓝）
         [StyleRole.Done] = ("#7DD3A5", "38;2;125;211;165", "38;5;115", "92"),     // OC success（薄荷绿）
@@ -78,10 +80,24 @@ public sealed class StyleTable
         [StyleRole.You] = ("—", "3", "3", "3"),                                   // 斜体（无色；用户问的那一行，主人 2026-09-22 定）
     };
 
-    private StyleTable(bool enabled, ColorDepth depth)
+    /// <summary>按角色的**局部覆盖**（同一份调色表上只改几个角色；null = 用全局 <see cref="Palette"/>）。</summary>
+    private readonly IReadOnlyDictionary<StyleRole, (string TrueColor, string Color256, string Basic)>? _overrides;
+
+    private StyleTable(
+        bool enabled,
+        ColorDepth depth,
+        IReadOnlyDictionary<StyleRole, (string TrueColor, string Color256, string Basic)>? overrides = null)
     {
         Enabled = enabled;
         Depth = depth;
+        _overrides = overrides;
+    }
+
+    /// <summary>**同一张表 + 局部换色**（TUI2 用它把「路径」换成深褐，不动 OC 的土黄）。</summary>
+    public StyleTable WithOverrides(IReadOnlyDictionary<StyleRole, (string TrueColor, string Color256, string Basic)> map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        return new StyleTable(Enabled, Depth, map);
     }
 
     /// <summary>这张表会不会真的吐 ANSI。</summary>
@@ -169,16 +185,40 @@ public sealed class StyleTable
         _ => throw new ArgumentException($"只支持 auto|16|256|truecolor，当前为 \"{raw}\"。"),
     };
 
-    /// <summary>某个角色的 SGR 前缀（不上色 / 未知角色 ⇒ 空串）。</summary>
-    public string Sgr(StyleRole role) =>
-        Enabled && Palette.TryGetValue(role, out var codes)
-            ? $"\u001b[{Depth switch
+    /// <summary>某个角色的 SGR 前缀（不上色 / 未知角色 ⇒ 空串）。局部覆盖优先于全局表。</summary>
+    public string Sgr(StyleRole role)
+    {
+        if (!Enabled)
+        {
+            return string.Empty;
+        }
+
+        string code;
+        if (_overrides is not null && _overrides.TryGetValue(role, out var over))
+        {
+            code = Depth switch
+            {
+                ColorDepth.TrueColor => over.TrueColor,
+                ColorDepth.Color256 => over.Color256,
+                _ => over.Basic,
+            };
+        }
+        else if (Palette.TryGetValue(role, out var codes))
+        {
+            code = Depth switch
             {
                 ColorDepth.TrueColor => codes.TrueColor,
                 ColorDepth.Color256 => codes.Color256,
                 _ => codes.Basic,
-            }}m"
-            : string.Empty;
+            };
+        }
+        else
+        {
+            return string.Empty;
+        }
+
+        return $"\u001b[{code}m";
+    }
 
     /// <summary>某个角色的十六进制原值（文档 / <c>/palette</c> 用；无色角色给 <c>—</c>）。</summary>
     public static string HexOf(StyleRole role) => Palette.TryGetValue(role, out var codes) ? codes.Hex : "—";

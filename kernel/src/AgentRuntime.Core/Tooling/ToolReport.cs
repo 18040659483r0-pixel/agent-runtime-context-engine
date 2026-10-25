@@ -115,6 +115,12 @@ public static class ToolReport
     private static string StripFencedBlocks(string text) =>
         Regex.Replace(text, "```.*?```", string.Empty, RegexOptions.Singleline);
 
+    private static string Trim(string text)
+    {
+        var line = text.Replace("\r", " ").Replace("\n", " ").Trim();
+        return line.Length <= 160 ? line : line[..160] + "…";
+    }
+
     /// <summary>从一段回复里取全部 <c>[TOOL]</c> 块（最多 <see cref="ProtocolText.ToolMaxCallsPerReply"/> 个，按发出顺序）。</summary>
     public static ToolParseResult Parse(string? responseText)
     {
@@ -128,7 +134,7 @@ public static class ToolReport
         // 严格取不到 ⇒ **归一后重试**（裸 `&` / 未转义 `<`；§十·47 归一优先、拒绝是最后手段）。
         // 真机 2026-10-08：worker 交出完全合规的 `<call>…<command>a && b</command>…</call>`，
         // 只因那个裸 `&&` 整块被拒（掉行式后路 ⇒「块头之后不是参数行」）⇒ 白跑两轮 + 两条补发。
-        var (xmlCalls, missed) = XmlBlock.TakeAllWithMisses(responseText, Prefix, ToolCallXml.Tags);
+        var (xmlCalls, missed, parseError) = XmlBlock.TakeAllWithMisses(responseText, Prefix, ToolCallXml.Tags);
 
         // **不许静默丢**（2026-10-10 真机修 E1）：块头后面真跟着一个元素却取不出 ⇒ **整篇拒**并说清修法。
         // 旧路只在「一个块都取不到」时才退到归一 ⇒ 一条回复里只要**另一块**能严格取到，
@@ -143,7 +149,9 @@ public static class ToolReport
                 + "按【工具面】给的**元素形状**重发（成员按名取、顺序无关）："
                 + "命令/正文里的 `<` 与 `&` 要么写成 `&lt;` / `&amp;`，"
                 + "要么把长正文直接写到文件、把路径传进来（`<path>…</path>`）；"
-                + "**并检查是否漏写了 `</call>` 结束标签**（成员写完了、根元素没闭合，同样取不出）。");
+                + "**并检查是否漏写了 `</call>` 结束标签**（成员写完了、根元素没闭合，同样取不出）；"
+                + "**还要看起止标签是否配对**（例：`<path>` 被 `</name>` 关掉）。"
+                + (string.IsNullOrWhiteSpace(parseError) ? string.Empty : $" 解析器原话：{Trim(parseError)}"));
         }
 
         if (xmlCalls.Count > 0)

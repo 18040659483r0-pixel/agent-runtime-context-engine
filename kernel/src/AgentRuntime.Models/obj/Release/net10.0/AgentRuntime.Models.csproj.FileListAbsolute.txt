@@ -1,0 +1,11 @@
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/bin/Release/net10.0/AgentRuntime.Models.deps.json
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/bin/Release/net10.0/AgentRuntime.Models.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/bin/Release/net10.0/AgentRuntime.Models.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.GeneratedMSBuildEditorConfig.editorconfig
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.AssemblyInfoInputs.cache
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.AssemblyInfo.cs
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.csproj.CoreCompileInputs.cache
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/refint/AgentRuntime.Models.dll
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/AgentRuntime.Models.pdb
+/private/tmp/slice81/kernel/src/AgentRuntime.Models/obj/Release/net10.0/ref/AgentRuntime.Models.dll

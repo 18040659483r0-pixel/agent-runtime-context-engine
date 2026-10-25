@@ -65,9 +65,10 @@ public static class InputTest
         try
         {
             screen.Enter();
+            ScreenSize.Start();   // SIGWINCH + 后台量尺（resize 当帧跟上，主循环不等）
             driver = new Utf8InputDriver();
             WriteReady(options.ReadyPath);
-            TuiRenderer.Render(screen, conversation, doc, paste, "input-test", 0, 0, bridge.Caret, null, style);
+            TuiRenderer.Render(screen, conversation, doc, paste, "input-test", "轮 0 · 事件 0", bridge.Caret, null, style);
             initialRows = TuiRenderer.LastEditorRows;
 
             var until = DateTime.UtcNow.AddSeconds(options.TimeoutSeconds);
@@ -77,6 +78,10 @@ public static class InputTest
                 if (ev is MouseEvent mouse)
                 {
                     selectionCtl.Handle(mouse);
+                }
+                else if (ev is KeyEvent { Key: InputKey.Escape } && selectionCtl.Selection.Active)
+                {
+                    selectionCtl.Clear();   // 与真机 App 同一条规矩：Esc 先取消选区
                 }
                 else if (ev is not null)
                 {
@@ -91,9 +96,12 @@ public static class InputTest
                     else if (action == InputAction.Quit) { exitReason = "quit"; break; }
                 }
 
-                TuiRenderer.Render(screen, conversation, doc, paste, "input-test", 0, 0, bridge.Caret,
+                TuiRenderer.Render(screen, conversation, doc, paste, "input-test", "轮 0 · 事件 0", bridge.Caret,
                     controller.TopBandVisible ? topBand : null, style,
-                    summary: selectionCtl.RecentNotice(), selection: selectionCtl.Selection);
+                    summary: selectionCtl.Selection.Active
+                        ? $"已选中 {Selection.Extract(TuiRenderer.LastConversationTexts, selectionCtl.Selection.Range).Length} 字 · ⌘C 复制 · Esc 取消"
+                        : selectionCtl.RecentNotice(),
+                    selection: selectionCtl.Selection);
                 frames++;
             }
 

@@ -198,7 +198,7 @@ public sealed class LifecycleCardViewTests
 
         var trace = await router.ExecuteAsync("/trace", new StringWriter(), Ct);
         Assert.False(trace.IsError);
-        Assert.Contains(trace.Lines, line => line.Contains("完整轨迹（2 条）", StringComparison.Ordinal));
+        Assert.Contains(trace.Lines, line => line.Contains("完整轨迹（3 条）", StringComparison.Ordinal));   // +1：终局兜底台面的 tail-synth 提示
 
         var result = await router.ExecuteAsync("/result", new StringWriter(), Ct);
         Assert.False(result.IsError);

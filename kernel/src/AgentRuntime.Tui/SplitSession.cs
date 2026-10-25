@@ -1703,6 +1703,7 @@ public sealed class SplitSession
             //    · 上限（轮数）/ 预算（经过时间）只兜底，防失控；跑到边界会留一行痕。
             //    · 等审批的时间不计入预算（预算钟与审批闸门共用同一个）。
             //    · 中断：Ctrl-C（取消令牌）随时可停。
+            _budget.Reset();   // 每条链各自一份预算
             await TurnContinuation.RunAsync(
                 _host,
                 cursor,

@@ -1,0 +1,14 @@
+/private/tmp/slice81/kernel/tools/demo-doc/bin/Release/net10.0/DemoDoc
+/private/tmp/slice81/kernel/tools/demo-doc/bin/Release/net10.0/DemoDoc.deps.json
+/private/tmp/slice81/kernel/tools/demo-doc/bin/Release/net10.0/DemoDoc.runtimeconfig.json
+/private/tmp/slice81/kernel/tools/demo-doc/bin/Release/net10.0/DemoDoc.dll
+/private/tmp/slice81/kernel/tools/demo-doc/bin/Release/net10.0/DemoDoc.pdb
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.GeneratedMSBuildEditorConfig.editorconfig
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.AssemblyInfoInputs.cache
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.AssemblyInfo.cs
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.csproj.CoreCompileInputs.cache
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.dll
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/refint/DemoDoc.dll
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.pdb
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/DemoDoc.genruntimeconfig.cache
+/private/tmp/slice81/kernel/tools/demo-doc/obj/Release/net10.0/ref/DemoDoc.dll

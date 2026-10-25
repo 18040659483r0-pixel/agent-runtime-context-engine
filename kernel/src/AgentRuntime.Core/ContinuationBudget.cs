@@ -56,6 +56,18 @@ public sealed class ContinuationBudget
         }
     }
 
+    /// <summary>
+    /// **开新链前清零**（2026-10-23 真机）：预算的语义是「**本链**最多 30 分钟」，
+    /// 但 <see cref="System.Diagnostics.Stopwatch"/> 的 Elapsed 跨 Stop/Start **只增不减**
+    /// ⇒ 同一进程里累计 30 分钟后，**之后每一次用户发言都会在第 0 轮就判「预算用尽」**，
+    /// 模型只能反复要求「再给一轮」，活永远干不完。开链前清零，才是「每条链各自 30 分钟」。
+    /// </summary>
+    public void Reset()
+    {
+        _paused = false;
+        _clock.Reset();
+    }
+
     /// <summary>收链（停钟；再 Start 才开始新的一条）。</summary>
     public void Stop()
     {

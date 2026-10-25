@@ -1244,11 +1244,14 @@ internal static class Program
             ? AgentRuntime.Hosting.ContinuationSettings.Off
             : AgentRuntime.Hosting.ContinuationSettings.Default with { MaxRounds = budget };
 
+        // 每条链各自一份预算（跨用户发言累计会把后续每一轮都瞬间判超时）。
+        var clock = new AgentRuntime.Core.ContinuationBudget();
+        clock.Reset();
         var ran = await AgentRuntime.Hosting.TurnContinuation.RunAsync(
             host,
             cursor,
             settings,
-            new AgentRuntime.Core.ContinuationBudget(),
+            clock,
             step: token => host.ContinueTurnAsync(verbose, token),
             trace: line =>
             {

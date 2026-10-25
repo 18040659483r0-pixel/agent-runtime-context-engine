@@ -27,7 +27,15 @@ public static class TuiRenderer
     /// <summary>上一帧会话区可见正文（每行 = 屏幕上的纯文本，复制用）。</summary>
     public static IReadOnlyList<string> LastConversationTexts { get; private set; } = Array.Empty<string>();
 
-    private const int SizeRefreshEveryFrames = 10;
+    /// <summary>上一帧可视窗口第一行在**会话全表**里的下标（选区按它做绝对锚定）。</summary>
+    public static int LastConversationStart { get; private set; }
+
+    /// <summary>上一帧**全部**会话行（含窗口外的；复制与选区提取都用它）。</summary>
+    public static IReadOnlyList<string> LastConversationAllTexts { get; private set; } = Array.Empty<string>();
+
+    /// <summary>上一帧算出的**最大可滚动行数**（滚动钳制用它，避免「滚太远要按很多下才回来」）。</summary>
+    public static int LastMaxScroll { get; private set; }
+
 
     private static int _frames;
 
@@ -37,8 +45,7 @@ public static class TuiRenderer
         TextDocument doc,
         PasteModel paste,
         string state,
-        int turn,
-        int events,
+        string counts,
         int caretOffset,
         IReadOnlyList<string>? topBand = null,
         StyleTable? style = null,
@@ -50,7 +57,10 @@ public static class TuiRenderer
         var paint = style ?? StyleTable.Disabled;
 
         // 绝不读 Console.WindowWidth/Height：它会发光标位置查询并读 stdin，把按键吞掉。
-        var (w, h) = ++_frames % SizeRefreshEveryFrames == 0 ? ScreenSize.Refresh() : ScreenSize.Get();
+        // **每帧都问尺寸**（ioctl 微秒级；退化路径自带 30s 节流）——
+        // 过去「每 10 帧才 Refresh」+ 30s 缓存 ⇒ resize 后要等半分钟才正确（主人 2026-10-25 报）。
+        _frames++;
+        var (w, h) = ScreenSize.Refresh();
         var cols = Math.Max(20, w);
         var rows = Math.Max(6, h);
 
@@ -98,18 +108,18 @@ public static class TuiRenderer
         // ---- 会话 / 决策卡（角色段随换行切） ----
         // 表格先按**当前终端宽度**重排（TUI1 的 TableReflow：识别 Markdown/框线表，交给 TextTable.Fit）；
         // 非表行逐字节原样。必须在逐行 Wrap 之前做，否则表会被当成普通长行折烂。
-        var fitted = TableReflow.Fit(conversation, cols);
-        var convShown = new List<RichText>();
-        foreach (var line in fitted)
-        {
-            var rich = line.Length == 0 ? RichText.From(" ") : Tui2Style.ToRich(line);
-            foreach (var wrapped in rich.Wrap(cols)) convShown.Add(wrapped);
-        }
+        // **滚动帧缓存**（2026-10-23）：滚动只改窗口，不改内容 —— 但旧实现每帧都重做
+        // TableReflow + 全量 ToRich + 全量 Wrap，滚起来就一顿一顿。用内容指纹做键，内容没变就复用。
+        var __t0 = Environment.TickCount64;
+        var convShown = ShownConversation(conversation, cols);
 
         // scroll=0 贴底（最新）；PageUp 增大 scroll，往上翻历史。
         var maxScroll = Math.Max(0, convShown.Count - convRows);
+        LastMaxScroll = maxScroll;
         var scroll = Math.Clamp(conversationScroll, 0, maxScroll);
         var start = Math.Max(0, convShown.Count - convRows - scroll);
+        LastConversationStart = start;
+        LastConversationAllTexts = convShown.Select(static r => r.Text).ToArray();
         var visible = new List<string>(convRows);
         for (var i = 0; i < convRows; i++)
         {
@@ -139,14 +149,61 @@ public static class TuiRenderer
         var bottomDividerRow = dividerRow + 1 + editRows;
         AppendRowRich(sb, bottomDividerRow, Tui2Style.ToRich(new string('─', cols)), cols, paint);
 
-        var statusText = "[" + state + "] 轮 " + turn + " · 事件 " + events;
+        // 计数段由调用方给（`TaskMeter.Counts()`）：T = 本 task，S = 整个 session；渲染层不重算口径。
+        var statusText = "[" + state + "] " + counts;
         if (!string.IsNullOrEmpty(summary)) statusText += " · " + summary;
         statusText += " · Tab 切模块区 · Ctrl+C 两下退出";
         if (!string.IsNullOrEmpty(activity)) statusText += " · " + activity;
         AppendRowRich(sb, rows - 1, Tui2Style.ToRich(statusText).TruncateTo(cols), cols, paint);
 
         var caretScreenRow = dividerRow + 1 + (caretRow - offset) + 1;
+        var __t1 = Environment.TickCount64;
         screen.Draw(sb.ToString(), rows, caretScreenRow, caretCol + 1);
+        var __t2 = Environment.TickCount64;
+        if (__t1 - __t0 > 100 || __t2 - __t1 > 100)
+        {
+            Utf8InputDriver.Trace($"render parts: build={__t1 - __t0}ms draw={__t2 - __t1}ms conv={convShown.Count} sb={sb.Length}");
+        }
+    }
+
+    private static int _shownCols = -1;
+    private static long _shownHash;
+    private static List<RichText>? _shownCache;
+
+    /// <summary>会话 → 已按宽度折好的富文本（**内容未变就复用**：滚动帧省掉整轮重排与上色）。</summary>
+    private static List<RichText> ShownConversation(IReadOnlyList<string> conversation, int cols)
+    {
+        var hash = 1469598103934665603UL;
+        foreach (var line in conversation)
+        {
+            foreach (var ch in line)
+            {
+                hash ^= ch;
+                hash *= 1099511628211UL;
+            }
+
+            hash ^= '\n';
+            hash *= 1099511628211UL;
+        }
+
+        var h = unchecked((long)hash);
+        if (_shownCache is not null && _shownCols == cols && _shownHash == h)
+        {
+            return _shownCache;
+        }
+
+        var fitted = TableReflow.Fit(conversation, cols);
+        var shown = new List<RichText>();
+        foreach (var line in fitted)
+        {
+            var rich = line.Length == 0 ? RichText.From(" ") : Tui2Style.ToRich(line);
+            foreach (var wrapped in rich.Wrap(cols)) shown.Add(wrapped);
+        }
+
+        _shownCols = cols;
+        _shownHash = h;
+        _shownCache = shown;
+        return shown;
     }
 
     /// <summary>只读选区：在已画好的会话行上，用反显覆盖选中列段（宽字符整字不劈）。</summary>
@@ -155,10 +212,12 @@ public static class TuiRenderer
         var (r1, c1, r2, c2) = selection.Range;
         for (var i = 0; i < rows; i++)
         {
-            var row = top + i;
+            // **绝对行号**（2026-10-24）：选区锚在「会话全表第几行」，不是「屏幕上第几行」——
+            // 否则卡片变大 / 编辑器变高 / 滚动一下，高亮就会贴到别的文字上（漂移）。
+            var row = LastConversationStart + i;
             if (row < r1 || row > r2) continue;
 
-            var text = i < LastConversationTexts.Count ? LastConversationTexts[i] : string.Empty;
+            var text = row < LastConversationAllTexts.Count ? LastConversationAllTexts[row] : string.Empty;
             var begin = row == r1 ? Math.Clamp(c1, 0, cols) : 0;
             var end = row == r2 ? Math.Clamp(c2, 0, cols) : cols;
             if (end <= begin) continue;
@@ -166,8 +225,11 @@ public static class TuiRenderer
             var (slice, startCell) = Selection.SliceCells(text, begin, end);
             if (slice.Length == 0) continue;
 
-            sb.Append('\u001b').Append('[').Append(row + 1).Append(';').Append(startCell + 1).Append('H');
-            sb.Append("\u001b[7m").Append(slice).Append("\u001b[27m");
+            // 屏幕行 = 窗口首行 + i（不是 row）
+            sb.Append('\u001b').Append('[').Append(top + i + 1).Append(';').Append(startCell + 1).Append('H');
+            // 2026-10-23：**底色覆盖**优于反显 —— 反显在深色主题里几乎看不出来；
+            // 这里用 256 色深蓝底 + 亮字（终端没有真半透明，这就是最接近「半透明覆盖」的可移植做法）。
+            sb.Append("\u001b[48;5;24m\u001b[38;5;231m").Append(slice).Append("\u001b[39;49m");
         }
     }
 

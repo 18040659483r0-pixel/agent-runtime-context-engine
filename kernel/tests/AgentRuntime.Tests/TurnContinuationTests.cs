@@ -221,4 +221,21 @@ public sealed class TurnContinuationTests
             return line;
         }
     }
+
+    [Fact]
+    public async Task 预算钟_每条链各自清零_不跨链累积()
+    {
+        var budget = new ContinuationBudget();
+        budget.Start();
+        await Task.Delay(30, Ct);
+        Assert.True(budget.Elapsed > TimeSpan.Zero);
+
+        // 2026-10-23 真机：Stopwatch 的 Elapsed 跨 Stop/Start 只增不减 ⇒ 同一进程累计 30 分钟后，
+        // 之后**每一轮用户发言都在第 0 轮判「预算用尽」**（模型只能反复要"再给一轮"）。开链前必须清零。
+        budget.Reset();
+        Assert.Equal(TimeSpan.Zero, budget.Elapsed);
+        budget.Start();
+        await Task.Delay(5, Ct);
+        Assert.True(budget.Elapsed < TimeSpan.FromSeconds(1));
+    }
 }

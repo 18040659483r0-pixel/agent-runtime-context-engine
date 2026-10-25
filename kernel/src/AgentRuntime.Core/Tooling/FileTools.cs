@@ -533,6 +533,15 @@ public sealed class EditTool : LocalToolBase
             throw new ToolUsageException("edit 的 oldText 不能为空（空串会在任意位置匹配 ⇒ 判不出替换哪里）⇒ 拒绝。");
         }
 
+        // **空编辑**（2026-10-24 真机）：oldText 与 newText 相同 ⇒ 什么都没改，但旧实现回「替换 1 处（8→8）」，
+        // 模型据此以为写成功了（随后又花几轮排查「为什么测试没变」）。直接判失败，把事实说清。
+        if (string.Equals(oldText, newText, StringComparison.Ordinal))
+        {
+            return ToolOutcome.Failure(
+                $"edit {args.Canonical} → 失败：oldText 与 newText **完全相同**（空编辑，未写入）。"
+                + "要追加内容，请把新内容一并放进 newText，或用 write 整份重写。");
+        }
+
         if (!File.Exists(path))
         {
             return ToolOutcome.Failure(
@@ -555,10 +564,23 @@ public sealed class EditTool : LocalToolBase
         }
 
         var updated = content.Replace(oldText, newText, StringComparison.Ordinal);
+        if (string.Equals(updated, content, StringComparison.Ordinal))
+        {
+            // **等价替换 = 没改**（2026-10-24）：oldText ≠ newText 也可能拼出同一份内容（多行截断后只剩原串）。
+            // 旧实现照样回「替换 1 处」⇒ 模型以为写成功，后面几轮查「为什么测试没变」。
+            return ToolOutcome.Failure(
+                "edit → 失败：替换后内容与原文**完全一致**（等价替换，未改动）。"
+                + "多行 newText 可能被截断成与 oldText 相同的片段 —— 请用 write 整份重写，或把新内容完整放进 newText。");
+        }
+
         var before = FileEvidence.Sha256(path);
         await File.WriteAllTextAsync(path, updated, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken)
             .ConfigureAwait(false);
         var after = FileEvidence.Sha256(path);
+        if (string.Equals(before, after, StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolOutcome.Failure($"edit {args.Canonical} → 失败：写入后内容哈希未变（{FileEvidence.Short(after)}）⇒ 没有真正改动。");
+        }
 
         var head = $"edit → 落点 {path} · 替换 1 处（{oldText.Length} 字符 → {newText.Length} 字符）"
                  + $" · sha {FileEvidence.Short(before)}→{FileEvidence.Short(after)}";

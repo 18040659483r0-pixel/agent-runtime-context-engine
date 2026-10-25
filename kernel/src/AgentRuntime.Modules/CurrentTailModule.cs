@@ -54,6 +54,9 @@ public sealed class CurrentTailModule : RuntimeModuleBase, ITailRegionModule
     /// <summary>参数（只读诊断用）。</summary>
     public CurrentTailOptions Options => _options;
 
+    /// <summary>本进程里「模型真的自报过几次 [TAIL]」（宿主用来判「本生命周期有没有留台面」）。</summary>
+    public int ReportCount { get; private set; }
+
     /// <summary>此刻的白板（**照读存储区的值**；只读诊断用，可复算）。</summary>
     public CurrentTailState Current => _current;
 
@@ -96,6 +99,7 @@ public sealed class CurrentTailModule : RuntimeModuleBase, ITailRegionModule
         }
 
         Apply(lines, CurrentTailSources.Report, context.Turn);
+        ReportCount++;
         return ValueTask.CompletedTask;
     }
 

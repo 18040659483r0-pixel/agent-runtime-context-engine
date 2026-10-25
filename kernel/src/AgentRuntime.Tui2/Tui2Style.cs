@@ -29,13 +29,20 @@ public static class Tui2Style
             requested = null;
         }
 
-        return StyleTable.For(
+        var table = StyleTable.For(
             mode,
             !Console.IsOutputRedirected,
             Environment.GetEnvironmentVariable("NO_COLOR"),
             Environment.GetEnvironmentVariable("TERM"),
             Environment.GetEnvironmentVariable("COLORTERM"),
             requested);
+
+        // **TUI2 的局部换色**（不动 OC 的调色表）：
+        //   路径改回金 #F6C453（主人 2026-10-25 20:3x：深褐不好看）；指令/工具仍走 Command（薄荷）。
+        return table.WithOverrides(new Dictionary<StyleRole, (string TrueColor, string Color256, string Basic)>
+        {
+            [StyleRole.Path] = ("38;2;246;196;83", "38;5;221", "93"),
+        });
     }
 
     /// <summary>
@@ -100,7 +107,7 @@ public static class Tui2Style
         foreach (var (label, role, restRole) in new[]
                  {
                      ("意图：", StyleRole.Attention, (StyleRole?)null),
-                     ("操作：", StyleRole.Path, (StyleRole?)StyleRole.Path),
+                     ("操作：", StyleRole.Command, (StyleRole?)StyleRole.Command),   // 指令：薄荷（强调）
                      ("结果：", StyleRole.Done, (StyleRole?)null),
                  })
         {
@@ -122,10 +129,10 @@ public static class Tui2Style
                 .Concat(Whole(line[headEnd..], role));
         }
 
-        // 报告章节标题 / 「术语」小节：**深黄（专名色）**，与深色正文区分开。
+        // 报告章节标题 / 「术语」小节：**深绿（TUI2 关键词色）**，与 OC 的金色区分开。
         if (line.Trim() == "术语" || Regex.IsMatch(line, "^[一二三四五六]、", RegexOptions.CultureInvariant))
         {
-            return Whole(line, StyleRole.Noun);
+            return Whole(line, StyleRole.Keyword);
         }
 
         // 页脚 / 指针：灰。

@@ -99,6 +99,7 @@ public sealed class NoteModuleTests
             Assert.Contains("索引也要有这一条", body, StringComparison.Ordinal);
             Assert.Equal(1, body.Split("索引也要有这一条").Length - 1);
             Assert.Contains(sink.Events, e => e.Contains("索引已追加", StringComparison.Ordinal));
+            Assert.Contains(sink.Events, e => e.Contains("[记忆索引·新增]", StringComparison.Ordinal));   // 新条目同时进 R2
         }
         finally
         {

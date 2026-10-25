@@ -359,7 +359,7 @@ public sealed class RuntimeConfiguration
     /// （写在后面会被确定性闸门当「动态区次序违规」报错 —— 那道闸门故意不纠正、只报错）。
     /// </para>
     /// </summary>
-    public static readonly string[] KnownModules = ["protocol", "system-rules", "session", "append-stream", "tool", "worker-dispatch", "note", "rules", "knowledge", "decision", "memory-index", "focus", "current-tail", "dynamic-draft", "worker-knowledge", "decision-bypass"];
+    public static readonly string[] KnownModules = ["protocol", "system-rules", "session", "append-stream", "tool", "worker-dispatch", "note", "rules", "knowledge", "decision", "memory-index", "focus", "current-tail", "dynamic-draft", "worker-knowledge", "decision-bypass", "task-ledger"];
 
     /// <summary>会话模块名（互斥校验用）。</summary>
     public const string SessionModuleName = "session";

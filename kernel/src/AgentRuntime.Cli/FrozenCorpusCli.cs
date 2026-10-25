@@ -26,12 +26,13 @@ public static class FrozenCorpusCli
         [
             ("一、铁则与流程", "full", ["AGENTS.md"], "A"),
             ("二、人格与协作边界", "persona", ["SOUL.md", "IDENTITY.md", "USER.md", "GLOSSARY.md"], "A"),
-            ("三、L3 资源指针（正文不在冻结区）", "pointer", [], "A"),
         ]),
         ("knowledge/global.md", "knowledge.global",
         [
             ("一、知识库（L1 法则常驻；L2~L4 按需扩散取）", "knowledge-l1", [], "A"),
-            ("二、踩坑集索引（L3：节级）", "pitfall-index", [], "A"),
+            // 2026-10-24 主人令：**L3 踩坑集索引不再常驻**（它 49KB ≈12k token，每轮都进前缀）。
+            // 索引本身仍由 `--pitfalls-index` 生成在 docs/ 下，按需用工具读；常驻区只留 L1 法则。
+
             ("三、项目文档索引（L3）", "project-index", [], "B"),
         ]),
         ("decision/global.md", "decision.global",

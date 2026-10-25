@@ -461,19 +461,22 @@ public sealed class SolveLanguageTests
         // 2026-10-10：③ **路径基准**（source=path-base，修 E4/D2）
         // 2026-10-11：④ **工具块形状** Hint 试过又撤了（模型照旧走原生 DSML，无收益）⇒ 仍旧三条。
         // 2026-10-22：⑤ **长命令/平台命令事实**（source=exec-facts，修「exec 前台起服务 ⇒ 整轮永久挂起」）。
-        // 2026-10-22 晚：⑥ **台面已销账**（source=board-cleared；交接里有档案时才说）⇒ **五条**。
-        Assert.Equal(5, b.Stream.Stream.Count);
+        // 2026-10-22 晚：⑥ **台面已销账**（source=board-cleared；交接里有档案时才说）。
+        // 2026-10-25：⑦ **上一节任务台账摘要**（source=handoff-ledger；有 AgentOutput 才种）⇒ **六条**。
+        Assert.Equal(6, b.Stream.Stream.Count);
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[0].Kind);
         Assert.Equal("runtime", b.Stream.Stream.Events[0].Source);
         // 顺序 = 交接线索（runtime）→ 台面销账 → 会话起点三条（worker / path / exec）。
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[1].Kind);
-        Assert.Equal("board-cleared", b.Stream.Stream.Events[1].Source);
+        Assert.Equal("handoff-ledger", b.Stream.Stream.Events[1].Source);
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[2].Kind);
-        Assert.Equal(WorkerAvailability.Source, b.Stream.Stream.Events[2].Source);
+        Assert.Equal("board-cleared", b.Stream.Stream.Events[2].Source);
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[3].Kind);
-        Assert.Equal("path-base", b.Stream.Stream.Events[3].Source);
+        Assert.Equal(WorkerAvailability.Source, b.Stream.Stream.Events[3].Source);
         Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[4].Kind);
-        Assert.Equal("exec-facts", b.Stream.Stream.Events[4].Source);
+        Assert.Equal("path-base", b.Stream.Stream.Events[4].Source);
+        Assert.Equal(SessionEventKind.Hint, b.Stream.Stream.Events[5].Kind);
+        Assert.Equal("exec-facts", b.Stream.Stream.Events[5].Source);
         Assert.DoesNotContain(b.Stream.Stream.Events, e => e.Kind == SessionEventKind.UserInput);
         Assert.False(b.Host.SessionClosed);
         Assert.Null(b.Host.PendingHandover);

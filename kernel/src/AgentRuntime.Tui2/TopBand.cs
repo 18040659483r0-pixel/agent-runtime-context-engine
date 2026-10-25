@@ -25,16 +25,18 @@ public sealed class TopBandProvider
     private readonly RuntimeHost _host;
     private readonly IReadOnlyList<LifecycleTurnUsage> _usages;
     private readonly TaskClock _clock;
+    private readonly SentContext _sent;
     private readonly Dictionary<StackRegion, int> _lastBytes = new();
     private bool _hasBaseline;
     private long _lastRefresh;
     private IReadOnlyList<string> _lines = Array.Empty<string>();
 
-    public TopBandProvider(RuntimeHost host, IReadOnlyList<LifecycleTurnUsage> usages, TaskClock clock)
+    public TopBandProvider(RuntimeHost host, IReadOnlyList<LifecycleTurnUsage> usages, TaskClock clock, SentContext sent)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _usages = usages ?? throw new ArgumentNullException(nameof(usages));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _sent = sent ?? throw new ArgumentNullException(nameof(sent));
     }
 
     public IReadOnlyList<string> Lines => _lines;
@@ -43,7 +45,7 @@ public sealed class TopBandProvider
     public void RefreshIfDue(int cols, bool force = false)
     {
         var now = Environment.TickCount64;
-        if (!force && now - _lastRefresh < 1000) return;
+        if (!force && now - _lastRefresh < 3000) return;   // 3s：预览要同步装配整份 prompt，别每秒都做
         _lastRefresh = now;
 
         try
@@ -72,19 +74,25 @@ public sealed class TopBandProvider
 
         if (life?.Usage is { } usage)
         {
-            session.Add($"本 task 新增 {Number(life.AppendedChars / 4)} tok");
+            // **写入** = 本 task 自己往流里追加的正文（继承来的前缀不算）。
+            // 「累计消耗」不显示（主人 2026-10-25 10:4x：用户不关心这个数）—— 需要时看账本 / 收尾报告。
+            session.Add($"本 task 累计写入 {Number(life.AppendedChars / 4)} tok");
             session.Add($"缓存命中 {Percent(usage.HitRate)}");
         }
         else
         {
-            session.Add("本 task 新增 — tok");
+            session.Add("本 task 累计写入 — tok");
             session.Add("缓存命中 —");
         }
 
         var stack = new List<string> { "区栈" };
         try
         {
-            var composition = _host.PreviewCompositionAsync("（下一轮）").GetAwaiter().GetResult();
+            // **区栈 = 真正送出去的那一份**（主人 2026-10-24 16:2x 令）。
+            // 有「上次送出」的组装结果就用它；还没发过（刚拉起 / 刚 reset）才退回预览，**且必须标「预估」** ——
+            // 两个来源不能同名同脸，否则又变成「看着像事实的估计」。
+            var sent = _sent.Value;
+            var composition = sent ?? _host.PreviewCompositionAsync("（下一轮）").GetAwaiter().GetResult();
             foreach (var layer in composition.Layers.OrderBy(static l => StackPanel.OrderOf(l.Region)))
             {
                 var token = layer.Bytes / 4;
@@ -97,8 +105,15 @@ public sealed class TopBandProvider
             }
 
             _hasBaseline = true;
-            var total = composition.Layers.Sum(static l => l.Bytes) / 4;
-            stack.Add($"合计 {Number(total)} ≈token");
+            // 合计取**请求体字节数**（`PromptComposition.Bytes`）：区栈各行是各段正文，合计是整份 body，
+            // 两者同源但不等（框架/分隔），过去用「各段求和」冒充 body ⇒ 与实发对不上。
+            var total = composition.Bytes / 4;
+            // **两个数不是一回事**（2026-10-24 主人判「明显不对」后定稿）：
+            //   · 本 task 累计写入 = 这个 task 自己往流里追加的正文 ÷4（**继承来的前缀不算**）
+            //   · 当前上下文合计 = **上一次真送出去的那份 prompt**（不是下一次的预估）
+            stack.Add(sent is null
+                ? $"当前上下文合计 ~{Number(total)} tok（预估）"
+                : $"当前上下文合计 {Number(total)} tok");
         }
         catch (Exception ex)
         {
@@ -131,8 +146,8 @@ public sealed class TopBandProvider
     public static IReadOnlyList<string> Demo() =>
     [
         "ⓘ AgentRuntime TUI",
-        $" 会话 | protocol v{ProtocolText.Version} | 6 模块 | 第1生命周期·00:42 | 本 task 新增 1,234 tok | 缓存命中 95%",
-        " 区栈 | R1-P 3,372 | R1 24,751 | R2 8,065 | R4 112 | R5 95 | R3 13 | 合计 36,412 ≈token",
+        $" 会话 | protocol v{ProtocolText.Version} | 6 模块 | T1 · 00:42 | 本 task 累计写入 1,234 tok | 缓存命中 95%",
+        " 区栈 | R1-P 3,372 | R1 24,751 | R2 8,065 | R4 112 | R5 95 | R3 13 | 当前上下文合计 36,412 tok",
         " 白板 | 3 行 | solve: 方案 B · TUI2",
         " 草稿 | 2 行 | 顶部信息块按 Tab 切换显示",
         " 焦点 | 2 个标签 | E020 E022",

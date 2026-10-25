@@ -73,9 +73,31 @@ public static class App
             var clock = new TaskClock();
             var selectionCtl = new SelectionController();
             int? activeLifecycleId = null;
+            // **用量账本随流卷走**：接上一条已有流时，把它读回来 —— 否则卡片/顶栏的「用量、累计 tok」
+            // 只从本进程第一轮开始算，看着像「上一条流的最终值丢了」（2026-10-24 真机）。
             var usages = new List<LifecycleTurnUsage>();
-            var topBand = new TopBandProvider(host, usages, clock);
+            try
+            {
+                var usagePath = AgentRuntime.Hosting.RuntimePaths.UsageOf(host.Config.Stream.Path);
+                if (usagePath is not null)
+                {
+                    foreach (var r in TurnLedger.Load(usagePath))
+                    {
+                        usages.Add(new LifecycleTurnUsage(r.PromptTokens, r.CachedTokens, r.CompletionTokens, r.TotalMs));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Utf8InputDriver.Trace("usage-load: " + ex.Message);
+            }
+            // **最后一次送出的组装结果**（区栈 / 上下文合计的唯一来源；送出前由 RunTurnAsync 写入）。
+            var sent = new SentContext();
+            var topBand = new TopBandProvider(host, usages, clock, sent);
             var card = new List<string>();
+            var hasRendered = false;
+            long lastRenderTick = 0;
+            (int, int, int, int, int, int, string, string, string, int, string, int, int, string) lastRenderKey = default;
             var lastCardStream = -1;
             var conversationScroll = 0;
             long cardSince = -1;
@@ -95,12 +117,23 @@ public static class App
 
             void ApplyScroll(InputAction action)
             {
-                selectionCtl.Clear();
+                // 选区不因滚动清掉：它锚在**会话全表的绝对行**上，滚动时高亮跟着文字走（像网页）。
                 var page = Math.Max(1, TuiRenderer.LastConversationRows - 1);
-                if (action == InputAction.ScrollUp) conversationScroll += page;
-                else if (action == InputAction.ScrollDown) conversationScroll = Math.Max(0, conversationScroll - page);
-                else if (action == InputAction.WheelUp) conversationScroll += 3;
-                else if (action == InputAction.WheelDown) conversationScroll = Math.Max(0, conversationScroll - 3);
+                var step = action is InputAction.ScrollUp or InputAction.ScrollDown ? page : 3;
+                var delta = action is InputAction.ScrollUp or InputAction.WheelUp ? step : -step;
+                // **钳到真实可滚范围**：滚过头会让「往回滚」要按很多下才有反应（真机手感问题）。
+                conversationScroll = Math.Clamp(conversationScroll + delta, 0, Math.Max(0, TuiRenderer.LastMaxScroll));
+            }
+
+            // 状态栏读数：按 StreamCount 缓存 —— 每帧都对整条流重聚合一次会把帧预算吃光（几千事件 × 30 帧/秒）。
+            TaskLifecycle? statusLife = null;
+            var statusLifeAt = -1;
+            TaskLifecycle? StatusLifecycle()
+            {
+                if (host.StreamCount == statusLifeAt) return statusLife;
+                statusLifeAt = host.StreamCount;
+                statusLife = CurrentLifecycle(host, usages);
+                return statusLife;
             }
 
             void AddUserLine(string text)
@@ -136,6 +169,10 @@ public static class App
                 return life is not null && (cardSince < 0 || life.FirstSeq > cardSince) ? life : null;
             }
 
+            // 剪贴板的 OSC 52 也走屏幕写线程（主循环不碰 stdout）。
+            Clipboard.OscSink = screen.WriteControl;
+
+            ScreenSize.Start();   // SIGWINCH + 后台量尺（resize 当帧跟上，主循环不等）
             driver = new Utf8InputDriver();
             screen.Enter();
 
@@ -214,7 +251,7 @@ public static class App
                         CommitCard();
                         if (life is not null)
                         {
-                            taskSummary = $"本 task 新增 {life.AppendedChars / 4:N0} tok · 用时 {clock.ElapsedClock}";
+                            taskSummary = $"本 task 累计写入 {life.AppendedChars / 4:N0} tok · 用时 {clock.ElapsedClock}";
                         }
                         conversationScroll = 0;
                         lastCardStream = host.StreamCount;
@@ -279,6 +316,10 @@ public static class App
                             {
                                 selectionCtl.Handle(mouseEvent);
                             }
+                            else if (ev is KeyEvent { Key: InputKey.Escape } && selectionCtl.Selection.Active)
+                            {
+                                selectionCtl.Clear();   // Esc = 取消选区（与网页/编辑器一致）
+                            }
                             else
                             {
                                 var action = controller.Handle(ev, out _);
@@ -300,6 +341,7 @@ public static class App
                         var action = InputAction.None;
                         string? body = null;
                         if (ev is MouseEvent mouseEvent) selectionCtl.Handle(mouseEvent);
+                        else if (ev is KeyEvent { Key: InputKey.Escape } && selectionCtl.Selection.Active) selectionCtl.Clear();
                         else action = controller.Handle(ev, out body);
                         if (action == InputAction.Submit && body is not null)
                         {
@@ -339,13 +381,35 @@ public static class App
                                 clock.BeginLifecycle();
                                 turnCts?.Dispose();
                                 turnCts = new CancellationTokenSource();
-                                pending = RunTurnAsync(host, message, budget, conversation, options.Verbose, usages, ledger, turnCts.Token);
+                                pending = RunTurnAsync(host, message, budget, conversation, options.Verbose, usages, ledger, sent, turnCts.Token);
                                 busy = true;
                             }
                         }
-                        else if (action is InputAction.ScrollUp or InputAction.ScrollDown)
+                        else if (ScrollActions.IsScroll(action))
                         {
+                            // **合批**（2026-10-23）：一次滚轮手势常连发多帧事件 —— 先把已就绪的滚动事件读干，
+                            // 再只重绘一帧（以前每帧整屏重画 ⇒ 滚起来一顿一顿）。
+                            var extra = 0;
+                            while (true)
+                            {
+                                var nxt = driver.Read(0);
+                                if (nxt is null) break;
+                                if (nxt is WheelEvent wheel)
+                                {
+                                    extra += wheel.Delta > 0 ? 3 : -3;
+                                    continue;
+                                }
+
+                                deferred.Enqueue(nxt);   // 非滚动事件留给下一轮，不丢
+                                break;
+                            }
+
                             ApplyScroll(action);
+                            if (extra != 0)
+                            {
+                                conversationScroll = Math.Clamp(conversationScroll + extra, 0,
+                                    Math.Max(0, TuiRenderer.LastMaxScroll));
+                            }
                         }
                         else if (action == InputAction.Quit)
                         {
@@ -365,7 +429,9 @@ public static class App
 
                 if (controller.TopBandVisible)
                 {
+                    var __tb = Environment.TickCount64;
                     topBand.RefreshIfDue(ScreenSize.Get().Cols);
+                    if (Environment.TickCount64 - __tb > 100) Utf8InputDriver.Trace($"topband {Environment.TickCount64 - __tb}ms");
                 }
 
                 // [停因] 落流 ⇒ 当轮就贴进会话区（TUI1 同款）：判据要人一眼看见，事后还能回查。
@@ -391,28 +457,63 @@ public static class App
 
                 var t0 = Environment.TickCount64;
                 var state = busy ? (commandPending is not null ? "执行中" : "运行中") : "就绪";
-                if (activeLifecycleId is int lifecycleId) state += " · 第" + lifecycleId + "生命周期";
+                var statusTask = StatusLifecycle();
+                // 提交那一刻事件还没落地：用占位号先显示（真实号由聚合器落地后校正），否则状态栏会「退回上一个 task」。
+                var shownTask = activeLifecycleId ?? statusTask?.Id;
+                if (shownTask is int taskNo) state += " · Task " + taskNo;
                 var summary = taskSummary;
                 if (selectionCtl.Selection.Active)
                 {
-                    var picked = Selection.Extract(TuiRenderer.LastConversationTexts, selectionCtl.Selection.Range);
+                    var picked = Selection.Extract(TuiRenderer.LastConversationAllTexts, selectionCtl.Selection.Range);
                     summary = (string.IsNullOrEmpty(summary) ? string.Empty : summary + " · ")
-                              + (picked.Length > 0 ? $"选区 {picked.Length} 字 · 松开复制" : "拖选正文");
+                              + (picked.Length > 0 ? $"已选中 {picked.Length} 字 · ⌘C 复制 · Esc 取消" : "拖选正文");
                 }
                 else if (selectionCtl.RecentNotice() is { } copyNotice)
                 {
                     summary = string.IsNullOrEmpty(summary) ? copyNotice : summary + " · " + copyNotice;
                 }
 
-                TuiRenderer.Render(screen, display, doc, paste,
-                    state, host.Turn, host.StreamCount, bridge.Caret,
+                // **状态栏只报计数，不报 session 的消耗**；T = 本 task，S = 整个 session（主人 2026-10-24 16:2x 令）。
+                var meter = new TaskMeter(
+                    statusTask?.Turns ?? 0,
+                    statusTask is null ? 0 : (int)(statusTask.LastSeq - statusTask.FirstSeq + 1),
+                    host.Turn,
+                    host.StreamCount);
+                // **只画变了的帧**（主人 2026-10-25 11:2x：输入法组词时整屏帧会被终端堵住 30s+，
+                // 而过去**空闲也每 200ms 画一帧** —— 那 150 帧全堆在 pty 上，恢复后拼出一堆旧帧）。
+                // 判据：可见状态没变就不写；最多 5s 一帧心跳（防「该画没画」）。
+                var tick = Environment.TickCount64;
+                var (colsNow, rowsNow) = ScreenSize.Get();
+                var renderKey = (
+                    display.Count,
+                    string.Join('\n', card).GetHashCode(),   // 卡的内容会原地更新（条数不变）⇒ 必须比内容
+                    conversation.Count,
+                    conversationScroll,
+                    bridge.Caret,
+                    doc.TextLength,
+                    state,
+                    meter.Counts(),
+                    summary ?? string.Empty,
+                    selectionCtl.Selection.Active ? selectionCtl.Selection.Range.GetHashCode() : 0,
+                    modelRunning ? clock.ElapsedClock : string.Empty,
+                    colsNow,
+                    rowsNow,
+                    controller.TopBandVisible ? string.Join('|', topBand.Lines) : string.Empty);
+                if (!hasRendered || renderKey != lastRenderKey || tick - lastRenderTick > 5000)
+                {
+                    hasRendered = true;
+                    lastRenderKey = renderKey;
+                    lastRenderTick = tick;
+                    TuiRenderer.Render(screen, display, doc, paste,
+                        state, meter.Counts(), bridge.Caret,
                     controller.TopBandVisible ? topBand.Lines : null, style,
                     modelRunning
                         ? "远端模型正在思考… " + clock.ElapsedClock + " " + ThinkSnake.Frame(Environment.TickCount64)
                         : null,
                     conversationScroll, summary, selectionCtl.Selection);
+                }
                 var dt = Environment.TickCount64 - t0;
-                if (dt > 500) Utf8InputDriver.Trace("slow frame " + dt + "ms");
+                if (dt > 200) Utf8InputDriver.Trace("slow frame " + dt + "ms");
             }
 
             return 0;
@@ -460,7 +561,7 @@ public static class App
             {
                 var action = controller.Handle(driver.Read(), out _);
                 if (action == InputAction.Quit) done = true;
-                TuiRenderer.Render(screen, conversation, doc, paste, "autotest", 0, 0, bridge.Caret,
+                TuiRenderer.Render(screen, conversation, doc, paste, "autotest", "轮 0 · 事件 0", bridge.Caret,
                     controller.TopBandVisible ? topBand : null, style);
                 frames++;
             }
@@ -511,17 +612,30 @@ public static class App
         bool verbose,
         List<LifecycleTurnUsage> usages,
         TurnLedger ledger,
+        SentContext sent,
         CancellationToken cancellationToken)
     {
         var cursor = host.StreamCount;
-        var outcome = await host.RunTurnAsync(message, verbose, cancellationToken: cancellationToken).ConfigureAwait(false);
+        // **一轮只组装一次**（T1 不变量）：这一份既是顶栏区栈的来源，也是真发出去的那一份 ——
+        // 先组装再交给引擎（`preassembled`），界面上显示的就一定是「送出过的那份」，不是另拼的预估。
+        var first = await host.PreviewCompositionAsync(message, cancellationToken).ConfigureAwait(false);
+        sent.Value = first;
+        var outcome = await host.RunTurnAsync(
+            message, verbose, cancellationToken: cancellationToken, preassembled: first.Request).ConfigureAwait(false);
         AddUsage(usages, ledger, host.Turn, outcome);
+        // 每条链各自 30 分钟（不是整进程累计）：跨用户发言不清零 ⇒ 累计 30 分钟后每轮第 0 轮就判「预算用尽」。
+        budget.Reset();
         await TurnContinuation.RunAsync(
             host,
             cursor,
             ContinuationSettings.Default,
             budget,
-            step: token => host.ContinueTurnAsync(verbose, token),
+            step: async token =>
+            {
+                var next = await host.PreviewContinuationCompositionAsync(token).ConfigureAwait(false);
+                sent.Value = next;
+                return await host.ContinueTurnAsync(verbose, token, next.Request).ConfigureAwait(false);
+            },
             onOutcome: o => { AddUsage(usages, ledger, host.Turn, o); return ValueTask.CompletedTask; },
             trace: line => { if (verbose) conversation.Add("[续] " + line); },
             cancellationToken: cancellationToken).ConfigureAwait(false);

@@ -6,9 +6,9 @@ T	src/AgentRuntime.Cli/CorpusManifest.cs	44	class	AgentRuntime.Cli.CorpusBlock
 T	src/AgentRuntime.Cli/CorpusManifest.cs	60	class	AgentRuntime.Cli.FrozenVersions
 T	src/AgentRuntime.Cli/CorpusManifest.cs	69	class	AgentRuntime.Cli.FrozenVersion
 T	src/AgentRuntime.Cli/CorpusManifest.cs	78	class	AgentRuntime.Cli.FrozenAnchor
-F	src/AgentRuntime.Cli/FrozenCorpusCli.cs	32747	eb4ecfbf4e91	2
+F	src/AgentRuntime.Cli/FrozenCorpusCli.cs	32829	f335cde2de7c	2
 T	src/AgentRuntime.Cli/FrozenCorpusCli.cs	18	class	AgentRuntime.Cli.FrozenCorpusCli
-T	src/AgentRuntime.Cli/FrozenCorpusCli.cs	368	record	AgentRuntime.Cli.SectionMeta
+T	src/AgentRuntime.Cli/FrozenCorpusCli.cs	369	record	AgentRuntime.Cli.SectionMeta
 F	src/AgentRuntime.Cli/IndexZoneCli.cs	8098	be7c40a1684e	1
 T	src/AgentRuntime.Cli/IndexZoneCli.cs	15	class	AgentRuntime.Cli.IndexZoneCli
 F	src/AgentRuntime.Cli/PacerCli.cs	17456	56ef1d2caf96	1
@@ -17,7 +17,7 @@ F	src/AgentRuntime.Cli/PitfallsCli.cs	7340	98962766a427	1
 T	src/AgentRuntime.Cli/PitfallsCli.cs	12	class	AgentRuntime.Cli.PitfallsCli
 F	src/AgentRuntime.Cli/PreAuthCli.cs	12935	f9459b8ac18d	1
 T	src/AgentRuntime.Cli/PreAuthCli.cs	19	class	AgentRuntime.Cli.PreAuthCli
-F	src/AgentRuntime.Cli/Program.cs	68731	710a4a5335bc	1
+F	src/AgentRuntime.Cli/Program.cs	68889	51339a49f5b8	1
 T	src/AgentRuntime.Cli/Program.cs	30	class	AgentRuntime.Cli.Program
 F	src/AgentRuntime.Cli/TerminalAuditCli.cs	5431	8b2672b772b5	3
 T	src/AgentRuntime.Cli/TerminalAuditCli.cs	20	class	AgentRuntime.Cli.TerminalAuditCli
@@ -41,7 +41,7 @@ T	src/AgentRuntime.Core/Closeout/RequirementDecls.cs	73	class	AgentRuntime.Core.
 F	src/AgentRuntime.Core/Configuration/NetworkConfiguration.cs	4300	31d35e19cff8	2
 T	src/AgentRuntime.Core/Configuration/NetworkConfiguration.cs	17	class	AgentRuntime.Core.Configuration.NetworkConfiguration
 T	src/AgentRuntime.Core/Configuration/NetworkConfiguration.cs	85	class	AgentRuntime.Core.Configuration.NetworkCredentialConfiguration
-F	src/AgentRuntime.Core/Configuration/RuntimeConfiguration.cs	31268	b5ff490a4dd0	9
+F	src/AgentRuntime.Core/Configuration/RuntimeConfiguration.cs	31283	379bb2e4a8f1	9
 T	src/AgentRuntime.Core/Configuration/RuntimeConfiguration.cs	16	class	AgentRuntime.Core.Configuration.RuntimeConfiguration
 T	src/AgentRuntime.Core/Configuration/RuntimeConfiguration.cs	420	class	AgentRuntime.Core.Configuration.LifecycleConfiguration
 T	src/AgentRuntime.Core/Configuration/RuntimeConfiguration.cs	490	class	AgentRuntime.Core.Configuration.SnapshotConfiguration
@@ -59,7 +59,7 @@ F	src/AgentRuntime.Core/Configuration/WorkerConfiguration.cs	13872	654be34c4ed7	
 T	src/AgentRuntime.Core/Configuration/WorkerConfiguration.cs	17	class	AgentRuntime.Core.Configuration.WorkerConfiguration
 T	src/AgentRuntime.Core/Configuration/WorkerConfiguration.cs	174	class	AgentRuntime.Core.Configuration.WorkerPaceConfiguration
 T	src/AgentRuntime.Core/Configuration/WorkerConfiguration.cs	227	class	AgentRuntime.Core.Configuration.WorkerProviderConfiguration
-F	src/AgentRuntime.Core/ContinuationBudget.cs	2237	0dde06306edb	1
+F	src/AgentRuntime.Core/ContinuationBudget.cs	2828	5f84f5184527	1
 T	src/AgentRuntime.Core/ContinuationBudget.cs	15	class	AgentRuntime.Core.ContinuationBudget
 F	src/AgentRuntime.Core/Draft/DraftEntry.cs	3195	05b93ec6b38d	1
 T	src/AgentRuntime.Core/Draft/DraftEntry.cs	12	record	AgentRuntime.Core.Draft.DraftEntry
@@ -158,9 +158,9 @@ T	src/AgentRuntime.Core/Frozen/PitfallsIndexStep.cs	190	class	AgentRuntime.Core.
 F	src/AgentRuntime.Core/Frozen/PublicPitfallsStep.cs	6993	06b6a7b9eef0	2
 T	src/AgentRuntime.Core/Frozen/PublicPitfallsStep.cs	13	class	AgentRuntime.Core.Frozen.PublicPitfalls
 T	src/AgentRuntime.Core/Frozen/PublicPitfallsStep.cs	93	class	AgentRuntime.Core.Frozen.PublicPitfallsStep
-F	src/AgentRuntime.Core/Frozen/SessionPointer.cs	2961	867493254cee	2
+F	src/AgentRuntime.Core/Frozen/SessionPointer.cs	3475	20256629dedc	2
 T	src/AgentRuntime.Core/Frozen/SessionPointer.cs	20	record	AgentRuntime.Core.Frozen.SessionPointer
-T	src/AgentRuntime.Core/Frozen/SessionPointer.cs	35	class	AgentRuntime.Core.Frozen.SessionPointerStore
+T	src/AgentRuntime.Core/Frozen/SessionPointer.cs	40	class	AgentRuntime.Core.Frozen.SessionPointerStore
 F	src/AgentRuntime.Core/Frozen/WorkerMemoryIndexSource.cs	2612	5593f3930d6d	1
 T	src/AgentRuntime.Core/Frozen/WorkerMemoryIndexSource.cs	20	class	AgentRuntime.Core.Frozen.WorkerMemoryIndexSource
 F	src/AgentRuntime.Core/Index/SourceIndex.cs	4510	1bf1afa9fda2	5
@@ -228,27 +228,33 @@ T	src/AgentRuntime.Core/Lifecycle/LifecycleUsage.cs	17	record	AgentRuntime.Core.
 T	src/AgentRuntime.Core/Lifecycle/LifecycleUsage.cs	32	record	AgentRuntime.Core.Lifecycle.LifecycleUsage
 F	src/AgentRuntime.Core/Lifecycle/ReportAnchorIndex.cs	2715	27c67c8875df	1
 T	src/AgentRuntime.Core/Lifecycle/ReportAnchorIndex.cs	17	record	AgentRuntime.Core.Lifecycle.ReportAnchorIndex
+F	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	3407	c2e2f8850f8e	2
+T	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	13	record	AgentRuntime.Core.Lifecycle.ReportBasis
+T	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	16	class	AgentRuntime.Core.Lifecycle.ReportBasisCheck
 F	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	2984	b0d12b5c7af2	2
 T	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	10	enum	AgentRuntime.Core.Lifecycle.ReportForm
 T	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	37	record	AgentRuntime.Core.Lifecycle.TaskDecisionReport
+F	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	9855	48e107bcafaf	2
+T	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	20	record	AgentRuntime.Core.Lifecycle.TaskLedgerRecord
+T	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	74	class	AgentRuntime.Core.Lifecycle.TaskLedgerProjection
 F	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	13966	d510f07310e8	5
 T	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	12	enum	AgentRuntime.Core.Lifecycle.TaskLifecycleStatus
 T	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	49	record	AgentRuntime.Core.Lifecycle.LifecycleTraceEntry
 T	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	72	record	AgentRuntime.Core.Lifecycle.LifecycleFinding
 T	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	77	record	AgentRuntime.Core.Lifecycle.LifecycleAction
 T	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	95	record	AgentRuntime.Core.Lifecycle.TaskLifecycle
-F	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	31095	0c9638fe5f7f	7
+F	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	31535	93786f82a2d9	7
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	16	enum	AgentRuntime.Core.Lifecycle.TaskClassKind
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	38	enum	AgentRuntime.Core.Lifecycle.TerminalVerdict
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	51	record	AgentRuntime.Core.Lifecycle.TerminalAssertion
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	70	enum	AgentRuntime.Core.Lifecycle.TaskFactKind
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	107	record	AgentRuntime.Core.Lifecycle.TaskFact
 T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	122	class	AgentRuntime.Core.Lifecycle.TaskTerminalAssertions
-T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	648	record	AgentRuntime.Core.Lifecycle.TerminalGateReport
+T	src/AgentRuntime.Core/Lifecycle/TaskTerminalAssertions.cs	654	record	AgentRuntime.Core.Lifecycle.TerminalGateReport
 F	src/AgentRuntime.Core/Persistence/DataContractXml.cs	15041	a4a5422f6021	2
 T	src/AgentRuntime.Core/Persistence/DataContractXml.cs	24	class	AgentRuntime.Core.Persistence.DataContractXml
 T	src/AgentRuntime.Core/Persistence/DataContractXml.cs	140	class	AgentRuntime.Core.Persistence.Cache
-F	src/AgentRuntime.Core/Persistence/XmlBlock.cs	18370	1c81ac31e236	1
+F	src/AgentRuntime.Core/Persistence/XmlBlock.cs	19367	73fecf749daa	1
 T	src/AgentRuntime.Core/Persistence/XmlBlock.cs	23	class	AgentRuntime.Core.Persistence.XmlBlock
 F	src/AgentRuntime.Core/Persistence/XmlList.cs	1147	5c491197bb73	1
 T	src/AgentRuntime.Core/Persistence/XmlList.cs	14	class	AgentRuntime.Core.Persistence.XmlList
@@ -264,8 +270,10 @@ F	src/AgentRuntime.Core/Protocol/ProseCut.cs	4560	b99c07875f85	1
 T	src/AgentRuntime.Core/Protocol/ProseCut.cs	14	class	AgentRuntime.Core.Protocol.ProseCut
 F	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	2073	e6fadee32e42	1
 T	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	14	class	AgentRuntime.Core.Protocol.ProtocolBudget
-F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	69060	45f983d8d7d7	1
+F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	69769	ec326222daf6	1
 T	src/AgentRuntime.Core/Protocol/ProtocolText.cs	30	class	AgentRuntime.Core.Protocol.ProtocolText
+F	src/AgentRuntime.Core/Protocol/ReplyLines.cs	3079	d0b1fb9af288	1
+T	src/AgentRuntime.Core/Protocol/ReplyLines.cs	10	class	AgentRuntime.Core.Protocol.ReplyLines
 F	src/AgentRuntime.Core/Protocol/TerminalReport.cs	9404	ac28971f171a	2
 T	src/AgentRuntime.Core/Protocol/TerminalReport.cs	11	enum	AgentRuntime.Core.Protocol.TerminalState
 T	src/AgentRuntime.Core/Protocol/TerminalReport.cs	38	record	AgentRuntime.Core.Protocol.TerminalReport
@@ -390,7 +398,7 @@ F	src/AgentRuntime.Core/Tooling/ExecTool.cs	15012	5786fb8c97e1	1
 T	src/AgentRuntime.Core/Tooling/ExecTool.cs	29	class	AgentRuntime.Core.Tooling.ExecTool
 F	src/AgentRuntime.Core/Tooling/FileEvidence.cs	2301	81e581836ec8	1
 T	src/AgentRuntime.Core/Tooling/FileEvidence.cs	17	class	AgentRuntime.Core.Tooling.FileEvidence
-F	src/AgentRuntime.Core/Tooling/FileTools.cs	28355	15004e6dc4ff	5
+F	src/AgentRuntime.Core/Tooling/FileTools.cs	29933	512b96674033	5
 T	src/AgentRuntime.Core/Tooling/FileTools.cs	23	class	AgentRuntime.Core.Tooling.ReadTool
 T	src/AgentRuntime.Core/Tooling/FileTools.cs	40	record	AgentRuntime.Core.Tooling.struct
 T	src/AgentRuntime.Core/Tooling/FileTools.cs	341	class	AgentRuntime.Core.Tooling.ListTool
@@ -480,7 +488,7 @@ T	src/AgentRuntime.Core/Tooling/ToolNames.cs	52	class	AgentRuntime.Core.Tooling.
 T	src/AgentRuntime.Core/Tooling/ToolNames.cs	164	enum	AgentRuntime.Core.Tooling.Role
 F	src/AgentRuntime.Core/Tooling/ToolPaths.cs	9545	050ed9c2ebbb	1
 T	src/AgentRuntime.Core/Tooling/ToolPaths.cs	28	class	AgentRuntime.Core.Tooling.ToolPaths
-F	src/AgentRuntime.Core/Tooling/ToolReport.cs	34226	87641638ce6a	5
+F	src/AgentRuntime.Core/Tooling/ToolReport.cs	34647	9ad432279953	5
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	16	record	AgentRuntime.Core.Tooling.ToolCall
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	26	enum	AgentRuntime.Core.Tooling.RiskClaimStatus
 T	src/AgentRuntime.Core/Tooling/ToolReport.cs	44	enum	AgentRuntime.Core.Tooling.ToolParseStatus
@@ -654,7 +662,7 @@ T	src/AgentRuntime.Hosting/CloseoutChecklist.cs	29	record	AgentRuntime.Hosting.C
 T	src/AgentRuntime.Hosting/CloseoutChecklist.cs	62	class	AgentRuntime.Hosting.CloseoutChecklist
 F	src/AgentRuntime.Hosting/ITurnHost.cs	3416	ed3bb3642557	1
 T	src/AgentRuntime.Hosting/ITurnHost.cs	18	interface	AgentRuntime.Hosting.ITurnHost
-F	src/AgentRuntime.Hosting/Lifecycle/MasterTaskLifecycle.cs	5254	54abfdea73b7	1
+F	src/AgentRuntime.Hosting/Lifecycle/MasterTaskLifecycle.cs	5923	785c657d14af	1
 T	src/AgentRuntime.Hosting/Lifecycle/MasterTaskLifecycle.cs	14	class	AgentRuntime.Hosting.Lifecycle.MasterTaskLifecycle
 F	src/AgentRuntime.Hosting/Lifecycle/TaskLifecycleBase.cs	10642	f3f26b67af10	1
 T	src/AgentRuntime.Hosting/Lifecycle/TaskLifecycleBase.cs	26	class	AgentRuntime.Hosting.Lifecycle.TaskLifecycleBase
@@ -689,14 +697,14 @@ F	src/AgentRuntime.Hosting/PromptComposition.cs	2185	42d742bbdb2c	1
 T	src/AgentRuntime.Hosting/PromptComposition.cs	14	class	AgentRuntime.Hosting.PromptComposition
 F	src/AgentRuntime.Hosting/ResumeSupport.cs	10783	9a7a28272735	1
 T	src/AgentRuntime.Hosting/ResumeSupport.cs	20	class	AgentRuntime.Hosting.ResumeSupport
-F	src/AgentRuntime.Hosting/RuntimeHost.cs	83182	4813ed1d7698	4
+F	src/AgentRuntime.Hosting/RuntimeHost.cs	90733	d9b06f751021	4
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	27	class	AgentRuntime.Hosting.HostOverrides
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	80	class	AgentRuntime.Hosting.HostUsageException
 T	src/AgentRuntime.Hosting/RuntimeHost.cs	95	class	AgentRuntime.Hosting.RuntimeHost
-T	src/AgentRuntime.Hosting/RuntimeHost.cs	1580	record	AgentRuntime.Hosting.TurnOutcome
+T	src/AgentRuntime.Hosting/RuntimeHost.cs	1753	record	AgentRuntime.Hosting.TurnOutcome
 F	src/AgentRuntime.Hosting/RuntimePaths.cs	8059	ec5ab237f9a4	1
 T	src/AgentRuntime.Hosting/RuntimePaths.cs	13	class	AgentRuntime.Hosting.RuntimePaths
-F	src/AgentRuntime.Hosting/SessionLifecycle.cs	42191	7b426d18153b	4
+F	src/AgentRuntime.Hosting/SessionLifecycle.cs	44791	4c8905518c9d	4
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	19	record	AgentRuntime.Hosting.CloseoutReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	89	record	AgentRuntime.Hosting.ResetReport
 T	src/AgentRuntime.Hosting/SessionLifecycle.cs	134	record	AgentRuntime.Hosting.StartReport
@@ -731,11 +739,11 @@ T	src/AgentRuntime.Models/ChatModels.cs	129	class	AgentRuntime.Models.TokenUsage
 T	src/AgentRuntime.Models/ChatModels.cs	159	class	AgentRuntime.Models.PromptTokensDetails
 F	src/AgentRuntime.Models/ControlTokens.cs	6022	928d1a247cdc	1
 T	src/AgentRuntime.Models/ControlTokens.cs	27	class	AgentRuntime.Models.ControlTokens
-F	src/AgentRuntime.Modules/AppendStreamModule.cs	13061	2af0a10c4dff	1
+F	src/AgentRuntime.Modules/AppendStreamModule.cs	14042	2cfba5b6261a	1
 T	src/AgentRuntime.Modules/AppendStreamModule.cs	30	class	AgentRuntime.Modules.AppendStreamModule
 F	src/AgentRuntime.Modules/CloseoutWindowModule.cs	3594	ad483a301744	1
 T	src/AgentRuntime.Modules/CloseoutWindowModule.cs	30	class	AgentRuntime.Modules.CloseoutWindowModule
-F	src/AgentRuntime.Modules/CurrentTailModule.cs	5709	23f1fbac8b5a	1
+F	src/AgentRuntime.Modules/CurrentTailModule.cs	5925	9b59a7194cc3	1
 T	src/AgentRuntime.Modules/CurrentTailModule.cs	26	class	AgentRuntime.Modules.CurrentTailModule
 F	src/AgentRuntime.Modules/DecisionBypassModule.cs	4700	03bf2e8d9fd3	1
 T	src/AgentRuntime.Modules/DecisionBypassModule.cs	21	class	AgentRuntime.Modules.DecisionBypassModule
@@ -750,11 +758,11 @@ T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	106	class	AgentRuntime.Module
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	121	class	AgentRuntime.Modules.KnowledgeModule
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	138	class	AgentRuntime.Modules.MemoryIndexModule
 T	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	161	class	AgentRuntime.Modules.DecisionModule
-F	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	3241	0897a52ffe23	1
-T	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	21	class	AgentRuntime.Modules.MemoryIndexLiveModule
-F	src/AgentRuntime.Modules/ModuleRegistry.cs	32392	51f14d2e5702	1
+F	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	8318	1e0260a440fd	1
+T	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	19	class	AgentRuntime.Modules.MemoryIndexPagerModule
+F	src/AgentRuntime.Modules/ModuleRegistry.cs	33473	9c95d0c9c176	1
 T	src/AgentRuntime.Modules/ModuleRegistry.cs	29	class	AgentRuntime.Modules.ModuleRegistry
-F	src/AgentRuntime.Modules/NoteModule.cs	7806	55e50c50597e	1
+F	src/AgentRuntime.Modules/NoteModule.cs	8140	f51f16cc3308	1
 T	src/AgentRuntime.Modules/NoteModule.cs	19	class	AgentRuntime.Modules.NoteModule
 F	src/AgentRuntime.Modules/ProtocolModule.cs	2718	026347e17a86	1
 T	src/AgentRuntime.Modules/ProtocolModule.cs	25	class	AgentRuntime.Modules.ProtocolModule
@@ -762,6 +770,8 @@ F	src/AgentRuntime.Modules/SessionModule.cs	2550	f2b06fcf4d57	1
 T	src/AgentRuntime.Modules/SessionModule.cs	14	class	AgentRuntime.Modules.SessionModule
 F	src/AgentRuntime.Modules/SystemRulesModule.cs	1198	3b974ee774af	1
 T	src/AgentRuntime.Modules/SystemRulesModule.cs	13	class	AgentRuntime.Modules.SystemRulesModule
+F	src/AgentRuntime.Modules/TaskLedgerModule.cs	2941	29df32960ca0	1
+T	src/AgentRuntime.Modules/TaskLedgerModule.cs	22	class	AgentRuntime.Modules.TaskLedgerModule
 F	src/AgentRuntime.Modules/ToolModule.cs	4033	9579245d6511	1
 T	src/AgentRuntime.Modules/ToolModule.cs	28	class	AgentRuntime.Modules.ToolModule
 F	src/AgentRuntime.Modules/Worker/WorkerDispatchModule.cs	79071	9b393237fd02	1
@@ -779,9 +789,9 @@ T	src/AgentRuntime.Presentation/Presenter.cs	10	class	AgentRuntime.Presentation.
 F	src/AgentRuntime.Presentation/RichText.cs	6503	920103780de8	2
 T	src/AgentRuntime.Presentation/RichText.cs	6	record	AgentRuntime.Presentation.struct
 T	src/AgentRuntime.Presentation/RichText.cs	18	class	AgentRuntime.Presentation.RichText
-F	src/AgentRuntime.Presentation/StyleRole.cs	2009	194e75cd265c	1
+F	src/AgentRuntime.Presentation/StyleRole.cs	2659	18a5cd6bb454	1
 T	src/AgentRuntime.Presentation/StyleRole.cs	13	enum	AgentRuntime.Presentation.StyleRole
-F	src/AgentRuntime.Presentation/StyleTable.cs	10394	768e8344c23f	3
+F	src/AgentRuntime.Presentation/StyleTable.cs	11974	c380a9fcbdc1	3
 T	src/AgentRuntime.Presentation/StyleTable.cs	6	enum	AgentRuntime.Presentation.ColorMode
 T	src/AgentRuntime.Presentation/StyleTable.cs	19	enum	AgentRuntime.Presentation.ColorDepth
 T	src/AgentRuntime.Presentation/StyleTable.cs	47	class	AgentRuntime.Presentation.StyleTable
@@ -822,7 +832,7 @@ T	src/AgentRuntime.Tui/Program.cs	33	class	AgentRuntime.Tui.Program
 F	src/AgentRuntime.Tui/RawConsoleInput.cs	10718	4e73c526a8b4	2
 T	src/AgentRuntime.Tui/RawConsoleInput.cs	23	class	AgentRuntime.Tui.RawConsoleInput
 T	src/AgentRuntime.Tui/RawConsoleInput.cs	283	struct	AgentRuntime.Tui.Termios
-F	src/AgentRuntime.Tui/SplitSession.cs	109885	dd5b247f7cf7	1
+F	src/AgentRuntime.Tui/SplitSession.cs	109947	1b68b5e4ccb8	1
 T	src/AgentRuntime.Tui/SplitSession.cs	32	class	AgentRuntime.Tui.SplitSession
 F	src/AgentRuntime.Tui/SplitView.cs	70506	1e23b657a42d	11
 T	src/AgentRuntime.Tui/SplitView.cs	7	enum	AgentRuntime.Tui.PaneFocus
@@ -843,19 +853,20 @@ T	src/AgentRuntime.Tui/UiMode.cs	4	enum	AgentRuntime.Tui.UiMode
 T	src/AgentRuntime.Tui/UiMode.cs	18	class	AgentRuntime.Tui.UiPolicy
 T	src/AgentRuntime.Tui/UiMode.cs	27	record	AgentRuntime.Tui.struct
 T	src/AgentRuntime.Tui/UiMode.cs	30	record	AgentRuntime.Tui.struct
-F	src/AgentRuntime.Tui/WebUi.cs	9541	4c6defd76976	1
+F	src/AgentRuntime.Tui/WebUi.cs	9614	36a3c062befd	1
 T	src/AgentRuntime.Tui/WebUi.cs	17	class	AgentRuntime.Tui.WebUi
-F	src/AgentRuntime.Tui2/AnsiScreen.cs	2453	560483c6e374	1
-T	src/AgentRuntime.Tui2/AnsiScreen.cs	16	class	AgentRuntime.Tui2.AnsiScreen
-F	src/AgentRuntime.Tui2/App.cs	26887	6de7f7d28e3d	1
+F	src/AgentRuntime.Tui2/AnsiScreen.cs	5934	fcef9d903784	1
+T	src/AgentRuntime.Tui2/AnsiScreen.cs	22	class	AgentRuntime.Tui2.AnsiScreen
+F	src/AgentRuntime.Tui2/App.cs	33910	ba51353c69a3	1
 T	src/AgentRuntime.Tui2/App.cs	30	class	AgentRuntime.Tui2.App
 F	src/AgentRuntime.Tui2/CellModel.cs	7450	0d68c5cdb0e1	1
 T	src/AgentRuntime.Tui2/CellModel.cs	20	class	AgentRuntime.Tui2.CellModel
 F	src/AgentRuntime.Tui2/EditorBridge.cs	6145	c17d70428fec	1
 T	src/AgentRuntime.Tui2/EditorBridge.cs	13	class	AgentRuntime.Tui2.EditorBridge
-F	src/AgentRuntime.Tui2/InputController.cs	5101	dcb0689fb77d	2
+F	src/AgentRuntime.Tui2/InputController.cs	5683	2ee32c9816aa	3
 T	src/AgentRuntime.Tui2/InputController.cs	4	enum	AgentRuntime.Tui2.InputAction
 T	src/AgentRuntime.Tui2/InputController.cs	35	class	AgentRuntime.Tui2.InputController
+T	src/AgentRuntime.Tui2/InputController.cs	160	class	AgentRuntime.Tui2.ScrollActions
 F	src/AgentRuntime.Tui2/InputDriver.cs	22653	5497f86a79cb	11
 T	src/AgentRuntime.Tui2/InputDriver.cs	8	record	AgentRuntime.Tui2.InputEvent
 T	src/AgentRuntime.Tui2/InputDriver.cs	11	record	AgentRuntime.Tui2.TextEvent
@@ -868,42 +879,48 @@ T	src/AgentRuntime.Tui2/InputDriver.cs	61	class	AgentRuntime.Tui2.Utf8InputDrive
 T	src/AgentRuntime.Tui2/InputDriver.cs	541	struct	AgentRuntime.Tui2.FdSet
 T	src/AgentRuntime.Tui2/InputDriver.cs	548	struct	AgentRuntime.Tui2.TimeVal
 T	src/AgentRuntime.Tui2/InputDriver.cs	593	class	AgentRuntime.Tui2.TermiosGuard
-F	src/AgentRuntime.Tui2/InputTest.cs	7196	b8993e823ea0	2
+F	src/AgentRuntime.Tui2/InputTest.cs	7804	cd5743a01e9d	2
 T	src/AgentRuntime.Tui2/InputTest.cs	15	class	AgentRuntime.Tui2.InputTest
 T	src/AgentRuntime.Tui2/InputTest.cs	17	record	AgentRuntime.Tui2.Evidence
 F	src/AgentRuntime.Tui2/MacClipboard.cs	2529	c2296e9ed818	1
 T	src/AgentRuntime.Tui2/MacClipboard.cs	10	class	AgentRuntime.Tui2.MacClipboard
 F	src/AgentRuntime.Tui2/PasteModel.cs	3854	f4dbed473bde	1
 T	src/AgentRuntime.Tui2/PasteModel.cs	16	class	AgentRuntime.Tui2.PasteModel
-F	src/AgentRuntime.Tui2/Program.cs	1252	01404cb10987	1
+F	src/AgentRuntime.Tui2/Program.cs	1824	8e963133f55e	1
 T	src/AgentRuntime.Tui2/Program.cs	8	class	Program
-F	src/AgentRuntime.Tui2/ScreenSize.cs	2676	8844b1d20bfa	1
-T	src/AgentRuntime.Tui2/ScreenSize.cs	15	class	AgentRuntime.Tui2.ScreenSize
-F	src/AgentRuntime.Tui2/Selection.cs	4427	99445465b789	2
+F	src/AgentRuntime.Tui2/ScreenSize.cs	5775	976fa07d5389	1
+T	src/AgentRuntime.Tui2/ScreenSize.cs	19	class	AgentRuntime.Tui2.ScreenSize
+F	src/AgentRuntime.Tui2/Selection.cs	5018	2a54c3daad6d	2
 T	src/AgentRuntime.Tui2/Selection.cs	10	class	AgentRuntime.Tui2.Selection
 T	src/AgentRuntime.Tui2/Selection.cs	113	class	AgentRuntime.Tui2.Clipboard
-F	src/AgentRuntime.Tui2/SelectionController.cs	1975	637bf7ccf81e	1
+F	src/AgentRuntime.Tui2/SelectionController.cs	2618	541de0f626d9	1
 T	src/AgentRuntime.Tui2/SelectionController.cs	7	class	AgentRuntime.Tui2.SelectionController
-F	src/AgentRuntime.Tui2/SelfTest.cs	23984	91b1aba08bc5	1
+F	src/AgentRuntime.Tui2/SelfTest.cs	27736	7a1066141c3d	1
 T	src/AgentRuntime.Tui2/SelfTest.cs	16	class	AgentRuntime.Tui2.SelfTest
-F	src/AgentRuntime.Tui2/TaskClock.cs	2478	9bbe75070fbf	1
+F	src/AgentRuntime.Tui2/SentContext.cs	963	4860e7a8c644	1
+T	src/AgentRuntime.Tui2/SentContext.cs	14	class	AgentRuntime.Tui2.SentContext
+F	src/AgentRuntime.Tui2/SingleInstanceLock.cs	2607	b64205e4bee6	1
+T	src/AgentRuntime.Tui2/SingleInstanceLock.cs	11	class	AgentRuntime.Tui2.SingleInstanceLock
+F	src/AgentRuntime.Tui2/TaskClock.cs	2589	04a8822171a9	1
 T	src/AgentRuntime.Tui2/TaskClock.cs	9	class	AgentRuntime.Tui2.TaskClock
+F	src/AgentRuntime.Tui2/TaskMeter.cs	909	58bd7ec269ab	1
+T	src/AgentRuntime.Tui2/TaskMeter.cs	13	record	AgentRuntime.Tui2.struct
 F	src/AgentRuntime.Tui2/ThinkSnake.cs	2942	3d384572770d	1
 T	src/AgentRuntime.Tui2/ThinkSnake.cs	8	class	AgentRuntime.Tui2.ThinkSnake
-F	src/AgentRuntime.Tui2/TopBand.cs	7576	6d5c26848b94	1
+F	src/AgentRuntime.Tui2/TopBand.cs	9105	cd01d89125ab	1
 T	src/AgentRuntime.Tui2/TopBand.cs	23	class	AgentRuntime.Tui2.TopBandProvider
 F	src/AgentRuntime.Tui2/Tui2Options.cs	5935	1e2252af8ce6	1
 T	src/AgentRuntime.Tui2/Tui2Options.cs	4	class	AgentRuntime.Tui2.Tui2Options
-F	src/AgentRuntime.Tui2/Tui2Style.cs	8343	4ce191c87c8b	1
+F	src/AgentRuntime.Tui2/Tui2Style.cs	8800	d4a3e99dc2ae	1
 T	src/AgentRuntime.Tui2/Tui2Style.cs	12	class	AgentRuntime.Tui2.Tui2Style
 F	src/AgentRuntime.Tui2/TuiExitTrace.cs	1753	38a0f57e7886	1
 T	src/AgentRuntime.Tui2/TuiExitTrace.cs	11	class	AgentRuntime.Tui2.TuiExitTrace
-F	src/AgentRuntime.Tui2/TuiRenderer.cs	9853	60b97fd263cf	1
+F	src/AgentRuntime.Tui2/TuiRenderer.cs	13060	e4ad9ce5c86e	1
 T	src/AgentRuntime.Tui2/TuiRenderer.cs	13	class	AgentRuntime.Tui2.TuiRenderer
-F	src/AgentRuntime.Tui2/TurnCardView.cs	22098	a35fadc2e870	3
+F	src/AgentRuntime.Tui2/TurnCardView.cs	22872	e2ef4fa9f4a5	3
 T	src/AgentRuntime.Tui2/TurnCardView.cs	26	class	AgentRuntime.Tui2.TurnCardView
 T	src/AgentRuntime.Tui2/TurnCardView.cs	30	record	AgentRuntime.Tui2.TurnBlock
-T	src/AgentRuntime.Tui2/TurnCardView.cs	213	record	AgentRuntime.Tui2.PlannedCall
+T	src/AgentRuntime.Tui2/TurnCardView.cs	221	record	AgentRuntime.Tui2.PlannedCall
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusBlock
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusManifest
 E	Contains	src/AgentRuntime.Cli/CorpusManifest.cs	AgentRuntime.Cli.CorpusSection
@@ -1062,8 +1079,12 @@ E	Contains	src/AgentRuntime.Core/Lifecycle/LifecycleReport.cs	AgentRuntime.Core.
 E	Contains	src/AgentRuntime.Core/Lifecycle/LifecycleUsage.cs	AgentRuntime.Core.Lifecycle.LifecycleTurnUsage
 E	Contains	src/AgentRuntime.Core/Lifecycle/LifecycleUsage.cs	AgentRuntime.Core.Lifecycle.LifecycleUsage
 E	Contains	src/AgentRuntime.Core/Lifecycle/ReportAnchorIndex.cs	AgentRuntime.Core.Lifecycle.ReportAnchorIndex
+E	Contains	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	AgentRuntime.Core.Lifecycle.ReportBasis
+E	Contains	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	AgentRuntime.Core.Lifecycle.ReportBasisCheck
 E	Contains	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Lifecycle.ReportForm
 E	Contains	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Lifecycle.TaskDecisionReport
+E	Contains	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.TaskLedgerProjection
+E	Contains	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.TaskLedgerRecord
 E	Contains	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleAction
 E	Contains	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleFinding
 E	Contains	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleTraceEntry
@@ -1089,6 +1110,7 @@ E	Contains	src/AgentRuntime.Core/Protocol/ContextBudget.cs	AgentRuntime.Core.Pro
 E	Contains	src/AgentRuntime.Core/Protocol/ProseCut.cs	AgentRuntime.Core.Protocol.ProseCut
 E	Contains	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	AgentRuntime.Core.Protocol.ProtocolBudget
 E	Contains	src/AgentRuntime.Core/Protocol/ProtocolText.cs	AgentRuntime.Core.Protocol.ProtocolText
+E	Contains	src/AgentRuntime.Core/Protocol/ReplyLines.cs	AgentRuntime.Core.Protocol.ReplyLines
 E	Contains	src/AgentRuntime.Core/Protocol/TerminalReport.cs	AgentRuntime.Core.Protocol.TerminalReport
 E	Contains	src/AgentRuntime.Core/Protocol/TerminalReport.cs	AgentRuntime.Core.Protocol.TerminalState
 E	Contains	src/AgentRuntime.Core/RequestAssembler.cs	AgentRuntime.Core.RequestAssembler
@@ -1404,12 +1426,13 @@ E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.KnowledgeModule
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.MemoryIndexModule
 E	Contains	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Modules.RulesModule
-E	Contains	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Modules.MemoryIndexLiveModule
+E	Contains	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Modules.MemoryIndexPagerModule
 E	Contains	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.ModuleRegistry
 E	Contains	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Modules.NoteModule
 E	Contains	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Modules.ProtocolModule
 E	Contains	src/AgentRuntime.Modules/SessionModule.cs	AgentRuntime.Modules.SessionModule
 E	Contains	src/AgentRuntime.Modules/SystemRulesModule.cs	AgentRuntime.Modules.SystemRulesModule
+E	Contains	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Modules.TaskLedgerModule
 E	Contains	src/AgentRuntime.Modules/ToolModule.cs	AgentRuntime.Modules.ToolModule
 E	Contains	src/AgentRuntime.Modules/Worker/WorkerDispatchModule.cs	AgentRuntime.Modules.Worker.WorkerDispatchModule
 E	Contains	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	AgentRuntime.Modules.Worker.WorkerProtocolModule
@@ -1468,6 +1491,7 @@ E	Contains	src/AgentRuntime.Tui2/CellModel.cs	AgentRuntime.Tui2.CellModel
 E	Contains	src/AgentRuntime.Tui2/EditorBridge.cs	AgentRuntime.Tui2.EditorBridge
 E	Contains	src/AgentRuntime.Tui2/InputController.cs	AgentRuntime.Tui2.InputAction
 E	Contains	src/AgentRuntime.Tui2/InputController.cs	AgentRuntime.Tui2.InputController
+E	Contains	src/AgentRuntime.Tui2/InputController.cs	AgentRuntime.Tui2.ScrollActions
 E	Contains	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui2.FdSet
 E	Contains	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui2.InputEvent
 E	Contains	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui2.InputKey
@@ -1489,7 +1513,10 @@ E	Contains	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui2.Clipboard
 E	Contains	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui2.Selection
 E	Contains	src/AgentRuntime.Tui2/SelectionController.cs	AgentRuntime.Tui2.SelectionController
 E	Contains	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.SelfTest
+E	Contains	src/AgentRuntime.Tui2/SentContext.cs	AgentRuntime.Tui2.SentContext
+E	Contains	src/AgentRuntime.Tui2/SingleInstanceLock.cs	AgentRuntime.Tui2.SingleInstanceLock
 E	Contains	src/AgentRuntime.Tui2/TaskClock.cs	AgentRuntime.Tui2.TaskClock
+E	Contains	src/AgentRuntime.Tui2/TaskMeter.cs	AgentRuntime.Tui2.struct
 E	Contains	src/AgentRuntime.Tui2/ThinkSnake.cs	AgentRuntime.Tui2.ThinkSnake
 E	Contains	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Tui2.TopBandProvider
 E	Contains	src/AgentRuntime.Tui2/Tui2Options.cs	AgentRuntime.Tui2.Tui2Options
@@ -1792,6 +1819,7 @@ E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexBuilder.cs	AgentRuntime.Core.
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexBuilder.cs	AgentRuntime.Core.struct
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexBuilder.cs	AgentRuntime.Presentation.struct
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexBuilder.cs	AgentRuntime.Tui.struct
+E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexBuilder.cs	AgentRuntime.Tui2.struct
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexStore.cs	AgentRuntime.Core.Index.SourceIndex
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexSummary.cs	AgentRuntime.Core.Index.IndexEdgeKind
 E	DependsOn	src/AgentRuntime.Core/Index/SourceIndexSummary.cs	AgentRuntime.Core.Index.SourceIndex
@@ -1853,11 +1881,24 @@ E	DependsOn	src/AgentRuntime.Core/Lifecycle/LifecycleAggregator.cs	AgentRuntime.
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/LifecycleReport.cs	AgentRuntime.Core.Lifecycle.LifecycleUsage
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/LifecycleReport.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/ReportAnchorIndex.cs	AgentRuntime.Core.Lifecycle.ReportAnchor
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	AgentRuntime.Core.Lifecycle.DecisionReport
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	AgentRuntime.Tui2.Evidence
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Frozen.FrozenSnapshot
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Lifecycle.DecisionReport
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Lifecycle.DecisionReportParser
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Worker.MachineDecisionReport
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	AgentRuntime.Core.Worker.StopKind
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.LifecycleReport
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.LifecycleTraceEntry
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Protocol.ProtocolText
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Protocol.ReplyLines
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Stream.SessionAppendStream
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Stream.SessionEvent
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Stream.SessionEventKind
+E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	AgentRuntime.Core.Tooling.Result
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.DecisionReportParser
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
 E	DependsOn	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleUsage
@@ -1956,6 +1997,7 @@ E	DependsOn	src/AgentRuntime.Core/Security/Gate/PeerCredentials.cs	AgentRuntime.
 E	DependsOn	src/AgentRuntime.Core/Security/Gate/PeerCredentials.cs	AgentRuntime.Core.struct
 E	DependsOn	src/AgentRuntime.Core/Security/Gate/PeerCredentials.cs	AgentRuntime.Presentation.struct
 E	DependsOn	src/AgentRuntime.Core/Security/Gate/PeerCredentials.cs	AgentRuntime.Tui.struct
+E	DependsOn	src/AgentRuntime.Core/Security/Gate/PeerCredentials.cs	AgentRuntime.Tui2.struct
 E	DependsOn	src/AgentRuntime.Core/Security/GrantScopes.cs	AgentRuntime.Cli.Program
 E	DependsOn	src/AgentRuntime.Core/Security/GrantScopes.cs	AgentRuntime.Core.Security.Capabilities
 E	DependsOn	src/AgentRuntime.Core/Security/GrantScopes.cs	AgentRuntime.Core.Security.Capability
@@ -2710,6 +2752,9 @@ E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.IModelClie
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.IRuntimeModule
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.DecisionReport
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.DecisionReportParser
+E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
+E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.ReportBasis
+E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.ReportBasisCheck
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.TaskTerminalAssertions
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Lifecycle.TerminalGateReport
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Protocol.BudgetStatus
@@ -2729,6 +2774,7 @@ E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Stream.Ses
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Stream.SessionEvent
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Stream.SessionEventKind
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Stream.SessionStreamStore
+E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Tail.CurrentTailSources
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Tooling.ApprovalLedger
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Tooling.Result
 E	DependsOn	src/AgentRuntime.Hosting/RuntimeHost.cs	AgentRuntime.Core.Tooling.ToolLimits
@@ -2794,10 +2840,12 @@ E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Froze
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleReport
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Lifecycle.LifecycleTurnUsage
+E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Lifecycle.TaskLedgerProjection
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.ModelClientException
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Security.CloseoutWindow
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Security.SecurityGateway
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Stream.SessionEventKind
+E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Stream.SessionStreamStore
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Tail.CurrentTailStore
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Tail.SolveHeader
 E	DependsOn	src/AgentRuntime.Hosting/SessionLifecycle.cs	AgentRuntime.Core.Tooling.ExecTool
@@ -2996,11 +3044,14 @@ E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Core.R
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Core.RuntimeModuleBase
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Modules/FrozenZoneModuleBase.cs	AgentRuntime.Tui2.Selection
-E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.Frozen.IFrozenZoneModule
-E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.RuntimeContext
-E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Core.RuntimeModuleBase
-E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Models.ChatMessage
-E	DependsOn	src/AgentRuntime.Modules/MemoryIndexLiveModule.cs	AgentRuntime.Modules.MemoryIndexModule
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Core.RuntimeContext
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Core.RuntimeModuleBase
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Core.Stream.IEventSink
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Core.Stream.SessionEventKind
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Models.ChatMessage
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Models.ChatRequest
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Models.ChatResponse
+E	DependsOn	src/AgentRuntime.Modules/MemoryIndexPagerModule.cs	AgentRuntime.Modules.NoteModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Configuration.RuntimeConfiguration
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Configuration.VacuumMode
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Core.Draft.DraftOptions
@@ -3044,13 +3095,14 @@ E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.Dyna
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.FocusModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.FrozenZoneModuleBase
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.KnowledgeModule
-E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.MemoryIndexLiveModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.MemoryIndexModule
+E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.MemoryIndexPagerModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.NoteModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.ProtocolModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.RulesModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.SessionModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.SystemRulesModule
+E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.TaskLedgerModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.ToolModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.Worker.WorkerDispatchModule
 E	DependsOn	src/AgentRuntime.Modules/ModuleRegistry.cs	AgentRuntime.Modules.Worker.WorkerProtocolModule
@@ -3062,7 +3114,7 @@ E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Core.Stream.Sess
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatRequest
 E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Models.ChatResponse
-E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Modules.MemoryIndexLiveModule
+E	DependsOn	src/AgentRuntime.Modules/NoteModule.cs	AgentRuntime.Modules.MemoryIndexPagerModule
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Configuration.RuntimeConfiguration
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Frozen.CloseoutService
 E	DependsOn	src/AgentRuntime.Modules/ProtocolModule.cs	AgentRuntime.Core.Frozen.FrozenLayer
@@ -3085,6 +3137,11 @@ E	DependsOn	src/AgentRuntime.Modules/SessionModule.cs	AgentRuntime.Models.ChatRe
 E	DependsOn	src/AgentRuntime.Modules/SystemRulesModule.cs	AgentRuntime.Core.RuntimeContext
 E	DependsOn	src/AgentRuntime.Modules/SystemRulesModule.cs	AgentRuntime.Core.RuntimeModuleBase
 E	DependsOn	src/AgentRuntime.Modules/SystemRulesModule.cs	AgentRuntime.Models.ChatMessage
+E	DependsOn	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Core.Lifecycle.TaskLedgerProjection
+E	DependsOn	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Core.RuntimeContext
+E	DependsOn	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Core.RuntimeModuleBase
+E	DependsOn	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Core.Stream.SessionAppendStream
+E	DependsOn	src/AgentRuntime.Modules/TaskLedgerModule.cs	AgentRuntime.Models.ChatMessage
 E	DependsOn	src/AgentRuntime.Modules/ToolModule.cs	AgentRuntime.Core.RuntimeContext
 E	DependsOn	src/AgentRuntime.Modules/ToolModule.cs	AgentRuntime.Core.RuntimeModuleBase
 E	DependsOn	src/AgentRuntime.Modules/ToolModule.cs	AgentRuntime.Core.Security.SecurityGateway
@@ -3226,6 +3283,7 @@ E	DependsOn	src/AgentRuntime.Tui/BracketedPaste.cs	AgentRuntime.Core.struct
 E	DependsOn	src/AgentRuntime.Tui/BracketedPaste.cs	AgentRuntime.Presentation.TerminalText
 E	DependsOn	src/AgentRuntime.Tui/BracketedPaste.cs	AgentRuntime.Presentation.struct
 E	DependsOn	src/AgentRuntime.Tui/BracketedPaste.cs	AgentRuntime.Tui.struct
+E	DependsOn	src/AgentRuntime.Tui/BracketedPaste.cs	AgentRuntime.Tui2.struct
 E	DependsOn	src/AgentRuntime.Tui/CrashDump.cs	AgentRuntime.Core.Frozen.SessionPointerStore
 E	DependsOn	src/AgentRuntime.Tui/CrashDump.cs	AgentRuntime.Core.Stream.SessionStreamStore
 E	DependsOn	src/AgentRuntime.Tui/CtrlCQuit.cs	AgentRuntime.Tui.InputExit
@@ -3309,6 +3367,7 @@ E	DependsOn	src/AgentRuntime.Tui/RawConsoleInput.cs	AgentRuntime.Presentation.st
 E	DependsOn	src/AgentRuntime.Tui/RawConsoleInput.cs	AgentRuntime.Tui.InputDisconnectedException
 E	DependsOn	src/AgentRuntime.Tui/RawConsoleInput.cs	AgentRuntime.Tui.PasteCollector
 E	DependsOn	src/AgentRuntime.Tui/RawConsoleInput.cs	AgentRuntime.Tui.struct
+E	DependsOn	src/AgentRuntime.Tui/RawConsoleInput.cs	AgentRuntime.Tui2.struct
 E	DependsOn	src/AgentRuntime.Tui/SplitSession.cs	AgentRuntime.Cli.Program
 E	DependsOn	src/AgentRuntime.Tui/SplitSession.cs	AgentRuntime.Core.ContinuationBudget
 E	DependsOn	src/AgentRuntime.Tui/SplitSession.cs	AgentRuntime.Core.Frozen.IFrozenZoneModule
@@ -3405,6 +3464,7 @@ E	DependsOn	src/AgentRuntime.Tui/WebUi.cs	AgentRuntime.Modules.AppendStreamModul
 E	DependsOn	src/AgentRuntime.Tui/WebUi.cs	AgentRuntime.Tui.AblationService
 E	DependsOn	src/AgentRuntime.Tui/WebUi.cs	AgentRuntime.Tui.PanelRouter
 E	DependsOn	src/AgentRuntime.Tui/WebUi.cs	AgentRuntime.Tui.TuiOptions
+E	DependsOn	src/AgentRuntime.Tui2/AnsiScreen.cs	AgentRuntime.Tui2.Utf8InputDriver
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.ContinuationBudget
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Core.Lifecycle.LifecycleTurnUsage
@@ -3416,6 +3476,7 @@ E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.ContinuationSettin
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.HostOverrides
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.Panels.TurnLedger
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.RuntimeHost
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.RuntimePaths
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.SessionLifecycle
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.TurnContinuation
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Hosting.TurnOutcome
@@ -3427,6 +3488,7 @@ E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui.PanelOutcome
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui.PanelRouter
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.AnsiScreen
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.CellModel
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.Clipboard
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.EditorBridge
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.InputAction
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.InputController
@@ -3437,8 +3499,10 @@ E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.MouseEvent
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.PasteEvent
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.PasteModel
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.ScreenSize
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.ScrollActions
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.Selection
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.SelectionController
+E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.SentContext
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.TaskClock
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.TextEvent
 E	DependsOn	src/AgentRuntime.Tui2/App.cs	AgentRuntime.Tui2.ThinkSnake
@@ -3468,6 +3532,7 @@ E	DependsOn	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Presentation.struc
 E	DependsOn	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui.AnsiScreen
 E	DependsOn	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui.struct
 E	DependsOn	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui2.AnsiScreen
+E	DependsOn	src/AgentRuntime.Tui2/InputDriver.cs	AgentRuntime.Tui2.struct
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Core.Worker.Mode
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Hosting.RuntimeHost
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Presentation.ColorDepth
@@ -3477,6 +3542,8 @@ E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.App
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.EditorBridge
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.InputAction
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.InputController
+E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.InputKey
+E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.KeyEvent
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.MouseEvent
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.PasteModel
 E	DependsOn	src/AgentRuntime.Tui2/InputTest.cs	AgentRuntime.Tui2.ScreenSize
@@ -3492,9 +3559,15 @@ E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Hosting.RuntimeHost
 E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.App
 E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.InputTest
 E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.SelfTest
+E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.SingleInstanceLock
 E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.Tui2Options
 E	DependsOn	src/AgentRuntime.Tui2/Program.cs	AgentRuntime.Tui2.Utf8InputDriver
+E	DependsOn	src/AgentRuntime.Tui2/ScreenSize.cs	AgentRuntime.Core.Tooling.Result
+E	DependsOn	src/AgentRuntime.Tui2/ScreenSize.cs	AgentRuntime.Tui2.App
+E	DependsOn	src/AgentRuntime.Tui2/ScreenSize.cs	AgentRuntime.Tui2.InputTest
 E	DependsOn	src/AgentRuntime.Tui2/ScreenSize.cs	AgentRuntime.Tui2.Utf8InputDriver
+E	DependsOn	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui.AnsiScreen
+E	DependsOn	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui2.AnsiScreen
 E	DependsOn	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui2.CellModel
 E	DependsOn	src/AgentRuntime.Tui2/Selection.cs	AgentRuntime.Tui2.MacClipboard
 E	DependsOn	src/AgentRuntime.Tui2/SelectionController.cs	AgentRuntime.Tui2.App
@@ -3512,7 +3585,9 @@ E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Core.Tooling.Role
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Presentation.StyleRole
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Presentation.StyleTable
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Presentation.TableReflow
+E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui.AnsiScreen
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui.PanelRouter
+E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.AnsiScreen
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.CellModel
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.EditorBridge
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.InputAction
@@ -3521,6 +3596,7 @@ E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.InputKey
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.KeyEvent
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.PasteEvent
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.PasteModel
+E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.ScrollActions
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.Selection
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.TaskClock
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.TextEvent
@@ -3529,6 +3605,8 @@ E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.Tui2Style
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.TurnCardView
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.Utf8InputDriver
 E	DependsOn	src/AgentRuntime.Tui2/SelfTest.cs	AgentRuntime.Tui2.WheelEvent
+E	DependsOn	src/AgentRuntime.Tui2/SentContext.cs	AgentRuntime.Hosting.PromptComposition
+E	DependsOn	src/AgentRuntime.Tui2/SentContext.cs	AgentRuntime.Tui2.App
 E	DependsOn	src/AgentRuntime.Tui2/ThinkSnake.cs	AgentRuntime.Tui.SplitSession
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Core.Frozen.IFrozenZoneModule
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Core.Lifecycle.LifecycleAggregator
@@ -3544,6 +3622,7 @@ E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Modules.DynamicDraftMo
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Modules.FocusModule
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Modules.ProtocolModule
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Tui2.CellModel
+E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Tui2.SentContext
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Tui2.TaskClock
 E	DependsOn	src/AgentRuntime.Tui2/TopBand.cs	AgentRuntime.Tui2.Utf8InputDriver
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Options.cs	AgentRuntime.Hosting.RuntimeHost
@@ -3572,6 +3651,7 @@ E	DependsOn	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.PasteModel
 E	DependsOn	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.ScreenSize
 E	DependsOn	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.Selection
 E	DependsOn	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.Tui2Style
+E	DependsOn	src/AgentRuntime.Tui2/TuiRenderer.cs	AgentRuntime.Tui2.Utf8InputDriver
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.DecisionReportFrame
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.DecisionReportParser
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.LifecycleTraceEntry
@@ -3579,6 +3659,7 @@ E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.Re
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Lifecycle.TaskLifecycle
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Protocol.ProseCut
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Protocol.ProtocolText
+E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Protocol.ReplyLines
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Stream.SessionEventKind
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Tail.CurrentTailService
 E	DependsOn	src/AgentRuntime.Tui2/TurnCardView.cs	AgentRuntime.Core.Tail.SolveHeader

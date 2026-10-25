@@ -162,6 +162,9 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <summary>报告请求本任务只要一次（协议 v21 第 12 条 · 主人 2026-09-24 定「终局后宿主**请求一次**」）。</summary>
     private bool _reportRequested;
 
+    /// <summary>「报告只看近段」这句只提醒一次（本 task 内）；新 task 开工时清账（与 <see cref="_reportRequested"/> 同处）。</summary>
+    private bool _basisNoticeSent;
+
     /// <summary>
     /// **正在等它交报告**（我刚发过报告请求；下一次 AgentOutput 就是那一轮）。
     /// <para>为什么必须有它：合法的报告轮**本来就没有终局块**（<c>DESIGN-LIFECYCLE-BRIEF.md</c> §十三-derived #2
@@ -374,9 +377,14 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         config.Lifecycle.Handover = RuntimePaths.ResolveHandover(configPath, config.Lifecycle.Handover);
 
         // **会话指针**：running ⇒ 接上它那条流（人要回别的卷用 --stream，显式优先）。
-        if (overrides.StreamPath is null && ReadSessionPointer(config) is { Closed: false, StreamPath: { Length: > 0 } } running)
+        if (overrides.StreamPath is null && ReadSessionPointer(config) is { } pointer)
         {
-            config.Stream.Path = running.StreamPath;
+            if (!pointer.Closed && pointer.StreamPath is { Length: > 0 })
+            {
+                config.Stream.Path = pointer.StreamPath;   // running ⇒ 接上
+            }
+            // **closed 就是 closed**（2026-10-24 主人裁定）：`/reset` 是关流的唯一命令，
+            // 收尾清单里剩的欠账（尤其 OC 面的）不能让「已经 reset 的流」又被接回来 —— 那会让人以为 reset 没生效。
         }
 
         config.Lifecycle.Workspace = RuntimePaths.ResolveLifecycleWorkspace(configPath, config.Lifecycle.Workspace);
@@ -745,6 +753,18 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <summary>「无 worker」这条流首 Hint 只插一次（会话级；<see cref="ReplaceModules"/> 会复位）。</summary>
     private bool _workerAvailabilityNoted;
 
+    private string? _lifecycleMessage;
+    private int _tailBase;
+
+    /// <summary>连续「一轮只发 1 个工具块」的轮数（节奏提示用；见 NoteRhythm）。</summary>
+    private int _singleToolStreak;
+
+    /// <summary>窗口占用已经提示到哪一档（0 / 60 / 70 / 80）。</summary>
+    private int _budgetBand;
+
+    /// <summary>「窗口未配置」只提醒一次。</summary>
+    private bool _windowUnknownNoted;
+
     /// <summary>路径基准那条 Hint 只发一次（修 E4/D2 · 2026-10-10）。</summary>
     private bool _pathBaseNoted;
 
@@ -833,6 +853,8 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         CancellationToken cancellationToken = default,
         ChatRequest? preassembled = null)
     {
+        _lifecycleMessage = message;
+        _tailBase = Modules.OfType<CurrentTailModule>().FirstOrDefault()?.ReportCount ?? 0;
         var result = await Engine.ChatAsync(message, cancellationToken, preassembled).ConfigureAwait(false);
         return FinishTurn(result, verbose, labelTurn);
     }
@@ -907,6 +929,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         before.AddRange(DraftWarningLines(Modules));
         before.AddRange(L3WarningLines(Modules));
         before.AddRange(TerminalLines(result));
+        EnsureTailAtTerminal(result);   // 终局已判定（含自验闸门）后再兜底台面
         // `[task 收尾]` 清单提示**已退役**（2026-10-15 00:20 令）—— 坑 / handoff 改成**当轮说**、报告里也有；见下方退役说明。
         // 主人 2026-10-14 20:40 令：**灰色字是愿意接受的极限；灰色字下面出现的都收起来。**
         //   · 「预算/档位」行（每轮都算、内容几乎不变）⇒ 不再进正文（事实仍在流里的 Hint 与账本）；
@@ -990,15 +1013,23 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         // 「每个终局只提示一次」的两个一次性标志过去只在**换会话面**（<see cref="ReplaceModules"/>）时清零
         // ⇒ 实测一个进程只发过一次（报告请求落在卡 #1/#7/#11，全靠重启进程才又发出一次；卡 #8/#12 得解却什么都没有）。
         // 判据：**非终局的一轮 = 任务又开工了** ⇒ 此刻清账，下一次终局重新各要一次。
+        ReportBasis? basis = null;
         if (!LastTerminal.IsTerminal)
         {
             _reportRequested = false;
+            _basisNoticeSent = false;
             }
         else if ((LastTerminal.IsSettled || LastTerminal.State == TerminalState.NeedUser)
-                 && DecisionReportParser.Parse(result.Response).Accepted)
+                 && DecisionReportParser.Parse(result.Response) is { Accepted: true } parsed)
         {
             // 终局轮（含 [NEED-USER]）**自带**报告（模型提前交，与终局块写在同一轮）⇒ 不必再问一次。
             _reportRequested = true;
+
+            // **依据覆盖度**（2026-10-25）：只数锚点落在 task 的哪几段，不评价内容。
+            // 不足 ⇒ 记一条 Hint（一次），让人与下次的模型都看得见「这篇只写了尾段」。
+            basis = ReportBasisCheck.Evaluate(
+                parsed.Report,
+                LifecycleAggregator.Aggregate(StreamSnapshot()).Current);
         }
 
         // **这一轮是不是「我在要报告」的那一轮**（先取后清：判定只作用于当前轮）。
@@ -1025,6 +1056,17 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         }
 
         var lines = new List<string> { LastTerminal.Describe() };
+
+        if (basis is { Ok: false } && !_basisNoticeSent)
+        {
+            _basisNoticeSent = true;
+            var notice =
+                "[报告] ⚠️ 这篇报告的锚点只覆盖 " + string.Join(" / ", basis.Missing)
+                + " —— 依据应当是上下文末尾的 **[任务台账] 全表**（协议第 12 条：step 要覆盖前 / 中 / 后三段）。"
+                + "这次照样挂上；下次请按台账补齐（台账每行首就是可引用的 E###）。";
+            AppendHint(notice, DecisionReport.UnownedSource + "-basis");
+            lines.Add(notice);
+        }
 
         if (LastTerminal.IsConflict)
         {
@@ -1058,6 +1100,123 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <para>提议同时进流成 <see cref="SessionEventKind.Hint"/> 事件：协议第 7 条写的是「当运行时说……时」，
     /// 而 token 用量模型看不见 ⇒ 宿主不说 = 那条协议不可能被兑现。</para>
     /// </summary>
+    /// <summary>
+    /// **终局必须留台面**（2026-10-23 主人令）：模型在终局前应自己写 [TAIL]/[DRAFT]（协议 v93 第 5 条），
+    /// 但真机 202/202 轮零自报 ⇒ 下一会话只能靠检索记忆接上。这里做**最小兜底**：
+    /// 终局时若本生命周期一次 [TAIL] 都没写，就用「本轮用户消息 + 终局首句」补一行，并如实标注是合成的。
+    /// <para>只补 <c>solve/step</c> 两行，**不编造未决项**（DRAFT 留空比瞎写更安全）。</para>
+    /// </summary>
+    private void EnsureTailAtTerminal(RuntimeResult result)
+    {
+        if (!LastTerminal.IsTerminal)
+        {
+            return;
+        }
+
+        var tail = Modules.OfType<CurrentTailModule>().FirstOrDefault();
+        if (tail is null || tail.ReportCount != _tailBase)
+        {
+            return;   // 模型自己写了 ⇒ 尊重它
+        }
+
+        if (string.Equals(tail.Current.Source, AgentRuntime.Core.Tail.CurrentTailSources.Manual, StringComparison.Ordinal))
+        {
+            return;   // 人工纠偏的台面不许被兜底覆盖（谁的意志更近就听谁的）
+        }
+
+        var terminal = FirstLine(LastTerminal.Detail ?? string.Empty);
+        var solve = FirstLine(_lifecycleMessage ?? string.Empty);
+        if (solve.Length == 0 && terminal.Length == 0)
+        {
+            return;
+        }
+
+        static string Clip(string s) => s.Length <= 60 ? s : s[..60] + "…";
+        tail.Override([$"solve: {Clip(solve)}", $"step: 1 -- {Clip(terminal)}"], Turn);
+        AppendHint("[台面] 本生命周期没有 [TAIL] 自报 ⇒ 已按「本轮任务 + 终局」补两行（下一会话据此接上；未决项请自行补 [DRAFT]）。", "tail-synth");
+    }
+
+    private static string FirstLine(string text)
+    {
+        var at = text.IndexOf('\n');
+        return (at < 0 ? text : text[..at]).Trim();
+    }
+
+    /// <summary>
+    /// **窗口占用的分档提示**（2026-10-23）：只靠 80% 那一次太晚 —— 真机会话一路涨到 403k token 也没人知道。
+    /// 60% / 70% 各说一次（进流 ⇒ 模型看得见），80% 仍走既有的「收尾要求」。
+    /// <para>窗口没配（≤0）⇒ 明说一次「算不出占用」，而不是静默永不提示。</para>
+    /// </summary>
+    private void NoteBudgetBand()
+    {
+        if (LastBudget.Unknown)
+        {
+            if (!_windowUnknownNoted)
+            {
+                _windowUnknownNoted = true;
+                AppendHint(
+                    "[窗口] 未配置 contextWindow ⇒ 占用百分比算不出来，本轮**不会**据此要求收尾；"
+                    + "要按 4/5 提醒，请先在配置里写真实窗口（例如 1000000）。",
+                    "window-unknown");
+            }
+
+            return;
+        }
+
+        var pct = LastBudget.Percent;
+        var band = pct >= 80 ? 80 : pct >= 70 ? 70 : pct >= 60 ? 60 : 0;
+        if (band <= _budgetBand)
+        {
+            return;
+        }
+
+        _budgetBand = band;
+        if (band >= 80)
+        {
+            return;   // 80% 由 ShouldPropose 的「收尾要求」统一说（避免两句话说同一件事）
+        }
+
+        AppendHint(
+            $"[窗口] 上下文已用 {pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}%"
+            + $"（{LastBudget.PromptTokens} / {LastBudget.WindowTokens} token）—— 到 {ContextBudget.ProposePercent:0}% 会要求收尾换流；"
+            + "现在把当前阶段做完并留好台面，别开新的大块。",
+            "window-band");
+    }
+
+    /// <summary>
+    /// **节奏提示**（2026-10-23）：真机 63% 的轮次只发 1 个工具块 ⇒ 每一轮都在重发整份上下文。
+    /// 连续 3 轮单块就提醒一次「同一批独立动作合成一条回复」（只提醒、不阻断）。
+    /// </summary>
+    private void NoteRhythm(RuntimeResult result)
+    {
+        var tools = 0;
+        var text = result.Response;
+        for (var i = 0; i + 5 <= text.Length; i++)
+        {
+            if (text.AsSpan(i).StartsWith("[TOOL]", StringComparison.Ordinal))
+            {
+                tools++;
+            }
+        }
+
+        if (tools == 1)
+        {
+            _singleToolStreak++;
+            if (_singleToolStreak >= 3)
+            {
+                _singleToolStreak = 0;
+                AppendHint(
+                    "[节奏] 连续 3 轮都只发 1 个工具块 —— 同一批**互不依赖**的读/探请合到一条回复（最多 4 块）；"
+                    + "每多一轮就多一次整份上下文重发，慢也贵。",
+                    "rhythm");
+            }
+
+            return;
+        }
+
+        _singleToolStreak = 0;
+    }
+
     private IReadOnlyList<string> BudgetLines(RuntimeResult result)
     {
         var (tokens, estimated) = ResultTokens(result);
@@ -1078,6 +1237,9 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         {
             _gear.SetWorker(dispatch.WorkerNewTokens);
         }
+
+        NoteBudgetBand();
+        NoteRhythm(result);
 
         var gearLine = GearLines();
         if (gearLine is not null)
@@ -1310,6 +1472,17 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// **新会话从末态接上** —— 把「上一会话最后一条用户消息 + 它是否答完」交给模型（新流的首条 <c>Hint</c>）。
     /// <para>与 <see cref="NoteTurnInterrupted"/> 同一通道；两句各管一段：一个管**同会话内**的中断，一个管**跟 reset** 的接续。</para>
     /// </summary>
+    /// <summary>**上一节台账摘要**进新流（跨 session 续质量；S&lt;k&gt; = 那一节的会话号）。</summary>
+    public void NoteLedgerHandover(string summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            return;
+        }
+
+        AppendHint("[交接] 上一节任务台账（引用写 S<k>/E###，k = 那一节的会话号）：\n" + summary, "handoff-ledger");
+    }
+
     public void NoteHandoverContinuation(HandoverSnapshot handover)
     {
         ArgumentNullException.ThrowIfNull(handover);

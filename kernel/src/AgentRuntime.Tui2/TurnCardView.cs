@@ -114,20 +114,28 @@ public static class TurnCardView
             ? ReportLines(lifecycle)
             : null;
 
-        return Format(blocks, report);
+        // **意图 / 结果里的关键词**（主人 2026-10-25 20:3x：报告里有深绿，卡上两行却一个都没有 ⇒ 没适配）：
+        // 术语清单从同一份报告的「术语」小节取（`名字 = 解释` 左侧），中文概念也能被点名着色，不猜词性。
+        var terms = report is null ? [] : TermsOf(report);
+
+        return Format(blocks, report, terms);
     }
 
     /// <summary>把若干 turn 段落排成屏面文本（段间空一行；报告可空）。</summary>
-    public static IReadOnlyList<string> Format(IReadOnlyList<TurnBlock> blocks, IReadOnlyList<string>? reportLines = null)
+    public static IReadOnlyList<string> Format(
+        IReadOnlyList<TurnBlock> blocks,
+        IReadOnlyList<string>? reportLines = null,
+        IReadOnlyList<string>? terms = null)
     {
+        var keywords = terms ?? [];
         var lines = new List<string>();
         foreach (var block in blocks)
         {
             if (lines.Count > 0) lines.Add(string.Empty);
             // 操作不占一行：灰色括号挂在意图行尾（省一行；没有就什么都不挂）。
             var operation = block.Operation.Length == 0 ? string.Empty : "[[dim]](" + block.Operation + ")[[/]]";
-            lines.Add("意图：" + (block.Intent.Length == 0 ? "-" : block.Intent) + operation);
-            lines.Add("结果：" + (block.Result.Length == 0 ? "—" : block.Result)
+            lines.Add("意图：" + WrapTerms(block.Intent.Length == 0 ? "-" : block.Intent, keywords) + operation);
+            lines.Add("结果：" + WrapTerms(block.Result.Length == 0 ? "—" : block.Result, keywords)
                       + (block.Tag.Length == 0 ? string.Empty : $"（{block.Tag}）"));
         }
 
@@ -299,42 +307,14 @@ public static class TurnCardView
         return SolveHeader.Parse(tail).Solution;
     }
 
-    /// <summary>终局块正文（去掉 <c>[DONE]</c> / <c>[NEED-USER]</c> / <c>[NO-SOLUTION]</c> 块头）。</summary>
-    private static string TerminalResult(string text)
-    {
-        var value = text.Trim();
-        foreach (var header in new[] { "[DONE]", "[NO-SOLUTION]", "[NEED-USER]" })
-        {
-            if (value.StartsWith(header, StringComparison.OrdinalIgnoreCase))
-            {
-                value = value[header.Length..].TrimStart('：', ':', ' ');
-                break;
-            }
-        }
+    /// <summary>终局块正文（唯一实现在 <see cref="ReplyLines.Terminal"/>）。</summary>
+    private static string TerminalResult(string text) => ReplyLines.Terminal(text);
 
-        return FirstLine(value);
-    }
+    /// <summary><c>[PLAN]</c> 一行的正文（v87；唯一实现在 <see cref="ReplyLines.After"/>）。</summary>
+    private static string PlanOf(string text) => ReplyLines.After(text, ProtocolText.PlanPrefix);
 
-    /// <summary><c>[PLAN]</c> 一行的正文（v87：每轮白话意图）。</summary>
-    private static string PlanOf(string text) => ReportLine(text, ProtocolText.PlanPrefix);
-
-    /// <summary><c>[RESULT]</c> 一行的正文（v88：上一轮做了什么、得到什么）。</summary>
-    private static string ResultOf(string text) => ReportLine(text, ProtocolText.ResultPrefix);
-
-    private static string ReportLine(string text, string prefix)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
-        {
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return trimmed[prefix.Length..].TrimStart('：', ':', ' ', '-');
-            }
-        }
-
-        return string.Empty;
-    }
+    /// <summary><c>[RESULT]</c> 一行的正文（v88；唯一实现在 <see cref="ReplyLines.After"/>）。</summary>
+    private static string ResultOf(string text) => ReplyLines.After(text, ProtocolText.ResultPrefix);
 
     /// <summary>正文（先剥掉 <c>[PLAN]</c> / <c>[RESULT]</c> 两行，再按块头切；否则结果会被它们吃掉）。</summary>
     private static string ProseOf(string text)
@@ -440,19 +420,19 @@ public static class TurnCardView
     }
 
     /// <summary>
-    /// 报告排版（TUI2）：**段落之间空一行**（标题前插空行；段内不动）、标题与**概念**用深黄（Noun）。
+    /// 报告排版（TUI2）：**段落之间空一行**（标题前插空行；段内不动）、标题与**概念**用**深绿**（Keyword；与 OC 的金色区分）。
     /// <para>概念清单从「术语」小节取（`名字 = 解释`）—— 中文概念也能被点名着色，不靠猜词性。</para>
     /// </summary>
-    internal static IReadOnlyList<string> DecorateReport(IReadOnlyList<string> lines)
+    /// <summary>「术语」小节的词条名（`名字 = 解释` 左侧；长词优先，避免子串先吃）。</summary>
+    internal static List<string> TermsOf(IReadOnlyList<string> lines)
     {
-        // ① 收集术语名（术语小节里的 `名字 = …` 左侧）。
         var terms = new List<string>();
         var inTerms = false;
         foreach (var raw in lines)
         {
             var line = Markup.Strip(raw).TrimEnd();
             if (line.Trim() == "术语") { inTerms = true; continue; }
-            if (inTerms && Regex.IsMatch(line, @"^[一二三四五六]、\s*")) break;
+            if (inTerms && Regex.IsMatch(line, @"^[一二三四五六七八九十]、\s*")) break;
             if (inTerms)
             {
                 var m = Regex.Match(line, @"^\s{2,}(.+?)\s+=\s+");
@@ -460,7 +440,34 @@ public static class TurnCardView
             }
         }
 
-        terms = terms.Distinct(StringComparer.Ordinal).OrderByDescending(static x => x.Length).ToList();
+        return terms.Distinct(StringComparer.Ordinal).OrderByDescending(static x => x.Length).ToList();
+    }
+
+    /// <summary>把词条名包成 <c>[[keyword]]</c>；**跳过反引号里的代码段**（那里已有代码色，别嵌套）。</summary>
+    internal static string WrapTerms(string text, IReadOnlyList<string> terms)
+    {
+        if (text.Length == 0 || terms.Count == 0 || text.Contains("[[", StringComparison.Ordinal))
+        {
+            return text;
+        }
+
+        var parts = text.Split('`');
+        for (var i = 0; i < parts.Length; i += 2)   // 偶数段 = 反引号之外
+        {
+            foreach (var term in terms)
+            {
+                if (term.Length < 2) continue;
+                parts[i] = parts[i].Replace(term, "[[keyword]]" + term + "[[/]]", StringComparison.Ordinal);
+            }
+        }
+
+        return string.Join('`', parts);
+    }
+
+    internal static IReadOnlyList<string> DecorateReport(IReadOnlyList<string> lines)
+    {
+        // ① 收集术语名（术语小节里的 `名字 = …` 左侧）。
+        var terms = TermsOf(lines);
 
         // ② 排版 + 上色。
         var output = new List<string>();
@@ -472,23 +479,23 @@ public static class TurnCardView
             if (trimmed == "术语" || Regex.IsMatch(trimmed, @"^[一二三四五六]、\s*"))
             {
                 if (output.Count > 0 && output[^1].Length > 0) output.Add(string.Empty);
-                output.Add("[[noun]]" + line + "[[/]]");
+                output.Add("[[keyword]]" + line + "[[/]]");
                 continue;
             }
 
             var def = Regex.Match(line, @"^(\s{2,})(.+?)(\s+=\s+.*)$");
             if (def.Success)
             {
-                output.Add(def.Groups[1].Value + "[[noun]]" + def.Groups[2].Value + "[[/]]" + def.Groups[3].Value);
+                output.Add(def.Groups[1].Value + "[[keyword]]" + def.Groups[2].Value + "[[/]]" + def.Groups[3].Value);
                 continue;
             }
 
-            // 正文里的概念：把术语名替换成深黄（长词优先，避免子串先吃）。
+            // 正文里的概念：把术语名替换成**深绿**（TUI2 关键词色；与 OC 的金分开）。
             var styled = line;
             foreach (var term in terms)
             {
                 if (term.Length < 2) continue;
-                styled = styled.Replace(term, "[[noun]]" + term + "[[/]]", StringComparison.Ordinal);
+                styled = styled.Replace(term, "[[keyword]]" + term + "[[/]]", StringComparison.Ordinal);
             }
 
             output.Add(styled);

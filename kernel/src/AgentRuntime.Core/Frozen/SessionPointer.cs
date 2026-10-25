@@ -22,12 +22,17 @@ public sealed record SessionPointer(
     [property: DataMember(Order = 1)] bool Closed,
     [property: DataMember(Order = 2)] DateTimeOffset At,
     [property: DataMember(Order = 3)] int SessionNumber,
-    [property: DataMember(Order = 4)] string? FromHandoverAt)
+    [property: DataMember(Order = 4)] string? FromHandoverAt,
+    // 2026-10-24：收尾是否**真的完成**（清单全绿 / 回执齐）。旧文件没有这一项 ⇒ 默认 true（老行为不变）。
+    // false + Closed=true 的含义：reset 过了，但收尾没做成 ⇒ 下次进入应**接回原流**把收尾做完，而不是开新流。
+    [property: DataMember(Order = 5)] bool? CloseoutComplete = null)
 {
     /// <summary>一行短述（启动横幅 / <c>/session</c> 用）。</summary>
     public string Describe() =>
         Closed
-            ? $"已收尾、待 start（@ {At:yyyy-MM-dd HH:mm:ss}）⇒ 启动会自动 start 新会话"
+            ? CloseoutComplete != false
+                ? $"已收尾、待 start（@ {At:yyyy-MM-dd HH:mm:ss}）⇒ 启动会自动 start 新会话"
+                : $"收尾**未完成**、待续（@ {At:yyyy-MM-dd HH:mm:ss}）⇒ 启动会接回原流"
             : $"第 {SessionNumber} 节 · 事件流 {StreamPath ?? "（未落盘）"}（@ {At:yyyy-MM-dd HH:mm:ss}）";
 }
 

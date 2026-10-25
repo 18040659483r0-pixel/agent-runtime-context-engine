@@ -1490,5 +1490,68 @@
       <Why>「最后一跳的退出码」不等于「这条命令测的事对不对」：探针里混了 grep 计数（命中 0 返回 1）时，好结果会被读成失败。属写法纪律，没有单一路径可闸门化 ⇒ 只给人看：判成败取被测那条的码，或拆两条；计数另断言后显式 exit 0。原文 docs/PITFALLS.md #345。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
+    <Decl>
+      <Id>346</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-bak-001</Pointer>
+      <Why>全量快照/备份的成本由「最大的那件」决定，不由改了多少决定：数据库 / 录音 / 压缩包 / 编译产物必须先挡在全量单位之外，否则每存一次再付一整份。已进常驻 L1-bak-001（模型每轮读得到）；判据：收快照前先跑 `git ls-tree -r -l HEAD | sort -k4 -n | tail -8` 量最大几件，出现上述四类先补排除表。同族 #137/#93。原文 docs/PITFALLS.md #346。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>347</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/closeout/CloseoutArchive.cs::svn log 失败</Pointer>
+      <Why>`svn info` 只读工作副本缓存（0.017 秒返回不等于服务器可达）；收尾探针的可达性只由「真出网」的读数决定 —— ProbeOne 里 info 只用来取 URL，`svn log -l 1 -q` 带超时失败即判不可达，info 通而 log 失败时永远返回 false。负例即「info 通、log 超时 ⇒ 必须 false」。常驻侧同一句在 whitebox/workspace/AGENTS.md「`svn log -l 1 -q` 带超时探活，不许用 `svn info`」。同族 #241/#281。原文 docs/PITFALLS.md #347。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>348</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/AGENTS.md::同一条规则是否两处实现</Pointer>
+      <Why>同一个类型定义两次 = 两处真相（部分类 / 扩展方法 / 同名不同命名空间时编译还能过，运行时按加载顺序取其一）；「一处实现」不只约束方法体，也约束类型定义本身。已进常驻铁则 9 判据③。判据：新增类型前先全仓 `grep -rn "class 类型名"`；文件尾部不许写「临时的、小的」公共类型。同族 L1-oop-001 / #273。原文 docs/PITFALLS.md #348。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>349</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-fmt-001</Pointer>
+      <Why>报表不是「科目余额的一种视图」，是规定格式：行与列来自模板，取不到就是零、行照样输出；按科目清单列行会让零余额科目静默消失，法定报表缺行即不合规。已进常驻 L1-fmt-001；判据：空账套也要出满模板行数（会企01 表 64 行 / 会企02 表 22 行），与账上有多少科目无关。同族 #93/#62。原文 docs/PITFALLS.md #349。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>350</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 350.</Pointer>
+      <Why>两种语言共用一对定界符时必有一方要转义：CSS / JS / JSON 片段一律不进 C# 插值字符串（`$&quot;&quot;&quot;`），抽成不插值的原始字符串常量、插值串里只留一处引用。属编码习惯，闸门成本高于收益 ⇒ 只给人看；判据：模板里 `{` 字面量超过两三处就该抽出去。同族 #292/#342。原文 docs/PITFALLS.md #350。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>351</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>工具块正文含裸尖括号会被整篇拒收、且不报错到正文里：据「已发出」误以为改过了，直到编译报错才发现文件没变。定法：带定界符的正文改用行式零转义写法，或写成文件再落地；写完必须回读字节数或锚点确认落盘。属操作纪律，闸门成本高于收益，只给人看。同族 #342、知识 L1-wrb-001。原文 docs/PITFALLS.md #351。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>352</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>旧进程读旧页面会把「没生效」误判成「改错了」：代码改了不等于进程换了，--no-build 更是显式跑旧产物。定法：改完代码 → 重新构建 → 杀掉旧进程 → 新产物启动 → 再用端口探针与新页面读数确认。属验证顺序纪律，只给人看。同族 L1-ver-001。原文 docs/PITFALLS.md #352。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>353</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>用户输入路径上的异常若没人接住，会冒到框架层变成 500 白屏，用户看到「服务器坏了」而不是「第几行错了」。定法：输入路径一律把异常译成「第 N 行：原因」，对外报错统一裁掉 (Parameter ...) 开发者尾巴。属编码习惯，只给人看。同族 L1-err-001。原文 docs/PITFALLS.md #353。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>354</Id>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>在主人正在使用的真实库上做破坏性验证，删掉的凭证无法还原（审计只记金额不记分录）。定法：破坏性验证一律走独立测试库（独立库文件 + 独立端口 + 启动脚本固化），与真账同时运行互不影响；动手前先答「错了从哪儿恢复」。已进常驻 L1-ver-002。原文 docs/PITFALLS.md #354。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
 </Declarations>
 </GateLedger>

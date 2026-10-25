@@ -34,6 +34,14 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     private readonly SessionStreamStore? _store;
     private readonly bool _captureFocusReports;
 
+    /// <summary>
+    /// **R2 不折叠**（主人 2026-10-25 10:0x 定）：折叠是为了省 token，代价是**每折一次就把 R2 中段整段重发**
+    /// （实测命中 74.9%，折叠轮只剩 45.8%）。而「注意力」由 R3 焦点解决、叙事由 [任务台账] 承担 ⇒
+    /// R2 保持**全程 append-only**，边界只交窗口闸门（60/70/80% 分档提示，80% 要求收尾 + 换流）。
+    /// <para>证据：2026-10-25 复算 1493 事件的会话，不折叠时整份 prompt 442,679 字符 ≈ 110,669 token，
+    /// 仍在 `ContextWindow=1000000`（1M）之内；而折叠带来的缓存损失是每轮都要付的。</para>
+    /// </summary>
+
     /// <summary>本次会话是否已经提醒过「缺 [FOCUS]」——只提醒一次，避免每轮刷屏。</summary>
     private string? _focusHintTurnTag;
     private readonly List<string> _warnings = [];
@@ -127,9 +135,11 @@ public sealed class AppendStreamModule : RuntimeModuleBase, IEventSink
     public override ValueTask ContributeAsync(RuntimeContext context, IList<ChatMessage> messages, CancellationToken cancellationToken)
     {
         var events = MaxEvents > 0 && Stream.Count > MaxEvents
-            ? Stream.Events.Skip(Stream.Count - MaxEvents)
-            : Stream.Events;
+            ? Stream.Events.Skip(Stream.Count - MaxEvents).ToList()
+            : Stream.Events.ToList();
 
+        // **一个字节都不折**（主人 2026-10-25 定）：原文全量按序注入。窗口边界由宿主的分档提示把关，
+        // 不在这里悄悄改写历史（改写 = 前缀缓存从改写点整段作废 + 模型看到的历史与流文件不一致）。
         foreach (var @event in events)
         {
             messages.Add(@event.ToChatMessage());

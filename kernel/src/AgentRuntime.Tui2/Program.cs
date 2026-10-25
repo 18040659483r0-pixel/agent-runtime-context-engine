@@ -37,6 +37,16 @@ internal static class Program
             return App.RunAutoTest(options.EvidencePath, options.AutoTestSeconds);
         }
 
+        // **单实例守卫**（2026-10-24）：两个进程写同一条流会把事件流写坏（实测两次，恢复时卡死数十秒）。
+        // 只对「真交互」生效；--selftest / --autotest / --input-test 不抢锁（它们各有自己的临时落点）。
+        var lockTarget = options.Config ?? RuntimeHost.LocateDefaultConfig();
+        using var instance = SingleInstanceLock.TryAcquire(lockTarget, out var busy);
+        if (instance is null)
+        {
+            Console.Error.WriteLine("[会话] " + busy);
+            return 3;
+        }
+
         if (options.InputTest)
         {
             return InputTest.Run(options);

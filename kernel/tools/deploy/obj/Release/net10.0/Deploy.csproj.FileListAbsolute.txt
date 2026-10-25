@@ -1,0 +1,13 @@
+/private/tmp/slice81/kernel/tools/deploy/bin/Release/net10.0/Deploy.deps.json
+/private/tmp/slice81/kernel/tools/deploy/bin/Release/net10.0/Deploy.runtimeconfig.json
+/private/tmp/slice81/kernel/tools/deploy/bin/Release/net10.0/Deploy.dll
+/private/tmp/slice81/kernel/tools/deploy/bin/Release/net10.0/Deploy.pdb
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.GeneratedMSBuildEditorConfig.editorconfig
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.AssemblyInfoInputs.cache
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.AssemblyInfo.cs
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.csproj.CoreCompileInputs.cache
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.dll
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/refint/Deploy.dll
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.pdb
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/Deploy.genruntimeconfig.cache
+/private/tmp/slice81/kernel/tools/deploy/obj/Release/net10.0/ref/Deploy.dll

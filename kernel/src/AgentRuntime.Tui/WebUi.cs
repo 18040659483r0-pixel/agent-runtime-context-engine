@@ -60,6 +60,7 @@ internal static class WebUi
                     {
                         var cursor = host.StreamCount;
                         await router.RunTurnAsync(PanelRouter.Unescape(text), options.Verbose).ConfigureAwait(false);
+                        budget.Reset();   // 每条链各自一份预算
                         await TurnContinuation.RunAsync(
                             host,
                             cursor,

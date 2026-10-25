@@ -70,7 +70,9 @@ public static class ModuleRegistry
         var toolSlots = new List<int>();
         var workerSlots = new List<int>();
         var noteSlots = new List<int>();
+        var indexSlots = new List<int>();
         var decisionSlots = new List<int>();
+        var ledgerSlots = new List<int>();
 
         // 「挂了 focus 吗」决定 append-stream 要不要抓自报（消融铁则的接线点）。
         var focusEnabled = effective.Any(m => string.Equals(m, FocusModule.ModuleName, StringComparison.OrdinalIgnoreCase));
@@ -120,6 +122,12 @@ public static class ModuleRegistry
                         knowledge: knowledge));
                     break;
                 }
+
+                case TaskLedgerModule.ModuleName:
+                    // 占位：台账要「流」这个输入，留到循环后按**原位**装配（次序 = 缓存身份，不许重排）。
+                    ledgerSlots.Add(modules.Count);
+                    modules.Add(null);
+                    break;
 
                 case FocusModule.ModuleName:
                     // 占位：焦点需要「流」这个输入，留到循环后按**原位**装配（次序不变 ⇒ 次序错了就报错）。
@@ -199,9 +207,11 @@ public static class ModuleRegistry
                     break;
 
                 case MemoryIndexModule.ModuleName:
-                    // **master 走活版索引**（2026-10-22 主人令）：索引是「memory 的指针表」，每轮现读，
-                    // 不进 R1（否则每次收尾多一行 = 整段前缀换掉、缓存全归零）。worker 仍用冻结版（CreateWorker）。
-                    modules.Add(new MemoryIndexLiveModule(config.Lifecycle.Workspace));
+                    // **master 走「分页取」**（2026-10-24 主人令）：索引不常驻、不每轮拼；
+                    // 模型用 [IDX] day/week/month/all 点一段，运行时把那段作为一条事件 append 进 R2。
+                    // worker 仍用冻结版（CreateWorker 自己那份）。
+                    indexSlots.Add(modules.Count);
+                    modules.Add(null);
                     break;
 
                 case DecisionModule.ModuleName:
@@ -216,10 +226,26 @@ public static class ModuleRegistry
         // 笔记落盘（D3-A）：零注入；有事件落点就留痕（不静默）。没配活版根 ⇒ 模块自己回「未落盘」。
         if (noteSlots.Count > 0)
         {
+            var ledgerStream = modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream;
+            foreach (var slot in ledgerSlots)
+            {
+                modules[slot] = new TaskLedgerModule(ledgerStream);
+            }
+
             var sink = modules.OfType<AppendStreamModule>().FirstOrDefault();
             foreach (var slot in noteSlots)
             {
                 modules[slot] = new NoteModule(config.Lifecycle.Workspace, sink);
+            }
+        }
+
+        // 记忆索引分页（2026-10-24）：零注入；点单才把切片 append 进流。
+        if (indexSlots.Count > 0)
+        {
+            var indexSink = modules.OfType<AppendStreamModule>().FirstOrDefault();
+            foreach (var slot in indexSlots)
+            {
+                modules[slot] = new MemoryIndexPagerModule(config.Lifecycle.Workspace, indexSink);
             }
         }
 
