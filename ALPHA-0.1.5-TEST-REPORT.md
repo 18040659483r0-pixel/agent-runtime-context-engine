@@ -1,18 +1,20 @@
-# Alpha 0.1.5 · 测试与发布报告（v9.0）
+# Alpha 0.1.5 · Test & Release Report (v9.0)
 
-> 全部读数在**切片目录内**取得（`/tmp/slice90/kernel`，独立于私有构建目录）。
+> 日本語: [`ALPHA-0.1.5-TEST-REPORT.ja.md`](ALPHA-0.1.5-TEST-REPORT.ja.md) · 中文: [`ALPHA-0.1.5-TEST-REPORT.zh-CN.md`](ALPHA-0.1.5-TEST-REPORT.zh-CN.md) · Release notes: [`ALPHA-0.1.5-RELEASE.md`](ALPHA-0.1.5-RELEASE.md)
 
-| 项 | 读数 |
+> All readings were taken **inside the published slice** (fresh directory), not in the private build tree.
+
+| Item | Reading |
 |---|---|
-| 编译（`AgentRuntime.slnx -c Release`） | **0 错误** |
-| 测试（`tests/AgentRuntime.Tests`） | **1347 / 1349 通过** |
-| 未通过的 2 条 | `PitfallsDerivedTests.公开变体_与python派生物逐字节一致` · `坑集索引_与python派生物逐字节一致` —— **内部专属**：需要内部 `docs/PITFALLS.md` 的派生物，公开切片不含该文件 |
-| TUI2 自检（`AgentRuntime.Tui2 --selftest`） | **PASS（全部断言通过）** |
-| 发布扫描（`wb-cli scan <slice>`） | **硬红线 0**，可发布（软提示仅称谓/人名） |
-| 协议区 | v102（25 行 / 5,234 token ≤ 5,600） |
-| 切片规模 | 见下（无 bin/obj） |
+| Build (`AgentRuntime.slnx -c Release`) | **0 errors** |
+| Tests (`tests/AgentRuntime.Tests`) | **1347 / 1349 passed** |
+| The 2 failures | `PitfallsDerivedTests.公开变体_与python派生物逐字节一致` · `坑集索引_与python派生物逐字节一致` — **internal-only**: they need the derived artefacts of the internal pitfall corpus, which the public slice does not ship |
+| TUI2 self-test (`AgentRuntime.Tui2 --selftest`) | **PASS (all assertions)** |
+| Pre-publish scan (`wb-cli scan <slice>`) | **0 hard findings**, publishable (soft hits are honorifics/personal names) |
+| Protocol zone | v102 (25 lines / 5,234 tokens ≤ 5,600) |
+| Slice size | **635 files / 1.6 MB** tarball (no `bin/obj`) |
 
-## 复现（任何人拿到切片都能跑）
+## Reproduce (anyone can run it)
 
 ```bash
 cd kernel
@@ -20,18 +22,20 @@ dotnet build AgentRuntime.slnx -c Release
 dotnet test tests/AgentRuntime.Tests -c Release
 ```
 
-## 本版测试变化
+## Test changes in this release
 
-**新增**
-- `TuiStringsTests`：三语键集一一对应 + **英文档不含汉字** + 启动播报走语言包（切中文必须回中文）
-- `TopBandLanguageTests`：真宿主渲染顶栏，英文档出现汉字即红；空台面必须是语言包的空值文案
-- `KnowledgeSinkTests`：**不合规范的节点标记必须报错不许静默跳过**（含规范形正例）
-- `TuiInvariantTests`：**预组装请求_原对象发出_一轮只组装一次**（`Assert.Same` 引用相等）
+**Added**
+- `TuiStringsTests`: three-language key set is one-to-one, **no CJK in English**, and the start-up banner goes
+  through the language pack (switching to Chinese must switch back)
+- `TopBandLanguageTests`: renders the top band with a real host — any Han character under English turns it red;
+  an empty desk must use the language-pack empty text
+- `KnowledgeSinkTests`: **a non-canonical node marker must fail, never be skipped silently** (includes a positive case)
+- `TuiInvariantTests`: **preassembled request is sent as the same object — one assembly per turn** (`Assert.Same`)
 
-**随 TUI1 退役删除（12 个文件 + 若干帧级用例）**
-- `TuiSplitTests` / `TuiInvariantTests` 的帧级用例 / `TuiExitVoiceTests` / `BracketedPasteTests` /
-  `ExitPolicyTests` / `InputCommandRuleTests` / `LifecycleCardViewTests` / `SelfReportDisplayTests` /
-  `DecisionReportBindingTests` / `DecisionReportFlowTests` / `ContinuationCapTests` /
-  `LifecycleCloseoutTests` / `ThinkingLineRoleTests` / `ToolVisibilityTests`
+**Removed with TUI1** (12 files + several frame-level cases)
+- `TuiSplitTests`, frame-level cases of `TuiInvariantTests`, `TuiExitVoiceTests`, `BracketedPasteTests`,
+  `ExitPolicyTests`, `InputCommandRuleTests`, `LifecycleCardViewTests`, `SelfReportDisplayTests`,
+  `DecisionReportBindingTests`, `DecisionReportFlowTests`, `ContinuationCapTests`, `LifecycleCloseoutTests`,
+  `ThinkingLineRoleTests`, `ToolVisibilityTests`
 
-> 完整版测试数（内部构建）：**1349 / 1349**；切片少 2 条内部专属。
+> Full suite in the internal build: **1349 / 1349**. The public slice is 2 short (internal-only gates).

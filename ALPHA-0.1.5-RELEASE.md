@@ -1,56 +1,65 @@
-# Agent Runtime · v9.0（Alpha 0.1.5）· **稳定候选（Release Candidate）**
+# Agent Runtime · v9.0 (Alpha 0.1.5) · **Release Candidate**
 
-**状态：几乎可以当正式版用。** 缺陷密度已降到很低，宿主只有一个台面、且它已经在真机上连跑多日；
-界面做了**完整的三语语言包**（**默认英文**）。本版仍标 `pre-release`，唯一原因是：
-**吞吐 / 延迟的系统性优化还没做**（功能面与稳定性已达标），以及对外接口仍可能随内核版本微调。
+> 日本語: [`ALPHA-0.1.5-RELEASE.ja.md`](ALPHA-0.1.5-RELEASE.ja.md) · 中文: [`ALPHA-0.1.5-RELEASE.zh-CN.md`](ALPHA-0.1.5-RELEASE.zh-CN.md) · Test report: [`ALPHA-0.1.5-TEST-REPORT.md`](ALPHA-0.1.5-TEST-REPORT.md)
 
-协议区 **v102**（25 行 / 20,933 字符 / ≈5,234 token，预算 ≤5,600）。
+**Status: nearly release-grade.** Defect density is very low, the runtime now has a single, continuously
+exercised console, and the whole user interface is available in **three languages (English by default)**.
+This release is still flagged `pre-release` for exactly two reasons: the systematic throughput/latency
+work has not been done yet, and public-facing interfaces may still shift with kernel versions.
 
-## 本版变化
+Protocol zone: **v102** (25 lines / 20,933 chars / ≈5,234 tokens, budget ≤5,600).
 
-### 1) TUI1 退役，TUI2 成为唯一台面（**破坏性**）
+## What changed
 
-- 删除 `kernel/src/AgentRuntime.Tui/**` 整个工程，以及只为它服务的东西：
-  `tools/demo-doc`、`docs/TUI-DEMO-SAMPLE.md`、`wb-cli` 的 `verify-demo` / `demo` / `ctrl-c-e2e` 三条命令。
-- 仍有价值的部分**上移到正确的层**，不再跟着一个已被取代的宿主一起消失：
+### 1) TUI1 retired — TUI2 is the only surface (**breaking**)
 
-| 原来在 TUI1 | 现在 |
+- The whole `kernel/src/AgentRuntime.Tui/**` project is gone, together with what existed only to serve it:
+  `tools/demo-doc`, `docs/TUI-DEMO-SAMPLE.md`, and the `wb-cli` commands `verify-demo` / `demo` / `ctrl-c-e2e`.
+- Parts that were still valuable **moved up to the right layer** instead of dying with the old console:
+
+| Was in TUI1 | Now |
 |---|---|
-| `PanelRouter` · `AblationService` | `src/AgentRuntime.Hosting/Commands/`（TUI2 与 CLI 共用一份命令路由） |
-| `CrashDump`（未捕获异常诊断落盘） | `src/AgentRuntime.Hosting/Diagnostics/`，**TUI2 致命异常也会写** `last-crash.txt` + `crash-log.txt` |
+| `PanelRouter` · `AblationService` | `src/AgentRuntime.Hosting/Commands/` (one command router shared by TUI2 and the CLI) |
+| `CrashDump` (diagnostics for unhandled exceptions) | `src/AgentRuntime.Hosting/Diagnostics/`; **TUI2 now writes it too** (`last-crash.txt` + `crash-log.txt`) |
 
-- 启动入口：`whitebox`（PATH 命令）直接进 TUI2；旧旗标 `--tui1` / `--legacy` / `--tui-old` 已剥离。
-- **不再是回滚点**：要回退请用上一版发布标签（`v8.1`）。
+- Launcher: `whitebox` (PATH command) starts TUI2 directly; legacy flags `--tui1` / `--legacy` / `--tui-old` are stripped.
+- **No longer a rollback point**: to go back, use the previous release tag (`v8.1`).
 
-### 2) 界面语言包（强类型键 · 三语 · **默认英文**）
+### 2) UI language pack (strongly-typed keys · three languages · **English by default**)
 
-- 键是 **`enum TuiKey`（89 个）**：写错键名 = 编译不过，杜绝「漏翻 / 拼错键」。
-- 语言：`WB_TUI_LANG=en|zh|ja`，**默认 `en`**；与「跟模型说话用什么语言」无关。
-- 覆盖：顶栏（会话 / 模块三档 / 区栈 / 白板 / 草稿 / 焦点）、状态条计数、拖选与复制提示、
-  `[session]` / `[start]` / `[paste]` / `[resume]` / `[interrupt]` / `[error]` 前缀、卡片工具行动词、
-  启动播报（会话编号 / 事件流 / 末态 / 上一卷 / worker 侧）、决策报告标签。
-- 闸门：遍历**全部键 × 三语**非空；英文档下**整屏与启动播报不得出现汉字**（出现即红）。
+- Keys are **`enum TuiKey` (89 keys)**: a typo in a key name does not compile — no more "missed translation / wrong key".
+- Language: `WB_TUI_LANG=en|zh|ja`, **default `en`**; unrelated to the language you speak to the model.
+- Covered: top band (session / three-tier modules / stack / board / draft / focus), status meter, selection and
+  copy hints, the `[session]` / `[start]` / `[paste]` / `[resume]` / `[interrupt]` / `[error]` prefixes,
+  card tool verbs, start-up banner (session number / stream / end state / previous volume / workers),
+  and decision-report labels.
+- Gates: every key × three languages must be non-empty; with English selected, **no CJK may appear on screen
+  or in the start-up banner** (a single Han character turns the gate red).
 
-### 3) 知识节点 id 规范化 + 解析 fail-closed
+### 3) Knowledge-node ids: normalised at generation, fail-closed at parse
 
-- 生成侧：`--l4-sync` 生成 id 时规范化短名（只留 `[a-z0-9]`、≤16）并把序号补到三位，**写入前自检，不合规直接抛错不写**。
-- 解析侧：以节点标记开头但不符合规范形的行**带行号报错**，不再静默跳过整条节点
-  （旧行为会让「文件里 444 个 L4、只载入 428 个」，看起来却像列表末尾被吃掉）。
+- Generation: `--l4-sync` normalises the short name (keeps `[a-z0-9]`, ≤16 chars) and zero-pads the sequence to
+  three digits, then **self-checks before writing — an invalid id throws instead of being written**.
+- Parsing: a line that starts like a node marker but does not match the canonical form now **fails with a line
+  number** instead of silently skipping the entire node (the old behaviour loaded 428 of 444 L4 nodes while
+  looking like "the tail of the next list was dropped").
 
-### 4) 模块行三档、崩溃现场保留、自检转绿
+### 4) Modules line, crash evidence, self-test green
 
-- 顶栏 `Modules` 行按**本轮真实贡献的字节**标注：`(Cached)` 拼进上下文 / `(Active)` 活版按需取 / `(Runtime)` 其余。
-- TUI2 `--selftest` 由红转绿（原先 10 条断言写死了中文标签，语言包默认英文后必然对不上）。
+- The top band's `Modules` line labels each module by the bytes it **actually contributed this turn**:
+  `(Cached)` assembled into context / `(Active)` live store fetched on demand / `(Runtime)` everything else.
+- TUI2 `--selftest` went from red to green (10 assertions had hard-coded Chinese labels and could not survive
+  an English default).
 
-## 验证（在切片内做，不在构建目录）
+## Verification (done inside the slice, not in the build tree)
 
-- `dotnet build AgentRuntime.slnx -c Release`：**0 错误**。
-- `dotnet test tests/AgentRuntime.Tests -c Release`：**1347 / 1349**；2 条为**内部专属**
-  （`PitfallsDerivedTests` 需要内部坑集派生物，公开切片不含该文件，如实标红）。
-- 发布扫描：**硬红线 0**（软提示仅称谓/人名，人工判断）。
-- TUI2 `--selftest`：**PASS**。
+- `dotnet build AgentRuntime.slnx -c Release`: **0 errors**.
+- `dotnet test tests/AgentRuntime.Tests -c Release`: **1347 / 1349**; the 2 failures are **internal-only**
+  (`PitfallsDerivedTests` requires the internal pitfall corpus, which is not part of the public slice).
+- Pre-publish scan: **0 hard findings** (soft hits are honorifics/personal names, judged by a human).
+- TUI2 `--selftest`: **PASS**.
 
-## 边界
+## Boundary
 
-私有工作区 / 内部坑集 / 训练语料不在公开切片内。语料授权见
-`kernel/benchmark/AgentRuntime.Benchmark/corpus/NOTICE.md`。
+Private workspace, internal pitfall corpus and training data are not part of the public slice.
+Corpus licensing: `kernel/benchmark/AgentRuntime.Benchmark/corpus/NOTICE.md`.
