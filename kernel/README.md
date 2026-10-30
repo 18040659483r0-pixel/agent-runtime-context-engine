@@ -294,5 +294,5 @@ Runtime Overhead / Task Equivalence 五类指标，以及 T01 / T02 / T03 三个
 
 ## 许可（MIT）
 
-- **内核**（`src/AgentRuntime.Core` · `Modules` · `Providers` · `Hosting` · `Cli`）与**观测台 TUI**（`src/AgentRuntime.Tui`）采用 **MIT** 许可 —— 见仓库根 `LICENSE`（保留版权与许可声明）。
+- **内核**（`src/AgentRuntime.Core` · `Modules` · `Providers` · `Hosting` · `Cli`）与**观测台 TUI**（`src/AgentRuntime.Tui2`）采用 **MIT** 许可 —— 见仓库根 `LICENSE`（保留版权与许可声明）。
 - **不在开源范围**：`frozen-private*`（私有语料）· 内部知识库 · 实验记录（`benchmark/runs/`）· 内部工程文档 —— 对外发布一律先过 `wb-cli scan`（私有语料 / 本机路径 / 内网地址 / 凭据 / 网盘 = **硬红线**）。

@@ -30,7 +30,6 @@
     <ProjectReference Include="..\AgentRuntime.Hosting\AgentRuntime.Hosting.csproj" />
     <ProjectReference Include="..\AgentRuntime.Presentation\AgentRuntime.Presentation.csproj" />
     <!-- 复用 TUI1 的面板命令路由器（/reset、/stack、/tail … 的同一实现，不抄第二套）。 -->
-    <ProjectReference Include="..\AgentRuntime.Tui\AgentRuntime.Tui.csproj" />
-  </ItemGroup>
+    </ItemGroup>
 
 </Project>

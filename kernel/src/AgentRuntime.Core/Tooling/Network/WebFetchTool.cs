@@ -57,6 +57,17 @@ public sealed class WebFetchTool : NetworkToolBase
             return Failed(response);
         }
 
+        // 2026-10-27 真机：百度对非浏览器客户端一律跳到图形验证码页，且**状态码 200**。
+        // 旧行为把它当成功交给模型（「内容」其实是验证码页）⇒ 现在直接报「未取到内容」，
+        // 并明确叫停对同一地址的重试。
+        if (AntiBotGuard.Detect(response) is { } bot)
+        {
+            return ToolOutcome.Success(
+                $"⚠️ 未取到内容：疑似反爬页（{bot}）\n{Trace(response)}\n"
+                + "这不是正文：换信息源（本地资料 / 其它站点 / 搜索后端）；**不要对同一地址重试**。",
+                truncated: false);
+        }
+
         var format = NetworkToolArguments.ParseFormat(args.OptionalString("format"));
         var page = format == WebFetchFormat.Html
             ? new WebPage(string.Empty, response.Body, 0, null)

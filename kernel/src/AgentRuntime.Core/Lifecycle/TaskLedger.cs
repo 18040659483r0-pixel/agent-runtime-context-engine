@@ -35,24 +35,41 @@ public sealed record TaskLedgerRecord(
     /// <summary>整行字符上限（再长就截断；台账是给人/模型读的索引，不是正文）。</summary>
     public const int MaxLineChars = 420;
 
-    /// <summary>一行文本（append-only 渲染的最小单位；同一前缀永远得到同一字节）。</summary>
-    public string Line()
+    /// <summary>
+    /// **字段图例**（唯一声明处）：行内不再写 `意图:` / `结果:` 这类标签，靠这句话定义列序。
+    /// <para>2026-10-27：标签与分隔符约占每行 30 字符（300 轮 ≈ 9k 字符）⇒
+    /// 改成「列序由表头声明」的紧凑行，**信息一个字段都没少**（纯编码压缩）。</para>
+    /// </summary>
+    public const string FieldLegend = "每行 = 轮号|事件号|意图|结果[|终局][|未决条数]；字段为空 = 该块缺";
+
+    /// <summary>
+    /// 一行文本（append-only 渲染的最小单位；同一前缀永远得到同一字节）。
+    /// <para><paramref name="sessionPrefix"/> 非空时事件号写成 `S3/E721`（跨节引用口径）。</para>
+    /// </summary>
+    public string Line(string? sessionPrefix = null)
     {
         var sb = new StringBuilder();
         sb.Append('T').Append(TaskId.ToString(CultureInfo.InvariantCulture))
           .Append('.').Append(Turn.ToString("00", CultureInfo.InvariantCulture))
-          .Append(" <").Append(Tag).Append("> ")
-          .Append("意图: ").Append(IntentMissing ? "(缺 PLAN)" : Clip(Intent))
-          .Append(" | 结果: ").Append(ResultMissing ? "(缺 RESULT)" : Clip(Result));
+          .Append('|');
+
+        if (!string.IsNullOrEmpty(sessionPrefix))
+        {
+            sb.Append(sessionPrefix).Append('/');
+        }
+
+        sb.Append(Tag)
+          .Append('|').Append(IntentMissing ? string.Empty : Clip(Intent))
+          .Append('|').Append(ResultMissing ? string.Empty : Clip(Result));
 
         if (Terminal.Length > 0)
         {
-            sb.Append(" | 终局: ").Append(Clip(Terminal));
+            sb.Append('|').Append(Clip(Terminal));
         }
 
         if (OpenItems > 0)
         {
-            sb.Append(" | 未决: ").Append(OpenItems.ToString(CultureInfo.InvariantCulture));
+            sb.Append('|').Append(OpenItems.ToString(CultureInfo.InvariantCulture));
         }
 
         var line = sb.ToString();
@@ -62,6 +79,8 @@ public sealed record TaskLedgerRecord(
     private static string Clip(string text)
     {
         var one = text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
+        // 分隔符是 `|`：字段里出现同名分隔符会让列序有二义 ⇒ 归一成 `/`（不改语义，只保结构）。
+        one = one.Replace('|', '/');
         return one.Length <= MaxFieldChars ? one : one[..MaxFieldChars] + "…";
     }
 }
@@ -120,9 +139,10 @@ public static class TaskLedgerProjection
     /// <summary>
     /// **上一节台账摘要**（跨 session 交接用）：每个 task 一行 —— 目标 / 终局 / 未决条数。
     /// <para>锚点写成 `S&lt;k&gt;/E###`（k = 该节会话号）：报告跨节引用时，解析层能分清「这是上一节的事」。</para>
-    /// <para>只取**最近 <paramref name="maxTasks"/> 个 task**（默认 3）：交接要短，细节回归档流。</para>
+    /// <para><paramref name="maxTasks"/> = **0 表示全部 task**（2026-10-27 默认改成 0）：“每个 task 干了什么”
+    /// 比“某个 task 第 37 轮敲了什么”有用，而且一行摘要比一堆逐轮行便宜（实测 11 task 共 1.6k 字符）。</para>
     /// </summary>
-    public static string Summarize(IReadOnlyList<TaskLedgerRecord> records, int sessionNumber, int maxTasks = 3)
+    public static string Summarize(IReadOnlyList<TaskLedgerRecord> records, int sessionNumber, int maxTasks = 0)
     {
         ArgumentNullException.ThrowIfNull(records);
         if (records.Count == 0)
@@ -131,7 +151,8 @@ public static class TaskLedgerProjection
         }
 
         var groups = records.GroupBy(static r => r.TaskId).OrderBy(static g => g.Key).ToArray();
-        var skipped = Math.Max(0, groups.Length - Math.Max(1, maxTasks));
+        var keep = maxTasks <= 0 ? groups.Length : Math.Max(1, maxTasks);
+        var skipped = Math.Max(0, groups.Length - keep);
         var sb = new StringBuilder();
         if (skipped > 0)
         {
@@ -169,10 +190,16 @@ public static class TaskLedgerProjection
     /// <summary>
     /// **跨节台账**（交接用）：逐轮行 + 锚点改成 `S&lt;k&gt;/E###`。
     /// <para>为什么不是「只给每 task 一行摘要」：摘要是概要，**具体的每一轮还得看台账**
-    /// （主人 2026-10-25 10:1x 定：白板/草稿只是概要，跨 session 的连续性由台账承担）。
-    /// 上限 <paramref name="maxRecords"/>（默认 300 轮，≈44k 字符 / 11k token）：超了只带最近的那一段，并明说省了多少。</para>
+    /// （主人 2026-10-25 10:1x 定：白板/草稿只是概要，跨 session 的连续性由台账承担）。</para>
+    /// <para>上限 <paramref name="maxRecords"/>（2026-10-27：300 → **120**）：300 轮实测 43.6k 字符 / 29k token，
+    /// 而 11 个 task 的摘要只需 1.6k —— “任务级覆盖”比“每轮级流水”更值钱。被省掉的轮次在归档流里
+    /// （<paramref name="archivePath"/>），需要时可下钻。</para>
     /// </summary>
-    public static string RenderForHandoff(IReadOnlyList<TaskLedgerRecord> records, int sessionNumber, int maxRecords = 300)
+    public static string RenderForHandoff(
+        IReadOnlyList<TaskLedgerRecord> records,
+        int sessionNumber,
+        int maxRecords = 120,
+        string? archivePath = null)
     {
         ArgumentNullException.ThrowIfNull(records);
         if (records.Count == 0)
@@ -185,13 +212,45 @@ public static class TaskLedgerProjection
         var sb = new StringBuilder();
         if (skipped > 0)
         {
-            sb.Append("…（更早 ").Append(skipped).Append(" 轮只留账，细节在归档流）\n");
+            sb.Append("…（更早 ").Append(skipped).Append(" 轮省略");
+            if (!string.IsNullOrWhiteSpace(archivePath))
+            {
+                sb.Append("，需要时读归档流：").Append(archivePath);
+            }
+
+            sb.Append("）\n");
         }
 
+        var prefix = "S" + sessionNumber.ToString(CultureInfo.InvariantCulture);
         foreach (var record in shown)
         {
-            sb.Append(record.Line().Replace(" <" + record.Tag + ">", " <S" + sessionNumber + "/" + record.Tag + ">", StringComparison.Ordinal))
-              .Append('\n');
+            sb.Append(record.Line(prefix)).Append('\n');
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// **任务地图**（一行一个 task：锚点区间 + 轮数）—— 原文已全量在上时的**唯一必要信息**：
+    /// 报告要引用“早期那一轮”时，靠它能知道去哪段找；逐轮正文不必再复制一遍。
+    /// <para>体量：11 个 task ≈ 300 字符（对比逐轮 43.6k 字符）。</para>
+    /// </summary>
+    public static string RenderIndex(IReadOnlyList<TaskLedgerRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        if (records.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        foreach (var group in records.GroupBy(static r => r.TaskId).OrderBy(static g => g.Key))
+        {
+            var first = group.First();
+            var last = group.Last();
+            sb.Append('T').Append(group.Key.ToString(CultureInfo.InvariantCulture))
+              .Append(' ').Append(first.Tag).Append('–').Append(last.Tag)
+              .Append('（').Append(group.Count().ToString(CultureInfo.InvariantCulture)).Append("轮） ");
         }
 
         return sb.ToString().TrimEnd();

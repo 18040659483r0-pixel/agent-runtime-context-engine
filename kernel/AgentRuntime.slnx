@@ -6,7 +6,6 @@
     <Project Path="src/AgentRuntime.Providers/AgentRuntime.Providers.csproj" />
     <Project Path="src/AgentRuntime.Cli/AgentRuntime.Cli.csproj" />
     <Project Path="src/AgentRuntime.Hosting/AgentRuntime.Hosting.csproj" />
-    <Project Path="src/AgentRuntime.Tui/AgentRuntime.Tui.csproj" />
     <Project Path="src/AgentRuntime.Tui2/AgentRuntime.Tui2.csproj" />
     <Project Path="src/AgentRuntime.Presentation/AgentRuntime.Presentation.csproj" />
   </Folder>
@@ -18,7 +17,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/closeout/Closeout.csproj" />
-    <Project Path="tools/demo-doc/DemoDoc.csproj" />
     <Project Path="tools/mock-provider/Mock.csproj" />
     <Project Path="tools/r2-attribution/R2Attribution.csproj" />
     <Project Path="tools/worker-mode-acceptance/Acceptance.csproj" />

@@ -61,6 +61,8 @@ public abstract class NetworkToolBase : ToolBase
     {
         var cache = response.CacheHit ? " cache=hit" : string.Empty;
         var truncated = response.Truncated ? " truncated=true" : string.Empty;
-        return $"status={response.Status} url={response.FinalUrl} bytes={response.Bytes} elapsed={response.ElapsedMs}ms{cache}{truncated}";
+        // 反爬页也写在 trace 里：模型一眼能看到「这一页不是正文」，不必自己猜。
+        var bot = AntiBotGuard.Detect(response) is { } why ? $" antiBot={why}" : string.Empty;
+        return $"status={response.Status} url={response.FinalUrl} bytes={response.Bytes} elapsed={response.ElapsedMs}ms{cache}{truncated}{bot}";
     }
 }

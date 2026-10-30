@@ -1,4 +1,5 @@
 using System.Text;
+using AgentRuntime.Presentation;
 
 namespace AgentRuntime.Tui2;
 
@@ -79,7 +80,7 @@ public sealed class PasteModel
             if (_blocks.TryGetValue(c, out var block))
             {
                 var lines = block.Count(ch => ch == '\n') + 1;
-                sb.Append("[粘贴 ").Append(lines).Append(" 行 / ").Append(block.Length).Append(" 字符]");
+                sb.Append(TuiStrings.F(TuiKey.PasteDisplay, lines, block.Length));
             }
             else
             {

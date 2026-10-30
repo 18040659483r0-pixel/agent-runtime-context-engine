@@ -26,7 +26,7 @@ path	records.jsonl	output	实验原始记录文件（同上）
 path	records.xml	output	实验原始记录文件（XML 形态；同上）
 content	/Users/	safety	macOS 本机路径
 content	C:\\Users	safety	Windows 本机路径
-content	F:\\AgentWorkFlow	safety	内网工作副本路径
+content	D:\work	safety	内网工作副本路径
 content	192\.168\.	safety	内网地址
 content	(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}	safety	API 密钥形态（OpenAI 风格）
 content	(^|[^A-Za-z0-9])ghp_[A-Za-z0-9]{8,}	safety	GitHub PAT（经典）

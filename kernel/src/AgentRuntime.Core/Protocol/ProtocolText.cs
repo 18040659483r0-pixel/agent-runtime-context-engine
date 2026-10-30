@@ -137,8 +137,8 @@ public static class ProtocolText
     /// 与 <c>[PLAN]</c> 配对。缺了才回退到原始工具结果。</para>
     /// <para><b>v88 → v89（2026-10-21 20:4x，主人令「收尾 9 分钟太慢」）</b>：新增第 <b>23</b> 条 ——
     /// 收尾是**固定流水线**：打印的命令每条只跑一次、不读源码猜 flag、不重读语料、不反复探针；目标 ≤8 轮。</para>
-    public const string VersionStamp = "v94（2026-10-24 10:00）";
-    public const string Version = "94";
+    public const string VersionStamp = "v102（2026-10-28 11:20）";
+    public const string Version = "102";
 
     /// <summary>正文指纹（SHA256 前 12 位小写）—— **信封的 <c>from</c>/<c>to</c> 用它**（与全仓指纹同一口径）。
     /// <para>计算式属性（非静态字段初始化）：<see cref="Text"/> 在下方声明，静态字段按声明次序初始化 ⇒ 早引用会拿到 null。</para></summary>
@@ -276,7 +276,9 @@ public static class ProtocolText
         21) Before any tool call, write exactly ONE line "[PLAN] <plain-language sentence>" -- say what this turn is about to do and why, as a programmer explaining to a non-programmer: no file paths, symbol names or internal ids unless unavoidable, in the user's language, <=120 characters. It is the per-turn intent the UI shows; the runtime strips it from prose. If it is missing, the UI derives one from your tool calls. The same plain-language rule applies to [REPORT] prose (term / step / outcome): explain, do not dump identifiers.
         22) After tool results land, the next reply MUST open with one line "[RESULT] <plain-language sentence>" -- say what you actually did and what came out, for a non-programmer (<=120 characters, user's language, no ids or paths unless needed). It describes the PREVIOUS turn's outcome; the UI shows it as that turn's result. Pair it with [PLAN] for the turn you are starting. Both lines are stripped from prose; if [RESULT] is missing the runtime falls back to the raw tool result.
         23) Closeout is a FIXED pipeline: run the printed list once, in order (--check -> write content -> --apply -> --promote -> commit -> --close -> commit -> --check). Never read source for flags, never re-read the corpus, never re-probe SVN (one probe, <=5s); if degraded, skip svn commit entirely. Each command once; if one fails, say which and stop. Target <=8 turns -- more means exploring, not executing.
-        """.Replace("@@KEYS@@", ToolFaceClause.MasterKeys);
+        24) Two trees, ONE procedure -- the knowledge library (what we know) and the decision library (why we chose); only the files and the meaning differ. (a) Capture at the source, same turn: a pitfall or a project-level decision goes into "software-company/projects/<project>/docs/PITFALLS.md" or ".../docs/DECISIONS.md" (create the file if missing; this repo's own pitfall file is not a dumping ground). (b) "tools/closeout --l4-sync": every item above a watermark becomes one verbatim L4 node with its source anchor -- "<!--kn: L4-pit-<id> src=<file>#<id>-->" for pitfalls, "源 L3-xxxx · D-xxxx" for decisions -- and the watermark rises. (c) Attach and group: "tools/closeout --kn-plan" lists unattached L4s and the existing L3 catalog; link the L3 that covers it ("--kn-link"), and ONLY when none covers it create one, then ask the same of that node against L2 and of L2 against L1. One L2 covers several L3, one L1 several L2; one parent per node, parents exactly one layer up, every L4 at depth 4. (d) "tools/closeout --promote" advances BOTH libraries (versions/ for knowledge, decision-versions/ for decisions, each with its ledger). (e) "--check" stays red while any item lacks an L4, any node is unattached, has two parents, skips a layer, lacks its source, or either library changed without promotion.
+        25) The decision library is the user's standing intent and it is READ-ONLY here: its L1 (ids "L1-xxxx") is resident above; L2/L3/L4 are read by id on demand, never in bulk. Only closeout changes it -- "--promote" writes the next version file and the ledger; nothing in a session may rewrite that file, and a wanted change is written as a request instead (clause 15). When a decision belongs to the user, DEFAULT IS TO STOP: end the turn with [NEED-USER], offer 1-3 concrete options each with its consequence, and mark one "rec" derived by drilling the library -- cite the L1 id it follows and the L2/L3/L4 that settle this case -- so the recommendation matches the user's stated intent and habits, not your own taste. Continue on your own ONLY when the user has explicitly named a stopping point ("do A, B, C then stop", "until X"): then take every intermediate decision from those library defaults and stop exactly there. When the user asks for a multi-step run WITHOUT naming where to stop, ask for that stopping point first -- never invent one.
+""".Replace("@@KEYS@@", ToolFaceClause.MasterKeys);
 
     /// <summary>
     /// 往回复末尾找**自报块头**时最多回看的行数（**唯一声明处**）。
@@ -334,7 +336,7 @@ public static class ProtocolText
     /// <para><b>v80（2026-10-18）</b>：第 5 条删掉埋在长句里的 `[FOCUS]` 半句，新增第 17 条（每轮都要以 `[FOCUS]` 结尾；没东西可关注写 `none`）；第 11 条补「交给工具的路径一律绝对」。实测 <b>12,841 字符 / 3,211 token / 17 行</b> ⇒ 预算按「先量后定」重定为 <b>≤3,500 token</b>（留 ~8% 余量）。</para>
     /// <para><b>v75（2026-10-18）</b>：工具面新增 5 个网络工具并补上**用法教学**（同一元素形状 + 经运行时网关 + 凭据只写 authRef）
     /// ⇒ 实测 <b>11,169 字符 ⇒ 2,793 token</b>、15 行 ⇒ 预算按「先量后定」重定为 <b>≤110 行 / ≤2,800 token</b>（留 ~7 余量）。</para>
-    public const int DeclaredMaxTokens = 4650;
+    public const int DeclaredMaxTokens = 5600;
 
     /// <summary>
     /// **可执行闸门的 token 上限**（同 <see cref="DeclaredMaxTokens"/>；闸门不得比声明更紧）。
@@ -358,7 +360,7 @@ public static class ProtocolText
     /// <para><b>v20</b>：第 6 条补负向口径（没结束不发终局块 / <c>[NO-SOLUTION]</c> 只表示已证此路不通 / 还在点工具不算终局 / **停下来问人本身就是终局 ⇒ <c>[NEED-USER]</c>**）后
     /// 实测 **1390 token / 12 行** ⇒ 预算随之重定为 **≤13 行 / ≤1,500 token**：**留 ~8% 余量**（照 v14 的教训 ——
     /// v13 的 995/1,000 只剩 5 token，一次措辞微调就要重议预算）。依据：真机假终局块 + 「问人却没发终局块」两次现场，主人 2026-09-22 17:0x/21:5x 令。</para>
-    public const int MaxTokens = 4650;
+    public const int MaxTokens = 5600;
 
     /// <summary>英文 token 估算口径：~4 字符/token（规格 §三 §3.1 声明的口径）。</summary>
     public const double CharsPerToken = 4.0;

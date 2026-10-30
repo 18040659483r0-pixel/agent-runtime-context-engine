@@ -3,7 +3,7 @@ using AgentRuntime.Core.Configuration;
 using AgentRuntime.Hosting;
 using AgentRuntime.Modules;
 
-namespace AgentRuntime.Tui;
+namespace AgentRuntime.Hosting.Commands;
 
 /// <summary>
 /// **会话级消融开关**（P6）—— 临时摘掉某个模块，**只影响本会话**。

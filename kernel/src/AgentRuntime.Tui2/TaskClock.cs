@@ -1,4 +1,5 @@
 using System.Globalization;
+using AgentRuntime.Presentation;
 
 namespace AgentRuntime.Tui2;
 
@@ -53,7 +54,7 @@ public sealed class TaskClock
 
         var total = TotalMilliseconds();
         var clock = Format(total);
-        var stop = _running ? string.Empty : "（已停）";
+        var stop = _running ? string.Empty : TuiStrings.T(TuiKey.StoppedSuffix);
         // **叫 Task，不叫「生命周期」**（主人 2026-10-24 16:2x 令）：T = 本 task，S = 整个 session。
         return lifecycleId is int id
             ? $"T{id} · {clock}{stop}"

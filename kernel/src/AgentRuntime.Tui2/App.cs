@@ -1,3 +1,4 @@
+using AgentRuntime.Presentation;
 using System.Diagnostics;
 using System.Text;
 using System.Xml.Linq;
@@ -6,7 +7,7 @@ using AgentRuntime.Core.Lifecycle;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Modules;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 
 namespace AgentRuntime.Tui2;
 
@@ -47,7 +48,7 @@ public static class App
             var apiKey = config.ResolveApiKey();
             if (apiKey is null)
             {
-                exitReason = "启动失败：缺少 API Key";
+                exitReason = TuiStrings.T(TuiKey.StartupNoKey);
                 Console.Error.WriteLine(config.DescribeMissingApiKey());
                 return 2;
             }
@@ -55,8 +56,8 @@ public static class App
             host = RuntimeHost.Boot(config, overrides, apiKey);
             var budget = new ContinuationBudget();
             var conversation = new List<string>();
-            conversation.Add("[会话] 配置 " + configPath);
-            conversation.Add("[会话] Enter 提交 · Ctrl+J/Alt+Enter 换行 · Ctrl+C 两下退出 · Ctrl+L 重画");
+            conversation.Add(TuiStrings.F(TuiKey.SessionConfig, configPath));
+            conversation.Add(TuiStrings.T(TuiKey.SubmitHint));
 
             // **按会话指针收口**（与 TUI1 同一条路）：running ⇒ 接上那一卷；closed ⇒ 自动 start 一条**全新空流**。
             // 少了这一步，reset 之后重启会把配置里那条旧流（整段 R2）重新装进来 —— 看起来像「一上来就 105k tokens」。
@@ -150,7 +151,7 @@ public static class App
                 if (conversation.Count > 0 && conversation[^1].Length > 0) conversation.Add(string.Empty);
                 if (outcome.IsError)
                 {
-                    conversation.AddRange(outcome.Lines.Select(line => line.StartsWith("[错误]") ? line : "[错误] " + line));
+                    conversation.AddRange(outcome.Lines.Select(line => line.StartsWith("[错误]") ? line : TuiStrings.T(TuiKey.ErrorPrefix) + line));
                 }
                 else
                 {
@@ -205,7 +206,7 @@ public static class App
                             // 会话边界 = 显示也要换卷：旧 R2 的正文不许留在屏上（否则会被当成新会话的内容）。
                             // 只在**成功**时清屏；被拒（如会话未收尾就 /start）保留原文，免得把报错也一起擦掉。
                             conversation.Clear();
-                            if (head == "/reset") conversation.Add("[会话] 已收尾、待 start（/start 开新会话）");
+                            if (head == "/reset") conversation.Add(TuiStrings.T(TuiKey.SessionReset));
                             card.Clear();
                             cardSince = -1;
                             lastCardStream = -1;
@@ -219,11 +220,11 @@ public static class App
                     }
                     catch (OperationCanceledException)
                     {
-                        conversation.Add("[中断] 命令已取消。");
+                        conversation.Add(TuiStrings.T(TuiKey.InterruptCommand));
                     }
                     catch (Exception ex)
                     {
-                        conversation.Add("[错误] " + ex.GetType().Name + ": " + ex.Message);
+                        conversation.Add(TuiStrings.T(TuiKey.ErrorPrefix) + ex.GetType().Name + ": " + ex.Message);
                     }
                     finally
                     {
@@ -251,20 +252,20 @@ public static class App
                         CommitCard();
                         if (life is not null)
                         {
-                            taskSummary = $"本 task 累计写入 {life.AppendedChars / 4:N0} tok · 用时 {clock.ElapsedClock}";
+                            taskSummary = TuiStrings.F(TuiKey.ThisTask, (life.AppendedChars / 4).ToString("N0", System.Globalization.CultureInfo.InvariantCulture)) + " " + TuiStrings.F(TuiKey.Elapsed, clock.ElapsedClock);
                         }
                         conversationScroll = 0;
                         lastCardStream = host.StreamCount;
                     }
                     catch (OperationCanceledException)
                     {
-                        conversation.Add("[中断] 当前轮已取消。");
+                        conversation.Add(TuiStrings.T(TuiKey.TurnCancelled));
                         // **进流**（2026-10-22）：屏上的字关掉就没了；停因要能事后回查。
-                        try { host.NoteUiFailure("[中断] 当前轮已取消（用户 Ctrl+C 或进程取消）。", "ui-cancel"); } catch { }
+                        try { host.NoteUiFailure(TuiStrings.T(TuiKey.TurnCancelled), "ui-cancel"); } catch { }
                     }
                     catch (Exception ex)
                     {
-                        var line = "[错误] " + ex.GetType().Name + ": " + ex.Message;
+                        var line = TuiStrings.T(TuiKey.ErrorPrefix) + ex.GetType().Name + ": " + ex.Message;
                         conversation.Add(line);
                         try { host.NoteUiFailure(line); } catch { }
                     }
@@ -296,7 +297,7 @@ public static class App
                             modelRunning = false;
                             clock.Stop();
                             turnCts.Cancel();
-                            conversation.Add("[中断] 当前轮已取消；说「继续」可接上。");
+                            conversation.Add(TuiStrings.T(TuiKey.TurnCancelledContinue));
                         }
                         else
                         {
@@ -456,7 +457,7 @@ public static class App
                 display.AddRange(card);
 
                 var t0 = Environment.TickCount64;
-                var state = busy ? (commandPending is not null ? "执行中" : "运行中") : "就绪";
+                var state = busy ? (commandPending is not null ? TuiStrings.T(TuiKey.StateExecuting) : TuiStrings.T(TuiKey.StateRunning)) : TuiStrings.T(TuiKey.StateReady);
                 var statusTask = StatusLifecycle();
                 // 提交那一刻事件还没落地：用占位号先显示（真实号由聚合器落地后校正），否则状态栏会「退回上一个 task」。
                 var shownTask = activeLifecycleId ?? statusTask?.Id;
@@ -466,7 +467,7 @@ public static class App
                 {
                     var picked = Selection.Extract(TuiRenderer.LastConversationAllTexts, selectionCtl.Selection.Range);
                     summary = (string.IsNullOrEmpty(summary) ? string.Empty : summary + " · ")
-                              + (picked.Length > 0 ? $"已选中 {picked.Length} 字 · ⌘C 复制 · Esc 取消" : "拖选正文");
+                              + (picked.Length > 0 ? TuiStrings.F(TuiKey.SelectionPicked, picked.Length) : TuiStrings.T(TuiKey.SelectionHint));
                 }
                 else if (selectionCtl.RecentNotice() is { } copyNotice)
                 {
@@ -508,7 +509,7 @@ public static class App
                         state, meter.Counts(), bridge.Caret,
                     controller.TopBandVisible ? topBand.Lines : null, style,
                     modelRunning
-                        ? "远端模型正在思考… " + clock.ElapsedClock + " " + ThinkSnake.Frame(Environment.TickCount64)
+                        ? TuiStrings.F(TuiKey.Thinking, clock.ElapsedClock) + " " + ThinkSnake.Frame(Environment.TickCount64)
                         : null,
                     conversationScroll, summary, selectionCtl.Selection);
                 }
@@ -529,6 +530,13 @@ public static class App
         finally
         {
             TuiExitTrace.Write(exitReason, host, host?.Config.Stream.Path ?? streamPath, fatal);
+            // 未捕获异常另存一份**诊断落盘**（流末 + 指针 + 异常全文；只读流、自己绝不抛）。
+            if (fatal is not null)
+            {
+                AgentRuntime.Hosting.Diagnostics.CrashDump.Write(
+                    fatal, options.Config, streamPath, null);
+            }
+
             screen.Leave();
             driver?.Dispose();
             host?.Dispose();
@@ -637,7 +645,7 @@ public static class App
                 return await host.ContinueTurnAsync(verbose, token, next.Request).ConfigureAwait(false);
             },
             onOutcome: o => { AddUsage(usages, ledger, host.Turn, o); return ValueTask.CompletedTask; },
-            trace: line => { if (verbose) conversation.Add("[续] " + line); },
+            trace: line => { if (verbose) conversation.Add(TuiStrings.T(TuiKey.ResumePrefix) + line); },
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return outcome;
     }

@@ -24,6 +24,42 @@ if (args.Contains("--decision-converge"))
     return DecisionConverge.Run();
 }
 
+if (args.Contains("--l4-gap"))
+{
+    return L4Gap.Run();
+}
+
+if (args.Contains("--kn-plan"))
+{
+    return KnLinks.Plan();
+}
+
+if (args.Contains("--kn-link"))
+{
+    var links = new List<string>();
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (args[i] == "--kn-link" && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+        {
+            links.Add(args[i + 1]);
+        }
+    }
+
+    return KnLinks.Link(links);
+}
+
+if (args.Contains("--l4-sync"))
+{
+    var max = 0;
+    var at = Array.IndexOf(args, "--max");
+    if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out var parsed))
+    {
+        max = parsed;
+    }
+
+    return L4Gap.Sync(args.Contains("--dry-run"), max);
+}
+
 if (args.Contains("--apply"))
 {
     return CloseoutCli.Apply();
@@ -74,7 +110,11 @@ static void PrintHelp()
     Console.WriteLine("  --close      顺序闸门：先 --check（block 全绿）→ 才写「收敛点」到水位 + 账本");
     Console.WriteLine("  --dry-run    与 --close 合用：只打印不写");
     Console.WriteLine("  --selftest   负例自证：注入缺陷断言闸门变红（在 /tmp 副本上跑）");
-  Console.WriteLine("  --decision-converge  决策库收敛**报告**（只读、不写回）：空档 / 去重疑点 / 孤儿 / 上行可达");
+    Console.WriteLine("  --decision-converge  决策库收敛**报告**（只读、不写回）：空档 / 去重疑点 / 孤儿 / 上行可达");
+    Console.WriteLine("  --l4-gap     条目→L4 覆盖**报告**（只读）：哪些坑/决策条目还没变成 L4 节点（水位 = 目标树里的锚）");
+    Console.WriteLine("  --l4-sync [--dry-run] [--max N]  条目→L4 **机械搬运**：逐条写入 L4（逐字）并抬水位；--max 控制本次条数");
+    Console.WriteLine("  --kn-plan    知识树归位清单（只读）：未挂父的 L4 + 现有 L3 目录");
+    Console.WriteLine("  --kn-link <子>=<父>（可重复）  把 L4 挂到某个 L3（幂等 · 单亲 · 逐层）");
     Console.WriteLine("  --receipt [--write]  收尾回执（4 组事实 + 增量）：两库版本/计数/孤儿/未标记 L4");
     Console.WriteLine("  --where      打印绝对根与规范调用（治起点目录/相对路径类失败）");
     Console.WriteLine();

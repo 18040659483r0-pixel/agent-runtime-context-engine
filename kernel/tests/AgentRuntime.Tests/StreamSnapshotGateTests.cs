@@ -18,7 +18,8 @@ public sealed class StreamSnapshotGateTests
     public void 渲染与宿主路径不得直读活表_只准走Snapshot()
     {
         var offenders = new List<string>();
-        foreach (var dir in new[] { "AgentRuntime.Tui", "AgentRuntime.Hosting" })
+        // 2026-10-29 TUI1 退役 ⇒ 渲染面只剩 TUI2（扫描目标跟着换，否则闸门扫到不存在的目录 = 没牙）。
+        foreach (var dir in new[] { "AgentRuntime.Tui2", "AgentRuntime.Hosting" })
         {
             var root = Path.Combine(RepoRoot(), "src", dir);
             foreach (var file in Directory.EnumerateFiles(root, "*.cs"))

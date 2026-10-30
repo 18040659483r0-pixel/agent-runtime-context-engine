@@ -9,7 +9,7 @@ using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Modules;
 using AgentRuntime.Presentation;
 
-namespace AgentRuntime.Tui;
+namespace AgentRuntime.Hosting.Commands;
 
 /// <summary>面板执行结果：屏上行 + 是否出错（出错也走纯文本面，不抛到 REPL 外层）。</summary>
 public sealed record PanelOutcome(bool IsError, IReadOnlyList<string> Lines);

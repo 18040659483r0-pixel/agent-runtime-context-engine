@@ -416,17 +416,46 @@ public static class DecisionReportParser
                 break;
             }
 
-            var inner = value[(at + 1)..close].Trim();
-            if (inner.Length > 1 && (inner[0] == 'E' || inner[0] == 'e') && inner[1..].All(char.IsAsciiDigit))
+            var local = value[(at + 1)..close].Trim();
+            if (IsAnchorGroup(local))
             {
                 var text = (value[..at] + " " + value[(close + 1)..]).Trim();
-                return (Collapse(text), inner.ToUpperInvariant());
+                return (Collapse(text), local.ToUpperInvariant());
             }
 
             at = value.IndexOf('(', at + 1);
         }
 
         return (Collapse(value), null);
+    }
+
+    /// <summary>
+    /// **锚点组**：`E011`，或同一步的多个锚写在一对括号里：`E011/E018` · `E011,E018` · `E011 E018`。
+    /// <para>2026-10-27 真机：模型习惯写 `(E011/E018)`，旧判定要求括号内“整串都是数字” ⇒ **整组被当普通括号丢掉**，
+    /// 于是报告明明写了早段锚却被判“缺前段”（假红 + 误导提示）。</para>
+    /// </summary>
+    private static bool IsAnchorGroup(string inner)
+    {
+        if (inner.Length < 2)
+        {
+            return false;
+        }
+
+        var tokens = inner.Split(['/', ',', '，', '、', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var token in tokens)
+        {
+            if (token.Length < 2 || (token[0] != 'E' && token[0] != 'e') || !token[1..].All(char.IsAsciiDigit))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>把空白压成单空格（折行拼接后不留双空格）。</summary>

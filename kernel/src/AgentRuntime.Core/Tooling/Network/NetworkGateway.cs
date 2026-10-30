@@ -42,6 +42,7 @@ public sealed class NetworkGateway : IDisposable
     private readonly HttpClient _http;
     private readonly NetworkPolicy _policy;
     private readonly CredentialResolver _credentials;
+    private readonly Func<CancellationToken, Task<EgressDiagnosis>> _egressProbe;
     private readonly SemaphoreSlim _concurrency;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.Ordinal);
     private readonly List<NetworkAuditEntry> _audit = [];
@@ -53,15 +54,27 @@ public sealed class NetworkGateway : IDisposable
         NetworkPolicy? policy = null,
         CredentialResolver? credentials = null,
         HttpMessageHandler? handler = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        Func<CancellationToken, Task<EgressDiagnosis>>? egressProbe = null)
     {
         DefaultLimits = limits ?? NetworkLimits.Default;
         _policy = policy ?? new NetworkPolicy();
         _credentials = credentials ?? new CredentialResolver();
+        // 失败后的出口体检（可注入 ⇒ 测试不用真联网）。
+        _egressProbe = egressProbe ?? (static ct => EgressProbe.DiagnoseAsync(null, ct));
         // ⚠️ **禁止 HttpClient 自己跟随重定向**：默认 handler 的 AllowAutoRedirect = true 会绕过
         // 「每一跳都复查 SSRF」的判据（真漏洞，不是风格问题）。重定向只由本类逐跳处理。
         _http = handler is null
-            ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }, disposeHandler: true)
+            ? new HttpClient(
+                new SocketsHttpHandler
+                {
+                    AllowAutoRedirect = false,
+                    // 代理端口本身在本机，连接不该拖；给个明确上限，死代理不占满整个预算。
+                    ConnectTimeout = TimeSpan.FromSeconds(15),
+                    // 代理断线时，池里的旧连接会“看着还活着”—— 早点换掉。
+                    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(20),
+                },
+                disposeHandler: true)
             : new HttpClient(handler, disposeHandler: false);
         _http.Timeout = Timeout.InfiniteTimeSpan;   // 超时由每次调用的 CTS 管
         _concurrency = new SemaphoreSlim(Math.Max(1, DefaultLimits.MaxConcurrency));
@@ -149,18 +162,43 @@ public sealed class NetworkGateway : IDisposable
             return cached;
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, limits.TimeoutSeconds)));
+        // **传输层失败重试一次**（2026-10-27 真机）：代理抖动多是「第一次握手就断、第二次正常」。
+        // 只对**幂等**请求（GET/HEAD、无正文、非二进制）重试；4xx/5xx 是站点给的答案，重试无意义。
+        var idempotent = method is "GET" or "HEAD" && request.Body is null && !request.Binary;
+        var attempts = idempotent ? 2 : 1;
 
-        var current = target;
-        var currentMethod = method;
-        var currentBody = request.Body;
-        var currentContentType = request.ContentType;
-
-        try
+        NetworkResponse outcome = NetworkResponse.Failure("未执行。");
+        for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            for (var hop = 0; ; hop++)
+            outcome = await AttemptAsync().ConfigureAwait(false);
+            if (outcome.Status != 0 || outcome.Error is null)
             {
+                break;   // 拿到了响应（哪怕是 4xx/5xx）⇒ 不再重试
+            }
+
+            if (attempt < attempts)
+            {
+                await Task.Delay(300, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+
+        return outcome;
+
+        // 单次尝试（含逐跳重定向与 SSRF 复查）；重试时从**干净起点**重来，不继承上次的半成品。
+        async ValueTask<NetworkResponse> AttemptAsync()
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(1, limits.TimeoutSeconds)));
+
+            var current = target;
+            var currentMethod = method;
+            var currentBody = request.Body;
+            var currentContentType = request.ContentType;
+
+            try
+            {
+                for (var hop = 0; ; hop++)
+                {
                 // **每一次跳转都重新校验**（DNS 复查也在这里面）—— 绝不相信上一跳的结论。
                 current = await _policy.ValidateAsync(current.AbsoluteUri, timeout.Token).ConfigureAwait(false);
 
@@ -230,11 +268,15 @@ public sealed class NetworkGateway : IDisposable
         }
         catch (HttpRequestException ex)
         {
-            return Fail($"网络错误：{ex.Message}");
+            // 2026-10-27：不把「SSL 握手失败」直接扔给模型 —— 先体一次出口，
+            // 分清「出口不通」与「这条地址不可达」，否则模型只能盲目换地址重试。
+            var hint = await DescribeFailureAsync(ex).ConfigureAwait(false);
+            return Fail($"网络错误：{hint}");
         }
         catch (Exception ex)
         {
             return Fail($"网络请求失败：{ex.Message}");
+        }
         }
 
         NetworkResponse Fail(string error)
@@ -243,6 +285,39 @@ public sealed class NetworkGateway : IDisposable
             Record(operation, method, target?.AbsoluteUri ?? request.Url, response, response.ElapsedMs, cacheHit: false);
             return response;
         }
+    }
+
+    /// <summary>把失败拆成「内层原因 + 出口体检结论」（都是事实，不猜）。</summary>
+    private async Task<string> DescribeFailureAsync(Exception ex)
+    {
+        var cause = Innermost(ex).Message.Replace("\r", " ").Replace("\n", " ").Trim();
+
+        EgressDiagnosis diagnosis;
+        try
+        {
+            // 用 None：本请求可能已超时 / 被取消，不能连带把体检也取消。
+            diagnosis = await _egressProbe(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch
+        {
+            diagnosis = EgressDiagnosis.Ok("出口未体检");
+        }
+
+        var advice = diagnosis.State == EgressState.Ok
+            ? $"{diagnosis.Detail} ⇒ 是这条地址本身不可达：换来源，别在同一地址上重试"
+            : $"{diagnosis.Detail} ⇒ 等出口恢复再试，或改用本地资料";
+        return $"{cause}（{advice}）";
+    }
+
+    private static Exception Innermost(Exception ex)
+    {
+        var e = ex;
+        while (e.InnerException is not null)
+        {
+            e = e.InnerException;
+        }
+
+        return e;
     }
 
     private HttpRequestMessage BuildMessage(

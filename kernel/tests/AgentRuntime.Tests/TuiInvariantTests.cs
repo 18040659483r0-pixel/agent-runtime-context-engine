@@ -4,7 +4,7 @@ using AgentRuntime.Core.Tail;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Modules;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 using Xunit;
 
 namespace AgentRuntime.Tests;
@@ -288,20 +288,33 @@ public sealed class TuiInvariantTests
     // ---------------- 面板内容本身（P1 的六区账） ----------------
 
     [Fact]
+    public async Task 预组装请求_原对象发出_一轮只组装一次()
+    {
+        // 坑 #322 的续命版（2026-10-29 TUI1 退役，原断言在 TuiSplitTests 里随它一起退）：
+        // 判据仍是**引用相等** —— 显示的那份就是发出去的那份，不靠「同样输入再组装一遍」。
+        using var h = new TuiHarness("preassembled-same-ref");
+        var composition = await h.Host.PreviewCompositionAsync("一这句话", Ct);
+        await h.Router.RunTurnAsync("一这句话", preassembled: composition.Request, cancellationToken: Ct);
+
+        Assert.Same(composition.Request, h.Client.LastRequest);
+    }
+
+    [Fact]
     public void 思考动画_单行Braille蛇形粒子链()
     {
         // 主人 2026-10-18 口径：单行、约 4 个汉字宽（8 个 Braille 字符），像素点在字符内部走。
-        var start = SplitSession.ThinkSnakeFrame(0);
+        // 2026-10-29 TUI1 退役 ⇒ 改测 TUI2 的同一算法（Tui2.ThinkSnake）。
+        var start = AgentRuntime.Tui2.ThinkSnake.Frame(0);
         Assert.Equal(8, start.Length);
         Assert.DoesNotContain("\n", start, StringComparison.Ordinal);
         Assert.NotEqual(' ', start[0]);                 // 第一列最下方有粒子
 
-        var next = SplitSession.ThinkSnakeFrame(200);
+        var next = AgentRuntime.Tui2.ThinkSnake.Frame(200);
         Assert.Equal(8, next.Length);
         Assert.NotEqual(start, next);                   // 像素点在动
 
         // 走到第二个像素列（约第 8 个像素步）时，第二个字符应出现粒子。
-        var across = SplitSession.ThinkSnakeFrame(8 * 100);
+        var across = AgentRuntime.Tui2.ThinkSnake.Frame(8 * 100);
         Assert.NotEqual(' ', across[1]);
     }
 
@@ -331,7 +344,7 @@ public sealed class TuiInvariantTests
         var protocol = layers.Single(l => l.Region == StackRegion.R1P);
         Assert.Equal(StackPanel.BytesOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Bytes);
         Assert.Equal(StackPanel.FingerprintOf(AgentRuntime.Core.Protocol.ProtocolText.Text), protocol.Fingerprint);
-        Assert.Equal("v94", protocol.VersionLabel);   // v69（2026-10-16 13:30 · 主人令「rules 平时只读、收尾中收敛」）：新增第 15 条 —— 改 rules 只写 `whitebox/workspace/rules-changeOrder.md`（[open] 请求 + 水位线，收尾收敛）   // v68（2026-10-15 13:2x · 主人令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）；v67（2026-10-15 · 主人令「改协议」）：第 5 条回转 v64（[TAIL]/[DRAFT] 只在真变了时才写）；v66（2026-10-15 · 令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮说）；v65（2026-10-14 · 主人令「b 也要做」）：第 5 条补长正文纪律（长值用 `key: <<` 块）；v64（2026-10-14 · 主人令「过程中每一轮都刷」）：第 5 条回转 v62-B —— [TAIL]/[DRAFT] 每轮刷新；v63（2026-10-11 · 收尾退役）：第 7 条去 skills；v62（2026-10-11 · T2/G1）；v61（2026-10-10 · 拔掉 worker）：删第13条 + 去第2/5条 worker 句 + 不拼共用段；v60（2026-10-10 · 待办 3b）：新增第 14 条「按体量排工」；v59：master 协议口径统一「L1/L2/L3 only」→ L1/L2/L3/L4；v58（2026-10-09 · D3-A）：第 5 条补 [NOTE] 块；v38（2026-10-06）：共用段新增 [SPLIT]；v37：[DUTY]；v36：枚举含义入协议区   // v32（2026-09-30）；v31（2026-09-29 · 第 5 条键清单按角色渲染）；第 13 条补 ask: + 回执读数 + 地址绝对；v30：第 2/13 条把读原料/doing 归 Worker；v29：must:；v28：工具面改行式键值；v26~v27：工具面补 index/scope —— 主人 2026-09-27 定
+        Assert.Equal("v102", protocol.VersionLabel);   // v69（2026-10-16 13:30 · 主人令「rules 平时只读、收尾中收敛」）：新增第 15 条 —— 改 rules 只写 `whitebox/workspace/rules-changeOrder.md`（[open] 请求 + 水位线，收尾收敛）   // v68（2026-10-15 13:2x · 主人令「用协议区的方式把这个改好」）：第 5 条去旧形状尾巴（`{...}`/`key: <<`）；v67（2026-10-15 · 主人令「改协议」）：第 5 条回转 v64（[TAIL]/[DRAFT] 只在真变了时才写）；v66（2026-10-15 · 令「不要等到任务终局再提」）：第 7 条 task closeout 话术改写（坑/handoff 当轮说）；v65（2026-10-14 · 主人令「b 也要做」）：第 5 条补长正文纪律（长值用 `key: <<` 块）；v64（2026-10-14 · 主人令「过程中每一轮都刷」）：第 5 条回转 v62-B —— [TAIL]/[DRAFT] 每轮刷新；v63（2026-10-11 · 收尾退役）：第 7 条去 skills；v62（2026-10-11 · T2/G1）；v61（2026-10-10 · 拔掉 worker）：删第13条 + 去第2/5条 worker 句 + 不拼共用段；v60（2026-10-10 · 待办 3b）：新增第 14 条「按体量排工」；v59：master 协议口径统一「L1/L2/L3 only」→ L1/L2/L3/L4；v58（2026-10-09 · D3-A）：第 5 条补 [NOTE] 块；v38（2026-10-06）：共用段新增 [SPLIT]；v37：[DUTY]；v36：枚举含义入协议区   // v32（2026-09-30）；v31（2026-09-29 · 第 5 条键清单按角色渲染）；第 13 条补 ask: + 回执读数 + 地址绝对；v30：第 2/13 条把读原料/doing 归 Worker；v29：must:；v28：工具面改行式键值；v26~v27：工具面补 index/scope —— 主人 2026-09-27 定
 
         // R1 = 全部冻结段（与 FrozenPrefix 的拼接口径一致）。
         var frozen = layers.Single(l => l.Region == StackRegion.R1);

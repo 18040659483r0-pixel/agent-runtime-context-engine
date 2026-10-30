@@ -33,7 +33,7 @@ public sealed class ToolReportTests
         new AgentRuntime.Core.Frozen.SessionPointerStore(pointerPath).Save(
             new AgentRuntime.Core.Frozen.SessionPointer(realStream, false, DateTimeOffset.Now, 1, null));
 
-        AgentRuntime.Tui.CrashDump.Write(new InvalidOperationException("闸门用的假异常"), "/tmp/fake.json", target, pointerPath);
+        AgentRuntime.Hosting.Diagnostics.CrashDump.Write(new InvalidOperationException("闸门用的假异常"), "/tmp/fake.json", target, pointerPath);
 
         Assert.True(File.Exists(target));
         var text = File.ReadAllText(target);
@@ -47,7 +47,7 @@ public sealed class ToolReportTests
         // ② 落点写不进去（拿目录当文件）⇒ 不抛（诊断器不能变成第二个崩溃源）。
         var asDirectory = Path.Combine(work.Root, "adir");
         Directory.CreateDirectory(asDirectory);
-        AgentRuntime.Tui.CrashDump.Write(new InvalidOperationException("x"), null, asDirectory);
+        AgentRuntime.Hosting.Diagnostics.CrashDump.Write(new InvalidOperationException("x"), null, asDirectory);
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

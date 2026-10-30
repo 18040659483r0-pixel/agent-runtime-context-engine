@@ -150,10 +150,18 @@ public static class TuiRenderer
         AppendRowRich(sb, bottomDividerRow, Tui2Style.ToRich(new string('─', cols)), cols, paint);
 
         // 计数段由调用方给（`TaskMeter.Counts()`）：T = 本 task，S = 整个 session；渲染层不重算口径。
+        // **状态条按优先级装**（2026-10-28 主人报「本 task 被挤出去」）：
+        // 先放 `[状态] 计数` 与 summary（人最关心的两个），**再**试着挂操作提示与活动；
+        // 装不下的只在放得下时才挂 —— 宁可少一句提示，也不能把 summary 挤掉。
         var statusText = "[" + state + "] " + counts;
         if (!string.IsNullOrEmpty(summary)) statusText += " · " + summary;
-        statusText += " · Tab 切模块区 · Ctrl+C 两下退出";
-        if (!string.IsNullOrEmpty(activity)) statusText += " · " + activity;
+
+        foreach (var extra in new[] { " · " + TuiStrings.T(TuiKey.TabHint), activity })
+        {
+            if (string.IsNullOrEmpty(extra)) continue;
+            var candidate = statusText + (extra.StartsWith(' ') ? extra : " · " + extra);
+            if (TerminalText.WidthOf(candidate) <= cols) statusText = candidate;
+        }
         AppendRowRich(sb, rows - 1, Tui2Style.ToRich(statusText).TruncateTo(cols), cols, paint);
 
         var caretScreenRow = dividerRow + 1 + (caretRow - offset) + 1;

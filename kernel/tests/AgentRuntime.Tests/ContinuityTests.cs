@@ -208,7 +208,7 @@ public sealed class ContinuityTests
         var hostB = RuntimeHost.BootWith(http: null, FakeModelClient.Returning("接着做"), MakeConfig());
         var lines = SessionLifecycle.StartAtBoot(hostB);
 
-        Assert.Contains(lines, l => l.Contains("自动 start", StringComparison.Ordinal));
+        Assert.Contains(AgentRuntime.Presentation.TuiStrings.T(AgentRuntime.Presentation.TuiKey.AutoStartNote), lines);
         // 2026-10-22：收尾已销账 ⇒ 新宿主接手时台面是空的（不把上一轮已办完的事带进来）。
         Assert.Empty(hostB.Modules.OfType<CurrentTailModule>().First().Current.Lines);
         Assert.Empty(hostB.Modules.OfType<DynamicDraftModule>().First().Current.Lines);

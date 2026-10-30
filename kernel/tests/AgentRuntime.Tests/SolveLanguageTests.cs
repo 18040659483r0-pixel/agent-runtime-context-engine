@@ -482,7 +482,7 @@ public sealed class SolveLanguageTests
         Assert.Null(b.Host.PendingHandover);
         Assert.Empty(b.Tail.Current.Lines);   // ★ 销账：不带进新流
         Assert.Empty(b.Draft.Current.Lines);
-        Assert.Contains(start.Lines(), l => l.Contains("均为空", StringComparison.Ordinal));
+        Assert.Contains(AgentRuntime.Presentation.TuiStrings.T(AgentRuntime.Presentation.TuiKey.StartClean), start.Lines());
     }
 
     [Fact]

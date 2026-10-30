@@ -15,12 +15,6 @@ switch (args[0])
         return Launch.Bench(args[1..]);
     case "tui":
         return Launch.Tui(args[1..]);
-    case "verify-demo":
-        return Launch.VerifyDemo(args[1..]);
-    case "demo":
-        return Launch.Demo(args[1..]);
-    case "ctrl-c-e2e":
-        return Launch.CtrlCE2E(args[1..]);
     case "scan":
         return Scan.Run(args[1..]);
     case "pack":
@@ -43,10 +37,7 @@ static void Usage() =>
         "用法：wb-cli <命令> [参数…]\n" +
         "  run [--config <xml>] [args…]          启动 CLI（原 run.sh；默认 config.xml，自带 --config 则不覆盖）\n" +
         "  bench [args…]                         启动 benchmark（原 benchmark/run-bench.sh）\n" +
-        "  tui [args…]                           启动 TUI（原 Tui/run.sh；cwd 无关）\n" +
-        "  verify-demo                           校验文档帧 == 产物帧（原 Tui/verify-demo.sh）\n" +
-        "  demo [out] [f96] [f80]                零成本端到端演示（原 Tui/demo.sh）\n" +
-        "  ctrl-c-e2e                            两下 Ctrl-C 退出的真终端验证（原 Tui/e2e-ctrl-c.sh）\n" +
+        "  tui [args…]                           启动 TUI2（TUI1 已于 2026-10-29 退役）\n" +
         "  scan <待发布目录>                      发布前扫描（原 tools/pre-publish-scan.sh）\n" +
         "  pack [--tier A|B] [--out <dir>]       打包冻结语料（原 tools/pack-transfer.sh）\n" +
         "  sync status|push|pull                 [WB] 活版 ↔ 存档区同步（原 wb-sync.sh）\n" +

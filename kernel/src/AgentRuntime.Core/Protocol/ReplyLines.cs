@@ -9,10 +9,23 @@ namespace AgentRuntime.Core.Protocol;
 /// </summary>
 public static class ReplyLines
 {
+    /// <summary>**转录回声**：行首一个事件号 + 空白 + 下一个块头（模型把上一轮的行首一起抄回来，实测 `E061 [RESULT] …`）。</summary>
+    private static readonly System.Text.RegularExpressions.Regex EventEcho =
+        new(@"^E\d{3}\s+(?=\[)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// 只剥「行首 E### + 空白 + 下一个块头」这一种形态（其余一律不动）。
+    /// <para>为什么要它（2026-10-27 真机）：回声让 `[RESULT]` 不在行首 ⇒ 卡片「结果」只剩一个事件号
+    /// （`ProseCut` 从行内第一个块头切开 ⇒ 正文 = `E061`），报告也同样取不到那一轮的结果。</para>
+    /// </summary>
+    public static string StripEventEcho(string? text) =>
+        string.IsNullOrEmpty(text) ? string.Empty : EventEcho.Replace(text, string.Empty, 1);
+
     /// <summary>`prefix` 那一段的正文（取**第一条**匹配行；前缀后可跟 `:` / `：` / `-` / 空格）。</summary>
     public static string After(string text, string prefix)
     {
-        if (string.IsNullOrEmpty(text))
+        text = StripEventEcho(text);
+        if (text.Length == 0)
         {
             return string.Empty;
         }
@@ -35,7 +48,8 @@ public static class ReplyLines
     /// </summary>
     public static string TerminalOrEmpty(string text)
     {
-        if (string.IsNullOrEmpty(text))
+        text = StripEventEcho(text);
+        if (text.Length == 0)
         {
             return string.Empty;
         }

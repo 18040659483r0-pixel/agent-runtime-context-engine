@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace AgentRuntime.Tui;
+namespace AgentRuntime.Hosting.Diagnostics;
 
 /// <summary>
 /// **未捕获异常的落盘**（2026-09-22 03:49 真机 SIGABRT 后加）。

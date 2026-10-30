@@ -9,7 +9,7 @@ using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Models;
 using AgentRuntime.Modules;
 using AgentRuntime.Modules.Worker;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 
 namespace AgentRuntime.Tests;
 
@@ -560,49 +560,6 @@ public sealed class WorkerDispatchTests
         Assert.Equal(1800, off.CumulativeChars);
     }
 
-    // ------------------------------------------------------------------ ③ 呈现（W10 / C2）
-
-    private static SplitFrame FrameWithWorkers(IReadOnlyList<string> workers) => new()
-    {
-        Title = "AgentRuntime TUI",
-        Subtitle = "t",
-        Conversation = [],
-        Regions = [],
-        Totals = new SplitTotals(0, 0, null),
-        RequestNote = string.Empty,
-        Menu = [],
-        MenuSelection = 0,
-        DetailLines = [],
-        DetailScroll = 0,
-        ConversationScroll = 0,
-        Input = string.Empty,
-        InputRows = SplitLayout.InputPanelRowsFor(30),
-        Caret = 0,
-        Focus = PaneFocus.Input,
-        Width = 96,
-        Height = 30,
-        Workers = workers,
-    };
-
-    [Fact]
-    public void W10_无worker时帧里没有worker行_与从前一致()
-    {
-        var lines = string.Join("\n", SplitRenderer.Render(FrameWithWorkers([])));
-        Assert.DoesNotContain("worker", lines, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void C2_有worker时行内含sync或async与它自己的时长()
-    {
-        var lines = string.Join("\n", SplitRenderer.Render(
-            FrameWithWorkers(["#W1 sync 4.1s「把 A 的读取改到新 API」"])));
-
-        Assert.Contains("工蜂", lines, StringComparison.Ordinal);   // 2026-10-09 主人令：头部字样 worker → 「工蜂」
-        Assert.Contains("#W1", lines, StringComparison.Ordinal);
-        Assert.Contains("sync", lines, StringComparison.Ordinal);
-        Assert.Contains("4.1s", lines, StringComparison.Ordinal);
-    }
-
     // ------------------------------------------------------------------ ⑤ 决策卡（C1 / C3）
 
     [Fact]
@@ -621,32 +578,6 @@ public sealed class WorkerDispatchTests
 
         var without = string.Join("\n", LifecyclePresenter.Card(lifecycle));
         Assert.DoesNotContain("工蜂：", without, StringComparison.Ordinal);     // 无 worker ⇒ 不占一个字节
-    }
-
-    [Fact]
-    public void C4_头部参数_新增tok与命中率与上下文与轮数()
-    {
-        // 2026-10-09 主人令：要的是**此刻上下文**（最新一轮 prompt、缓存不重复累计），像 OC 底部 702k/1.0m 70%。
-        var u = new AgentRuntime.Core.Worker.WorkerUsage
-        {
-            PromptTokens = 240000,     // 3 轮累加（成本口径）
-            CachedTokens = 200000,
-            CompletionTokens = 800,
-            ContextTokens = 70000,     // **此刻上下文**（最新一轮）
-            ContextCached = 60000,
-            Turns = 3,
-        };
-
-        var fact = AgentRuntime.Tui.SplitSession.UsageFact(u);
-
-        Assert.Contains("新增", fact, StringComparison.Ordinal);
-        Assert.Contains("40,800 tok", fact, StringComparison.Ordinal);              // (240000-200000)+800
-        Assert.Contains("上下文 70,000", fact, StringComparison.Ordinal);          // **此刻**，不是 240,000
-        Assert.Contains("86%", fact, StringComparison.Ordinal);                     // 60000/70000 ≈ 85.7 ⇒ 86
-        Assert.DoesNotContain("240,000", fact, StringComparison.Ordinal);           // 不得把累加当上下文
-        Assert.DoesNotContain("80,000", fact, StringComparison.Ordinal);            // 上限不显示（2026-10-09 主人令）
-
-        Assert.Equal(string.Empty, AgentRuntime.Tui.SplitSession.UsageFact(null));  // 没有 ⇒ 不占字节
     }
 
     [Fact]

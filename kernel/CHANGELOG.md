@@ -1,5 +1,15 @@
 # 变更记录（Agent Runtime）
 
+## 【退役】2026-10-29 — **TUI1 退役，TUI2 成为唯一台面**（主人令：TUI2 已非常稳定，是最佳方案）
+
+- 删除工程 `src/AgentRuntime.Tui`（含 demo/verify/tmux 三条自检脚本与其文档 `docs/TUI-DEMO-SAMPLE.md`、工具 `tools/demo-doc`）。
+- **共享件搬到正确层**：`PanelRouter` / `AblationService` ⇒ `src/AgentRuntime.Hosting/Commands/`（TUI2 与 CLI 共用）；`CrashDump` ⇒ `src/AgentRuntime.Hosting/Diagnostics/`（TUI2 致命异常也落盘）。
+- `wb-cli` 命令面收口：`tui` 只剩 TUI2；`verify-demo` / `demo` / `ctrl-c-e2e` 退役；旧旗标 `--tui1/--legacy/--tui-old` 剥离后明说一次。
+- `whitebox` 启动脚本随之一并搬到 **`tools/wb-cli/whitebox`**（PATH 符号链接 `/opt/homebrew/bin/whitebox` 已重指）；**cwd 无关**、dll 过期自动编译、退出码留痕三条不变。
+- 闸门跟着换：`渲染与宿主路径不得直读活表` 的扫描面 `AgentRuntime.Tui` → `AgentRuntime.Tui2`（扫不存在的目录 = 没牙）。
+- 测试：删 TUI1 专属 12 个文件/若干帧级用例，思考动画改测 `Tui2.ThinkSnake`。**1348/1348 全绿**。
+- 覆盖缺口（已记待办）：决策报告绑定/自报显示/续跑上限三条原经 `SplitSession` 驱动的语义测试随 TUI1 一起退；TUI2 侧现有 `Tui2 自检 + TurnCardStyleTests + tui2-testsuite(pty)` 覆盖一部分，缺口待补。
+
 ## 【改完收口】2026-10-14 — **去 py / 去 JSON / 一律 C# 全部完成**（收口版本 · 代码仓 r1608 · 存档区 r1609）
 
 - **本仓不再有 `.py`、不再有自制 `.json/.jsonl`；工具链一律 C#，数据/契约一律强类型 XML（0 依赖）。**

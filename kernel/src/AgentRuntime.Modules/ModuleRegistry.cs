@@ -223,15 +223,21 @@ public static class ModuleRegistry
             }
         }
 
-        // 笔记落盘（D3-A）：零注入；有事件落点就留痕（不静默）。没配活版根 ⇒ 模块自己回「未落盘」。
-        if (noteSlots.Count > 0)
+        // 台账（R2-T）：零注入；流 + 原文窗口两个输入。
+        // 注：这段接线**不能**再藏在 `noteSlots.Count > 0` 里面 —— 不配 note 模块时台账会被静默丢掉
+        // （2026-10-27 修：原先两件事共用一个 if，拆开）。
+        if (ledgerSlots.Count > 0)
         {
             var ledgerStream = modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream;
             foreach (var slot in ledgerSlots)
             {
-                modules[slot] = new TaskLedgerModule(ledgerStream);
+                modules[slot] = new TaskLedgerModule(ledgerStream, config.Stream.MaxEvents);
             }
+        }
 
+        // 笔记落盘（D3-A）：零注入；有事件落点就留痕（不静默）。没配活版根 ⇒ 模块自己回「未落盘」。
+        if (noteSlots.Count > 0)
+        {
             var sink = modules.OfType<AppendStreamModule>().FirstOrDefault();
             foreach (var slot in noteSlots)
             {

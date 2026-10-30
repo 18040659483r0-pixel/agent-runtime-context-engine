@@ -1,3 +1,5 @@
+using AgentRuntime.Presentation;
+
 namespace AgentRuntime.Tui2;
 
 /// <summary>输入处理完之后的去向。</summary>
@@ -84,7 +86,7 @@ public sealed class InputController
                     if (c == '\n') lines++;
                 }
 
-                Notice?.Invoke($"[粘贴] 已收成 1 个原子块（{pasted.Text.Length} 字符 / {lines} 行）");
+                Notice?.Invoke(TuiStrings.F(TuiKey.PasteNotice, pasted.Text.Length, lines));
                 return InputAction.None;
 
             case WheelEvent wheel:
@@ -119,7 +121,7 @@ public sealed class InputController
 
                 _bridge.Clear();
                 _paste.Clear();
-                TopBandVisible = false;
+                // **提交不关顶栏**（2026-10-29 主人令）：按过 TAB 就全程显示，只有再按 TAB 才消失。
                 submitted = body;
                 return InputAction.Submit;
 
@@ -130,7 +132,7 @@ public sealed class InputController
                 var now = Environment.TickCount64;
                 if (now - _lastCtrlC <= DoubleCtrlCWindowMs) return InputAction.Quit;
                 _lastCtrlC = now;
-                Notice?.Invoke("[中断] 再按一次 Ctrl+C 退出（Ctrl+D 也可以）。");
+                Notice?.Invoke(TuiStrings.T(TuiKey.InterruptAgain));
                 return InputAction.None;
 
             case InputKey.PageUp when _bridge.Text.Length == 0:

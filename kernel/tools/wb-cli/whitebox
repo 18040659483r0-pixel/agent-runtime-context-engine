@@ -1,0 +1,56 @@
+#!/bin/sh
+# whitebox —— 一句话进 [WB]（主人 2026-09-20：「进入终端后输入 whitebox 就可以进入 whitebox tui」）
+#
+# 用法：
+#   whitebox                     # 进 TUI2（**2026-10-29 起唯一台面**；真机日常配置：真模型 + 真语料 + 工具面 + 审批）
+#   whitebox --verbose           # 追加开关原样传给 TUI2
+#   whitebox --config <别的配置>  # 换配置
+#   whitebox run|bench|scan|…    # 其它 wb-cli 命令照旧可用（首参是已知动词时直通）
+#
+# 三条保证：
+#   ① **cwd 无关**（家目录 / 仓库根 / 任意目录敲都成立）；
+#   ② **dll 过期就自动编译**（代码比 dll 新 ⇒ 先编，不许跑旧二进制：铁则 9）；
+#   ③ 退出码留痕（`~/.agentruntime/tui-exit.log`；为什么退在 `last-exit.txt` / `last-crash.txt`）。
+#
+# 2026-10-29：TUI1 退役 ⇒ 本脚本从 `src/AgentRuntime.Tui/` 搬到共享工具层 `tools/wb-cli/`，
+# 启动口径仍只有一处：`wb-cli tui`（不再有 --tui1 分支）。
+set -eu
+
+# 通过 PATH 里的**符号链接**调用时，$0 是链接本身 ⇒ 先解到真身（否则会把 /opt/homebrew/bin 当仓库）。
+target=$0
+while [ -L "$target" ]; do
+  dir=$(cd "$(dirname "$target")" && pwd)
+  target=$(readlink "$target")
+  case $target in
+    /*) ;;
+    *) target="$dir/$target" ;;
+  esac
+done
+here=$(cd "$(dirname "$target")" && pwd)
+root=$(cd "$here/../.." && pwd)   # = whitebox 仓根
+
+# 首参若是 wb-cli 的已知动词 ⇒ 直通（保持运维面可用）；否则一律当 tui 的开关。
+case "${1:-}" in
+  run|bench|scan|pack|sync|commit|img2jpg|install-t3)
+    verb=$1
+    shift
+    ;;
+  *)
+    verb=tui
+    ;;
+esac
+
+clidll="$root/tools/wb-cli/bin/Release/net10.0/wb-cli.dll"
+if [ ! -f "$clidll" ] || [ -n "$(find "$root/tools/wb-cli" -name '*.cs' -newer "$clidll" -not -path '*/obj/*' -not -path '*/bin/*' -print -quit)" ]; then
+  printf '[whitebox] 代码比 dll 新（或 dll 缺失）⇒ 先编译 wb-cli…\n' >&2
+  dotnet build -c Release -v q --nologo "$root/tools/wb-cli/WbCli.csproj" >&2 \
+    || printf '[whitebox] ⚠️ 编译失败：改用现有 dll 启动（改了代码但没编上 ⇒ 行为会是旧的）\n' >&2
+fi
+
+cd "$root"
+
+# ⚠️ **不能 exec**：exec 会把本脚本替换掉 ⇒ 下面的退出码永远记不到。
+dotnet "$clidll" "$verb" "$@"
+rc=$?
+printf 'EXIT=%s @ %s\n' "$rc" "$(date '+%F %T')" >> "$HOME/.agentruntime/tui-exit.log" 2>/dev/null || true
+exit "$rc"

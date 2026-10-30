@@ -1,3 +1,4 @@
+using AgentRuntime.Presentation;
 using System.Globalization;
 
 namespace AgentRuntime.Tui2;
@@ -13,8 +14,7 @@ namespace AgentRuntime.Tui2;
 public readonly record struct TaskMeter(int TaskTurns, int TaskEvents, int SessionTurns, int SessionEvents)
 {
     /// <summary>状态栏那一段（T 在前、S 在括号里；千分位，与顶栏同一写法）。</summary>
-    public string Counts() =>
-        $"T 轮 {N(TaskTurns)}（S 轮 {N(SessionTurns)}）";
+    public string Counts() => TuiStrings.F(TuiKey.Meter, N(TaskTurns), N(SessionTurns));
 
     private static string N(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
 }

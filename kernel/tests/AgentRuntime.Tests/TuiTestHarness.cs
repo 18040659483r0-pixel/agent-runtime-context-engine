@@ -4,7 +4,7 @@ using AgentRuntime.Core.Persistence;
 using AgentRuntime.Core.Tail;
 using AgentRuntime.Hosting;
 using AgentRuntime.Hosting.Panels;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 using Xunit;
 
 namespace AgentRuntime.Tests;

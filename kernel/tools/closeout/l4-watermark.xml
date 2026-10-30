@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<L4Watermark>
+  <Schema>2</Schema>
+  <Source file="software-company/projects/AutoDebug/docs/PITFALLS.md" last="6" />
+  <Source file="software-company/projects/DigitalAbacus/docs/DECISIONS.md" last="0" />
+  <Source file="software-company/projects/DigitalAbacus/docs/PITFALLS.md" last="27" />
+  <Source file="software-company/projects/DiskSpaceSaver/docs/PITFALLS.md" last="0" />
+  <Source file="software-company/projects/MainWebServer/docs/DECISIONS.md" last="0" />
+  <Source file="software-company/projects/PhotoSelect/docs/PITFALLS.md" last="0" />
+  <Source file="whitebox/docs/PITFALLS.md" last="375" />
+  <Source file="whitebox/whitebox/workspace/USER-DECISION-ENTRIES.md" last="0" />
+  <Note>水位 = 已机械搬运进 L4 的最大条目号（含），按源文件各一格。拉到最低 = 0。</Note>
+</L4Watermark>

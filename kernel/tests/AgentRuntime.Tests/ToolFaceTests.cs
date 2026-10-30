@@ -8,7 +8,7 @@ using AgentRuntime.Core.Tooling;
 using AgentRuntime.Models;
 using AgentRuntime.Modules;
 using AgentRuntime.Hosting;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 using Xunit;
 
 namespace AgentRuntime.Tests;

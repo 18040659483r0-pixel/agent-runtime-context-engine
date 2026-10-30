@@ -96,8 +96,10 @@ public static class CloseoutCli
     public const string CloseOrder =
         "   收尾硬顺序（照做，不要自己推）：\n" +
         "     ① --check（列欠账）→ ② 写正文：**一律绝对路径**，写完立刻复核落点与字节\n" +
-        "     ③ --apply（幂等重生派生物）→ ④ 提交（代码仓 + push 存档区）\n" +
-        "     ⑤ --close（绿才写收敛点）→ ⑥ 再提交（水位 + 账本）→ ⑦ 再 --check\n" +
+        "     ③ --l4-sync（条目→L4 机械搬运；--apply 里也会自动跑一次）\n" +
+        "     ④ --kn-plan → --kn-link（能挂就挂；全部挂不上才新建，并逐层递归到 L1）\n" +
+        "     ⑤ --apply（幂等重生派生物）→ ⑥ --promote（**两库一起晋级**）\n" +
+        "     ⑦ 提交（代码仓 + 存档区）→ ⑧ --close（绿才写收敛点）→ ⑨ 再提交（水位 + 账本）→ ⑩ 再 --check\n" +
         "   ⚠️ 路径基准看 `--where`，**不看 shell 的 cd**（工具 cwd = 程序集目录，相对路径会全落空）。";
 
     private sealed record Gate(string Name, string Sev, string[] Cs, string Why);
@@ -819,6 +821,335 @@ public static class CloseoutCli
             "收尾必须两库生长：知识版本晋级 + L4 全部有节点标记；内容变了不晋级 = 没生长");
     }
 
+    /// <summary>
+    /// **条目 → L4 覆盖**（2026-10-27）：坑集/决策的每一条现场条目都必须有一条带 `src=…#id` 的 L4 节点。
+    /// <para>水位 = 标记本身（不另建文件）；缺口用 `--l4-gap` 可单独查看。</para>
+    /// </summary>
+    internal static Res CheckEntryToL4()
+    {
+        var (above, backlog) = L4Gap.Gap();
+        var problems = new List<string>();
+        if (above.Count > 0)
+        {
+            problems.Add($"水位以上有 {above.Count} 条未进 L4：" + string.Join(", ", above.Take(12))
+                         + (above.Count > 12 ? $" …（共 {above.Count}）" : string.Empty));
+        }
+
+        var ok = above.Count == 0;
+        var summary = ok
+            ? $"水位以上全部有 L4 锚 · 存量欠账 {backlog} 条（--l4-sync 分批回填）"
+            : string.Join("；", problems);
+        return R("条目→L4 覆盖", "block", ok, summary, problems,
+            "条目必须逐条变成 L4 节点（`src=…#id`）并由远端 AI 抽象 L3/L2/L1；水位见 tools/closeout/l4-watermark.xml");
+    }
+
+    /// <summary>
+    /// **知识树链完整性**（2026-10-27 主人问「如何让生长真正成立」当场量出的窟窿）：
+    /// 旧闸门只数节点（L1~L4 各多少）与一个「orphans」，而实测 424 个 L4 里 **395 个没有任何父节点引用**、
+    /// 29 条 L1/L2/L3 各只挂 1 个子节点（29 条平行细链）—— 照样印绿。
+    /// <para>本闸门验的是**链**，不是**数**：单亲、层序、可达、深度。</para>
+    /// </summary>
+    internal static Res CheckKnowledgeLinks()
+    {
+        var path = Path.Combine(Live, "knowledge", "knowledge.md");
+        if (!File.Exists(path))
+        {
+            return R("知识树链", "block", false, "找不到 knowledge.md", [], "知识树必须可解析");
+        }
+
+        var text = File.ReadAllText(path);
+        var nodes = new Dictionary<string, (int Layer, List<string> Next)>(StringComparer.Ordinal);
+        var rx = new Regex(@"<!--kn:\s*(L([1-4])-[^\s>]+)([^>]*)-->", RegexOptions.Multiline);
+        foreach (Match m in rx.Matches(text))
+        {
+            var id = m.Groups[1].Value;
+            var layer = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
+            var next = new List<string>();
+            var at = m.Groups[3].Value.IndexOf("next=", StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                var raw = m.Groups[3].Value[(at + 5)..].Split(' ', '>')[0];
+                next.AddRange(raw.Split([',', '，'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            }
+
+            nodes[id] = (layer, next);
+        }
+
+        var problems = new List<string>();
+        var parents = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var (id, node) in nodes)
+        {
+            foreach (var child in node.Next)
+            {
+                if (!nodes.TryGetValue(child, out var target))
+                {
+                    problems.Add($"{id} → {child}（目标不存在）");
+                    continue;
+                }
+
+                if (target.Layer != node.Layer + 1)
+                {
+                    problems.Add($"{id}(L{node.Layer}) → {child}(L{target.Layer})（跨层/反向）");
+                }
+
+                parents[child] = parents.TryGetValue(child, out var c) ? c + 1 : 1;
+            }
+        }
+
+        // 单亲：每个非 L1 节点必须被**恰好一个**父引用（0 = 孤儿；>1 = 两张树粘在一起）。
+        foreach (var (id, node) in nodes.Where(static p => p.Value.Layer > 1))
+        {
+            parents.TryGetValue(id, out var count);
+            if (count == 0)
+            {
+                problems.Add($"{id} 无父（孤儿）");
+            }
+            else if (count > 1)
+            {
+                problems.Add($"{id} 有 {count} 个父（不是一棵树）");
+            }
+        }
+
+        // 可达 + 深度：从每个 L1 往下 DFS，必须走到 L4，且 L4 只在这一条路上。
+        var depth = new Dictionary<string, int>(StringComparer.Ordinal);
+        void Walk(string id, int d)
+        {
+            if (depth.TryGetValue(id, out var seen) && seen >= d)
+            {
+                return;
+            }
+
+            depth[id] = d;
+            if (!nodes.TryGetValue(id, out var node))
+            {
+                return;
+            }
+
+            foreach (var child in node.Next)
+            {
+                Walk(child, d + 1);
+            }
+        }
+
+        foreach (var id in nodes.Where(static p => p.Value.Layer == 1).Select(static p => p.Key))
+        {
+            Walk(id, 1);
+        }
+
+        var unreachable = nodes.Keys.Where(id => !depth.ContainsKey(id)).ToList();
+        if (unreachable.Count > 0)
+        {
+            problems.Add($"从 L1 不可达：{unreachable.Count} 个（如 {string.Join(", ", unreachable.Take(5))}）");
+        }
+
+        var wrongDepth = nodes.Where(p => p.Value.Layer == 4 && depth.TryGetValue(p.Key, out var d) && d != 4)
+            .Select(p => p.Key).ToList();
+        if (wrongDepth.Count > 0)
+        {
+            problems.Add($"深度不等于 4 的 L4：{wrongDepth.Count} 个");
+        }
+
+        var fanout = nodes.GroupBy(p => p.Value.Layer)
+            .ToDictionary(g => g.Key, g => g.Max(p => p.Value.Next.Count));
+        var l4 = nodes.Count(p => p.Value.Layer == 4);
+
+        var ok = problems.Count == 0;
+        return R("知识树链", "block", ok,
+            ok
+                ? $"单亲/层序/可达/深度全部成立 · L4 {l4} 条 · 层数 {nodes.Count(p => p.Value.Layer == 1)}/{nodes.Count(p => p.Value.Layer == 2)}/{nodes.Count(p => p.Value.Layer == 3)} · 最大扇出 L1={fanout.GetValueOrDefault(1)} L2={fanout.GetValueOrDefault(2)} L3={fanout.GetValueOrDefault(3)}"
+                  + (nodes.Count(p => p.Value.Layer == 2) >= nodes.Count(p => p.Value.Layer == 3) ? " · ⚠️ 分组未压缩（L2 ≥ L3：一个 L2 没盖多个 L3）" : string.Empty)
+                : $"链不完整：{problems.Count} 处（前 3：{string.Join("；", problems.Take(3))}）",
+            problems,
+            "知识树是**链**不是**数**：每个 L4 必须被恰好一个 L3 引用，L3→L2→L1 同理，深度恰 4");
+    }
+
+    /// <summary>
+    /// **L4 来源锚**（2026-10-27 主人令）：每条 L4 必须带 `src=<文件>#<id>`，否则它不可回溯到任何现场条目。
+    /// <para>为什么单列一条：`--l4-sync` 生成的一定带；**手写的 L4** 常常不带，
+    /// 而「未标记 L4」那条只查节点标记、不查来源 —— 于是"凭印象写的知识"照样绿。</para>
+    /// </summary>
+    internal static Res CheckL4Sources()
+    {
+        var path = Path.Combine(Live, "knowledge", "knowledge.md");
+        if (!File.Exists(path))
+        {
+            return R("L4 来源锚", "block", false, "找不到 knowledge.md", [], "每条 L4 必须可回溯到现场条目");
+        }
+
+        var text = File.ReadAllText(path);
+        var all = Regex.Matches(text, @"<!--kn:\s*(L4-[^\s>]+)([^>]*)-->", RegexOptions.Multiline);
+        var missing = new List<string>();
+        foreach (Match m in all)
+        {
+            if (!m.Groups[2].Value.Contains("src=", StringComparison.Ordinal))
+            {
+                missing.Add(m.Groups[1].Value);
+            }
+        }
+
+        var ok = missing.Count == 0;
+        return R("L4 来源锚", "block", ok,
+            ok ? $"{all.Count} 条 L4 全部带 src=" : $"{missing.Count}/{all.Count} 条 L4 缺 src=（如 {string.Join(", ", missing.Take(5))}）",
+            missing,
+            "L4 是证据层：每条必须写清它来自哪个文件哪一条（src=<文件>#<id>）");
+    }
+
+    /// <summary>
+    /// **决策树链**（2026-10-27 主人令：决策库要与知识库同效）：单亲 · 逐层 · 可达 · 深度 4 · 每条 L4 带 D 号。
+    /// <para>形态：L1 `- **L1-0001 标题**：… → L2-0001（源 D-0001）`；L2 `- **L2-0001** → L3-0001`；
+    /// L3 `- **L3-0001**（源 L2-0001）…`；L4 `- **L4-0001** 源 L3-0001 · D-0001：「原话」`。</para>
+    /// </summary>
+    internal static Res CheckDecisionLinks()
+    {
+        var path = Path.Combine(Live, "DECISION-LIBRARY.md");
+        if (!File.Exists(path))
+        {
+            return R("决策树链", "block", false, "找不到 DECISION-LIBRARY.md", [], "决策库必须可解析");
+        }
+
+        var nodes = new Dictionary<string, (int Layer, string? Parent, List<string> Child, string Line)>(StringComparer.Ordinal);
+        foreach (var line in File.ReadAllText(path).Replace("\r\n", "\n").Split('\n'))
+        {
+            var m = Regex.Match(line, @"-\s*\*\*(L([1-4])-\d{4})\b");
+            if (!m.Success)
+            {
+                continue;
+            }
+
+            var parent = Regex.Match(line, @"源\s*(L[1-4]-\d{4})");
+            var child = Regex.Matches(line, @"→\s*(L[1-4]-\d{4})").Select(x => x.Groups[1].Value).ToList();
+            nodes[m.Groups[1].Value] = (
+                int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture),
+                parent.Success ? parent.Groups[1].Value : null,
+                child,
+                line);
+        }
+
+        var problems = new List<string>();
+        var parents = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var (id, node) in nodes)
+        {
+            if (node.Parent is { } p)
+            {
+                parents[id] = parents.TryGetValue(id, out var c) ? c + 1 : 1;
+                if (!nodes.TryGetValue(p, out var pn))
+                {
+                    problems.Add($"{id} 的父 {p} 不存在");
+                }
+                else if (pn.Layer != node.Layer - 1)
+                {
+                    problems.Add($"{id}(L{node.Layer}) 的父 {p}(L{pn.Layer}) 不是上一层");
+                }
+            }
+
+            foreach (var child in node.Child)
+            {
+                if (!nodes.TryGetValue(child, out var cn))
+                {
+                    problems.Add($"{id} → {child}（不存在）");
+                }
+                else if (cn.Layer != node.Layer + 1)
+                {
+                    problems.Add($"{id}(L{node.Layer}) → {child}(L{cn.Layer}) 不是下一层");
+                }
+            }
+        }
+
+        // `→` 是父节点的子指针 ⇒ 对**没有显式 `源`** 的节点，用它反推父（L1→L2、L2→L3 就靠这条）。
+        var implicitParents = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var (id, node) in nodes)
+        {
+            foreach (var child in node.Child)
+            {
+                if (!implicitParents.TryGetValue(child, out var list))
+                {
+                    implicitParents[child] = list = [];
+                }
+
+                list.Add(id);
+            }
+        }
+
+        foreach (var (id, node) in nodes.Where(static p => p.Value.Layer > 1))
+        {
+            var explicitCount = parents.TryGetValue(id, out var count) ? count : 0;
+            if (explicitCount == 0 && implicitParents.TryGetValue(id, out var from))
+            {
+                count = from.Count;
+                if (count == 1)
+                {
+                    parents[id] = 1;
+                }
+            }
+
+            if (count == 0)
+            {
+                problems.Add($"{id} 无父（孤儿）");
+            }
+            else if (count > 1)
+            {
+                problems.Add($"{id} 有 {count} 个父");
+            }
+        }
+
+        // 子集 = 显式 → 的目标 ∪ 以我为父的节点。
+        var kids = nodes.ToDictionary(
+            static p => p.Key,
+            p => p.Value.Child.Concat(nodes.Where(x => x.Value.Parent == p.Key).Select(x => x.Key)).Distinct(StringComparer.Ordinal).ToList(),
+            StringComparer.Ordinal);
+
+        var depth = new Dictionary<string, int>(StringComparer.Ordinal);
+        void Walk(string id, int d)
+        {
+            if (depth.TryGetValue(id, out var seen) && seen >= d)
+            {
+                return;
+            }
+
+            depth[id] = d;
+            foreach (var k in kids.TryGetValue(id, out var list) ? list : [])
+            {
+                Walk(k, d + 1);
+            }
+        }
+
+        foreach (var id in nodes.Where(static p => p.Value.Layer == 1).Select(static p => p.Key))
+        {
+            Walk(id, 1);
+        }
+
+        var unreachable = nodes.Keys.Where(id => !depth.ContainsKey(id)).ToList();
+        if (unreachable.Count > 0)
+        {
+            problems.Add($"从 L1 不可达：{unreachable.Count} 个（如 {string.Join(", ", unreachable.Take(5))}）");
+        }
+
+        var l4 = nodes.Where(static p => p.Value.Layer == 4).ToList();
+        var noSource = l4.Where(static p => !Regex.IsMatch(p.Value.Line, @"D-\d{4}")).Select(static p => p.Key).ToList();
+        if (noSource.Count > 0)
+        {
+            problems.Add($"L4 缺 D 号：{noSource.Count} 个（如 {string.Join(", ", noSource.Take(5))}）");
+        }
+
+        var wrongDepth = l4.Count(p => depth.TryGetValue(p.Key, out var d) && d != 4);
+        if (wrongDepth > 0)
+        {
+            problems.Add($"深度不等于 4 的 L4：{wrongDepth} 个");
+        }
+
+        var counts = new[] { 1, 2, 3 }.Select(l => nodes.Count(p => p.Value.Layer == l)).ToArray();
+        var ok = problems.Count == 0;
+        return R("决策树链", "block", ok,
+            ok
+                ? $"单亲/层序/可达/深度全部成立 · L4 {l4.Count} 条 · 层数 {counts[0]}/{counts[1]}/{counts[2]}"
+                  + (counts[1] >= counts[2] ? " · ⚠️ 分组未压缩（L2 ≥ L3）" : string.Empty)
+                : $"链不完整：{problems.Count} 处（前 3：{string.Join("；", problems.Take(3))}）",
+            problems,
+            "决策库与知识库同形：每个 L4 被恰好一个 L3 引用，L3→L2→L1 同理，深度恰 4，每条 L4 带 D 号");
+    }
+
     /// <summary>决策库收敛：条目全部有 L4 归属、无孤儿、上行可达。</summary>
     internal static Res CheckDecisionGrowth()
     {
@@ -976,6 +1307,13 @@ public static class CloseoutCli
         res.Add(CheckKnowledgeGrowth() with { Module = "knowledge", Class = "core" });
         res.Add(CheckDecisionGrowth() with { Module = "decision", Class = "core" });
 
+        // 2026-10-27 主人令：坑/决策条目必须**逐条进 L4**（再由远端 AI 抽象到 L3/L2/L1）。
+        res.Add(CheckEntryToL4() with { Module = "knowledge", Class = "core" });
+        res.Add(CheckKnowledgeLinks() with { Module = "knowledge", Class = "core" });
+        res.Add(CheckL4Sources() with { Module = "knowledge", Class = "core" });
+        res.Add(CheckDecisionLinks() with { Module = "decision", Class = "core" });
+        res.Add(CheckDecisionVersion() with { Module = "decision", Class = "core" });
+
         return res;
     }
 
@@ -1120,8 +1458,8 @@ public static class CloseoutCli
 
         if (string.Equals(liveSha, currentSha, StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine($"[KN] 活版与 v{version} 逐字节一致 ⇒ 无需晋级（no-op）");
-            return 0;
+Console.WriteLine($"[KN] 活版与 v{version} 逐字节一致 ⇒ 无需晋级（no-op）");
+            return PromoteDecisions(dry);   // 知识库没事不等于决策库没事
         }
 
         var next = version + 1;
@@ -1157,7 +1495,149 @@ public static class CloseoutCli
 
         doc.Save(ledgerPath);
         Console.WriteLine("[KN] 账本已更新（Current + Versions 两处）");
+
+        // **决策库同款通道**（2026-10-27 主人令）：活版变了也必须晋级，不能只有知识库有版本。
+        return PromoteDecisions(dry);
+    }
+
+    // ================================================================ 决策库晋级（另有账本）
+
+    private static string DecisionRoot => Path.Combine(Live, "decision-versions");
+    private static string DecisionLedger => Path.Combine(DecisionRoot, ".ledger.xml");
+    private static string DecisionMd => Path.Combine(Live, "DECISION-LIBRARY.md");
+
+    /// <summary>决策库晋级：活版 → decision-versions/DECISION-LIBRARY-vNNNN.md + 账本两处（已在 = no-op）。</summary>
+    private static int PromoteDecisions(bool dry)
+    {
+        if (!File.Exists(DecisionMd))
+        {
+            Console.WriteLine("[DC] 找不到 DECISION-LIBRARY.md ⇒ 跳过晋级");
+            return 0;
+        }
+
+        Directory.CreateDirectory(DecisionRoot);
+        XDocument doc;
+        if (File.Exists(DecisionLedger))
+        {
+            doc = XDocument.Load(DecisionLedger);
+            if (doc.Root?.Element("Current") is null)
+            {
+                throw new InvalidDataException("决策账本缺 <Current>");
+            }
+        }
+        else
+        {
+            // 首次：先登记已有版本（若 v0001 在就按它的 sha 起账），下一次再推新版本。
+            var existing = Path.Combine(DecisionRoot, "DECISION-LIBRARY-v0001.md");
+            var has = File.Exists(existing);
+            doc = new XDocument(new XElement("Ledger",
+                new XElement("Schema", "decision-repo/ledger/1"),
+                new XElement("Current",
+                    new XElement("Version", has ? 1 : 0),
+                    new XElement("File", has ? "DECISION-LIBRARY-v0001.md" : string.Empty),
+                    new XElement("Sha256", has ? Sha256File(existing) : string.Empty),
+                    new XElement("Bytes", has ? new FileInfo(existing).Length : 0),
+                    new XElement("At", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+                    new XElement("Source", "init"),
+                    new XElement("Origin", "closeout --promote"),
+                    new XElement("Note", has ? "初始版本" : "空账")),
+                new XElement("Versions")));
+        }
+
+        var current = doc.Root!.Element("Current")!;
+        var version = int.Parse(current.Element("Version")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var currentSha = current.Element("Sha256")?.Value ?? string.Empty;
+        var liveSha = Sha256File(DecisionMd);
+        var bytes = new FileInfo(DecisionMd).Length;
+
+        if (string.Equals(liveSha, currentSha, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"[DC] 活版与 v{version} 逐字节一致 ⇒ 无需晋级（no-op）");
+            return 0;
+        }
+
+        var next = version + 1;
+        var relative = $"DECISION-LIBRARY-v{next:0000}.md";
+        var target = Path.Combine(DecisionRoot, relative);
+
+        Console.WriteLine($"[DC] 晋级 v{version} → v{next}：{relative}（{bytes} B · sha {liveSha[..12]}）");
+        if (dry)
+        {
+            return 0;
+        }
+
+        File.Copy(DecisionMd, target, overwrite: true);
+        current.SetElementValue("Version", next);
+        current.SetElementValue("File", relative);
+        current.SetElementValue("Sha256", liveSha);
+        current.SetElementValue("Bytes", bytes);
+        current.SetElementValue("At", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        current.SetElementValue("Source", "promote");
+        current.SetElementValue("Origin", "closeout --promote");
+        current.SetElementValue("Note", DecisionNote());
+
+        doc.Root.Element("Versions")?.Add(new XElement("Version",
+            new XElement("Version", next),
+            new XElement("File", relative),
+            new XElement("Sha256", liveSha),
+            new XElement("Bytes", bytes),
+            new XElement("At", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+            new XElement("Source", "promote"),
+            new XElement("Origin", "closeout --promote"),
+            new XElement("Note", DecisionNote())));
+
+        doc.Save(DecisionLedger);
+        Console.WriteLine("[DC] 账本已更新（Current + Versions 两处）");
         return 0;
+    }
+
+    /// <summary>决策库版本闸门：账本可读 + 版本文件在且 sha 对得上 + 活版变了必须晋级。</summary>
+    internal static Res CheckDecisionVersion()
+    {
+        if (!File.Exists(DecisionMd))
+        {
+            return R("决策库晋级", "block", false, "找不到 DECISION-LIBRARY.md", [], "决策库必须有版本通道");
+        }
+
+        if (!File.Exists(DecisionLedger))
+        {
+            return R("决策库晋级", "block", false, "缺 decision-versions/.ledger.xml（先跑一次 --promote）", [], "决策库与知识库同规：内容变更必须晋级");
+        }
+
+        var current = XDocument.Load(DecisionLedger).Root?.Element("Current");
+        var version = int.Parse(current?.Element("Version")?.Value ?? "0", CultureInfo.InvariantCulture);
+        var file = current?.Element("File")?.Value ?? string.Empty;
+        var sha = current?.Element("Sha256")?.Value ?? string.Empty;
+        var path = Path.Combine(DecisionRoot, file);
+        var problems = new List<string>();
+
+        if (version <= 0) problems.Add("账本 Version 为 0");
+        if (!File.Exists(path)) problems.Add($"版本文件不存在：{file}");
+        else if (!string.Equals(Sha256File(path), sha, StringComparison.OrdinalIgnoreCase)) problems.Add($"版本文件 sha 与账本不符：{file}");
+
+        if (string.Equals(Sha256File(DecisionMd), sha, StringComparison.OrdinalIgnoreCase) == false)
+        {
+            problems.Add($"活版已变但未晋级（当前 v{version}）⇒ 跑 --promote");
+        }
+
+        var ok = problems.Count == 0;
+        return R("决策库晋级", "block", ok,
+            ok ? $"v{version} · {file} · sha {sha[..Math.Min(12, sha.Length)]}" : string.Join("；", problems),
+            problems,
+            "决策库与知识库同规：活版变化必须晋级到 decision-versions/ 并在账本两处登记");
+    }
+
+    private static string DecisionNote()
+    {
+        try
+        {
+            var a = DecisionConverge.Analyze(Live);
+            return $"{a.Converged}/{a.Entries} 已收敛 · L1 {a.L1}/L2 {a.L2}/L3 {a.L3}/L4 {a.L4} · 空档 {a.Gaps} · 孤儿 {a.Orphans}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static string KnowledgeNote()
@@ -1210,6 +1690,15 @@ public static class CloseoutCli
             {
                 return 1;
             }
+        }
+
+        // **条目 → L4 的机械搬运也归 --apply**（2026-10-27 主人令「默认就该这样，不靠临场指令」）：
+        // 这一步是确定性的（逐条逐字 + 水位），与上面几步同一性质；语义归位（--kn-link）仍由远端 AI 做。
+        Console.WriteLine("  ── 条目 → L4（机械搬运）");
+        if (L4Gap.Sync(dryRun: false, max: 0) != 0)
+        {
+            Console.WriteLine("  ❌ 条目→L4 搬运失败");
+            return 1;
         }
 
         Console.WriteLine($"  ✅ {"worker 记忆索引",-14} {RebuildWorkerIndex()} 份（worker 自己的家 ⇒ 与 master 不同源）");

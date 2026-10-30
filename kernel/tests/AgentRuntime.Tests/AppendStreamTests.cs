@@ -100,6 +100,20 @@ public sealed class AppendStreamTests
         Assert.Equal(1, @event.Seq);
     }
 
+    [Fact]
+    public void 助手轮次不加事件号_避免转录回声()
+    {
+        var stream = new SessionAppendStream();
+        stream.Append(SessionEventKind.UserInput, "问题一");
+        stream.Append(SessionEventKind.AgentOutput, "回答一");
+
+        var messages = stream.ToMessages();
+
+        // 2026-10-27 真机：给助手消息加 `E002 ` 前缀后，模型开始把上一轮的事件号抄回行首。
+        Assert.Equal("回答一", messages[^1].Content);
+        Assert.Equal("问题一", messages[0].Content);
+    }
+
     // ---------------- 持久化（只追加） ----------------
 
     [Fact]

@@ -238,8 +238,7 @@ public sealed class KnowledgeTree
 
             var marker = Marker.Match(raw.TrimEnd());
             if (marker.Success)
-            {
-                Flush();
+            {                Flush();
                 var layer = int.Parse(marker.Groups["layer"].Value, System.Globalization.CultureInfo.InvariantCulture);
                 if (currentLayer == 0)
                 {
@@ -283,12 +282,23 @@ public sealed class KnowledgeTree
                 continue;
             }
 
+            // **fail-closed**（2026-10-29 坑 #372 同族）：以 `<!--kn:` 开头却不符合规范形的行，
+            // 旧版会被当成正文静默吃掉（或者 currentSpec 为空时直接丢弃）——
+            // 结果是「文件里有 444 个 L4，只载入 428 个」，看起来却像 next 列表丢末项。
+            var trimmedRaw = raw.TrimStart();
+            if (trimmedRaw.StartsWith("<!--", StringComparison.Ordinal)
+                && trimmedRaw.Contains("kn:", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"{origin} 第 {lineNo} 行：知识节点标记不合规范（规范形 <!--kn: L<n>-<短名[a-z0-9]{{2,16}}>-<seq 三位> …-->）；" +
+                    "宁可报错，也不许静默丢掉整条节点。原文：" + raw.Trim());
+            }
+
             if (currentSpec is not null)
             {
                 body.Add(raw);
             }
         }
-
         Flush();
 
         var edges = nodes

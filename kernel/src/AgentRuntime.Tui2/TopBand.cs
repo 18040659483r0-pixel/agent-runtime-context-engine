@@ -1,5 +1,7 @@
+using AgentRuntime.Presentation;
 using System.Globalization;
 using System.Text;
+using AgentRuntime.Core;
 using AgentRuntime.Core.Draft;
 using AgentRuntime.Core.Focus;
 using AgentRuntime.Core.Frozen;
@@ -55,44 +57,62 @@ public sealed class TopBandProvider
         catch (Exception ex)
         {
             Utf8InputDriver.Trace("top-band: " + ex);
-            _lines = new[] { "ⓘ AgentRuntime TUI", " 会话 | 读数暂不可用" };
+            _lines = new[] { TuiStrings.T(TuiKey.Title), " " + TuiStrings.T(TuiKey.Session) + " | " + TuiStrings.T(TuiKey.Unavailable) };
         }
     }
 
     private IReadOnlyList<string> Build(int cols)
     {
         var modules = _host.Modules;
-        var moduleCount = modules.Count(static m => m is not ProtocolModule and not IFrozenZoneModule);
+        // **模块数 = 拼进上下文的模块总数**（2026-10-29 主人令）：冻结区那几个也在上下文里，必须算进去。
+        // 旧口径「Not ProtocolModule && Not IFrozenZoneModule」只数动态模块（实测 8），会让人以为冻结区没在拼装。
+        var moduleCount = modules.Count;
         var stream = modules.OfType<AppendStreamModule>().FirstOrDefault()?.Stream;
         var life = stream is null
             ? null
             : LifecycleAggregator.Aggregate(stream.Snapshot(), _usages).Current;
 
-        var session = new List<string> { "会话", "protocol v" + ProtocolText.Version, $"{moduleCount} 模块" };
+        var session = new List<string> { TuiStrings.T(TuiKey.Session), (cols < 92 ? "v" : "protocol v") + ProtocolText.Version };
+
+        // **用的哪个模型 / 哪个思考档**（2026-10-29 主人令）：写在会话行开头附近，便于理解当前行为。
+        var modelLabel = ModelLabel();
+        if (modelLabel.Length > 0)
+        {
+            session.Add(modelLabel);
+        }
+
+        session.Add(TuiStrings.F(TuiKey.Modules, moduleCount));
         var taskLabel = _clock.Label(life?.Id);
         if (taskLabel.Length > 0) session.Add(taskLabel);
 
-        if (life?.Usage is { } usage)
+        // **会话行只放「会话 / 协议 / 模块数 / task / 本 task 写入」**（2026-10-29 主人令）：
+        // 缓存命中率已搬到区栈行尾；模块数**不许被丢弃**（它回答「现在挂了多少模块」）。
+        if (life is not null)
         {
-            // **写入** = 本 task 自己往流里追加的正文（继承来的前缀不算）。
-            // 「累计消耗」不显示（主人 2026-10-25 10:4x：用户不关心这个数）—— 需要时看账本 / 收尾报告。
-            session.Add($"本 task 累计写入 {Number(life.AppendedChars / 4)} tok");
-            session.Add($"缓存命中 {Percent(usage.HitRate)}");
+            session.Add(TuiStrings.F(TuiKey.ThisTask, Number(life.AppendedChars / 4)));
         }
         else
         {
-            session.Add("本 task 累计写入 — tok");
-            session.Add("缓存命中 —");
+            session.Add(TuiStrings.T(TuiKey.ThisTaskNone));
         }
 
-        var stack = new List<string> { "区栈" };
+        // 窄屏只做「压缩写法」，不再整段丢弃（模块数必须留着）。
+        if (TerminalText.WidthOf(string.Join(" | ", session)) > Math.Max(20, cols - 2))
+        {
+            // 窄屏压缩写法（语言包内已足够短，这里保留原样）
+        }
+
+        var sessionLine = string.Join(" | ", session);
+
+        PromptComposition? composition = null;
+        var stack = new List<string> { TuiStrings.T(TuiKey.Stack) };
         try
         {
             // **区栈 = 真正送出去的那一份**（主人 2026-10-24 16:2x 令）。
             // 有「上次送出」的组装结果就用它；还没发过（刚拉起 / 刚 reset）才退回预览，**且必须标「预估」** ——
             // 两个来源不能同名同脸，否则又变成「看着像事实的估计」。
             var sent = _sent.Value;
-            var composition = sent ?? _host.PreviewCompositionAsync("（下一轮）").GetAwaiter().GetResult();
+            composition = sent ?? _host.PreviewCompositionAsync(TuiStrings.T(TuiKey.NextTurn)).GetAwaiter().GetResult();
             foreach (var layer in composition.Layers.OrderBy(static l => StackPanel.OrderOf(l.Region)))
             {
                 var token = layer.Bytes / 4;
@@ -112,8 +132,11 @@ public sealed class TopBandProvider
             //   · 本 task 累计写入 = 这个 task 自己往流里追加的正文 ÷4（**继承来的前缀不算**）
             //   · 当前上下文合计 = **上一次真送出去的那份 prompt**（不是下一次的预估）
             stack.Add(sent is null
-                ? $"当前上下文合计 ~{Number(total)} tok（预估）"
-                : $"当前上下文合计 {Number(total)} tok");
+                ? TuiStrings.F(TuiKey.ContextTotalEst, Number(total))
+                : TuiStrings.F(TuiKey.ContextTotal, Number(total)));
+
+            // **整体缓存命中率搬到这里**（2026-10-29 主人令）：紧跟在「当前上下文合计」后面一块。
+            stack.Add(life?.Usage is { } u ? TuiStrings.F(TuiKey.CacheHit, Percent(u.HitRate)) : TuiStrings.T(TuiKey.CacheHitNone));
         }
         catch (Exception ex)
         {
@@ -127,17 +150,24 @@ public sealed class TopBandProvider
 
         var lines = new List<string>
         {
-            "ⓘ AgentRuntime TUI",
-            Line(cols, session),
-            Line(cols, stack),
-            KeepTail(cols, "白板", CountOf(tail), SummaryOf(tail)),
-            KeepTail(cols, "草稿", CountOf(draft), SummaryOf(draft)),
+            TuiStrings.T(TuiKey.Title),
+            Line(cols, [sessionLine]),
+        };
+
+        // **点名**：真正拼进上下文的模块（含冻结区），一排放不下就折成 2~3 行（2026-10-29 主人令）。
+        lines.AddRange(ContextModulesLines(cols, modules, composition));
+
+        lines.AddRange(new[]
+        {
+            StackLine(cols, stack),
+            KeepTail(cols, TuiStrings.T(TuiKey.Board), CountOf(tail), SummaryOf(tail)),
+            KeepTail(cols, TuiStrings.T(TuiKey.Draft), CountOf(draft), SummaryOf(draft)),
             KeepTail(
                 cols,
-                "焦点",
-                tags.Count == 0 ? "未报" : $"{tags.Count} 个标签",
-                tags.Count == 0 ? "（模型本场未报 [FOCUS]）" : string.Join(' ', tags)),
-        };
+                TuiStrings.T(TuiKey.Focus),
+                tags.Count == 0 ? TuiStrings.T(TuiKey.FocusNone) : TuiStrings.F(TuiKey.Tags, tags.Count),
+                tags.Count == 0 ? TuiStrings.T(TuiKey.FocusNone) : string.Join(' ', tags)),
+        });
 
         return lines;
     }
@@ -145,21 +175,124 @@ public sealed class TopBandProvider
     /// <summary>演示用顶部块（--input-test 没有 RuntimeHost 时仍能验「Tab 切换显示/隐藏」）。</summary>
     public static IReadOnlyList<string> Demo() =>
     [
-        "ⓘ AgentRuntime TUI",
-        $" 会话 | protocol v{ProtocolText.Version} | 6 模块 | T1 · 00:42 | 本 task 累计写入 1,234 tok | 缓存命中 95%",
-        " 区栈 | R1-P 3,372 | R1 24,751 | R2 8,065 | R4 112 | R5 95 | R3 13 | 当前上下文合计 36,412 tok",
-        " 白板 | 3 行 | solve: 方案 B · TUI2",
-        " 草稿 | 2 行 | 顶部信息块按 Tab 切换显示",
-        " 焦点 | 2 个标签 | E020 E022",
+        "ⓘ AgentRuntime TUI2 - WhiteBox",
+        " " + TuiStrings.T(TuiKey.Session) + $" | protocol v{ProtocolText.Version} | " + TuiStrings.F(TuiKey.Modules, 12) + " | T1 · 00:42 | " + TuiStrings.F(TuiKey.ThisTask, "1,234"),
+        " " + TuiStrings.T(TuiKey.ContextModules) + " | 12 | protocol rules knowledge decision memory-index append-stream task-ledger tool note current-tail dynamic-draft focus",
+        " " + TuiStrings.T(TuiKey.Stack) + " | R1-P 3,372 | R1 24,751 | R2 8,065 | R4 112 | R5 95 | R3 13 | " + TuiStrings.F(TuiKey.ContextTotal, "36,412") + " | " + TuiStrings.F(TuiKey.CacheHit, "95%"),
+        " " + TuiStrings.T(TuiKey.Board) + " | " + TuiStrings.F(TuiKey.Lines, 3) + " | solve: 方案 B · TUI2",
+        " " + TuiStrings.T(TuiKey.Draft) + " | " + TuiStrings.F(TuiKey.Lines, 2) + " | " + TuiStrings.T(TuiKey.TabHint),
+        " " + TuiStrings.T(TuiKey.Focus) + " | " + TuiStrings.F(TuiKey.Tags, 2) + " | E020 E022",
     ];
 
     private static string CountOf(IReadOnlyList<string> lines) =>
-        lines.Count == 0 ? "空" : $"{lines.Count} 行";
+        lines.Count == 0 ? TuiStrings.T(TuiKey.FocusNone) : TuiStrings.F(TuiKey.Lines, lines.Count);
 
     private static string SummaryOf(IReadOnlyList<string> lines) =>
-        lines.Count == 0 ? "（空，零注入）" : lines[0];
+        lines.Count == 0 ? TuiStrings.T(TuiKey.EmptyZero) : lines[0];
 
     /// <summary>按 ` | ` 拼；放不下从尾部整段丢（宁可少说，不截字）。</summary>
+    /// <summary>
+    /// **拼进上下文的模块**（2026-10-29 主人令）：列出**每一个**实际参与 prompt 拼装的模块名（按装配次序），
+    /// 冻结区（protocol / rules / knowledge / decision）同样在列 —— 它们确实进了上下文。
+    /// 放不下时按个数截断并明说「另 N 个」，不静默省略。
+    /// </summary>
+    private static List<string> ContextModulesLines(int cols, IReadOnlyList<IRuntimeModule> modules, PromptComposition? composition)
+    {
+        // **三档分类**（2026-10-29 主人令，别多想一层）：
+        //   拼进上下文（本轮真加了字节）⇒ `(Cached)`（让人联想到 KV Cache）
+        //   活版（按需从活版取，不进上下文）⇒ `(Active)`  —— 目前只有 memory-index
+        //   其余挂载的运行时模块 ⇒ `(Runtime)`
+        var bytes = composition?.ModuleBytes ?? new Dictionary<string, int>(StringComparer.Ordinal);
+        var marked = modules.Count(m => bytes.TryGetValue(m.Name, out var b) && b > 0);
+        var names = modules
+            .Select(m => m.Name + TuiStrings.T(Classify(m.Name, bytes)))
+            .ToList();
+
+        var head = TuiStrings.T(TuiKey.ContextModules) + " | " + marked + "/" + names.Count + " | ";
+        var indent = new string(' ', CellModel.Width(head));
+        var rows = new List<string> { head };
+        var placed = 0;
+
+        foreach (var name in names)
+        {
+            var row = rows[^1];
+            var candidate = row.EndsWith(" | ", StringComparison.Ordinal) ? row + name : row + " " + name;
+            if (CellModel.Width(candidate) <= cols)
+            {
+                rows[^1] = candidate;
+                placed++;
+                continue;
+            }
+
+            if (rows.Count >= MaxModuleRows)   // 三行封顶
+            {
+                break;
+            }
+
+            rows.Add(indent + name);
+            placed++;
+        }
+
+        if (placed < names.Count)
+        {
+            var tail = TuiStrings.F(TuiKey.More, names.Count - placed);
+            rows[^1] = rows[^1] + " " + tail;
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// 模块三档：`Cached`（拼进上下文）/ `Active`（活版，按需取）/ `Runtime`（其余运行时模块）。
+    /// <para>活版清单是**唯一声明处**：新增「按需从活版取」的模块时只改这里。</para>
+    /// </summary>
+    private static TuiKey Classify(string name, IReadOnlyDictionary<string, int> bytes)
+    {
+        if (bytes.TryGetValue(name, out var b) && b > 0)
+        {
+            return TuiKey.Cached;
+        }
+
+        return LiveModules.Contains(name) ? TuiKey.Active : TuiKey.RuntimeOnly;
+    }
+
+    /// <summary>「活版」模块（不进上下文，按需从活版文件取片）。</summary>
+    private static readonly HashSet<string> LiveModules = new(StringComparer.Ordinal) { "memory-index" };
+
+    /// <summary>模块行最多折几行（主人 2026-10-29：允许 2~3 行）。</summary>
+    private const int MaxModuleRows = 3;
+
+    /// <summary>会话行里的「模型 + 思考档」：`deepseek-v4-flash, think low`（拿不到就空串）。</summary>
+    private string ModelLabel()
+    {
+        var config = _host.Config;
+        var model = (config.Model ?? string.Empty).Trim();
+        if (model.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var effort = (config.ReasoningEffort ?? string.Empty).Trim();
+        return effort.Length == 0
+            ? model
+            : model + ", " + TuiStrings.F(TuiKey.Think, effort);
+    }
+
+    /// <summary>
+    /// **区栈行**（2026-10-29）：段序 = 区栈 / 各区 / 合计 / 缓存命中。窄屏时**先丢各区明细**（从后往前），
+    /// 保住「当前上下文合计」与「缓存命中」——它们是这一行里最该看见的两个数。
+    /// </summary>
+    private static string StackLine(int cols, List<string> segments)
+    {
+        var keep = segments.ToList();
+        while (keep.Count > 3 && TerminalText.WidthOf(string.Join(" | ", keep)) > cols)
+        {
+            keep.RemoveAt(keep.Count - 3);   // 去掉最后一个"区"（合计与缓存命中在尾部，不动）
+        }
+
+        return Line(cols, keep);
+    }
+
     private static string Line(int cols, IReadOnlyList<string> segments)
     {
         var keep = segments.ToList();

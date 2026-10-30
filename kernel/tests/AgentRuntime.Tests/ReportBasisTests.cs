@@ -51,6 +51,32 @@ public sealed class ReportBasisTests
     }
 
     [Fact]
+    public void 一对括号里写多个锚_两个都算()
+    {
+        // 2026-10-27 真机：模型写 `(E011/E018)`，旧解析要求括号内整串是数字 ⇒ 整组丢掉 ⇒ 假红“缺前段”。
+        var parsed = DecisionReportParser.Parse(
+            "[REPORT]\nneed: 做一件长活\nstep 1: 查明端口 — (E011/E018)\nstep 2: 启动并探测 — (E034)\noutcome: 起来了");
+
+        Assert.NotNull(parsed.Report);
+        var anchors = ReportBasisCheck.Anchors(parsed.Report!);
+        Assert.Contains(11L, anchors);
+        Assert.Contains(18L, anchors);
+        Assert.Contains(34L, anchors);
+    }
+
+    [Fact]
+    public void 一对括号里写多个锚_覆盖度不再假红()
+    {
+        var life = LongTask();
+        var parsed = DecisionReportParser.Parse(
+            "[REPORT]\nneed: 做一件长活\nstep 1: 前段 — (E003/E009)\nstep 2: 中段 — (E017)\nstep 3: 后段 — (E030)\noutcome: 做完了");
+
+        var basis = ReportBasisCheck.Evaluate(parsed.Report, life);
+
+        Assert.True(basis.Ok, basis.Detail);
+    }
+
+    [Fact]
     public void 跨节引用S前缀_不计入本节覆盖度()
     {
         var life = LongTask();

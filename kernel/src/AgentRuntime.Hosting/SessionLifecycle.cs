@@ -12,6 +12,7 @@ using AgentRuntime.Core.Worker;
 using AgentRuntime.Hosting.Panels;
 using AgentRuntime.Hosting.Worker;
 using AgentRuntime.Modules;
+using AgentRuntime.Presentation;
 
 namespace AgentRuntime.Hosting;
 
@@ -144,40 +145,40 @@ public sealed record StartReport(
     {
         var lines = new List<string>
         {
-            $"[开始] 第 {SessionNumber} 次 start：新会话已开（轮次清零、事件流空起点、缓存重新建立；稳定前缀一个字节未改）。",
+            TuiStrings.F(TuiKey.StartSession, SessionNumber),
             NewStream is null
-                ? "[开始] 新事件流：只存内存（本会话本来就没落盘）"
-                : $"[开始] 新事件流：{NewStream}（空起点）",
+                ? TuiStrings.T(TuiKey.StartStreamMemory)
+                : TuiStrings.F(TuiKey.StartStreamPath, NewStream),
         };
 
         if (Handover is null)
         {
-            lines.Add("[开始] 末态：**没有找到末态快照** ⇒ 白板与草稿按当前存储开始（说出来，不假装装载过）。");
+            lines.Add(TuiStrings.T(TuiKey.StartNoSnapshot));
         }
         else
         {
-            lines.Add($"[开始] 白板与草稿来自末态：{Handover.Describe()}");
+            lines.Add(TuiStrings.F(TuiKey.StartHandover, Handover.Describe()));
             var solve = SolveHeader.Parse(Handover.Tail);
             if (!solve.IsEmpty)
             {
-                lines.Add($"[开始] 上一卷做到哪：{solve.Describe()}（**接着做，不用重述上下文**）");
+                lines.Add(TuiStrings.F(TuiKey.StartPrevVolume, solve.Describe()));
             }
             lines.Add(TailLines == 0 && DraftLines == 0
-                ? "[开始] 白板 R4 / 草稿 R5 均为空（上一会话收尾已销账）—— 这一节从干净台面开始。"
-                : $"[开始] 已装载：白板 R4 {TailLines} 行 · 草稿 R5 {DraftLines} 行 —— **接着往下做就行**（不用重述上下文）。");
+                ? TuiStrings.T(TuiKey.StartClean)
+                : TuiStrings.F(TuiKey.StartLoaded, TailLines, DraftLines));
         }
 
         // **worker 集合逐个宣告**（主人 2026-09-29 18:50）：有几家就报几家 —— 不是只报「当前那一个」。
         if (WorkerLines is { Count: > 0 })
         {
-            lines.Add($"[开始] worker 侧（{WorkerLines.Count} 家，同一个集合，逐个读）：{string.Join(" · ", WorkerLines)}");
+            lines.Add(TuiStrings.F(TuiKey.StartWorkers, WorkerLines.Count, string.Join(" · ", WorkerLines)));
         }
         else
         {
-            lines.Add("[开始] worker 侧：没有 worker 家（没配 / 还没派发过）");
+            lines.Add(TuiStrings.T(TuiKey.StartNoWorkers));
         }
 
-        lines.Add("[开始] 想回到更早的会话：--stream <那次的流文件>（旧流全部原地保留）。");
+        lines.Add(TuiStrings.T(TuiKey.StartEarlier));
         return lines;
     }
 }
@@ -491,11 +492,14 @@ public static class SessionLifecycle
             var pointer = new SessionPointerStore(SessionPointerStore.PathFor(host.Config.Frozen.Watermark)).TryLoad();
             var sessionNumber = pointer?.SessionNumber ?? 1;
 
-            // **概要 + 具体**（主人 2026-10-25 10:1x）：摘要给「每个 task 干了什么」，
-            // 逐轮台账给「每一轮要干什么 / 做出什么」—— 后者才是跨 session 连续性的载体（白板/草稿只是概要）。
+            // **概要 + 具体**（2026-10-27 改口径）：摘要覆盖**全部** task（每个一行：目标/终局/未决）；
+            // 逐轮只带最近 120 轮（原先 300 轮实测 43.6k 字符 ≈ 29k token），更早的写在归档流路径上，
+            // 模型需要时可读 —— 「任务级覆盖」比「每轮级流水」更值钱，体量还降一半以上。
             var summary = TaskLedgerProjection.Summarize(records, sessionNumber);
-            var rows = TaskLedgerProjection.RenderForHandoff(records, sessionNumber);
-            host.NoteLedgerHandover(summary + "\n\n[上一节逐轮台账]\n" + rows);
+            var rows = TaskLedgerProjection.RenderForHandoff(records, sessionNumber, archivePath: previousStream);
+            var header = "[交接] 上一节任务台账（引用写 S<k>/E###，k = 那一节的会话号；"
+                         + TaskLedgerRecord.FieldLegend + "）：";
+            host.NoteLedgerHandover(header + "\n" + summary + "\n[上一节逐轮台账]\n" + rows);
         }
         catch (Exception ex)
         {
@@ -586,7 +590,7 @@ public static class SessionLifecycle
         {
             return pointer is null
                 ? []
-                : [$"[会话] 接上上一节的会话（{pointer.Describe()}）—— 想回别的卷：--stream <那次的流文件>"];
+                : [AgentRuntime.Presentation.TuiStrings.F(AgentRuntime.Presentation.TuiKey.ResumeSection, pointer.Describe())];
         }
 
         // **closed ⇒ 自动 start 新流**（2026-10-24 主人裁定：`/reset` 是关流的唯一命令；
@@ -599,11 +603,11 @@ public static class SessionLifecycle
                 host.Config.Lifecycle.Handover ?? HandoverStore.DefaultPath).TryLoad());
 
             var started = Start(host, DateTimeOffset.Now);
-            return ["[会话] 上次已收尾、未 start ⇒ **自动 start**（人不在场也接得上）：", .. started.Lines()];
+            return [TuiStrings.T(TuiKey.AutoStartNote), .. started.Lines()];
         }
         catch (InvalidDataException ex)
         {
-            return [$"[会话] ⚠️ 自动 start 失败（按原样继续，不假装成功）：{ex.Message}"];
+            return [TuiStrings.F(TuiKey.AutoStartFailed, ex.Message)];
         }
     }
 

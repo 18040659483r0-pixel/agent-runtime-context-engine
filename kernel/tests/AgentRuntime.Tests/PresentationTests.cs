@@ -1,7 +1,6 @@
 using AgentRuntime.Core;
 using AgentRuntime.Hosting;
 using AgentRuntime.Models;
-using AgentRuntime.Tui;
 using AgentRuntime.Presentation;
 using Xunit;
 
@@ -255,45 +254,6 @@ public sealed class PresentationTests
         var row = lines.First(l => l.Text.Contains("docs/a.md", StringComparison.Ordinal));
         Assert.DoesNotContain("`", row.Text, StringComparison.Ordinal);
         Assert.Contains(row.Spans, s => s.Role == StyleRole.Path);
-    }
-
-    // ---------------- 唯一投影闸门（帧级） ----------------
-
-    [Fact]
-    public async Task 闸门_纯文本帧与富文本帧的正文逐字节相同()
-    {
-        using var harness = new TuiHarness("presentation-gate");
-        var client = FakeModelClient.Returning("看 `docs/a.md` 与 **重点**\n[TAIL]\n当前任务: 甲");
-        using var host = RuntimeHost.BootWith(http: null, client, harness.Config);
-        var session = new SplitSession(
-            host, harness.Ledger, new PanelRouter(host, harness.Ledger, harness.Ablation), verbose: false,
-            ContinuationSettings.Off);
-
-        await session.StartAsync(Ct);
-        await session.SubmitAsync("随手记一句", Ct);
-        await session.SubmitAsync("/palette", Ct);            // 面板输出里也带标记 + 表格
-
-        foreach (var (width, height) in new[] { (96, 30), (80, 24), (72, 20) })
-        {
-            var frame = session.Frame(width, height);
-            var plain = SplitRenderer.Render(frame);
-            var rich = SplitRenderer.RenderRich(frame);
-
-            Assert.Equal(plain.Count, rich.Count);
-            Assert.Equal(plain, rich.Select(l => l.Text).ToArray());   // **同一条投影**
-            Assert.All(rich, line => Assert.DoesNotContain("**", line.Text, StringComparison.Ordinal));
-            Assert.All(rich, line => Assert.DoesNotContain("[[", line.Text, StringComparison.Ordinal));
-        }
-
-        // 面板输出里的**结构化角色**也真的到了屏面上（[[done]] / [[todo]] 被解析成段）。
-        var palette = session.Frame(120, 34);
-        var roles = SplitRenderer.RenderRich(palette).SelectMany(l => l.Spans).Select(s => s.Role).Distinct().ToList();
-        Assert.Contains(StyleRole.Done, roles);
-        Assert.Contains(StyleRole.Todo, roles);
-
-        // 行数 / 列宽照旧（加了呈现层，布局一格没动）。
-        var lines = SplitRenderer.Render(session.Frame(96, 30));
-        Assert.Equal(30, lines.Count);
     }
 
     // ---------------- 宿主共用（转发器 / 项目边界） ----------------

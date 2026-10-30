@@ -24,12 +24,26 @@ public sealed class TaskLedgerModule : RuntimeModuleBase
     /// <summary>模块名（配置开关名）。</summary>
     public const string ModuleName = "task-ledger";
 
-    /// <summary>台账最多列多少轮（超出只列最近这么多轮，并明说前面省了多少）——**只在超长会话才触发**。</summary>
+    /// <summary>台账最多列多少轮（只在「原文有缺口」时才满量注入；超出只列最近这么多轮）。</summary>
     public const int MaxRecords = 2000;
+
+    /// <summary>任务地图的表头（唯一一处：口径变了只改这里）。</summary>
+    public const string IndexHeader =
+        "[任务台账] 任务地图（原文已全量在上方；本块只是索引，细节看原文，锚点用 E###）：";
 
     private readonly SessionAppendStream? _stream;
 
-    public TaskLedgerModule(SessionAppendStream? stream) => _stream = stream;
+    /// <summary>原文渲染窗口（`config.Stream.MaxEvents`；0 = 全量）。台账只负责**原文看不到的那一段**。</summary>
+    private readonly int _visibleEvents;
+
+    public TaskLedgerModule(SessionAppendStream? stream, int visibleEvents = 0)
+    {
+        _stream = stream;
+        _visibleEvents = visibleEvents;
+    }
+
+    /// <summary>原文是否有缺口（窗口裁掉了前段）—— 有缺口才需要逐轮台账补；无缺口只给地图。</summary>
+    private bool HasGap => _visibleEvents > 0 && _stream is not null && _stream.Count > _visibleEvents;
 
     public override string Name => ModuleName;
 
@@ -46,14 +60,27 @@ public sealed class TaskLedgerModule : RuntimeModuleBase
             return ValueTask.CompletedTask;
         }
 
+        // **无缺口 ⇒ 只给任务地图**（2026-10-27）：R2 于 10-25 已改成原文逐字节全量（不折叠），
+        // 台账若再把同一批字复制一遍，就是纯重复（300 轮 ≈ 29k token）。地图只占 ~300 字符，
+        // 而“报告要引用早期那轮”所需的信息（它落在哪段）仍然在。
+        if (!HasGap)
+        {
+            messages.Add(ChatMessage.System(IndexHeader + "\n" + TaskLedgerProjection.RenderIndex(records)));
+            return ValueTask.CompletedTask;
+        }
+
         var shown = records;
-        var header = "[任务台账] 本会话逐轮（意图 / 结果 / 终局 / 未决；锚点 = 行首 E###，跨节 = S<k>/E###）。只追加，不改写：";
+        var header = "[任务台账] 本会话逐轮（原文只给了最近 "
+                     + _visibleEvents.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                     + " 条 ⇒ 这里补前段；" + TaskLedgerRecord.FieldLegend + "）：";
         if (records.Count > MaxRecords)
         {
             var skipped = records.Count - MaxRecords;
             shown = records.Skip(skipped).ToArray();
-            header = "[任务台账] 本会话逐轮（**前 " + skipped.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                     + " 轮只留账**；锚点 = 行首 E###，跨节 = S<k>/E###）。只追加，不改写：";
+            header = "[任务台账] 本会话逐轮（原文只给了最近 "
+                     + _visibleEvents.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                     + " 条 ⇒ 这里补前段；前 " + skipped.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                     + " 轮只留账；" + TaskLedgerRecord.FieldLegend + "）：";
         }
 
         messages.Add(ChatMessage.System(header + "\n" + TaskLedgerProjection.Render(shown)));

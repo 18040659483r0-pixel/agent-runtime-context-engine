@@ -18,6 +18,17 @@ public sealed class HttpSearchBackend : IWebSearchBackend
     private readonly string? _endpoint;
     private readonly CredentialResolver _credentials;
 
+    /// <summary>连续失败计数 / 暂停到什么时候 / 最后一次失败原因（2026-10-27：不再在死路上打转）。</summary>
+    private int _consecutiveFailures;
+    private DateTimeOffset _blockedUntil;
+    private string? _lastFailure;
+
+    /// <summary>连续几次同因失败后暂停（实测量：两次就够看出是「后端不可达」）。</summary>
+    private const int PauseAfterFailures = 2;
+
+    /// <summary>暂停时长（分）。到期自动解除 —— 不永久封死（出口可能恢复）。</summary>
+    private const int PauseMinutes = 5;
+
     public HttpSearchBackend(
         NetworkGateway gateway,
         string backend,
@@ -65,6 +76,14 @@ public sealed class HttpSearchBackend : IWebSearchBackend
                 "搜索后端未配置完整（需要 SearchBackend + SearchApiKeyEnv，custom 还需要 SearchEndpoint）。");
         }
 
+        // 已连续失败 ⇒ 快失败（带事实 + 暂停到几点），不耍另一次同因重试。
+        if (_blockedUntil > DateTimeOffset.Now)
+        {
+            throw new WebSearchException(
+                $"搜索后端「{_backend}」已暂停（连续 {_consecutiveFailures} 次失败：{_lastFailure}）。"
+                + $"约到 {_blockedUntil:HH:mm} 自动解除 —— 此时请改用本地资料 / web_fetch 具体网址，**不要连续重复 web_search**（同一后端不会因重试而变通）。");
+        }
+
         var effectiveCount = Math.Clamp(count <= 0 ? 5 : count, 1, 10);
         var request = _backend switch
         {
@@ -80,16 +99,33 @@ public sealed class HttpSearchBackend : IWebSearchBackend
 
         if (response.Error is not null)
         {
-            throw new WebSearchException($"搜索请求失败：{response.Error}");
+            throw Reject($"搜索请求失败：{response.Error}");
         }
 
         if (response.Status is < 200 or >= 300)
         {
             var body = response.Body.Length > 300 ? response.Body[..300] : response.Body;
-            throw new WebSearchException($"搜索后端返回 {response.Status}：{body}");
+            throw Reject($"搜索后端返回 {response.Status}：{body}");
         }
 
-        return Parse(response.Body, _backend, effectiveCount);
+        var results = Parse(response.Body, _backend, effectiveCount);
+        _consecutiveFailures = 0;
+        _lastFailure = null;
+        _blockedUntil = default;
+        return results;
+    }
+
+    /// <summary>记一次失败；连续 2 次即暂停 5 分钟（“同一条死路不重试”的机器判据）。</summary>
+    private WebSearchException Reject(string message)
+    {
+        _consecutiveFailures++;
+        _lastFailure = message;
+        if (_consecutiveFailures >= PauseAfterFailures)
+        {
+            _blockedUntil = DateTimeOffset.Now.AddMinutes(PauseMinutes);
+        }
+
+        return new WebSearchException(message);
     }
 
     private NetworkRequest BraveRequest(string query, int count, SearchRecency? recency)

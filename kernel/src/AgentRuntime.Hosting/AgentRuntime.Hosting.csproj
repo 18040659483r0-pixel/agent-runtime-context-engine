@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="AgentRuntime.Tests" />
-    <InternalsVisibleTo Include="AgentRuntime.Tui" />
   </ItemGroup>
 
 </Project>

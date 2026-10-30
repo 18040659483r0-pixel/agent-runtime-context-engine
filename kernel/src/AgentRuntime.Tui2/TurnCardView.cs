@@ -70,7 +70,7 @@ public static class TurnCardView
                 }
 
                 if (current.Length == 0) current = DeriveIntent(callsNow);
-                if (current.Length == 0 && IsSemantic(FirstLine(prose))) current = "汇总结果并作答";
+                if (current.Length == 0 && IsSemantic(FirstLine(prose))) current = TuiStrings.T(TuiKey.PlanFallback);
 
                 var result = FirstLine(prose);
                 var fromTerminal = false;
@@ -98,7 +98,7 @@ public static class TurnCardView
         else if (operations.Count > 0 && !lifecycle.IsSettled)
         {
             // 一条 AgentOutput 都没有、但工具跑了（极端）：仍给一段。
-            blocks.Add(new TurnBlock(string.Empty, FormatOperations(operations), "（进行中）", string.Empty));
+            blocks.Add(new TurnBlock(string.Empty, FormatOperations(operations), TuiStrings.T(TuiKey.InProgress), string.Empty));
         }
 
         // 纯报告轮 / 空输出不占段落：三样都空的 block 没有可读内容。
@@ -134,8 +134,8 @@ public static class TurnCardView
             if (lines.Count > 0) lines.Add(string.Empty);
             // 操作不占一行：灰色括号挂在意图行尾（省一行；没有就什么都不挂）。
             var operation = block.Operation.Length == 0 ? string.Empty : "[[dim]](" + block.Operation + ")[[/]]";
-            lines.Add("意图：" + WrapTerms(block.Intent.Length == 0 ? "-" : block.Intent, keywords) + operation);
-            lines.Add("结果：" + WrapTerms(block.Result.Length == 0 ? "—" : block.Result, keywords)
+            lines.Add(TuiStrings.T(TuiKey.Intent) + WrapKnowledgeMentions(WrapTerms(block.Intent.Length == 0 ? "-" : block.Intent, keywords)) + operation);
+            lines.Add(TuiStrings.T(TuiKey.Result) + WrapKnowledgeMentions(WrapTerms(block.Result.Length == 0 ? "—" : block.Result, keywords))
                       + (block.Tag.Length == 0 ? string.Empty : $"（{block.Tag}）"));
         }
 
@@ -176,7 +176,16 @@ public static class TurnCardView
             tag = string.Empty;   // 结果来自工具结果 ⇒ 不再挂发起轮的 E###（避免「结果（E020）」张冠李戴）
         }
 
-        if (operation.Length > 0 && !settled && result.Length == 0) result = "（进行中）";
+        if (operation.Length > 0 && !settled && result.Length == 0) result = TuiStrings.T(TuiKey.InProgress);
+
+        // 知识件标记（2026-10-27 主人）：这一步落过坑集 / 决策库 / 知识库 ⇒ 行尾标出来，
+        // 让「这一步产出了什么知识」在结果行上看得见（不必去翻文件）。
+        var marks = KnowledgeMarks.Suffix(operations);
+        if (marks.Length > 0)
+        {
+            result = result.Length == 0 ? marks : result + "　" + marks;
+        }
+
         return block with { Operation = operation, Result = result, Tag = tag };
     }
 
@@ -188,7 +197,7 @@ public static class TurnCardView
 
         var last = results[^1];
         var text = Describe(last.Source ?? string.Empty, last.Text);
-        return results.Count == 1 ? text : $"{results.Count} 条工具结果；最后：{Clip(text, 70)}";
+        return results.Count == 1 ? text : TuiStrings.F(TuiKey.ToolResults, results.Count, Clip(text, 70));
     }
 
     private static string Describe(string tool, string raw)
@@ -202,18 +211,18 @@ public static class TurnCardView
                 var cmd = Clip(FirstLine(m.Groups[1].Value), 30);
                 var code = m.Groups[2].Value;
                 var stdout = m.Groups[3].Success ? FirstLine(m.Groups[3].Value) : string.Empty;
-                return "已运行 " + cmd + (code == "0" ? string.Empty : $"（exit {code}）")
+                return TuiStrings.F(TuiKey.Ran, cmd) + (code == "0" ? string.Empty : TuiStrings.F(TuiKey.ExitCode, code))
                        + (stdout.Length > 0 ? "：" + Clip(stdout, 60) : string.Empty);
             }
         }
 
         return tool switch
         {
-            "read" => $"已读取文件（{text.Length} 字）",
-            "write" => "已写入文件",
-            "edit" => "已修改文件",
-            "index" => "已取到定义",
-            "list" => $"已列出目录（{text.Length} 字）",
+            "read" => TuiStrings.F(TuiKey.ReadFile, text.Length),
+            "write" => TuiStrings.T(TuiKey.WroteFile),
+            "edit" => TuiStrings.T(TuiKey.EditedFile),
+            "index" => TuiStrings.T(TuiKey.LookedUp),
+            "list" => TuiStrings.F(TuiKey.ListedDir, text.Length),
             _ => Clip(FirstLine(text), 90),
         };
     }
@@ -259,16 +268,16 @@ public static class TurnCardView
         {
             var phrase = call.Tool switch
             {
-                "read" => "读取 " + ShortName(call.Target),
-                "list" => "列出 " + ShortName(call.Target),
-                "write" => "写入 " + ShortName(call.Target),
-                "edit" => "修改 " + ShortName(call.Target),
-                "index" => "检索符号 " + Clip(call.Target, 28),
-                "exec" => "运行 " + Clip(FirstLine(call.Target), 36),
-                "web_fetch" or "web_download" => "抓取 " + Clip(call.Target, 36),
-                "web_search" => "检索 " + Clip(call.Target, 28),
-                "http_request" => "发 HTTP 请求 " + Clip(call.Target, 32),
-                "scope" => "定位任务范围",
+                "read" => TuiStrings.F(TuiKey.ActRead, ShortName(call.Target)),
+                "list" => TuiStrings.F(TuiKey.ActList, ShortName(call.Target)),
+                "write" => TuiStrings.F(TuiKey.ActWrite, ShortName(call.Target)),
+                "edit" => TuiStrings.F(TuiKey.ActEdit, ShortName(call.Target)),
+                "index" => TuiStrings.F(TuiKey.ActIndex, Clip(call.Target, 28)),
+                "exec" => TuiStrings.F(TuiKey.ActExec, Clip(FirstLine(call.Target), 36)),
+                "web_fetch" or "web_download" => TuiStrings.F(TuiKey.ActFetch, Clip(call.Target, 36)),
+                "web_search" => TuiStrings.F(TuiKey.ActSearch, Clip(call.Target, 28)),
+                "http_request" => TuiStrings.F(TuiKey.ActHttp, Clip(call.Target, 32)),
+                "scope" => TuiStrings.T(TuiKey.ActScope),
                 _ => call.Tool,
             };
 
@@ -276,13 +285,13 @@ public static class TurnCardView
             if (parts.Count == 3) break;
         }
 
-        return parts.Count == 0 ? string.Empty : string.Join("，", parts);
+        return parts.Count == 0 ? string.Empty : string.Join(TuiStrings.T(TuiKey.IntentJoin), parts);
     }
 
     private static string ShortName(string path)
     {
         var value = Clip(FirstLine(path), 60);
-        if (value.Length == 0) return "文件";
+        if (value.Length == 0) return TuiStrings.T(TuiKey.FileWord);
         var slash = value.LastIndexOf('/');
         return slash >= 0 && slash + 1 < value.Length ? value[(slash + 1)..] : value;
     }
@@ -320,6 +329,9 @@ public static class TurnCardView
     private static string ProseOf(string text)
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
+        // 转录回声（2026-10-27 真机）：模型把上一轮的 `E061 ` 抄回行首 ⇒ [RESULT] 不在行首 ⇒
+        // 卡上「结果」只剩一个事件号。这里只剥那一种形态，其余逐字不动。
+        text = ReplyLines.StripEventEcho(text);
         var cleaned = string.Join('\n', text.Replace("\r\n", "\n").Split('\n')
             .Where(static l =>
             {
@@ -370,7 +382,7 @@ public static class TurnCardView
                 continue;
             }
 
-            var tool = string.IsNullOrWhiteSpace(entry.Source) ? "（未知）" : entry.Source.Trim();
+            var tool = string.IsNullOrWhiteSpace(entry.Source) ? TuiStrings.T(TuiKey.UnknownWord) : entry.Source.Trim();
             if (!counts.TryAdd(tool, 1)) counts[tool]++;
             else order.Add(tool);
 
@@ -381,9 +393,9 @@ public static class TurnCardView
         }
 
         var parts = order.Select(tool => $"{tool}×{counts[tool]}").ToList();
-        if (denied > 0) parts.Add($"被拒 {denied}");
+        if (denied > 0) parts.Add(TuiStrings.F(TuiKey.DeniedCount, denied));
         var text = string.Join(" · ", parts);
-        if (paths.Count > 0) text += $" · 改动 {paths.Count} 路径";
+        if (paths.Count > 0) text += " · " + TuiStrings.F(TuiKey.ChangedPaths, paths.Count);
         return text;
     }
 
@@ -464,6 +476,58 @@ public static class TurnCardView
         return string.Join('`', parts);
     }
 
+    /// <summary>
+    /// **坑集 / 决策条目**在卡与报告里的专用高亮（2026-10-29 主人令）：用「意图」标签同色（Attention），
+    /// 与其它概念关键词的金色（Keyword）区分开。
+    /// <para>只处理**标记之外**的正文（`[[…[[/]]` 段与反引号代码段原样跳过），避免破坏已有角色。</para>
+    /// </summary>
+    public static string WrapKnowledgeMentions(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !KnowledgeMention.IsMatch(text))
+        {
+            return text;
+        }
+
+        var sb = new System.Text.StringBuilder(text.Length + 24);
+        var plainStart = 0;
+        var i = 0;
+        while (i < text.Length)
+        {
+            if (text[i] == '[' && i + 1 < text.Length && text[i + 1] == '['
+                && text.IndexOf("]]", i + 2, StringComparison.Ordinal) is var tagEnd and > 0
+                && text.IndexOf("[[/]]", tagEnd + 2, StringComparison.Ordinal) is var close and > 0)
+            {
+                sb.Append(Wrap(text[plainStart..i]));
+                sb.Append(text, i, close + 5 - i);
+                i = close + 5;
+                plainStart = i;
+                continue;
+            }
+
+            if (text[i] == '`' && text.IndexOf('`', i + 1) is var codeEnd and > 0)
+            {
+                sb.Append(Wrap(text[plainStart..i]));
+                sb.Append(text, i, codeEnd + 1 - i);
+                i = codeEnd + 1;
+                plainStart = i;
+                continue;
+            }
+
+            i++;
+        }
+
+        sb.Append(Wrap(text[plainStart..]));
+        return sb.ToString();
+
+        static string Wrap(string plain) =>
+            KnowledgeMention.Replace(plain, static m => "[[attention]]" + m.Value + "[[/]]");
+    }
+
+    /// <summary>坑集 / 决策条目的记号（唯一判定处）。</summary>
+    private static readonly Regex KnowledgeMention = new(
+        @"坑\s*#\s*\d{3}|坑集|决策条目|决策\s*D-\d{4}",
+        RegexOptions.Compiled);
+
     internal static IReadOnlyList<string> DecorateReport(IReadOnlyList<string> lines)
     {
         // ① 收集术语名（术语小节里的 `名字 = …` 左侧）。
@@ -498,7 +562,7 @@ public static class TurnCardView
                 styled = styled.Replace(term, "[[keyword]]" + term + "[[/]]", StringComparison.Ordinal);
             }
 
-            output.Add(styled);
+            output.Add(WrapKnowledgeMentions(styled));
         }
 
         return output;

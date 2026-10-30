@@ -71,14 +71,20 @@ public static class Tui2Style
             return Whole(line, StyleRole.Dim);
         }
 
-        if (line.StartsWith("[错误]", StringComparison.Ordinal) || line.Contains("⚠", StringComparison.Ordinal))
+        if (line.StartsWith("[错误]", StringComparison.Ordinal) || line.StartsWith("[error]", StringComparison.Ordinal) || line.Contains("⚠", StringComparison.Ordinal))
         {
             return Whole(line, StyleRole.Warn);
         }
 
+        // 提示类前缀：中文（TUI1 / zh 语言包）与英文（默认语言包）都认 —— 否则换语言就丢色。
         if (line.StartsWith("[会话]", StringComparison.Ordinal)
+            || line.StartsWith("[session]", StringComparison.Ordinal)
+            || line.StartsWith("[开始]", StringComparison.Ordinal)
+            || line.StartsWith("[start]", StringComparison.Ordinal)
             || line.StartsWith("[粘贴]", StringComparison.Ordinal)
-            || line.StartsWith("[续]", StringComparison.Ordinal))
+            || line.StartsWith("[paste]", StringComparison.Ordinal)
+            || line.StartsWith("[续]", StringComparison.Ordinal)
+            || line.StartsWith("[resume]", StringComparison.Ordinal))
         {
             return Whole(line, StyleRole.Hint);
         }
@@ -91,9 +97,10 @@ public static class Tui2Style
         // 顶部模块区的标签。
         foreach (var (label, role) in new[]
                  {
-                     ("会话 |", StyleRole.Strong), ("区栈 |", StyleRole.Strong),
-                     ("白板 |", StyleRole.Strong), ("草稿 |", StyleRole.Strong),
-                     ("焦点 |", StyleRole.Strong),
+                     (TuiStrings.T(TuiKey.Session) + " |", StyleRole.Strong), (TuiStrings.T(TuiKey.Stack) + " |", StyleRole.Strong),
+                     (TuiStrings.T(TuiKey.Board) + " |", StyleRole.Strong), (TuiStrings.T(TuiKey.Draft) + " |", StyleRole.Strong),
+                     (TuiStrings.T(TuiKey.Focus) + " |", StyleRole.Strong),
+                     ("会话 |", StyleRole.Strong), ("区栈 |", StyleRole.Strong),   // 旧中文兜底
                  })
         {
             var at = line.IndexOf(label, StringComparison.Ordinal);
@@ -106,8 +113,10 @@ public static class Tui2Style
         // 决策卡三行：标签着色，值继续走 Markup + Annotator（路径/命令土黄）。
         foreach (var (label, role, restRole) in new[]
                  {
-                     ("意图：", StyleRole.Attention, (StyleRole?)null),
+                     (TuiStrings.T(TuiKey.Intent), StyleRole.Attention, (StyleRole?)null),
                      ("操作：", StyleRole.Command, (StyleRole?)StyleRole.Command),   // 指令：薄荷（强调）
+                     (TuiStrings.T(TuiKey.Result), StyleRole.Done, (StyleRole?)null),
+                     ("意图：", StyleRole.Attention, (StyleRole?)null),           // 旧中文兜底（切语言时不清屏）
                      ("结果：", StyleRole.Done, (StyleRole?)null),
                  })
         {

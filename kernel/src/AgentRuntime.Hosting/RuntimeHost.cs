@@ -165,6 +165,9 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// <summary>「报告只看近段」这句只提醒一次（本 task 内）；新 task 开工时清账（与 <see cref="_reportRequested"/> 同处）。</summary>
     private bool _basisNoticeSent;
 
+    /// <summary>「动过知识件却没在报告里点名」只提一次（同一个 task）。</summary>
+    private bool _knowledgeNoticeSent;
+
     /// <summary>
     /// **正在等它交报告**（我刚发过报告请求；下一次 AgentOutput 就是那一轮）。
     /// <para>为什么必须有它：合法的报告轮**本来就没有终局块**（<c>DESIGN-LIFECYCLE-BRIEF.md</c> §十三-derived #2
@@ -724,7 +727,8 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
             request,
             StackPanel.Compose(trace),
             PromptBytes.Sha256Of(request),
-            PromptBytes.CountOf(request));
+            PromptBytes.CountOf(request),
+            PromptComposition.ModuleBytesOf(trace));
     }
 
     /// <summary>
@@ -746,7 +750,8 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
             request,
             StackPanel.Compose(trace),
             PromptBytes.Sha256Of(request),
-            PromptBytes.CountOf(request));
+            PromptBytes.CountOf(request),
+            PromptComposition.ModuleBytesOf(trace));
     }
 
     /// <summary>跑一轮：调用模型 → 写恢复点 → 收告警 → （可选）出诊断行。</summary>
@@ -1018,6 +1023,7 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         {
             _reportRequested = false;
             _basisNoticeSent = false;
+            _knowledgeNoticeSent = false;
             }
         else if ((LastTerminal.IsSettled || LastTerminal.State == TerminalState.NeedUser)
                  && DecisionReportParser.Parse(result.Response) is { Accepted: true } parsed)
@@ -1061,11 +1067,31 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
         {
             _basisNoticeSent = true;
             var notice =
-                "[报告] ⚠️ 这篇报告的锚点只覆盖 " + string.Join(" / ", basis.Missing)
-                + " —— 依据应当是上下文末尾的 **[任务台账] 全表**（协议第 12 条：step 要覆盖前 / 中 / 后三段）。"
-                + "这次照样挂上；下次请按台账补齐（台账每行首就是可引用的 E###）。";
+                "[报告] ⚠️ 这篇报告的锚点缺 " + string.Join(" / ", basis.Missing)
+                + " —— 依据是**上文的会话原文**（工具结果等事件消息行首就是可引用的 E###；同一步多个锚可写 (E011/E018)）"
+                + "＋ 末尾的 **[任务台账] 任务地图**（每个 task 的事件区间）；协议第 12 条要求 step 覆盖前 / 中 / 后三段。"
+                + "这次照样挂上；下次请把缺的那一段也写上。";
             AppendHint(notice, DecisionReport.UnownedSource + "-basis");
             lines.Add(notice);
+        }
+
+        // **碰过知识件却没在报告里点名**（2026-10-27 主人）：坑集/决策库被改过，报告必须提一句，
+        // 否则用户不知道发生了什么。判据只认 write/edit 的落点回执（见 KnowledgeMarks 的边界）。
+        if (!_knowledgeNoticeSent)
+        {
+            var life = LifecycleAggregator.Aggregate(StreamSnapshot()).Current;
+            var marks = life is null ? [] : KnowledgeMarks.Of(life.Trace);
+            if (marks.Count > 0 && !KnowledgeMarks.ReportMentions(result.Response))
+            {
+                _knowledgeNoticeSent = true;
+                var notice =
+                    "[报告] ⚠️ 本 task 动过 "
+                    + string.Join(" / ", marks.Select(static m => m.Replace("＋", string.Empty, StringComparison.Ordinal)))
+                    + "，但报告里没点名 —— 请在 found 或 outcome 里写一句（`坑 #368：…` / `决策 D-0016：…`），"
+                    + "否则用户看不出这一步产出了什么知识。";
+                AppendHint(notice, DecisionReport.UnownedSource + "-knowledge");
+                lines.Add(notice);
+            }
         }
 
         if (LastTerminal.IsConflict)
@@ -1472,15 +1498,16 @@ public sealed class RuntimeHost : ITurnHost, IDisposable
     /// **新会话从末态接上** —— 把「上一会话最后一条用户消息 + 它是否答完」交给模型（新流的首条 <c>Hint</c>）。
     /// <para>与 <see cref="NoteTurnInterrupted"/> 同一通道；两句各管一段：一个管**同会话内**的中断，一个管**跟 reset** 的接续。</para>
     /// </summary>
-    /// <summary>**上一节台账摘要**进新流（跨 session 续质量；S&lt;k&gt; = 那一节的会话号）。</summary>
-    public void NoteLedgerHandover(string summary)
+    /// <summary>**上一节台账**进新流（跨 session 续质量；S&lt;k&gt; = 那一节的会话号）。
+    /// <para>整块（表头 + 摘要 + 逐轮）由调用方拼好：表头只该有一份，两处各写一次迟早分叉。</para></summary>
+    public void NoteLedgerHandover(string block)
     {
-        if (string.IsNullOrWhiteSpace(summary))
+        if (string.IsNullOrWhiteSpace(block))
         {
             return;
         }
 
-        AppendHint("[交接] 上一节任务台账（引用写 S<k>/E###，k = 那一节的会话号）：\n" + summary, "handoff-ledger");
+        AppendHint(block, "handoff-ledger");
     }
 
     public void NoteHandoverContinuation(HandoverSnapshot handover)

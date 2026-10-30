@@ -24,7 +24,9 @@ public sealed record NetworkLimits
     /// <summary>出厂档。</summary>
     public static NetworkLimits Default { get; } = new();
 
-    /// <summary>单次请求（含重定向）超时（秒）。</summary>
+    /// <summary>单次请求（含重定向）超时（秒）。
+    /// <para>2026-10-27 定稿：<b>30s 足够</b>（主人裁定）。代理抖动由「幂等重试 1 次 + 连接 15s / 空闲池 20s」承担，
+    /// 不靠拉长总超时。</para></summary>
     public int TimeoutSeconds { get; init; } = 30;
 
     /// <summary>响应体上限（字节）。</summary>

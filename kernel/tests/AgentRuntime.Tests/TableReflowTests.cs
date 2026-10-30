@@ -1,5 +1,4 @@
 using AgentRuntime.Presentation;
-using AgentRuntime.Tui;
 using Xunit;
 
 namespace AgentRuntime.Tests;
@@ -166,46 +165,6 @@ public sealed class TableReflowTests
         Assert.Equal(lines, TableReflow.Fit(lines, 40));
     }
 
-    // ---------------- 接线：对话渲染期（批 2） ----------------
-
-    private static SplitFrame Frame(int width, params ConversationEntry[] conversation) => new()
-    {
-        Title = "t",
-        Subtitle = "s",
-        Conversation = conversation,
-        Regions = [],
-        Totals = new SplitTotals(0, 0, null),
-        RequestNote = "n",
-        Menu = [],
-        MenuSelection = 0,
-        DetailLines = [],
-        DetailScroll = 0,
-        ConversationScroll = 0,
-        Input = string.Empty,
-        Caret = 0,
-        Focus = PaneFocus.Input,
-        Width = width,
-        Height = 30,
-    };
-
-    [Theory]
-    [InlineData(96)]
-    [InlineData(80)]
-    [InlineData(120)]
-    public void 接线_卡上的表按当前栏宽重绘_不超宽也不多折行(int width)
-    {
-        var card = new ConversationEntry("lifecycle", string.Join('\n', Markdown));
-        var layout = new SplitLayout(width, 30);
-
-        var rendered = SplitRenderer.ConversationRich(Frame(width, card), layout);
-        var fitted = TableReflow.Fit(Markdown, Math.Max(8, layout.LeftWidth));
-
-        Assert.All(rendered, line => Assert.True(
-            TerminalText.WidthOf(line.Text) <= layout.LeftWidth,
-            $"W={width} 超宽：{line.Text}"));
-        Assert.Equal(fitted.Count, rendered.Count);   // 若没先重排（落到 Wrap 硬折），这里会多出行
-    }
-
     // ---------------- 接线（批 3）：宿主框线表（决策报告里的表就是它） ----------------
 
     /// <summary>宿主 <c>TextTable.Render</c> 画的框线表 —— **夹具就是它的真产物**（带 3 格缩进 + 格内 markup，
@@ -260,20 +219,6 @@ public sealed class TableReflowTests
         Assert.Contains(fitted, static l => l.Contains('a') && l.Contains('b'));
         Assert.Contains(fitted, static l => l.Contains('c') && l.Contains('d'));
         Assert.Contains(fitted, static l => l.StartsWith('└') || l.Contains('└'));   // 重画成完整表
-    }
-
-    [Fact]
-    public void 卡里只有框线表时也要重排_早退判据不能只认ASCII竖线()
-    {
-        var text = string.Join('\n', BoxTable());
-        Assert.DoesNotContain('|', text);          // 宿主表只有 │，没有 ASCII 管
-
-        var layout = new SplitLayout(80, 30);
-        var rows = SplitRenderer.ConversationRich(Frame(80, new ConversationEntry("lifecycle", text)), layout);
-
-        Assert.All(rows, r => Assert.True(
-            TerminalText.WidthOf(r.Text) <= layout.LeftWidth, "框线表必须按栏宽重排（别被 Wrap 折散）"));
-        Assert.Contains(rows, static r => r.Text.Contains('┌'));
     }
 
     // ---------------- 接线（批 5）：列太多 ⇒ 分列组 ----------------

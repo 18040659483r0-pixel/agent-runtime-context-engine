@@ -27,6 +27,22 @@ public sealed class KnowledgeSinkTests
         + "<T4 layer=\"1\" next=\"T3\">归一优先，拒绝最后。</T4>";
 
     [Fact]
+    public void 不合规范的节点标记_必须报错不许静默跳过()
+    {
+        // 坑 #372 同族（2026-10-29）：旧版把不合格的 <!--kn: 行当正文吃掉，
+        // 结果 444 个 L4 只载入 428 个，看起来却像 next 列表丢末项。
+        const string md = "# 知识库\n\n## L4 · 重型知识\n\n<!--kn: L4-pit-wb-12 src=docs/PITFALLS.md#12-->\n**证据**：x。\n";
+        var ex = Assert.Throws<InvalidDataException>(() => KnowledgeTree.Parse(md, "test.md"));
+        Assert.Contains("不合规范", ex.Message);
+
+        // 同一条改成规范形（短名不带连字符、seq 三位）⇒ 正常解析。
+        const string good = "# 知识库\n\n## L4 · 重型知识\n\n<!--kn: L4-wbpit-012 src=docs/PITFALLS.md#12-->\n**证据**：x。\n";
+        var tree = KnowledgeTree.Parse(good, "test.md");
+        Assert.Single(tree.Nodes);
+        Assert.Equal("L4-wbpit-012", tree.Nodes[0].Id);
+    }
+
+    [Fact]
     public void 知识链_临时id映射_只追加_并重建派生()
     {
         var ws = Ws();

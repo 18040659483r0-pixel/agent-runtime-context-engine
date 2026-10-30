@@ -71,9 +71,9 @@
     </Decl>
     <Decl>
       <Id>143</Id>
-      <Kind>gate</Kind>
-      <Pointer>tests/AgentRuntime.Tests/DecisionReportFlowTests.cs::DecisionReportFlowTests</Pointer>
-      <Why>「了结即固化」的定格判据必须用「还欠着」（自动接续开 &amp;&amp; 报告文为空），不能用「已请求」；三条流程闸门 + 三轮卡闸门钉住「许可轮数 3 而模型调用 4」</Why>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「了结即固化」的定格判据必须用「还欠着」（自动接续开 &amp;&amp; 报告文为空），不能用「已请求」。原闸门在 DecisionReportFlowTests（经 SplitSession 驱动），2026-10-29 TUI1 退役随文件删除 ⇒ 现有测试不再钉这条；规则本体仍在 TurnContinuation/宿主侧。待补：在 TuiHarness 上重钉（许可轮数 3 而模型调用 4 / 报告文为空不判了结）。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
     <Decl>
@@ -155,9 +155,9 @@
     </Decl>
     <Decl>
       <Id>155</Id>
-      <Kind>gate</Kind>
-      <Pointer>tests/AgentRuntime.Tests/DecisionReportFlowTests.cs::报告块无主_非请求轮写了REPORT却没终局块_当场纠正</Pointer>
-      <Why>「报告块无主」（有 [REPORT] 无终局块、且非宿主请求轮）⇒ 宿主当场纠正（`Hint` · `source=report-unowned`）。闸门 = 负例（非请求轮 ⇒ 当场纠正且不与 report-request 混淆）+ **正例**（报告请求轮不判无主 —— 合法报告轮本来就没有终局块，漏了这条会误杀正确行为）</Why>
+      <Kind>human</Kind>
+      <Pointer i:nil="true" />
+      <Why>「报告块无主」（有 [REPORT] 无终局块、且非宿主请求轮）⇒ 宿主当场纠正。原闸门随 DecisionReportFlowTests 在 2026-10-29 TUI1 退役时删除；当前源码已无 `source=report-unowned` 这条提示（被 ReportBasisCheck / 报告依据检查取代）⇒ 本闸门不再是活的判据。若仍需「无主报告当场纠正」，须先在内核里重新立这条，再配负例 + 正例（请求轮不判无主）。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
     <Decl>
@@ -1325,15 +1325,15 @@
     <Decl>
       <Id>322</Id>
       <Kind>gate</Kind>
-      <Pointer>tests/AgentRuntime.Tests/TuiSplitTests.cs::Split_T1_多轮工具链_逐轮预览与实发不破线</Pointer>
-      <Why>一轮只组装一次：宿主把预览出的 ChatRequest 交给引擎发（Assert.Same 钉「显示的就是发出去的」，引用相等）</Why>
+      <Pointer>tests/AgentRuntime.Tests/TuiInvariantTests.cs::预组装请求_原对象发出_一轮只组装一次</Pointer>
+      <Why>一轮只组装一次：宿主把预览出的 ChatRequest 交给引擎发（Assert.Same 钉「显示的就是发出去的」，引用相等）。2026-10-29 TUI1 退役 ⇒ 原断言随 TuiSplitTests 删除，已在新家（TuiHarness + PanelRouter，宿主级）重钉同一条判据。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
     <Decl>
       <Id>323</Id>
-      <Kind>gate</Kind>
-      <Pointer>tools/demo-doc/Program.cs::FindBlock(lines, section, 0, Path.GetFileName(product))</Pointer>
-      <Why>抽块谓词必须是结构量（节标题 + 块序号），不得是生成物里的首行文案；改帧即静默 0 块。另：改名要扫演示脚本/清理清单等活件，演示须可重复。</Why>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-evd-001</Pointer>
+      <Why>抽块谓词必须是结构量（节标题 + 块序号），不得是生成物里的首行文案；改帧即静默 0 块。原生实现（tools/demo-doc）于 2026-10-29 TUI1 退役时一并删除 ⇒ 判据归常驻 L1-evd-001「判某件东西在不在要查结构特征，不搜显示文字」。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
     <Decl>
@@ -1553,5 +1553,152 @@
       <Why>在主人正在使用的真实库上做破坏性验证，删掉的凭证无法还原（审计只记金额不记分录）。定法：破坏性验证一律走独立测试库（独立库文件 + 独立端口 + 启动脚本固化），与真账同时运行互不影响；动手前先答「错了从哪儿恢复」。已进常驻 L1-ver-002。原文 docs/PITFALLS.md #354。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
-</Declarations>
+    <Decl>
+      <Id>355</Id>
+      <Kind>gate</Kind>
+      <Pointer>src/AgentRuntime.Tui2/SelfTest.cs::写盘慢时 Draw 必须立即返回</Pointer>
+      <Why>主循环同步写整屏 ⇒ 终端不读 pty 时（中文输入法组词）卡在 write 里；且空闲也每 200ms 重画，把阻塞放大成 150 帧堆积。闸门 = [Writer] 自检：sink 阻塞 150ms 时 Draw 必须立即返回、且只写最新帧。原文 docs/PITFALLS.md #355。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>356</Id>
+      <Kind>gate</Kind>
+      <Pointer>tools/tui2-testsuite/Program.cs::resize 后 0.5s 内状态栏按新尺寸重画</Pointer>
+      <Why>尺寸缓存 30s + 每 10 帧才刷 ⇒ resize 后长时间按旧行列画（看像坏了）。闸门 = pty 用例 resize-redraw：80×30 → 56×18 后 0.5s 内状态栏出现在新尺寸最后一行。原文 docs/PITFALLS.md #356。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>357</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 357.</Pointer>
+      <Why>发布切片里 build 过 ⇒ bin/obj 跟着提交（扫描器按设计不看，闸门全绿）；靠人执行「打包前清产物 + 用 tree 数对拍」，并可用 tag 前移补救。自动化会把发布流程绑死在一个 repo 结构上，成本高于收益。原文 docs/PITFALLS.md #357。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>358</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 358.</Pointer>
+      <Why>SVN 显式传中文文件名时编码不匹配会报「尚未纳入版本控制」；正解是提交目录、让 SVN 自己解析名字。属操作纪律，无法在源码侧闸门化。原文 docs/PITFALLS.md #358。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>359</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 359.</Pointer>
+      <Why>写作工具回执说「已替换/已新建」，文件其实没变（一天 6 次以上）。判据只能是写完回读字节与锚点；同一写入两次没落地就换策略，不原样重试。属操作纪律，无法闸门化。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>360</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 360.</Pointer>
+      <Why>大块 write 反复失败时减小体积比原样重试有效（8KB 三次未落盘 → 3.3KB 一次成功）。属操作纪律，无法闸门化。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>361</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 361.</Pointer>
+      <Why>「升级路径能跑」不等于「新建能跑」：给账套表加列并把版本升到 2 后，全新空库只跑第一版建表、版本号却记成 2，一读即崩。判据必须是空数据根重建通过；ScriptsFrom(0) 必须返回所有版本脚本。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>362</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 362.</Pointer>
+      <Why>报表提示写了一个程序里不存在的机制（「已结账（读结账快照）」而无快照实现）。提示语只能承诺程序真会做的事，已改为「本期凭证已锁定」，并由套件 4 条用例守住。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>363</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 363.</Pointer>
+      <Why>测试自己算错期望值会掩盖真实行为（损益净额按方向加减、把费用当加项）。勾稽类断言要同时写等式与具体金额；一条断言若「改产品才能过」，先怀疑断言。属测试写法纪律。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>364</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 364.</Pointer>
+      <Why>新规则否决了既有的合法状态，程序直接打不开（期初数据必须交齐历史报表）。规则收紧时必须同时给出既有数据的合法出路，并在真库副本上验证「老账套还能打开」。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>365</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 365.</Pointer>
+      <Why>前端拿本地清单去猜，与后端判定必然分叉（文本编辑器认不出 550202）。判定只能有一处实现，前端不得自留一份科目清单。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>366</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 366.</Pointer>
+      <Why>「写入成功」的回执不等于磁盘变了（回写零转义脚本反复失败）。回执只证明调用返回，落盘要用回读字节/sha 复核。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>367</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 367.</Pointer>
+      <Why>含尖括号与和号的源码经文本通道会就地改写。写源码走零转义行式块或先写文件再传路径，写完回读比对。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>368</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 368.</Pointer>
+      <Why>一套法定编码表整体平移一位，报表整段错行却仍然平衡。法定表类数据必须逐条对权威来源，不能凭记忆抄。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>369</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 369.</Pointer>
+      <Why>macOS 上改 HOME 不构成隔离，演练在真账上跑完。隔离只认程序自己的路径环境变量（本项目 DIGITALABACUS_DB），并在写前证明打开的不是生产库。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>370</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 370.</Pointer>
+      <Why>同一个形状有两种含义时，只看形状的判据必然错判（金额 vs 科目编码）。判据要引入上下文（先查科目表），不能只匹配数字形态。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>371</Id>
+      <Kind>human</Kind>
+      <Pointer>docs/PITFALLS.md::## 371.</Pointer>
+      <Why>判「某入口是否已删」要看结构，不能搜显示文字（注释里的词也会命中）。用结构特征（href/按钮/id）计数，而不是关键词计数。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>372</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-oop-001</Pointer>
+      <Why>同一条规则（期初锁）分散在页面 / 保存 / 导入 / 领域层四处，改三处测试仍红。常驻 L1-oop-001「一处实现」：改判定前先 grep 旧条件，把四处一次找齐。已被 [WB] 同次报出（数字算盘期初锁）。原文 docs/PITFALLS.md #372。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>373</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>两个「年初数」分属 2025-01-01 与 2026-01-01，硬比造出 11 条假差异。常驻 L1-clm-001「形状相同、含义不同的东西，判据必须带上下文」：比对前先判两列是不是同一天/同口径。理想落点是 gate（数字算盘核对测试里加「两列同基准日」断言），当前无该测试 ⇒ 先记 resident，闸门列入待办。原文 docs/PITFALLS.md #373。</Why>
+      <GatePlanned>tests 待补：数字算盘 ReportCrossCheckTests 增加「年初数两列基准日相同」断言</GatePlanned>
+    </Decl>
+    <Decl>
+      <Id>374</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>用「资产栏与负债栏明细差额相等」反推重分类口径，属于形状猜测。常驻 L1-clm-001：现象不冒称机制；换一种口径重算一遍再下结论（同族 L1-fmt-001「格式由规范定」）。原文 docs/PITFALLS.md #374。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>375</Id>
+      <Kind>gate</Kind>
+      <Pointer>tests/AgentRuntime.Tests/KnowledgeSinkTests.cs::不合规范的节点标记_必须报错不许静默跳过</Pointer>
+      <Why>不合规的节点 id 被静默跳过 = 从来没写过（444 个 L4 只载入 428 个）。生成处规范化（L4Gap 写入前自检）+ 解析处 fail-closed（带行号报错）；本闸门钉住解析侧，正例保证规范形仍可解析。原文 docs/PITFALLS.md #375。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+  </Declarations>
 </GateLedger>

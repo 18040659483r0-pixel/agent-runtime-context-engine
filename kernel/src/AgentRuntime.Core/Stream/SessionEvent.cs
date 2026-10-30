@@ -66,7 +66,10 @@ public sealed record SessionEvent
     /// </summary>
     public string Render() => $"{Tag} {Label} {Text}";
 
-    /// <summary>转成一条消息：用户/助手轮次保持原角色，其余一律 system（只追加，不改角色语义）。</summary>
+    /// <summary>转成一条消息：用户/助手轮次保持原角色，其余一律 system（只追加，不改角色语义）。
+    /// <para><b>用户/助手轮次刻意不加前缀</b>（2026-10-27 13:0x 真机教训）：给助手消息加 `E043 ` 后，模型开始把**上一轮的行首事件号一起抄回**
+    /// （实测 `E062` 的正文以 `E061 [RESULT]` 开头，且成篇重复自己的历史）；因为块头不在行首，卡上「结果」只剩下一个事件号。
+    /// 锚点可见性改由「任务地图 + 事件自带标签」承担，**不再往对话正文里注入可被模仿的标记**。</para></summary>
     public ChatMessage ToChatMessage() => Kind switch
     {
         SessionEventKind.UserInput => ChatMessage.User(Text),

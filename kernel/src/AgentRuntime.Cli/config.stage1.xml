@@ -13,6 +13,7 @@
     <string>system-rules</string>
     <string>rules</string>
     <string>knowledge</string>
+    <string>decision</string>
     <string>memory-index</string>
     <string>append-stream</string>
     <string>task-ledger</string>

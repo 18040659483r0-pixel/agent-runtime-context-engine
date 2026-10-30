@@ -42,7 +42,7 @@ public sealed class TaskLedgerTests
         Assert.Equal(string.Empty, records[0].Terminal);      // 普通轮不许冒充终局
         Assert.Equal("B 完成", records[1].Result);
         Assert.Equal("全好了", records[1].Terminal);
-        Assert.StartsWith("T1.01 <E", records[0].Line(), StringComparison.Ordinal);
+        Assert.StartsWith("T1.01|E", records[0].Line(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -56,8 +56,10 @@ public sealed class TaskLedgerTests
 
         Assert.True(record.IntentMissing);
         Assert.True(record.ResultMissing);
-        Assert.Contains("(缺 PLAN)", record.Line(), StringComparison.Ordinal);
-        Assert.Contains("(缺 RESULT)", record.Line(), StringComparison.Ordinal);
+        // 2026-10-27：缺块用**空字段**表示（表头声明列序），不再写 `(缺 PLAN)` —— 列序不丢，字符更少。
+        var fields = record.Line().Split('|');
+        Assert.Equal(string.Empty, fields[2]);
+        Assert.Equal(string.Empty, fields[3]);
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public sealed class TaskLedgerTests
         var record = Assert.Single(TaskLedgerProjection.Build(stream));
 
         Assert.Equal(2, record.OpenItems);
-        Assert.Contains("未决: 2", record.Line(), StringComparison.Ordinal);
+        Assert.Equal("2", record.Line().Split('|').Last());
     }
 
     [Fact]
@@ -137,9 +139,9 @@ public sealed class TaskLedgerHandoffTests
 
         var text = TaskLedgerProjection.RenderForHandoff(records, sessionNumber: 3);
 
-        Assert.Contains("<S3/E002>", text, StringComparison.Ordinal);
-        Assert.Contains("<S3/E003>", text, StringComparison.Ordinal);
-        Assert.DoesNotContain("<E002>", text, StringComparison.Ordinal);
+        Assert.Contains("S3/E002", text, StringComparison.Ordinal);
+        Assert.Contains("S3/E003", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("|E002|", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -155,7 +157,7 @@ public sealed class TaskLedgerHandoffTests
         var records = TaskLedgerProjection.Build(stream);
         var text = TaskLedgerProjection.RenderForHandoff(records, sessionNumber: 1, maxRecords: 2);
 
-        Assert.Contains("更早 3 轮只留账", text, StringComparison.Ordinal);
-        Assert.Equal(2, text.Split('\n').Count(l => l.Contains("意图: ", StringComparison.Ordinal)));
+        Assert.Contains("更早 3 轮", text, StringComparison.Ordinal);
+        Assert.Equal(2, text.Split('\n').Count(l => l.StartsWith("T1.", StringComparison.Ordinal)));
     }
 }

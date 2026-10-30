@@ -2,7 +2,7 @@ using System.Text;
 using AgentRuntime.Core.Lifecycle;
 using AgentRuntime.Core.Stream;
 using AgentRuntime.Presentation;
-using AgentRuntime.Tui;
+using AgentRuntime.Hosting.Commands;
 
 namespace AgentRuntime.Tui2;
 
@@ -138,9 +138,9 @@ public static class SelfTest
     {
         o.WriteLine("[TaskMeter]");
         var meter = new TaskMeter(TaskTurns: 11, TaskEvents: 52, SessionTurns: 206, SessionEvents: 1083);
-        Check(o, meter.Counts() == "T 轮 11（S 轮 206）",
+        Check(o, meter.Counts() == TuiStrings.F(TuiKey.Meter, "11", "206"),
             $"T/S 计数格式（实得 [{meter.Counts()}]）");
-        Check(o, !meter.Counts().Contains("事件", StringComparison.Ordinal),
+        Check(o, !meter.Counts().Contains(TuiStrings.T(TuiKey.EventsLabel), StringComparison.Ordinal),
             "状态栏不报事件数（主人 2026-10-25：用户不需要这个数据）");
         Check(o, !meter.Counts().Contains("tok", StringComparison.Ordinal),
             "状态栏不报 session 的消耗（token 归顶栏，且须标 scope）");
@@ -315,11 +315,14 @@ public static class SelfTest
 
         var lines = TurnCardView.Build(life);
         Check(o, lines.Count >= 6, $"两轮 = 两段（每段两行）+ 报告（实得 {lines.Count} 行）");
-        Check(o, lines[0] == "意图：做 A[[dim]](exec×1 · write×1 · 改动 1 路径)[[/]]", $"第一段意图 + 灰色操作（实得 [{lines[0]}]）");
-        Check(o, lines[1].StartsWith("结果：我先说明。", StringComparison.Ordinal), $"第一段结果（实得 [{lines[1]}]）");
+        var intent = TuiStrings.T(TuiKey.Intent);
+        var result = TuiStrings.T(TuiKey.Result);
+        var changed1 = TuiStrings.F(TuiKey.ChangedPaths, 1);
+        Check(o, lines[0] == intent + "做 A[[dim]](exec×1 · write×1 · " + changed1 + ")[[/]]", $"第一段意图 + 灰色操作（实得 [{lines[0]}]）");
+        Check(o, lines[1].StartsWith(result + "我先说明。", StringComparison.Ordinal), $"第一段结果（实得 [{lines[1]}]）");
         Check(o, lines[2] == string.Empty, "两段之间空一行");
-        Check(o, lines[3] == "意图：做 B", $"第二段用本轮自己的 solve（实得 [{lines[3]}]）");
-        Check(o, lines[4].StartsWith("结果：完成了。", StringComparison.Ordinal), $"第二段结果（实得 [{lines[4]}]）");
+        Check(o, lines[3] == intent + "做 B", $"第二段用本轮自己的 solve（实得 [{lines[3]}]）");
+        Check(o, lines[4].StartsWith(result + "完成了。", StringComparison.Ordinal), $"第二段结果（实得 [{lines[4]}]）");
         Check(o, lines.Any(l => l.StartsWith("决策报告 #1", StringComparison.Ordinal)), "末尾出决策报告头");
         Check(o, lines.Any(l => l.Contains("未提交决策报告", StringComparison.Ordinal)), "未交报告只贴框（fail-closed）");
 
@@ -370,7 +373,7 @@ public static class SelfTest
         };
 
         var proseLines = TurnCardView.Build(proseOnly);
-        Check(o, proseLines[0].StartsWith("意图：我先把 A 拆成两步，再逐步执行。[[dim]](exec×1)[[/]]", StringComparison.Ordinal),
+        Check(o, proseLines[0].StartsWith(TuiStrings.T(TuiKey.Intent) + "我先把 A 拆成两步，再逐步执行。[[dim]](exec×1)[[/]]", StringComparison.Ordinal),
             $"无 [TAIL] 时用模型正文首行当意图 + 操作挂行尾（实得 [{proseLines[0]}]）");
         Check(o, !proseLines[0].Contains("请把 A 做完", StringComparison.Ordinal), "意图不回填用户命令");
 
@@ -401,9 +404,9 @@ public static class SelfTest
         };
 
         var planLines = TurnCardView.Build(planned);
-        Check(o, planLines[0] == "意图：我先确认当前所在目录。[[dim]](exec×1)[[/]]",
+        Check(o, planLines[0] == TuiStrings.T(TuiKey.Intent) + "我先确认当前所在目录。[[dim]](exec×1)[[/]]",
             $"v87 [PLAN] 白话意图 + 灰色操作（实得 [{planLines[0]}]）");
-        Check(o, planLines[1] == "结果：/tmp", $"工具轮结果取最后一条 ToolResult（实得 [{planLines[1]}]）");
+        Check(o, planLines[1] == TuiStrings.T(TuiKey.Result) + "/tmp", $"工具轮结果取最后一条 ToolResult（实得 [{planLines[1]}]）");
 
         var reported = new TaskLifecycle
         {
@@ -434,9 +437,9 @@ public static class SelfTest
         };
 
         var reportedLines = TurnCardView.Build(reported);
-        Check(o, reportedLines[1] == "结果：我跑了 pwd，看到当前目录是 /tmp。",
+        Check(o, reportedLines[1] == TuiStrings.T(TuiKey.Result) + "我跑了 pwd，看到当前目录是 /tmp。",
             $"v88 [RESULT] 覆盖拼装式工具结果（实得 [{reportedLines[1]}]）");
-        Check(o, reportedLines[4].StartsWith("结果：完成", StringComparison.Ordinal),
+        Check(o, reportedLines[4].StartsWith(TuiStrings.T(TuiKey.Result) + "完成", StringComparison.Ordinal),
             $"终局轮结果正常（实得 [{reportedLines[4]}]）");
 
         var decorated = TurnCardView.DecorateReport(
@@ -465,7 +468,7 @@ public static class SelfTest
 
         var terminalLines = TurnCardView.Build(terminalOnly);
         Check(o, terminalLines.Count == 2, $"只有终局输出也成一段 · 两行（实得 {terminalLines.Count} 行）");
-        Check(o, terminalLines[1] == "结果：测试完成", $"终局结果不被 ProseCut 吃掉、且不重复追加 E###（实得 [{terminalLines[1]}]）");
+        Check(o, terminalLines[1] == TuiStrings.T(TuiKey.Result) + "测试完成", $"终局结果不被 ProseCut 吃掉、且不重复追加 E###（实得 [{terminalLines[1]}]）");
     }
 
     // ---------- ⑥ 配色：直接复用 TUI1 的 StyleTable ----------
