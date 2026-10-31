@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 头部 MD 的改写请求单登记表（唯一声明处，2026-10-31 主人令）。
+     每个「平时只读」的头部文件配一份同名的 *-changeOrder.md；请求写在请求单里，收尾才收敛进头部文件并抬水位。 -->
+<ChangeOrders>
+  <Pair label="AGENTS" target="whitebox/workspace/AGENTS.md" order="whitebox/workspace/AGENTS-changeOrder.md" />
+  <Pair label="USER" target="whitebox/workspace/USER.md" order="whitebox/workspace/USER-changeOrder.md" />
+  <Pair label="PRINCIPLES" target="whitebox/workspace/PROJECT-DESIGN-PRINCIPLES.md" order="whitebox/workspace/PROJECT-DESIGN-PRINCIPLES-changeOrder.md" />
+  <Pair label="GLOSSARY" target="whitebox/workspace/GLOSSARY.md" order="whitebox/workspace/GLOSSARY-changeOrder.md" />
+  <Pair label="SOUL" target="whitebox/workspace/SOUL.md" order="whitebox/workspace/SOUL-changeOrder.md" />
+  <Pair label="IDENTITY" target="whitebox/workspace/IDENTITY.md" order="whitebox/workspace/IDENTITY-changeOrder.md" />
+</ChangeOrders>

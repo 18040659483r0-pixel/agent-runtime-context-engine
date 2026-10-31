@@ -119,6 +119,13 @@ public enum TuiKey
     PasteDisplay,
     ResumePrefix,
     StoppedSuffix,
+
+    // —— 首访欢迎（机制导览；2026-10-31 与 winx64 对齐）——
+    WelcomeHello,
+    WelcomeStock,
+    WelcomeFlow,
+    WelcomeCloseout,
+    WelcomeTry,
 }
 
 /// <summary>
@@ -198,7 +205,7 @@ public static class TuiStrings
         [TuiKey.StateReady] = ("ready", "就绪", "準備完了"),
         [TuiKey.StateRunning] = ("running", "运行中", "実行中"),
         [TuiKey.StateExecuting] = ("executing", "执行中", "コマンド実行中"),
-        [TuiKey.TabHint] = ("Tab: modules · Ctrl+C twice: quit", "Tab 切模块区 · Ctrl+C 两下退出", "Tab: モジュール · Ctrl+C 2回で終了"),
+        [TuiKey.TabHint] = ("Tab: modules · Esc: pause · Esc twice: quit", "Tab 切模块区 · Esc 暂停 · Esc 两下退出", "Tab: モジュール · Esc: 一時停止 · Esc 2回で終了"),
         [TuiKey.Thinking] = ("model thinking… {0}", "远端模型正在思考… {0}", "モデルが考えています… {0}"),
         [TuiKey.Think] = ("think {0}", "think {0}", "think {0}"),
         [TuiKey.Intent] = ("intent: ", "意图：", "意図："),
@@ -226,8 +233,8 @@ public static class TuiStrings
         [TuiKey.ErrorPrefix] = ("[error] ", "[错误] ", "[エラー] "),
         [TuiKey.StartupNoKey] = ("startup failed: missing API key", "启动失败：缺少 API Key", "起動失敗：API キーがありません"),
         [TuiKey.Prompt] = ("agent-runtime > ", "agent-runtime > ", "agent-runtime > "),
-        [TuiKey.SubmitHint] = ("[session] Enter submits · Ctrl+J/Alt+Enter newline · Ctrl+C twice quits · Ctrl+L redraw", "[会话] Enter 提交 · Ctrl+J/Alt+Enter 换行 · Ctrl+C 两下退出 · Ctrl+L 重画", "[セッション] Enter 送信 · Ctrl+J/Alt+Enter 改行 · Ctrl+C 2回で終了 · Ctrl+L 再描画"),
-        [TuiKey.InterruptAgain] = ("[interrupt] press Ctrl+C again to quit (or Ctrl+D).", "[中断] 再按一次 Ctrl+C 退出（Ctrl+D 也可以）。", "[中断] もう一度 Ctrl+C で終了（Ctrl+D も可）。"),
+        [TuiKey.SubmitHint] = ("[session] Enter submits · Ctrl+J/Alt+Enter newline · Esc: pause · Esc twice: quit · Ctrl+L redraw", "[会话] Enter 提交 · Ctrl+J/Alt+Enter 换行 · Esc 暂停 · Esc 两下退出 · Ctrl+L 重画", "[セッション] Enter 送信 · Ctrl+J/Alt+Enter 改行 · Esc: 一時停止 · Esc 2回で終了 · Ctrl+L 再描画"),
+        [TuiKey.InterruptAgain] = ("[interrupt] press Esc twice to quit (or Ctrl+D).", "[中断] 按两次 Esc 退出（Ctrl+D 也可以）。", "[中断] Esc を 2 回で終了（Ctrl+D も可）。"),
         [TuiKey.TurnCancelledContinue] = (
             "[interrupt] current turn cancelled; say \"continue\" to resume.",
             "[中断] 当前轮已取消；说「继续」可接上。",
@@ -273,5 +280,25 @@ public static class TuiStrings
         [TuiKey.PasteDisplay] = ("[paste {0} lines / {1} chars]", "[粘贴 {0} 行 / {1} 字符]", "[貼付 {0} 行 / {1} 文字]"),
         [TuiKey.ResumePrefix] = ("[resume] ", "[续] ", "[継続] "),
         [TuiKey.StoppedSuffix] = (" (stopped)", "（已停）", "（停止）"),
+        [TuiKey.WelcomeHello] = (
+            "Hi — first time here. Take ten seconds to see how this works; it explains why it gets to know you the longer you use it.",
+            "嗨，这是你第一次用我。先花十秒认识一下「怎么玩」，你会明白它为什么越用越懂你。",
+            "はじめまして。10 秒だけ使い方を見てください。使うほどあなたを理解する理由が分かります。"),
+        [TuiKey.WelcomeStock] = (
+            "What I keep for you: the KNOWLEDGE library (stable knowledge fed to me), the DECISION library + entries (every key choice recorded, so we do not relitigate), and the PITFALLS collection (what bit us, so we avoid it next time). Every turn adds to these — that is why it gets smarter.",
+            "我会替你攒四样：知识库（喂给我的稳定知识）、决策库 + 决策条目（每次关键选择沉淀下来，以后照着走、不反复）、踩坑集（踩过的坑记下来，下次直接避雷）。你每轮跟我干活都会攒下这些 —— 这就是它越用越聪明的原因。",
+            "私が貯めるもの：知識ライブラリ（安定した知識）、意思決定ライブラリ＋項目（重要な選択を記録し、蒸し返さない）、落とし穴集（踏んだ穴を記録し、次は避ける）。毎ターン蓄積され、使うほど賢くなります。"),
+        [TuiKey.WelcomeFlow] = (
+            "Normal flow: (1) you say what you want, (2) I first give a decision report (how to split it, why), (3) choices and pitfalls get recorded as we go, (4) at a natural pause we close out: knowledge, decisions, pitfalls and memory are consolidated and a watermark is written so the next round starts clean.",
+            "一般流程：①你说想做什么 → ②我先给一份决策报告（怎么拆、为什么）→ ③推进时定的关键选择和踩的坑，会记进决策库/踩坑集 → ④告一段落我带你收尾：把这一轮的知识、决策、坑、记忆固化归档、写收尾水位，让下一轮干净接续。",
+            "通常の流れ：(1) やりたいことを言う (2) まず意思決定レポート（分け方と理由） (3) 選択と落とし穴を随時記録 (4) 区切りで収尾：知識・意思決定・落とし穴・記憶を固めて水位を書き、次の回をきれいに始める。"),
+        [TuiKey.WelcomeCloseout] = (
+            "Why closeout matters: without it the context and memory keep piling up and drift, and tokens balloon. Closeout turns what we DID into what we KEEP — it is archiving, not rushing you out.",
+            "为什么必须收尾：不收尾，上下文和记忆会一直堆、变乱，token 也膨胀。收尾 = 把「做过的」提炼成「攒下的」，系统才稳、才真积累。它是在替你归档，不是赶你走。",
+            "収尾が要る理由：しないと文脈と記憶が積み上がって乱れ、token も膨らむ。収尾は「やったこと」を「貯まったもの」に変える作業で、追い出しではありません。"),
+        [TuiKey.WelcomeTry] = (
+            "Try it once for real: name a small recurring annoyance. I will record it as a pitfall or a decision entry so you can watch the accumulation happen.",
+            "来，试一次真的：随口说一件常遇到的小麻烦，我会把它演示记成一条踩坑集/决策条目，让你亲眼看到「攒」是怎么工作的。",
+            "一度試してみましょう：よくある小さな困りごとを言ってください。落とし穴／意思決定の項目として記録し、蓄積を実際に見せます。"),
     };
 }

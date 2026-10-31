@@ -194,9 +194,20 @@ internal static class L4Gap
                 continue;
             }
 
-            var blocks = take.Select(i => ToNode(source, i));
-            var path = Path.Combine(RepoParent, source.Target);
-            AppendBlocks(Path.IsPathRooted(source.Target) ? source.Target : path, blocks);
+            var targetPath = Path.IsPathRooted(source.Target) ? source.Target : Path.Combine(RepoParent, source.Target);
+            var blocks = new List<string>();
+            if (source.AnchoredByFile)
+            {
+                foreach (var item in take) blocks.Add(ToNode(source, item));
+            }
+            else
+            {
+                // 决策：编号接着库里已有的 L4 往下排（同一份库被多个源写，取一次最大值后递增）。
+                var seq = NextDecisionSeq(targetPath);
+                foreach (var item in take) blocks.Add(ToNode(source, item, seq++));
+            }
+
+            AppendBlocks(targetPath, blocks);
             marks[key] = take.Max(i => i.Key);
             budget -= take.Count;
             written += take.Count;
@@ -204,6 +215,17 @@ internal static class L4Gap
 
         if (!dryRun)
         {
+            // **每个源都有自己的水位线**（哪怕还是 0）：一眼能看出这条源被扫过、没抄过，
+            // 也避免「源存在但账本里没有它」时看不出差异（2026-10-31 主人令）。
+            foreach (var source in Sources())
+            {
+                var k = KeyOf(source);
+                if (!marks.ContainsKey(k))
+                {
+                    marks[k] = 0;
+                }
+            }
+
             SaveWatermarks(marks);
         }
 
@@ -230,6 +252,9 @@ internal static class L4Gap
     }
 
     // ================================================================ 内部
+
+    /// <summary>列表式坑集：`## 分类` 下的 `1. **标题**`（PhotoSelect / DiskSpaceSaver 的写法）。</summary>
+    private const string PitfallListPattern = @"^\s*(\d+)\.\s+\*\*(?<title>.+?)\*\*";
 
     private static List<Item> Items(Source source)
     {
@@ -264,7 +289,49 @@ internal static class L4Gap
                 body.Append(lines[j]).Append('\n');
             }
 
-            items.Add(new Item(id, KeyOf(id), title.TrimStart('*', ' ', '-'), body.ToString().Trim()));
+            var cleanTitle = title.TrimStart('*', ' ', '-');
+            if (!source.AnchoredByFile)
+            {
+                // 决策条目：标题取 `]` 之后的正文（形如 `- **[D-0010] 2026-10-23 上午**`）。
+                var after = System.Text.RegularExpressions.Regex.Match(lines[i], @"^-\s*\*\*\[[^\]]+\]\s*(.*)$");
+                if (after.Success && after.Groups[1].Value.Trim().Length > 0)
+                {
+                    cleanTitle = after.Groups[1].Value.Trim().TrimEnd('*', ' ', '\t');
+                }
+            }
+
+            items.Add(new Item(id, KeyOf(id), cleanTitle, body.ToString().Trim()));
+        }
+
+        if (items.Count > 0 || !source.AnchoredByFile)
+        {
+            return items;
+        }
+
+        // **兜底**：整个文件没有 `## N.` 形态时，按编号列表逐条取（序号 = 文件内全局次序号，只追加就稳定）。
+        var listRx = new Regex(PitfallListPattern, RegexOptions.Multiline);
+        var ordinal = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var m = listRx.Match(lines[i]);
+            if (!m.Success)
+            {
+                continue;
+            }
+
+            ordinal++;
+            var body = new StringBuilder();
+            for (var j = i + 1; j < lines.Length && body.Length < 900; j++)
+            {
+                if (listRx.IsMatch(lines[j]) || lines[j].StartsWith("## ", StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                body.Append(lines[j]).Append('\n');
+            }
+
+            items.Add(new Item(ordinal.ToString(CultureInfo.InvariantCulture), ordinal, m.Groups["title"].Value.Trim(), body.ToString().Trim()));
         }
 
         return items;
@@ -292,6 +359,15 @@ internal static class L4Gap
         foreach (Match m in new Regex(source.AnchorPattern, RegexOptions.Multiline).Matches(text))
         {
             set.Add(m.Groups[1].Value.ToUpperInvariant());
+        }
+
+        if (!source.AnchoredByFile)
+        {
+            // 决策库的 L4 行可能暂时没有 `源 L3-…`（待挂），但 D 号一定在行里 ⇒ 以 D 号去重。
+            foreach (Match m in new Regex(@"D-\d{4}").Matches(text))
+            {
+                set.Add(m.Value.ToUpperInvariant());
+            }
         }
 
         return set;
@@ -340,18 +416,48 @@ internal static class L4Gap
         return id;
     }
 
-    private static string ToNode(Source source, Item item)
+    private static string ToNode(Source source, Item item, int decisionSeq = 0)
     {
         var rel = KeyOf(source);
 
-        // 坑集（带文件锚）：id 规范化 + 自检；决策类沿用旧形（决策库另有自己的树与校验）。
-        var id = source.AnchoredByFile ? L4IdOf(source, item) : "L4-dcs-" + item.Id;
+        if (!source.AnchoredByFile)
+        {
+            // **决策条目 → 决策库自己的形态**（2026-10-31 修）：
+            // 决策库的链闸门只认 `- **L4-####** …`（`L[1-4]-\d{4}`），旧实现写成 `<!--kn: L4-dcs-D-0010 -->`
+            // ⇒ 写进去也**不算 L4**，于是「项目决策永远长不出新 L4」。这里按库的形态逐字落一行，
+            // 父（源 L3-####）留给后续抽象/挂接（WB 的自动生长），没有父就是显式的「待挂」。
+            var verbatim = string.Join(' ', new[] { item.Title, item.Body }
+                .Where(static x => !string.IsNullOrWhiteSpace(x))
+                .Select(static x => x.Replace("\r", " ").Replace("\n", " ").Trim()));
+            return "- **L4-" + decisionSeq.ToString("0000", CultureInfo.InvariantCulture) + "** （待挂）· "
+                   + item.Id + "：「" + Clip(verbatim, 240) + "」";
+        }
 
+        var id = L4IdOf(source, item);
         var head = "<!--kn: " + id + " src=" + rel + "#" + item.Id + "-->";
 
         return head + "\n"
-               + "**" + (source.AnchoredByFile ? "坑" : "决策") + " " + item.Id + "**：" + Clip(item.Title, 160) + "\n\n"
+               + "**坑 " + item.Id + "**：" + Clip(item.Title, 160) + "\n\n"
                + Clip(item.Body, 700) + "\n";
+    }
+
+    private static int NextDecisionSeq(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return 1;
+        }
+
+        var max = 0;
+        foreach (Match m in Regex.Matches(File.ReadAllText(path), @"\*\*L4-(\d{4})\*\*"))
+        {
+            if (int.TryParse(m.Groups[1].Value, CultureInfo.InvariantCulture, out var n) && n > max)
+            {
+                max = n;
+            }
+        }
+
+        return max + 1;
     }
 
     private static void AppendBlocks(string path, IEnumerable<string> blocks)
@@ -361,8 +467,28 @@ internal static class L4Gap
 
         if (path.EndsWith("DECISION-LIBRARY.md", StringComparison.OrdinalIgnoreCase))
         {
-            var at = text.IndexOf("## 收敛状态", StringComparison.Ordinal);
-            text = at < 0 ? text + addition : text[..at] + addition + "\n" + text[at..];
+            // 插在**最后一条 L4 行**之后（保持 L4 小节形态）；没有 L4 才退回「收敛状态」之前 / 文件末尾。
+            var lastL4 = -1;
+            var at = 0;
+            foreach (var line in text.Split('\n'))
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(line, @"^-\s*\*\*L4-\d{4}\*\*"))
+                {
+                    lastL4 = at + line.Length;
+                }
+
+                at += line.Length + 1;
+            }
+
+            if (lastL4 >= 0)
+            {
+                text = text[..lastL4] + "\n" + string.Join("\n", blocks) + text[lastL4..];
+            }
+            else
+            {
+                var mark = text.IndexOf("## 收敛状态", StringComparison.Ordinal);
+                text = mark < 0 ? text + addition : text[..mark] + addition + "\n" + text[mark..];
+            }
         }
         else
         {
@@ -374,20 +500,10 @@ internal static class L4Gap
 
     private static double KeyOf(string id)
     {
-        var digits = new StringBuilder();
-        foreach (var ch in id)
-        {
-            if (char.IsAsciiDigit(ch) || (ch == '.' && digits.Length > 0))
-            {
-                digits.Append(ch);
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        return double.TryParse(digits.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
+        // **id 里可能带前缀**（决策号 `D-0010`）：旧实现遇到首字母就 break ⇒ 所有决策条目 key=0、
+        // 永远不大于水位 0 ⇒ 决策类源一条都搬不出去（2026-10-31 真机）。
+        var m = System.Text.RegularExpressions.Regex.Match(id, @"\d+(?:\.\d+)?");
+        return m.Success && double.TryParse(m.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0;
     }
 
     private static string Clip(string text, int max)

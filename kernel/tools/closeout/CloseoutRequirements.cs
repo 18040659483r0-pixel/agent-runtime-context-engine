@@ -106,14 +106,14 @@ internal sealed class DeclaredRequirement(RequirementDecl decl, ModuleClass cls,
 internal static class BuiltinChecks
 {
     public static readonly string[] Known =
-        ["closeout", "memory", "rules", "pitfalls", "knowledge", "frozen", "ledger", "bulletin", "handoff", "glossary", "docs", "archive", "decision"];
+        ["closeout", "memory", "headfiles", "rules", "pitfalls", "knowledge", "frozen", "ledger", "bulletin", "handoff", "glossary", "docs", "archive", "decision"];
 
     /// <summary>
     /// **可被声明改的判据 id**（C 批第一刀：只登记**真的会被兑现**的那些 ——
     /// 声明一条没被兑现的 id，等于给一个**假作用**，那比不写还坏）。
     /// </summary>
     public static readonly string[] KnownChecks =
-        ["closeout.declarations", "memory.szone", "memory.watermark", "pitfalls.placements"];
+        ["closeout.declarations", "memory.szone", "memory.watermark", "pitfalls.placements", "headfiles.orders"];
 
     public static IReadOnlyList<Func<IEnumerable<CloseoutCli.Res>>> Of(string id) => id switch
     {
@@ -126,6 +126,7 @@ internal static class BuiltinChecks
             () => [CloseoutCli.CheckPitfallPlacements()],
             () => [CloseoutCli.CheckRecurrence()],
         ],
+        "headfiles" => [() => [CloseoutCli.CheckHeadFileOrders()]],
         "knowledge" => [() => [CloseoutCli.RunGate("知识树")]],
         "decision" => [() => [CloseoutCli.CheckDecisionBooks()]],
         "frozen" => [() => [CloseoutCli.RunGate("冻结语料")]],
@@ -382,6 +383,7 @@ internal sealed class RequirementSet
     {
         "closeout" => new() { Id = id, Title = "收尾自身（声明自证）", Order = 5, Class = "core", Outside = "r", During = "rw" },
         "memory" => new() { Id = id, Title = "记忆系统（兜底）", Order = 10, Class = "core", Outside = "r", During = "r" },
+        "headfiles" => new() { Id = id, Title = "头部 MD（AGENTS/USER/… 改写请求单）", Order = 25, Class = "core", Outside = "r", During = "rw" },
         "rules" => new() { Id = id, Title = "铁则区（含 rules-changeOrder.md）", Order = 20, Class = "core", Outside = "r", During = "rw" },
         "pitfalls" => new() { Id = id, Title = "踩坑集", Order = 30, Class = "core", Outside = "rw", During = "rw" },
         "knowledge" => new() { Id = id, Title = "知识库", Order = 40, Class = "core", Outside = "r", During = "rw" },

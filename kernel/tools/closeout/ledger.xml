@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <CloseoutLedger xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
   <Schema>1</Schema>
-  <Fingerprint>ebf39461d9b941535cd1b055e1b74ab505ca4c6263cc6fb1dd07f262374cb24b</Fingerprint>
-  <LastCloseoutRev>292</LastCloseoutRev>
-  <LastCloseoutRevProject>292</LastCloseoutRevProject>
-  <MaxPitfallId>375</MaxPitfallId>
+  <Fingerprint>da1fb89b16b89ac0ad326a3c6a869ccbb324a4b25e32a5d6867aa8ce60776aa9</Fingerprint>
+  <LastCloseoutRev>360</LastCloseoutRev>
+  <LastCloseoutRevProject>360</LastCloseoutRevProject>
+  <MaxPitfallId>378</MaxPitfallId>
   <ParityFiles>0</ParityFiles>
-  <PitfallsIndex>384</PitfallsIndex>
-  <PitfallsSrc>384</PitfallsSrc>
-  <WaterLevelDate>2026-10-29</WaterLevelDate>
-  <ReportDebt>
-    <Debt>
-      <Name>坑集落点</Name>
-      <Why>block 红未清就收尾（主人 2026-10-17 令：只警告不阻断）：新坑未声明落点：#372, #373, #374</Why>
-    </Debt>
-  </ReportDebt>
+  <PitfallsIndex>387</PitfallsIndex>
+  <PitfallsSrc>387</PitfallsSrc>
+  <WaterLevelDate>2026-11-01</WaterLevelDate>
+  <ReportDebt />
 </CloseoutLedger>

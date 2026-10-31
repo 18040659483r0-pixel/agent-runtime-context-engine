@@ -321,7 +321,7 @@ public sealed class PanelRouter
             return [.. lines, $"[区栈] 已落盘：{path}（{lines.Count} 行，UTF-8 无 BOM）"];
         }
 
-        return ["[错误] 用法：/stack 或 /stack dump <file>"];
+        return [TuiStrings.T(TuiKey.ErrorPrefix) + "用法：/stack 或 /stack dump <file>"];
     }
 
     private IReadOnlyList<string> Resume(string[] args, TextWriter stderr)
@@ -719,5 +719,5 @@ public sealed class PanelRouter
 
     private static PanelOutcome Ok(IReadOnlyList<string> lines) => new(false, lines);
 
-    private static PanelOutcome Error(string message) => new(true, [$"[错误] {message}"]);
+    private static PanelOutcome Error(string message) => new(true, [TuiStrings.T(TuiKey.ErrorPrefix) + message]);
 }

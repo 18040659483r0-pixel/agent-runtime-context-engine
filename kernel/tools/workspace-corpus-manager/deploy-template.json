@@ -1,0 +1,7 @@
+﻿{
+  "name": "deployment-template",
+  "description": "Deployment corpus template for a new user (first-use friendly). Copy these into a fresh workspace.",
+  "include": ["AGENTS.md","BULLETIN.md","GLOSSARY.md","ONBOARDING.md","USER.md"],
+  "createDirs": ["knowledge","docs","memory","handoff"],
+  "excludeFromBackup": [".tui2.lock","state","deepseek apikey.txt"]
+}

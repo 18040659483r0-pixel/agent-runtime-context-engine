@@ -22,10 +22,16 @@ public static class ReplyLines
         string.IsNullOrEmpty(text) ? string.Empty : EventEcho.Replace(text, string.Empty, 1);
 
     /// <summary>`prefix` 那一段的正文（取**第一条**匹配行；前缀后可跟 `:` / `：` / `-` / 空格）。</summary>
-    public static string After(string text, string prefix)
+    public static string After(string text, string prefix) => AfterAny(text, [prefix]);
+
+    /// <summary>
+    /// 同 <see cref="After"/>，但接受**一组等价写法**（取最先出现的那一条）。
+    /// <para>为什么要它（2026-10-30 真机）：模型会把 `[PLAN]` 写成 `[计划]`，只认 ASCII 就整轮丢意图。</para>
+    /// </summary>
+    public static string AfterAny(string text, IReadOnlyList<string> prefixes)
     {
         text = StripEventEcho(text);
-        if (text.Length == 0)
+        if (text.Length == 0 || prefixes.Count == 0)
         {
             return string.Empty;
         }
@@ -33,9 +39,12 @@ public static class ReplyLines
         foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
         {
             var trimmed = line.TrimStart();
-            if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            foreach (var prefix in prefixes)
             {
-                return trimmed[prefix.Length..].TrimStart('：', ':', ' ', '-');
+                if (prefix.Length > 0 && trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return trimmed[prefix.Length..].TrimStart('：', ':', ' ', '-');
+                }
             }
         }
 

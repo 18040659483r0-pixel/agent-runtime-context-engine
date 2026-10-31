@@ -22,6 +22,7 @@
     <Project Path="tools/worker-mode-acceptance/Acceptance.csproj" />
     <Project Path="tools/ms-suite/MsSuite.csproj" />
     <Project Path="tools/wb-cli/WbCli.csproj" />
+    <Project Path="tools/workspace-corpus-manager/Wcm.csproj" />
     <Project Path="tools/experiments/knowledge-loop/VerifyLoop.csproj" />
     <Project Path="tools/knowledge-tree/KnowledgeTree.csproj" />
     <Project Path="tools/deploy/Deploy.csproj" />

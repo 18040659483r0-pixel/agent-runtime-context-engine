@@ -41,7 +41,7 @@ public static class Tui2Style
         //   路径改回金 #F6C453（主人 2026-10-25 20:3x：深褐不好看）；指令/工具仍走 Command（薄荷）。
         return table.WithOverrides(new Dictionary<StyleRole, (string TrueColor, string Color256, string Basic)>
         {
-            [StyleRole.Path] = ("38;2;246;196;83", "38;5;221", "93"),
+            [StyleRole.Path] = (AgentRuntime.Presentation.ColorProfile.TrueColor("#F0C987"), "38;5;221", "93"),
         });
     }
 
@@ -50,6 +50,25 @@ public static class Tui2Style
     /// 再走 <see cref="Annotator"/>（绝对/相对路径、URL、文件名 ⇒ Path 土黄色），
     /// 最后按行首语义补角色。**正文一个字节不改**，只加角色段。
     /// </summary>
+    /// <summary>
+    /// **错误行统一前缀**（2026-10-31 真机：屏上出现 `[错误] the path is empty.`）：
+    /// 先剥掉三种语言的旧前缀，再按**当前语言**补一次 —— 一处声明，宿主与测试共用。
+    /// </summary>
+    public static string ErrorLine(string line)
+    {
+        var text = (line ?? string.Empty).TrimStart();
+        foreach (var prefix in new[] { "[错误]", "[error]", "[エラー]" })
+        {
+            if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                text = text[prefix.Length..].TrimStart();
+                break;
+            }
+        }
+
+        return TuiStrings.T(TuiKey.ErrorPrefix) + text;
+    }
+
     public static RichText ToRich(string line)
     {
         if (string.IsNullOrEmpty(line)) return RichText.Empty;

@@ -168,7 +168,7 @@ public sealed class ProtocolZoneTests
         // 16 行 ⇒ 预算按先量后定为 **≤3,250**（v79 再补“不得复用坏路径名”）。
         // v86（2026-10-20）：新增第 20 条「收尾回执 + 两库生长硬闸门」⇒ 实测 15,714 字符 ⇒ 3,929 token、20 行。
         // v87（2026-10-20 23:5x）：新增第 21 条「每轮一行 [PLAN] 白话意图」。
-        Assert.Equal(5234, ProtocolText.EstimatedTokens);
+        Assert.Equal(5549, ProtocolText.EstimatedTokens);
         Assert.Equal(5600, ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.EstimatedTokens <= ProtocolText.DeclaredMaxTokens);
         Assert.True(ProtocolText.MaxTokens >= ProtocolText.DeclaredMaxTokens);
@@ -183,9 +183,9 @@ public sealed class ProtocolZoneTests
         // v20（2026-09-22 17:0x）：第 6 条补负向口径（没结束不发终局块；[NO-SOLUTION] 只表示已证此路不通），版本号升 "20"。
         // v21（2026-09-24 19:4x）：新增第 12 条**决策报告**（[REPORT] 块，块 ≤30 行，必交、缺失即「未提交」），版本号升 "21"。
         // v24（2026-09-25）：第 13 条【派发给 Worker】口径落地；v25（同日夜）：第 5 条队列口径 + 第 12 条报告轮，版本号升 "25"。v26（2026-09-27）：第 5 条工具面补 index{symbol}（协议正文与工具面同一份渲染），版本号升 "26"。v27（2026-09-27）：第 5 条工具面补 scope{task}（任务地址表入口），版本号升 "27"。v28（2026-09-29）：第 5 条工具面形状改**行式键值**（去 JSON —— 与运行时工具面 / worker worker 协议区同一口径），版本号升 "28"。v64（2026-10-14）：第 5 条 [TAIL]/[DRAFT] 回转**每轮刷新**（v62-B 作废）。v65：长正文纪律。v66：task closeout 当轮说。v67（2026-10-15）：第 5 条回转 v64 —— **[TAIL]/[DRAFT] 只在真变了时才写**（没变就一个块都不写），版本号升 "67"。
-        Assert.EndsWith("102", ProtocolText.Version, StringComparison.Ordinal);
+        Assert.EndsWith("104", ProtocolText.Version, StringComparison.Ordinal);
         // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v102（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.Matches(@"^v104（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
         Assert.Contains(ProtocolText.DraftPrefix, ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.DraftMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
         Assert.Contains($"<={ProtocolText.TailMaxLines} lines", ProtocolText.Text, StringComparison.Ordinal);
@@ -266,9 +266,9 @@ public sealed class ProtocolZoneTests
 
         // 协议文本的唯一声明处是代码常量：改代码才能改协议。
         Assert.False(string.IsNullOrWhiteSpace(ProtocolText.Text));
-        Assert.EndsWith("102", ProtocolText.Version, StringComparison.Ordinal);
+        Assert.EndsWith("104", ProtocolText.Version, StringComparison.Ordinal);
         // 2026-10-06 主人令：版本标记必须带**日期时间**（加载时一眼确认是不是最新）。
-        Assert.Matches(@"^v102（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
+        Assert.Matches(@"^v104（\d{4}-\d{2}-\d{2} \d{2}:\d{2}）$", ProtocolText.VersionStamp);
 
         // 知识树配置只允许「**路径**」：Repo = 地址表。
         // 不得出现行数 / 上限 / **协议开关**这些「用户改协议」的口子。
@@ -656,6 +656,8 @@ public sealed class ProtocolZoneTests
     /// <summary>版本 → 正文 sha256（**改正文必须登记**；见 <see cref="Gate_Protocol_VersionTracksTextBytes"/>）。</summary>
     private static readonly Dictionary<string, string> KnownTextFingerprints = new(StringComparer.Ordinal)
     {
+        ["104"] = "05fc1812af5890485fa7738a2c64ae9f004d8e54bf299d9f681508cfce86d8bc",
+        ["103"] = "9e237d2e2abf8c254fc919654b15bc2ab415b855b22f2787fde9b18705b86cf4",
         ["102"] = "b77c9cc992f87c7d705f2063ef99e5ba9e15e4c4cff0a7949e08dd8eccea130a",
         // v21 及更早的指纹没留（r958 之前的正文已不可追证）；从 v22 起逐版登记。
         ["22"] = "5eb891b39e0d7f5c3b60929c515fcb8d193266e74d90e742552ec57a1b916e3d",

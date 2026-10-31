@@ -11,7 +11,7 @@ public enum InputAction
     /// <summary>按了 Enter 且正文非空：正文已清空并展开，交给宿主跑一轮。</summary>
     Submit,
 
-    /// <summary>退出（Ctrl+D 或 2 秒内两下 Ctrl+C）。</summary>
+    /// <summary>退出（Ctrl+D，或 2 秒内两下 Esc）。</summary>
     Quit,
 
     /// <summary>鼠标滚轮向上（小步翻历史）。</summary>
@@ -36,11 +36,12 @@ public enum InputAction
 /// </summary>
 public sealed class InputController
 {
-    private const long DoubleCtrlCWindowMs = 2000;
+    /// <summary>两次 Esc 的间隔上限（超过就当成「又按了一次 Esc」）。</summary>
+    public const long DoubleEscWindowMs = 2000;
 
     private readonly EditorBridge _bridge;
     private readonly PasteModel _paste;
-    private long _lastCtrlC = long.MinValue / 2;
+    private long _lastEsc = long.MinValue / 2;
 
     public InputController(EditorBridge bridge, PasteModel paste)
     {
@@ -48,7 +49,24 @@ public sealed class InputController
         _paste = paste ?? throw new ArgumentNullException(nameof(paste));
     }
 
-    /// <summary>给会话区的一句提示（Ctrl+C 一下之类）。</summary>
+    /// <summary>
+    /// **Esc 手势**（2026-10-31 主人令）：一下 = 暂停远端 AI（取消当前轮），两下（2 秒内）= 退出。
+    /// <para>返回 true = 这是第二下 ⇒ 调用方执行退出；false = 只是第一下（已记时）。</para>
+    /// </summary>
+    public bool EscQuitGesture()
+    {
+        var now = Environment.TickCount64;
+        if (now - _lastEsc <= DoubleEscWindowMs)
+        {
+            _lastEsc = long.MinValue / 2;
+            return true;
+        }
+
+        _lastEsc = now;
+        return false;
+    }
+
+    /// <summary>给会话区的一句提示（Esc 提示之类）。</summary>
     public event Action<string>? Notice;
 
     /// <summary>编辑器里的原始文本（可能含粘贴 marker）。</summary>
@@ -129,9 +147,7 @@ public sealed class InputController
                 return InputAction.Quit;
 
             case InputKey.CtrlC:
-                var now = Environment.TickCount64;
-                if (now - _lastCtrlC <= DoubleCtrlCWindowMs) return InputAction.Quit;
-                _lastCtrlC = now;
+                // 2026-10-31 主人令：退出键改为 **Esc 两下** ⇒ Ctrl+C 不再退出（只提示一次，避免误以为没反应）。
                 Notice?.Invoke(TuiStrings.T(TuiKey.InterruptAgain));
                 return InputAction.None;
 
@@ -145,6 +161,9 @@ public sealed class InputController
                 return InputAction.None;
 
             case InputKey.Escape:
+                // 空闲时：一下 = 记时并提示，两下 = 退出（运行中的「暂停」在 App 的忙分支里处理）。
+                if (EscQuitGesture()) return InputAction.Quit;
+                Notice?.Invoke(TuiStrings.T(TuiKey.InterruptAgain));
                 return InputAction.None;
 
             default:

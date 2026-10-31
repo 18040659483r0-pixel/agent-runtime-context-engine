@@ -1,4 +1,5 @@
 using AgentRuntime.Presentation;
+using AgentRuntime.Tui2;
 using Xunit;
 
 namespace AgentRuntime.Tests;
@@ -86,6 +87,29 @@ public sealed class TuiStringsTests
             Assert.Equal("9 模块", TuiStrings.F(TuiKey.Modules, 9));
             TuiStrings.Language = TuiLanguage.Ja;
             Assert.Equal("9 モジュール", TuiStrings.F(TuiKey.Modules, 9));
+        }
+        finally
+        {
+            TuiStrings.Language = original;
+        }
+    }
+
+    [Fact]
+    public void 错误行前缀按当前语言归一()
+    {
+        // 真机（2026-10-31）：屏上出现 `[错误] the path is empty.` —— 中文前缀混在英文句子里。
+        var original = TuiStrings.Language;
+        try
+        {
+            TuiStrings.Language = TuiLanguage.En;
+            Assert.Equal("[error] the path is empty.", Tui2Style.ErrorLine("[错误] the path is empty."));
+            Assert.Equal("[error] the path is empty.", Tui2Style.ErrorLine("[error] the path is empty."));
+
+            TuiStrings.Language = TuiLanguage.Zh;
+            Assert.Equal("[错误] the path is empty.", Tui2Style.ErrorLine("[error] the path is empty."));
+
+            TuiStrings.Language = TuiLanguage.Ja;
+            Assert.Equal("[エラー] x", Tui2Style.ErrorLine("[错误] x"));
         }
         finally
         {

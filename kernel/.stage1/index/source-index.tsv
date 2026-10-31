@@ -236,7 +236,7 @@ T	src/AgentRuntime.Core/Lifecycle/ReportBasis.cs	16	class	AgentRuntime.Core.Life
 F	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	2984	b0d12b5c7af2	2
 T	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	10	enum	AgentRuntime.Core.Lifecycle.ReportForm
 T	src/AgentRuntime.Core/Lifecycle/TaskDecisionReport.cs	37	record	AgentRuntime.Core.Lifecycle.TaskDecisionReport
-F	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	12530	1b493228e973	2
+F	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	12538	c53bf5360620	2
 T	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	20	record	AgentRuntime.Core.Lifecycle.TaskLedgerRecord
 T	src/AgentRuntime.Core/Lifecycle/TaskLedger.cs	93	class	AgentRuntime.Core.Lifecycle.TaskLedgerProjection
 F	src/AgentRuntime.Core/Lifecycle/TaskLifecycle.cs	13966	d510f07310e8	5
@@ -272,9 +272,9 @@ F	src/AgentRuntime.Core/Protocol/ProseCut.cs	4560	b99c07875f85	1
 T	src/AgentRuntime.Core/Protocol/ProseCut.cs	14	class	AgentRuntime.Core.Protocol.ProseCut
 F	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	2073	e6fadee32e42	1
 T	src/AgentRuntime.Core/Protocol/ProtocolBudget.cs	14	class	AgentRuntime.Core.Protocol.ProtocolBudget
-F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	72137	afc208d72b69	1
+F	src/AgentRuntime.Core/Protocol/ProtocolText.cs	74170	5880aa37152c	1
 T	src/AgentRuntime.Core/Protocol/ProtocolText.cs	30	class	AgentRuntime.Core.Protocol.ProtocolText
-F	src/AgentRuntime.Core/Protocol/ReplyLines.cs	4028	07911d7328c5	1
+F	src/AgentRuntime.Core/Protocol/ReplyLines.cs	4548	87535f0d755c	1
 T	src/AgentRuntime.Core/Protocol/ReplyLines.cs	10	class	AgentRuntime.Core.Protocol.ReplyLines
 F	src/AgentRuntime.Core/Protocol/TerminalReport.cs	9404	ac28971f171a	2
 T	src/AgentRuntime.Core/Protocol/TerminalReport.cs	11	enum	AgentRuntime.Core.Protocol.TerminalState
@@ -670,7 +670,7 @@ T	src/AgentRuntime.Hosting/CloseoutChecklist.cs	29	record	AgentRuntime.Hosting.C
 T	src/AgentRuntime.Hosting/CloseoutChecklist.cs	62	class	AgentRuntime.Hosting.CloseoutChecklist
 F	src/AgentRuntime.Hosting/Commands/AblationService.cs	6200	454bf93ffbb2	1
 T	src/AgentRuntime.Hosting/Commands/AblationService.cs	23	class	AgentRuntime.Hosting.Commands.AblationService
-F	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	38375	4ef32d67ab6f	2
+F	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	38422	34842bb94538	2
 T	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	15	record	AgentRuntime.Hosting.Commands.PanelOutcome
 T	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	27	class	AgentRuntime.Hosting.Commands.PanelRouter
 F	src/AgentRuntime.Hosting/Diagnostics/CrashDump.cs	6175	05bf14c27ca4	1
@@ -795,6 +795,9 @@ F	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	2466	51dc6b3f3d0a	1
 T	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	22	class	AgentRuntime.Modules.Worker.WorkerProtocolModule
 F	src/AgentRuntime.Presentation/Annotator.cs	2823	138d8774eb61	1
 T	src/AgentRuntime.Presentation/Annotator.cs	15	class	AgentRuntime.Presentation.Annotator
+F	src/AgentRuntime.Presentation/ColorProfile.cs	3752	96fb9437df19	2
+T	src/AgentRuntime.Presentation/ColorProfile.cs	16	class	AgentRuntime.Presentation.ColorProfile
+T	src/AgentRuntime.Presentation/ColorProfile.cs	18	enum	AgentRuntime.Presentation.ColorSpace
 F	src/AgentRuntime.Presentation/Markup.cs	7295	20c2b21a7672	1
 T	src/AgentRuntime.Presentation/Markup.cs	19	class	AgentRuntime.Presentation.Markup
 F	src/AgentRuntime.Presentation/PresentationWriter.cs	2460	0deda6477575	1
@@ -806,7 +809,7 @@ T	src/AgentRuntime.Presentation/RichText.cs	6	record	AgentRuntime.Presentation.s
 T	src/AgentRuntime.Presentation/RichText.cs	18	class	AgentRuntime.Presentation.RichText
 F	src/AgentRuntime.Presentation/StyleRole.cs	2659	18a5cd6bb454	1
 T	src/AgentRuntime.Presentation/StyleRole.cs	13	enum	AgentRuntime.Presentation.StyleRole
-F	src/AgentRuntime.Presentation/StyleTable.cs	11974	c380a9fcbdc1	3
+F	src/AgentRuntime.Presentation/StyleTable.cs	12353	60d7ce42dbdf	3
 T	src/AgentRuntime.Presentation/StyleTable.cs	6	enum	AgentRuntime.Presentation.ColorMode
 T	src/AgentRuntime.Presentation/StyleTable.cs	19	enum	AgentRuntime.Presentation.ColorDepth
 T	src/AgentRuntime.Presentation/StyleTable.cs	47	class	AgentRuntime.Presentation.StyleTable
@@ -816,26 +819,26 @@ F	src/AgentRuntime.Presentation/TerminalText.cs	10655	aac31fa7147a	1
 T	src/AgentRuntime.Presentation/TerminalText.cs	16	class	AgentRuntime.Presentation.TerminalText
 F	src/AgentRuntime.Presentation/TextTable.cs	13273	8f6d4140a9c0	1
 T	src/AgentRuntime.Presentation/TextTable.cs	13	class	AgentRuntime.Presentation.TextTable
-F	src/AgentRuntime.Presentation/TuiStrings.cs	17349	47dbeb5fcbd7	3
+F	src/AgentRuntime.Presentation/TuiStrings.cs	21279	84ef10b3a8b4	3
 T	src/AgentRuntime.Presentation/TuiStrings.cs	4	enum	AgentRuntime.Presentation.TuiLanguage
 T	src/AgentRuntime.Presentation/TuiStrings.cs	20	enum	AgentRuntime.Presentation.TuiKey
-T	src/AgentRuntime.Presentation/TuiStrings.cs	129	class	AgentRuntime.Presentation.TuiStrings
+T	src/AgentRuntime.Presentation/TuiStrings.cs	136	class	AgentRuntime.Presentation.TuiStrings
 F	src/AgentRuntime.Providers/OpenAICompatibleClient.cs	14124	399a4286b7d6	1
 T	src/AgentRuntime.Providers/OpenAICompatibleClient.cs	20	class	AgentRuntime.Providers.OpenAICompatibleClient
 F	src/AgentRuntime.Providers/OpenAICompatibleOptions.cs	2949	19ca6a08f0f7	1
 T	src/AgentRuntime.Providers/OpenAICompatibleOptions.cs	6	class	AgentRuntime.Providers.OpenAICompatibleOptions
 F	src/AgentRuntime.Tui2/AnsiScreen.cs	5934	fcef9d903784	1
 T	src/AgentRuntime.Tui2/AnsiScreen.cs	22	class	AgentRuntime.Tui2.AnsiScreen
-F	src/AgentRuntime.Tui2/App.cs	34426	f89400d7a9dc	1
-T	src/AgentRuntime.Tui2/App.cs	31	class	AgentRuntime.Tui2.App
+F	src/AgentRuntime.Tui2/App.cs	37214	ab130b8d7a79	1
+T	src/AgentRuntime.Tui2/App.cs	32	class	AgentRuntime.Tui2.App
 F	src/AgentRuntime.Tui2/CellModel.cs	7450	0d68c5cdb0e1	1
 T	src/AgentRuntime.Tui2/CellModel.cs	20	class	AgentRuntime.Tui2.CellModel
 F	src/AgentRuntime.Tui2/EditorBridge.cs	6145	c17d70428fec	1
 T	src/AgentRuntime.Tui2/EditorBridge.cs	13	class	AgentRuntime.Tui2.EditorBridge
-F	src/AgentRuntime.Tui2/InputController.cs	5755	7f50736050bd	3
+F	src/AgentRuntime.Tui2/InputController.cs	6655	ad04cd1803ce	3
 T	src/AgentRuntime.Tui2/InputController.cs	6	enum	AgentRuntime.Tui2.InputAction
 T	src/AgentRuntime.Tui2/InputController.cs	37	class	AgentRuntime.Tui2.InputController
-T	src/AgentRuntime.Tui2/InputController.cs	162	class	AgentRuntime.Tui2.ScrollActions
+T	src/AgentRuntime.Tui2/InputController.cs	181	class	AgentRuntime.Tui2.ScrollActions
 F	src/AgentRuntime.Tui2/InputDriver.cs	22653	5497f86a79cb	11
 T	src/AgentRuntime.Tui2/InputDriver.cs	8	record	AgentRuntime.Tui2.InputEvent
 T	src/AgentRuntime.Tui2/InputDriver.cs	11	record	AgentRuntime.Tui2.TextEvent
@@ -878,15 +881,15 @@ F	src/AgentRuntime.Tui2/ThinkSnake.cs	2942	3d384572770d	1
 T	src/AgentRuntime.Tui2/ThinkSnake.cs	8	class	AgentRuntime.Tui2.ThinkSnake
 F	src/AgentRuntime.Tui2/TopBand.cs	15555	3a735edcfd07	1
 T	src/AgentRuntime.Tui2/TopBand.cs	25	class	AgentRuntime.Tui2.TopBandProvider
-F	src/AgentRuntime.Tui2/Tui2Options.cs	5935	1e2252af8ce6	1
+F	src/AgentRuntime.Tui2/Tui2Options.cs	6091	3c8df15f8958	1
 T	src/AgentRuntime.Tui2/Tui2Options.cs	4	class	AgentRuntime.Tui2.Tui2Options
-F	src/AgentRuntime.Tui2/Tui2Style.cs	9788	0b0a6f8183ac	1
+F	src/AgentRuntime.Tui2/Tui2Style.cs	10553	a1e328ee5576	1
 T	src/AgentRuntime.Tui2/Tui2Style.cs	12	class	AgentRuntime.Tui2.Tui2Style
 F	src/AgentRuntime.Tui2/TuiExitTrace.cs	1753	38a0f57e7886	1
 T	src/AgentRuntime.Tui2/TuiExitTrace.cs	11	class	AgentRuntime.Tui2.TuiExitTrace
 F	src/AgentRuntime.Tui2/TuiRenderer.cs	13574	9bdf612ac238	1
 T	src/AgentRuntime.Tui2/TuiRenderer.cs	13	class	AgentRuntime.Tui2.TuiRenderer
-F	src/AgentRuntime.Tui2/TurnCardView.cs	26046	3daba3052ad1	3
+F	src/AgentRuntime.Tui2/TurnCardView.cs	26784	4cf412cdefc8	3
 T	src/AgentRuntime.Tui2/TurnCardView.cs	26	class	AgentRuntime.Tui2.TurnCardView
 T	src/AgentRuntime.Tui2/TurnCardView.cs	30	record	AgentRuntime.Tui2.TurnBlock
 T	src/AgentRuntime.Tui2/TurnCardView.cs	230	record	AgentRuntime.Tui2.PlannedCall
@@ -1415,6 +1418,8 @@ E	Contains	src/AgentRuntime.Modules/ToolModule.cs	AgentRuntime.Modules.ToolModul
 E	Contains	src/AgentRuntime.Modules/Worker/WorkerDispatchModule.cs	AgentRuntime.Modules.Worker.WorkerDispatchModule
 E	Contains	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	AgentRuntime.Modules.Worker.WorkerProtocolModule
 E	Contains	src/AgentRuntime.Presentation/Annotator.cs	AgentRuntime.Presentation.Annotator
+E	Contains	src/AgentRuntime.Presentation/ColorProfile.cs	AgentRuntime.Presentation.ColorProfile
+E	Contains	src/AgentRuntime.Presentation/ColorProfile.cs	AgentRuntime.Presentation.ColorSpace
 E	Contains	src/AgentRuntime.Presentation/Markup.cs	AgentRuntime.Presentation.Markup
 E	Contains	src/AgentRuntime.Presentation/PresentationWriter.cs	AgentRuntime.Presentation.PresentationWriter
 E	Contains	src/AgentRuntime.Presentation/Presenter.cs	AgentRuntime.Presentation.Presenter
@@ -2579,6 +2584,8 @@ E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presen
 E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presentation.StyleRole
 E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presentation.StyleTable
 E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presentation.TextTable
+E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presentation.TuiKey
+E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Presentation.TuiStrings
 E	DependsOn	src/AgentRuntime.Hosting/Commands/PanelRouter.cs	AgentRuntime.Tui2.AnsiScreen
 E	DependsOn	src/AgentRuntime.Hosting/Diagnostics/CrashDump.cs	AgentRuntime.Core.Frozen.SessionPointerStore
 E	DependsOn	src/AgentRuntime.Hosting/Diagnostics/CrashDump.cs	AgentRuntime.Core.Stream.SessionStreamStore
@@ -3222,6 +3229,7 @@ E	DependsOn	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	AgentRuntime
 E	DependsOn	src/AgentRuntime.Modules/Worker/WorkerProtocolModule.cs	AgentRuntime.Modules.ProtocolModule
 E	DependsOn	src/AgentRuntime.Presentation/Annotator.cs	AgentRuntime.Presentation.RichText
 E	DependsOn	src/AgentRuntime.Presentation/Annotator.cs	AgentRuntime.Presentation.StyleRole
+E	DependsOn	src/AgentRuntime.Presentation/ColorProfile.cs	AgentRuntime.Core.Worker.Mode
 E	DependsOn	src/AgentRuntime.Presentation/Markup.cs	AgentRuntime.Core.Tooling.Role
 E	DependsOn	src/AgentRuntime.Presentation/Markup.cs	AgentRuntime.Presentation.RichText
 E	DependsOn	src/AgentRuntime.Presentation/Markup.cs	AgentRuntime.Presentation.StyleRole
@@ -3239,6 +3247,8 @@ E	DependsOn	src/AgentRuntime.Presentation/RichText.cs	AgentRuntime.Presentation.
 E	DependsOn	src/AgentRuntime.Presentation/RichText.cs	AgentRuntime.Presentation.TextTable
 E	DependsOn	src/AgentRuntime.Presentation/StyleRole.cs	AgentRuntime.Presentation.StyleTable
 E	DependsOn	src/AgentRuntime.Presentation/StyleTable.cs	AgentRuntime.Core.Tooling.Role
+E	DependsOn	src/AgentRuntime.Presentation/StyleTable.cs	AgentRuntime.Core.Worker.Entry
+E	DependsOn	src/AgentRuntime.Presentation/StyleTable.cs	AgentRuntime.Presentation.ColorProfile
 E	DependsOn	src/AgentRuntime.Presentation/StyleTable.cs	AgentRuntime.Presentation.RichText
 E	DependsOn	src/AgentRuntime.Presentation/StyleTable.cs	AgentRuntime.Presentation.StyleRole
 E	DependsOn	src/AgentRuntime.Presentation/TableReflow.cs	AgentRuntime.Hosting.Panels.LifecyclePresenter
@@ -3442,6 +3452,7 @@ E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Core.Tooling.Result
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.Annotator
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.ColorDepth
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.ColorMode
+E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.ColorProfile
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.Markup
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.RichText
 E	DependsOn	src/AgentRuntime.Tui2/Tui2Style.cs	AgentRuntime.Presentation.StyleRole

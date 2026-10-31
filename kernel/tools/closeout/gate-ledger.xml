@@ -1700,5 +1700,26 @@
       <Why>不合规的节点 id 被静默跳过 = 从来没写过（444 个 L4 只载入 428 个）。生成处规范化（L4Gap 写入前自检）+ 解析处 fail-closed（带行号报错）；本闸门钉住解析侧，正例保证规范形仍可解析。原文 docs/PITFALLS.md #375。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
+    <Decl>
+      <Id>376</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-wrb-001</Pointer>
+      <Why>用 edit 往知识库写「HTML 注释形状的节点标记 + 正文」，回执说替换成功、字符数也对，但标记行被写入通道当注释剥掉：正文在文件里、索引里 0 条。常驻 L1-wrb-001「写入必须回读」：判成功的唯一依据是回读落点，不是工具回执。做法固化为「节点标记一律走命令行写 + 写完 grep 计数」，无独立测试 ⇒ 记 resident。原文 docs/PITFALLS.md #376。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>377</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-evd-001</Pointer>
+      <Why>一次传 87 对 `--kn-link`，回执「已挂 86 条、零失败」，实际每个父只剩最后一个子（WriteNext 每次基于旧快照重写整行），真正生效的只有 13 条。常驻 L1-evd-001「证据优先」：说「完成」要给可复算的证据，不以自陈/回执为准。判据改为「--kn-plan 未挂父 = 0」。原文 docs/PITFALLS.md #377。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
+    <Decl>
+      <Id>378</Id>
+      <Kind>resident</Kind>
+      <Pointer>whitebox/workspace/knowledge/knowledge.md::L1-clm-001</Pointer>
+      <Why>同一个子 id 在 next= 里写两次，校验按出现次数计父数 ⇒ 报「有 2 个父（不是一棵树）」，而全库只有一个父。常驻 L1-clm-001「现象不冒称机制」：读数只能说「这一行出现了两次」，不能直接说「有两个父」。排查顺序固化为「先看是不是同一行重复，再找第二个父」。原文 docs/PITFALLS.md #378。</Why>
+      <GatePlanned i:nil="true" />
+    </Decl>
   </Declarations>
 </GateLedger>

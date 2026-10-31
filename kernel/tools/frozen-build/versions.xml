@@ -7,15 +7,15 @@
     </Version>
     <Version>
       <Key>knowledge.global</Key>
-      <Value>107</Value>
+      <Value>108</Value>
     </Version>
     <Version>
       <Key>decision.global</Key>
-      <Value>9</Value>
+      <Value>10</Value>
     </Version>
     <Version>
       <Key>memory.index</Key>
-      <Value>56</Value>
+      <Value>59</Value>
     </Version>
   </Versions>
   <Sources>
@@ -27,17 +27,17 @@
     <Source>
       <Key>knowledge.global</Key>
       <Tier>A</Tier>
-      <Sha256>1a70f18ffbf1b0825153dd7b32dd2b9d92e68ef56c236c46ff8342dae9413263</Sha256>
+      <Sha256>ef1ee44f31a06e0d5845c04fd70b7f9998b8c349ac1e7a6827fdab57f7560732</Sha256>
     </Source>
     <Source>
       <Key>decision.global</Key>
       <Tier>A</Tier>
-      <Sha256>ce618aaffb68d0fb94d9cd7613b5f71f35c8056f47cdcde16f20cb7e4f23ce77</Sha256>
+      <Sha256>15e55c4bddaa04ab96a372c16664dba45ccdf4ff17ce058187b8d8e8ed4727cc</Sha256>
     </Source>
     <Source>
       <Key>memory.index</Key>
       <Tier>A</Tier>
-      <Sha256>3ac0ae4b47c5ab7bc3093a3e910dfd951893cdfda1f1346f1be480c4828351c5</Sha256>
+      <Sha256>226cfcb66566127d03fe0500868988bc48d6db2bda5db0b7c916a206f1f6393f</Sha256>
     </Source>
   </Sources>
 </FrozenVersions>

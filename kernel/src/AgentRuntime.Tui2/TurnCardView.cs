@@ -319,11 +319,11 @@ public static class TurnCardView
     /// <summary>终局块正文（唯一实现在 <see cref="ReplyLines.Terminal"/>）。</summary>
     private static string TerminalResult(string text) => ReplyLines.Terminal(text);
 
-    /// <summary><c>[PLAN]</c> 一行的正文（v87；唯一实现在 <see cref="ReplyLines.After"/>）。</summary>
-    private static string PlanOf(string text) => ReplyLines.After(text, ProtocolText.PlanPrefix);
+    /// <summary><c>[PLAN]</c> 一行的正文（v87；**含等价写法** `[计划]` / `[計画]` —— 2026-10-30 真机：模型把标签一起翻译）。</summary>
+    private static string PlanOf(string text) => ReplyLines.AfterAny(text, ProtocolText.PlanAliases);
 
-    /// <summary><c>[RESULT]</c> 一行的正文（v88；唯一实现在 <see cref="ReplyLines.After"/>）。</summary>
-    private static string ResultOf(string text) => ReplyLines.After(text, ProtocolText.ResultPrefix);
+    /// <summary><c>[RESULT]</c> 一行的正文（v88；含 `[结果]` / `[結果]`）。</summary>
+    private static string ResultOf(string text) => ReplyLines.AfterAny(text, ProtocolText.ResultAliases);
 
     /// <summary>正文（先剥掉 <c>[PLAN]</c> / <c>[RESULT]</c> 两行，再按块头切；否则结果会被它们吃掉）。</summary>
     private static string ProseOf(string text)
@@ -336,17 +336,29 @@ public static class TurnCardView
             .Where(static l =>
             {
                 var t = l.TrimStart();
-                return !t.StartsWith(ProtocolText.PlanPrefix, StringComparison.OrdinalIgnoreCase)
-                       && !t.StartsWith(ProtocolText.ResultPrefix, StringComparison.OrdinalIgnoreCase);
+                return !StartsAny(t, ProtocolText.PlanAliases) && !StartsAny(t, ProtocolText.ResultAliases);
             }));
         return ProseCut.BeforeFirstBlock(cleaned);
+    }
+
+    private static bool StartsAny(string line, IReadOnlyList<string> prefixes)
+    {
+        foreach (var p in prefixes)
+        {
+            if (line.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>像「计划」的句子（rather than 结果陈述）。</summary>
     private static bool IsPlanLike(string text)
     {
         if (!IsSemantic(text)) return false;
-        return Regex.IsMatch(text, "^(我?先|接下来|现在|将要|准备|让我|我需要|需要|打算|计划|检查|确认|读取|查看|运行|修改|写入|定位|核对|搜索|检索|列出)");
+        // 中英日三语：模型现在默认用英文回复，只认中文关键词 ⇒ 英文「计划句」永远落到工具派生短语。
+        return Regex.IsMatch(text, "^(我?先|接下来|现在|将要|准备|让我|我需要|需要|打算|计划|检查|确认|读取|查看|运行|修改|写入|定位|核对|搜索|检索|列出)")
+               || Regex.IsMatch(text, @"^(i[' ]?ll|i will|let me|i need to|i'?m going to|i am going to|first|next|now|then|plan\b|check|confirm|read|look|run|edit|write|update|locate|verify|search|list)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+               || Regex.IsMatch(text, "^(まず|次に|今|確認|見て|調べ|実行|修正|書き込み|検索|一覧)");
     }
 
     private static bool IsSemantic(string text) =>

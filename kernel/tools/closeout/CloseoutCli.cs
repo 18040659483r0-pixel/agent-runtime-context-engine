@@ -418,6 +418,69 @@ public static class CloseoutCli
 
     private static readonly string[] PlacementKinds = ["gate", "resident", "human", "todo"];
 
+    /// <summary>
+    /// **头部 MD 改写请求单**（2026-10-31 主人令）：AGENTS / USER / PRINCIPLES / GLOSSARY / SOUL / IDENTITY
+    /// 平时只读 ⇒ 改动一律写进各自的 `*-changeOrder.md`（带水位线）；收尾才收敛进头部文件并抬水位。
+    /// <para>本闸门只判**结构**：登记表可读、两侧文件都在、请求单有水位线、**没有 [open] 时指纹必须对得上**
+    /// （有 [open] 时指纹本来就会变 —— 那正是「有待收敛」的信号）。</para>
+    /// </summary>
+    internal static Res CheckHeadFileOrders()
+    {
+        var registry = Path.Combine(Here, "closeout", "change-orders.xml");
+        if (!File.Exists(registry))
+        {
+            return R("头部改写请求单", "report", false, "缺登记表 tools/closeout/change-orders.xml",
+                ["登记表是唯一声明处：头部文件 ↔ 请求单 的对应关系只在这里写一次"], "改头部要能走收尾，而不是只读卡死");
+        }
+
+        var pairs = new List<(string Label, string Target, string Order)>();
+        try
+        {
+            foreach (var e in System.Xml.Linq.XDocument.Load(registry).Root!.Elements("Pair"))
+            {
+                pairs.Add((e.Attribute("label")?.Value ?? "?", e.Attribute("target")?.Value ?? "", e.Attribute("order")?.Value ?? ""));
+            }
+        }
+        catch (Exception ex)
+        {
+            return R("头部改写请求单", "report", false, $"登记表读不出：{ex.Message}", [], "坏账本先修账本");
+        }
+
+        var problems = new List<string>();
+        var pending = new List<string>();
+        foreach (var (label, targetRel, orderRel) in pairs)
+        {
+            var target = Path.Combine(Project, targetRel);
+            var order = Path.Combine(Project, orderRel);
+            if (!File.Exists(target)) { problems.Add($"{label}: 头部文件不存在（{targetRel}）"); continue; }
+            if (!File.Exists(order)) { problems.Add($"{label}: 请求单不存在（{orderRel}）"); continue; }
+
+            var text = File.ReadAllText(order);
+            var at = text.IndexOf("## 请求", StringComparison.Ordinal);
+            if (at < 0) { problems.Add($"{label}: 请求单缺 `## 请求` 段"); continue; }
+
+            var fp = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(text[at..])))[..12].ToLowerInvariant();
+            var declared = System.Text.RegularExpressions.Regex.Match(text, @"指纹\s*`([0-9a-f]{12})`");
+            if (!declared.Success) { problems.Add($"{label}: 请求单缺水印线指纹"); continue; }
+
+            var open = System.Text.RegularExpressions.Regex.Matches(text, @"^- \*\*\[open\]\*\*", System.Text.RegularExpressions.RegexOptions.Multiline).Count;
+            if (open > 0) pending.Add($"{label} {open}");
+            else if (!string.Equals(declared.Groups[1].Value, fp, StringComparison.Ordinal))
+            {
+                problems.Add($"{label}: 无 [open] 但水位线指纹不符（{declared.Groups[1].Value} ≠ {fp}）—— 收敛后没抬水位");
+            }
+        }
+
+        var ok = problems.Count == 0;
+        return R("头部改写请求单", "report", ok,
+            ok
+                ? $"{pairs.Count} 份请求单 · 未收敛 {(pending.Count == 0 ? "0 条" : string.Join(" / ", pending) + " 条")} · 水位线一致"
+                : string.Join("；", problems),
+            ok ? null : ["头部文件平时只读：改请求单，收尾收敛；收敛后必须重算水位线指纹"],
+            "头部 MD 的改动也要能通过收尾落地（x64 端同样可改）");
+    }
+
     internal static Res CheckPitfallPlacements()
     {
         var sev = SevOf("pitfalls.placements", "block");

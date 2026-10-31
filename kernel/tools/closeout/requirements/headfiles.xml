@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 要件模块：头部 MD 改写请求单（2026-10-31 主人令）
+     AGENTS / USER / PROJECT-DESIGN-PRINCIPLES / GLOSSARY / SOUL / IDENTITY 平时只读；
+     改动写进各自的 *-changeOrder.md（带水位线），收尾才收敛进头部文件并抬水位。 -->
+<Requirement>
+  <Id>headfiles</Id>
+  <Title>头部 MD（改写请求单）</Title>
+  <Order>25</Order>
+  <Class>core</Class>
+  <Outside>r</Outside>
+  <During>rw</During>
+  <Enabled>true</Enabled>
+  <Artifacts>
+    <Artifact><Role>decl</Role><Path>tools/closeout/change-orders.xml</Path><Must>true</Must></Artifact>
+  </Artifacts>
+</Requirement>

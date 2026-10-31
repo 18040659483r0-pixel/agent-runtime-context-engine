@@ -117,7 +117,8 @@ public sealed class Tui2Options
         Console.Out.WriteLine("  AgentRuntime.Tui2 --autotest 20 --evidence /tmp/e.json   # 真机自动验收");
         Console.Out.WriteLine("  AgentRuntime.Tui2 --input-test --dump-editor /tmp/d.json --ready-file /tmp/r.json --timeout 60 [--card-demo]");
         Console.Out.WriteLine();
-        Console.Out.WriteLine("键位：Enter=提交 · Ctrl+J 或 Alt+Enter=换行 · Tab=显示/关闭顶部模块区 · Ctrl+C=中断/两下退出 · Ctrl+D=退出 · Ctrl+L=重画");
+        Console.Out.WriteLine("键位：Enter=提交 · Ctrl+J 或 Alt+Enter=换行 · Tab=显示/关闭顶部模块区 · Esc=暂停 · Esc 两下=退出 · Ctrl+D=退出 · Ctrl+L=重画");
+        Console.Out.WriteLine("环境：WB_TUI_LANG=en|zh|ja（界面语言）· WB_TUI_COLORSPACE=srgb|display-p3（广色域显示器预补偿）");
         Console.Out.WriteLine("斜杠命令：/help 查看全部（/reset、/start、/stack、/tail、/draft、/focus、/trace、/result、/modules、/quit …）");
         Console.Out.WriteLine("粘贴：大段正文收成一个原子块（退格一次整段删，提交时逐字节展开）。");
     }

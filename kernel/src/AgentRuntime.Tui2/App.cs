@@ -1,4 +1,5 @@
 using AgentRuntime.Presentation;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Xml.Linq;
@@ -56,6 +57,21 @@ public static class App
             host = RuntimeHost.Boot(config, overrides, apiKey);
             var budget = new ContinuationBudget();
             var conversation = new List<string>();
+
+            // **首访欢迎（机制导览）**（2026-10-31 与 winx64 对齐）：只出现一次，说清「攒什么 / 怎么走 / 为什么收尾」。
+            if (ShowWelcomeOnce())
+            {
+                conversation.Add(TuiStrings.T(TuiKey.WelcomeHello));
+                conversation.Add(string.Empty);
+                conversation.Add(TuiStrings.T(TuiKey.WelcomeStock));
+                conversation.Add(string.Empty);
+                conversation.Add(TuiStrings.T(TuiKey.WelcomeFlow));
+                conversation.Add(string.Empty);
+                conversation.Add(TuiStrings.T(TuiKey.WelcomeCloseout));
+                conversation.Add(string.Empty);
+                conversation.Add(TuiStrings.T(TuiKey.WelcomeTry));
+                conversation.Add(string.Empty);
+            }
             conversation.Add(TuiStrings.F(TuiKey.SessionConfig, configPath));
             conversation.Add(TuiStrings.T(TuiKey.SubmitHint));
 
@@ -151,7 +167,7 @@ public static class App
                 if (conversation.Count > 0 && conversation[^1].Length > 0) conversation.Add(string.Empty);
                 if (outcome.IsError)
                 {
-                    conversation.AddRange(outcome.Lines.Select(line => line.StartsWith("[错误]") ? line : TuiStrings.T(TuiKey.ErrorPrefix) + line));
+                    conversation.AddRange(outcome.Lines.Select(Tui2Style.ErrorLine));
                 }
                 else
                 {
@@ -186,10 +202,16 @@ public static class App
             string? taskSummary = null;
             var running = true;
             var deferred = new Queue<InputEvent>();
+            // **后台线程只排队，不动 UI 状态**（2026-10-30 主人报「思考中打字 ⇒ 交叉刷新崩溃」）：
+            // 回合跑在 Task 上，而 conversation / usages / ledger 都是普通 List —— 渲染线程枚举时
+            // 后台 Add 一条就会抛「集合已修改」→ 未捕获 → 整个 TUI 退出。
+            var uiQueue = new ConcurrentQueue<Action>();
             string? runningMessage = null;
 
             while (running)
             {
+                // 单写者：凡后台线程要改屏上状态（会话行、用量账本），都排到这里由主线程执行。
+                while (uiQueue.TryDequeue(out var uiAction)) uiAction();
                 if (commandPending is not null && commandPending.IsCompleted)
                 {
                     busy = false;
@@ -284,12 +306,21 @@ public static class App
                     // 跑轮次时**不丢键**：普通输入先收进延迟队列；Tab 属于“随时可看”的显示动作，
                     // 必须立刻处理，否则决策卡运转中按 Tab 看不到顶部模块区。
                     ev = driver.Read(ThinkSnake.IntervalMs);
-                    if (ev is KeyEvent ctrl && ctrl.Key == InputKey.CtrlC)
+                    if (ev is KeyEvent hot && hot.Key is InputKey.Escape or InputKey.CtrlC)
                     {
-                        // 运行中 Ctrl+C = 取消当前轮（不再排队等结束后误退出）。
-                        if (turnCts is { IsCancellationRequested: false })
+                        // 2026-10-31 主人令：**Esc 一下 = 暂停远端 AI；Esc 两下 = 退出**；Ctrl+C 只暂停不退出。
+                        if (hot.Key == InputKey.Escape && selectionCtl.Selection.Active)
                         {
-                            // 先落“人叫停”的流事实（下一句“继续”要靠它接上），再取消当前轮。
+                            selectionCtl.Clear();          // 有选区时 Esc 仍先取消选区（与编辑器一致，不误退）
+                        }
+                        else if (hot.Key == InputKey.Escape && controller.EscQuitGesture())
+                        {
+                            exitReason = "用户退出（Esc 两下）";
+                            running = false;
+                        }
+                        else if (turnCts is { IsCancellationRequested: false })
+                        {
+                            // 暂停 = 取消当前轮（下一句「继续」能接上）：先落“人叫停”的流事实，再取消。
                             if (pending is not null)
                             {
                                 try { host.NoteTurnInterrupted(runningMessage); } catch { /* 留痕失败不挡取消 */ }
@@ -298,11 +329,6 @@ public static class App
                             clock.Stop();
                             turnCts.Cancel();
                             conversation.Add(TuiStrings.T(TuiKey.TurnCancelledContinue));
-                        }
-                        else
-                        {
-                            exitReason = "用户退出（运行中 Ctrl+C 两下）";
-                            running = false;
                         }
                     }
                     else
@@ -382,7 +408,7 @@ public static class App
                                 clock.BeginLifecycle();
                                 turnCts?.Dispose();
                                 turnCts = new CancellationTokenSource();
-                                pending = RunTurnAsync(host, message, budget, conversation, options.Verbose, usages, ledger, sent, turnCts.Token);
+                                pending = RunTurnAsync(host, message, budget, conversation, options.Verbose, usages, ledger, sent, uiQueue, turnCts.Token);
                                 busy = true;
                             }
                         }
@@ -414,7 +440,7 @@ public static class App
                         }
                         else if (action == InputAction.Quit)
                         {
-                            exitReason = "用户退出（Ctrl+D 或两下 Ctrl+C）";
+                            exitReason = "用户退出（Ctrl+D 或 Esc 两下）";
                             running = false;
                         }
                     }
@@ -609,6 +635,28 @@ public static class App
         }
     }
 
+    /// <summary>
+    /// **首访判定**：`~/.agentruntime/.welcome-shown` 不存在 ⇒ 显示一次并落标记；
+    /// `WB_TUI_NO_WELCOME=1` 可跳过。标记写不进去 ⇒ 按「不是首访」处理（不刷屏）。
+    /// </summary>
+    private static bool ShowWelcomeOnce()
+    {
+        if (Environment.GetEnvironmentVariable("WB_TUI_NO_WELCOME") == "1") return false;
+        try
+        {
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".agentruntime");
+            Directory.CreateDirectory(dir);
+            var marker = Path.Combine(dir, ".welcome-shown");
+            if (File.Exists(marker)) return false;
+            File.WriteAllText(marker, DateTimeOffset.Now.ToString("O"));
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string Sha256(string text) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
 
@@ -621,6 +669,7 @@ public static class App
         List<LifecycleTurnUsage> usages,
         TurnLedger ledger,
         SentContext sent,
+        ConcurrentQueue<Action> ui,
         CancellationToken cancellationToken)
     {
         var cursor = host.StreamCount;
@@ -630,7 +679,7 @@ public static class App
         sent.Value = first;
         var outcome = await host.RunTurnAsync(
             message, verbose, cancellationToken: cancellationToken, preassembled: first.Request).ConfigureAwait(false);
-        AddUsage(usages, ledger, host.Turn, outcome);
+        ui.Enqueue(() => AddUsage(usages, ledger, host.Turn, outcome));
         // 每条链各自 30 分钟（不是整进程累计）：跨用户发言不清零 ⇒ 累计 30 分钟后每轮第 0 轮就判「预算用尽」。
         budget.Reset();
         await TurnContinuation.RunAsync(
@@ -644,8 +693,11 @@ public static class App
                 sent.Value = next;
                 return await host.ContinueTurnAsync(verbose, token, next.Request).ConfigureAwait(false);
             },
-            onOutcome: o => { AddUsage(usages, ledger, host.Turn, o); return ValueTask.CompletedTask; },
-            trace: line => { if (verbose) conversation.Add(TuiStrings.T(TuiKey.ResumePrefix) + line); },
+            onOutcome: o => { ui.Enqueue(() => AddUsage(usages, ledger, host.Turn, o)); return ValueTask.CompletedTask; },
+            trace: line => ui.Enqueue(() =>
+            {
+                if (verbose) conversation.Add(TuiStrings.T(TuiKey.ResumePrefix) + line);
+            }),
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return outcome;
     }

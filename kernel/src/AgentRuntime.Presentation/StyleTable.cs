@@ -66,19 +66,25 @@ public sealed class StyleTable
     /// </summary>
     private static readonly Dictionary<StyleRole, (string Hex, string TrueColor, string Color256, string Basic)> Palette = new()
     {
-        [StyleRole.Noun] = ("#F6C453", "38;2;246;196;83", "38;5;221", "93"),      // OC accent（金）
-        [StyleRole.Keyword] = ("#F6C453", "38;2;246;196;83", "38;5;221", "93"),   // 关键词（主人 2026-10-25 20:3x：改回金）
-        [StyleRole.Command] = ("#3FB950", "38;2;63;185;80", "38;5;71", "92"),     // 指令 / 工具调用（薄荷；TUI2 用）
-        [StyleRole.Path] = ("#F0C987", "38;2;240;201;135", "38;5;222", "93"),     // OC code（浅金）
-        [StyleRole.Attention] = ("#8CC8FF", "38;2;140;200;255", "38;5;117", "94"), // OC quote（柔蓝）
-        [StyleRole.Done] = ("#7DD3A5", "38;2;125;211;165", "38;5;115", "92"),     // OC success（薄荷绿）
-        [StyleRole.Todo] = ("#F2A65A", "38;2;242;166;90", "38;5;215", "96"),      // OC accentSoft（琥珀）
-        [StyleRole.Warn] = ("#F97066", "38;2;249;112;102", "38;5;203", "91"),     // OC error（珊瑚红）
-        [StyleRole.Dim] = ("#7B7F87", "38;2;123;127;135", "38;5;102", "90"),      // OC dim（中性灰）
-        [StyleRole.Hint] = ("#3E96B4", "38;2;62;150;180", "38;5;74", "94"),        // 海蓝（提示条；主人 2026-09-22 定）
-        [StyleRole.Strong] = ("—", "1", "1", "1"),                                // 加粗（无色）
-        [StyleRole.You] = ("—", "3", "3", "3"),                                   // 斜体（无色；用户问的那一行，主人 2026-09-22 定）
+        // **真彩码由 Hex 现算**（2026-10-31）：`WB_TUI_COLORSPACE=display-p3` 时先做 sRGB→P3 预补偿，
+        // 否则广色域显示器上红/蓝过饱和、黄色偏淡。`38;2;…` 不再手抄（§十·58 一处声明）。
+        [StyleRole.Noun] = Entry("#F6C453", "38;5;221", "93"),      // OC accent（金）
+        [StyleRole.Keyword] = Entry("#F6C453", "38;5;221", "93"),   // 关键词（主人 2026-10-25 20:3x：改回金）
+        [StyleRole.Command] = Entry("#3FB950", "38;5;71", "92"),    // 指令 / 工具调用（薄荷；TUI2 用）
+        [StyleRole.Path] = Entry("#F0C987", "38;5;222", "93"),      // OC code（浅金）
+        [StyleRole.Attention] = Entry("#8CC8FF", "38;5;117", "94"), // OC quote（柔蓝）
+        [StyleRole.Done] = Entry("#7DD3A5", "38;5;115", "92"),      // OC success（薄荷绿）
+        [StyleRole.Todo] = Entry("#F2A65A", "38;5;215", "96"),      // OC accentSoft（琥珀）
+        [StyleRole.Warn] = Entry("#F97066", "38;5;203", "91"),      // OC error（珊瑚红）
+        [StyleRole.Dim] = Entry("#7B7F87", "38;5;102", "90"),       // OC dim（中性灰）
+        [StyleRole.Hint] = Entry("#3E96B4", "38;5;74", "94"),       // 海蓝（提示条；主人 2026-09-22 定）
+        [StyleRole.Strong] = ("—", "1", "1", "1"),                  // 加粗（无色）
+        [StyleRole.You] = ("—", "3", "3", "3"),                     // 斜体（无色；用户问的那一行，主人 2026-09-22 定）
     };
+
+    /// <summary>一行调色：`Hex` 是唯一真值，真彩码按当前色彩空间现算。</summary>
+    private static (string Hex, string TrueColor, string Color256, string Basic) Entry(string hex, string color256, string basic) =>
+        (hex, ColorProfile.TrueColor(hex), color256, basic);
 
     /// <summary>按角色的**局部覆盖**（同一份调色表上只改几个角色；null = 用全局 <see cref="Palette"/>）。</summary>
     private readonly IReadOnlyDictionary<StyleRole, (string TrueColor, string Color256, string Basic)>? _overrides;

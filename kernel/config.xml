@@ -28,7 +28,7 @@
   <!-- 窗口是模型事实；此值待主人确认（2026-10-17 [OC] 按 128K 假设置入，仅为让 80% 判据有分母） -->
   <ContextWindow>128000</ContextWindow>
   <Frozen>
-    <Root>frozen-private</Root>
+    <Root>frozen</Root>
     <Domains />
     <Project />
   </Frozen>

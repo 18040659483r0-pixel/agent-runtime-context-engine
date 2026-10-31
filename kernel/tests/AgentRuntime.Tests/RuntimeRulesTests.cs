@@ -25,6 +25,7 @@ public sealed class RuntimeRulesTests
         ["src/AgentRuntime.Core/Tooling/ToolArgs.cs"] = "旧形状容错层：把模型偶发的旧 JSON 形状工具参数转成行式并给精确报错（撤它 = 丢容错，不是净化）",
         ["src/AgentRuntime.Core/Tooling/ToolSyntaxNormalizer.cs"] = "同上：JSON→行式的容错转换（模型偶发旧形状）",
         ["src/AgentRuntime.Core/Tooling/Network/HttpSearchBackend.cs"] = "对外线：搜索后端（brave/tavily/custom）返回的就是第三方 JSON API，只解析、不自造格式",
+        ["tools/workspace-corpus-manager/Program.cs"] = "跨端契约：与 winx64 共用 deploy-template.json（001 定义的互操作规则文件，本工具只读、不自造格式）",
     };
 
     /// <summary>
@@ -115,10 +116,14 @@ public sealed class RuntimeRulesTests
         string[] skip = ["/.svn/", "/bin/", "/obj/", "/.stage1/", "/benchmark/runs/", "/dist/", "/_retired/", "/benchmark/swebench-lite/predictions/", "/benchmark/swebench-lite/results/"];
         var root = RepoRoot();
 
+        // 具名豁免：跨端契约文件（Windows 侧同名同内容；改它是两端一起改，不是我们自造格式）。
+        string[] allow = ["tools/workspace-corpus-manager/deploy-template.json"];
+
         var offenders = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
             .Where(p => !skip.Any(s => p.Contains(s, StringComparison.Ordinal)))
             .Select(Rel)
+            .Where(p => !allow.Contains(p, StringComparer.Ordinal))
             .Where(IsSelfMadeJsonName)
             .OrderBy(p => p, StringComparer.Ordinal)
             .ToList();

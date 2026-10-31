@@ -109,8 +109,8 @@ public static class TaskLedgerProjection
                 }
 
                 turn++;
-                var intent = ReplyLines.After(entry.Text, ProtocolText.PlanPrefix);
-                var result = ReplyLines.After(entry.Text, ProtocolText.ResultPrefix);
+                var intent = ReplyLines.AfterAny(entry.Text, ProtocolText.PlanAliases);
+                var result = ReplyLines.AfterAny(entry.Text, ProtocolText.ResultAliases);
                 records.Add(new TaskLedgerRecord(
                     TaskId: life.Id,
                     Turn: turn,
