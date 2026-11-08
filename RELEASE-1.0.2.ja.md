@@ -2,7 +2,8 @@
 
 > English: [RELEASE-1.0.2.md](RELEASE-1.0.2.md) · 中文: [RELEASE-1.0.2.zh-CN.md](RELEASE-1.0.2.zh-CN.md)
 
-> ⬇️ **ソースとインストーラ**：英語リリースページ下部の **Assets** にあります（本ページは説明のみ）。
+> ⬇️ **ソースとインストーラ**：英語リリースページ下部の **Assets** → https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.2
+> （本ページは説明のみ。開けない場合は末尾の直リンクを使用）
 
 **1.x 系 3 番目のベータ。今度は Windows パッケージが本当に起動します。**
 
@@ -56,3 +57,13 @@ dotnet wcm.dll setup
 ## 1.0.1 からのアップグレード（Windows）
 
 1.0.1 の Windows 版は起動しません。1.0.2 をお使いください。新しい配置は `dotnet wcm.dll setup --target <dir>` で並べて作れます（既存ディレクトリは変更しません）。
+
+## 直接ダウンロード
+
+リリースページが開けない場合は、以下の直リンクを使用してください：
+
+- **macOS arm64**：[deploy-manager-1.0.2-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.2/deploy-manager-1.0.2-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.0.2-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.2/deploy-manager-1.0.2-winx64.tar.gz)
+- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.2/deploy-manager-1.0.2-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.2/deploy-manager-1.0.2-winx64.tar.gz.sha256)
+
+リリースページ（Assets は下部）：https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.2
