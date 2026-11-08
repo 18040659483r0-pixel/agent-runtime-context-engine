@@ -2,7 +2,7 @@
 
 > English: [RELEASE-1.0.1.md](RELEASE-1.0.1.md) · 日本語: [RELEASE-1.0.1.ja.md](RELEASE-1.0.1.ja.md)
 
-> ⬇️ **下载安装包**：下载列表在 **英文发布页底部** 的 **Assets**，不在本页 → [前往 Downloads / v1.0.1](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.1)
+> ⬇️ **源码与安装包下载**：都在 **英文发布页**（本页只是说明，没有下载列表）→ [前往发布页 / v1.0.1](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.1)
 
 **第二个 1.x beta。这次带上 Windows 包。**
 

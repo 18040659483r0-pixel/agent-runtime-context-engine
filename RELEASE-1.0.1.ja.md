@@ -2,7 +2,7 @@
 
 > English: [RELEASE-1.0.1.md](RELEASE-1.0.1.md) · 中文: [RELEASE-1.0.1.zh-CN.md](RELEASE-1.0.1.zh-CN.md)
 
-> ⬇️ **ダウンロード**：インストーラの一覧は**英語リリースページ下部の Assets** にあります（このページにはありません）→ [Downloads / v1.0.1](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.1)
+> ⬇️ **ソースとインストーラのダウンロード**：**英語のリリースページ**にあります（このページは説明のみ）→ [リリースページ / v1.0.1](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.1)
 
 **2 つ目の 1.x beta。今回は Windows パッケージ付き。**
 

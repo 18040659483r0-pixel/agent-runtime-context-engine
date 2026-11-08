@@ -2,7 +2,7 @@
 
 > 中文: [RELEASE-1.0.1.zh-CN.md](RELEASE-1.0.1.zh-CN.md) · 日本語: [RELEASE-1.0.1.ja.md](RELEASE-1.0.1.ja.md)
 
-> ⬇️ **Download**: the installer assets are listed under **Assets** at the bottom of this release page. (中文/日本語の説明ページには Assets は出ません。)
+> ⬇️ **Source & downloads**: use the release page — source archives and installers are listed under **Assets** at the bottom. (The 中文/日本語 pages are notes only.)
 
 **Second 1.x beta. Now with a Windows package.**
 
