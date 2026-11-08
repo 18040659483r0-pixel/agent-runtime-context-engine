@@ -1,12 +1,26 @@
-# Agent Runtime / WhiteBox · v9.0 (Alpha 0.1.5)
+# Agent Runtime / WhiteBox · 1.0.0-beta.1
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [ALPHA-0.1.5-RELEASE.md](ALPHA-0.1.5-RELEASE.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.0.0-beta.1.md](RELEASE-1.0.0-beta.1.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
 This is the comprehensive design and delivery report for the current implementation. It is not a diff against
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
+
+## Deployment (new in 1.0.0-beta.1)
+
+Download **deploy-manager-1.0.0-beta.1.tar.gz** from the release, then:
+
+```bash
+tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+cd deploy-manager-1.0.0-beta.1
+dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
+./run.sh                  # run.cmd on Windows
+```
+
+Defaults: DeepSeek official `deepseek-v4-flash`, reasoning **low**. No config editing required.
+Guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY.ja.md)
 
 ---
 

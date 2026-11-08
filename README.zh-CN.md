@@ -1,11 +1,25 @@
-# Agent Runtime / WhiteBox · v9.0（Alpha 0.1.5）
+# Agent Runtime / WhiteBox · 1.0.0-beta.1
 
-> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [ALPHA-0.1.5-RELEASE.zh-CN.md](ALPHA-0.1.5-RELEASE.zh-CN.md)
+> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.0.0-beta.1.zh-CN.md](RELEASE-1.0.0-beta.1.zh-CN.md)
 
 **一个把「透明、节省、可审计」做成可比对读数、并且是单会话的 Agent 运行时。**
 
 本文是当前实现的全面设计与交付报告，不是相对上一版的增量说明：它描述系统**今天是什么**、保证了什么，
 以及每一条保证**怎么被量出来**。
+
+## 部署（1.0.0-beta.1 新增）
+
+从 Release 下载 **deploy-manager-1.0.0-beta.1.tar.gz**，然后：
+
+```bash
+tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+cd deploy-manager-1.0.0-beta.1
+dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
+./run.sh                  # Windows 用 run.cmd
+```
+
+默认：DeepSeek 官方 `deepseek-v4-flash`，思考档 **low**。不需要手改配置。
+完整说明：[DEPLOY.zh-CN.md](DEPLOY.zh-CN.md) · [English](DEPLOY.md) · [日本語](DEPLOY.ja.md)
 
 ---
 
