@@ -1,4 +1,4 @@
-# DEPLOY — WhiteBox 1.0.0-beta.1 (English)
+# DEPLOY — WhiteBox 1.0.1 (English)
 
 > 🌐 **English** · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY.ja.md)
 
@@ -9,16 +9,16 @@ Five minutes from download to a running WhiteBox. This is a deployment manual, n
 | Item | Notes |
 |---|---|
 | **.NET 10** | `dotnet --version` must be `10.x`. Download: https://dotnet.microsoft.com/download/dotnet/10.0 |
-| **Platform** | **This package: macOS (arm64).** Windows is **not included** in this release (it ships after the Windows port is verified). |
-| macOS / Windows / Linux | .NET 10 assemblies are OS-independent, but only the macOS build is provided here |
+| **Platform** | Two packages: **macOS arm64** and **Windows x64**. Use the one matching your OS; both need **.NET 10**. |
+| macOS / Windows / Linux | Each package is built and labelled for its platform |
 | A provider key | Default: **DeepSeek official** (`https://api.deepseek.com`, model `deepseek-v4-flash`) |
 | Network | Only for the model calls; setup itself is offline |
 
 ## 1. Extract
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
-cd deploy-manager-1.0.0-beta.1
+tar -xzf deploy-manager-1.0.1-<your-platform>.tar.gz   # macos-arm64 / winx64
+cd deploy-manager-1.0.1-<your-platform>   # the extracted folder
 ```
 
 On Windows use any unzip tool; then run the commands below in `cmd` or PowerShell (replace `/` with `\`).
@@ -57,6 +57,24 @@ dotnet wcm.dll setup --target /opt/wb --yes --no-run \
 - `--from-config <file>` reuses an existing WhiteBox `config.xml` (base URL / model / reasoning).
 - `--api-key-file <file>` reads the key from a file — **never put a key on the command line**.
 - `--think low|medium|high`, `--build` (compile from source if no packaged binaries), `--force` (overwrite target).
+- `--dry-run` prints the plan (target / provider / think / key source / payload) **without writing anything**; `--help` prints all flags.
+- The last line is machine-readable: `[setup] ok=1 target=…`.
+
+## Provider, context window, and re-configuring
+
+- **Context window** is configured per provider. Setup suggests a default for the chosen model and lets you override it (`--context-window <tokens>`).
+  Defaults are conservative: `deepseek-v4-flash` 1,000,000; `gpt-5` 400,000; `gpt-4.1` 1,000,000; `claude-sonnet/opus-4` 200,000; `gemini-2.5/3` 1,000,000; `qwen3`/`kimi-k2` 262,144; unknown → 128,000. **Verify against your provider's docs** — these are defaults, not limits.
+- **Multiple providers**: `config.xml` keeps a `Providers` list plus `ActiveProvider`. All entries are stored; **only the active one is used**.
+- **Change settings without reinstalling**:
+
+```bash
+wcm config --target ~/WhiteBox --list
+wcm config --target ~/WhiteBox --provider-name qwen \
+  --base-url https://dashscope.aliyuncs.com/compatible-mode/v1 \
+  --model qwen3-max --context-window 262144 --think low --active
+```
+
+  `wcm config` edits `config.xml` in place; it never touches the workspace. `wcm setup --force` is a full reinstall (wipes the target).
 
 ## Layout
 
@@ -76,6 +94,19 @@ dotnet wcm.dll setup --target /opt/wb --yes --no-run \
 - The key lives **inside the installation** (`state/api_key`), never in your home directory and never in `config.xml`.
 - Setup never prints the key. Use `--api-key-file` in automation.
 - To rotate the key, rerun `setup` (or overwrite `state/api_key` manually).
+
+## Windows verification checklist
+
+This tool has **no Windows-only code path** by design (plain .NET APIs). Two branches are OS-guarded: file mode (`chmod`) and the launcher (`run.sh` / `run.cmd`). When you run it on Windows, verify:
+
+- [ ] `dotnet wcm.dll setup` runs in **cmd / PowerShell**; prompts (zh/en) render without mojibake (setup forces UTF-8 output).
+- [ ] Target defaults to `%USERPROFILE%\WhiteBox`; `run.cmd` is created and starts the TUI.
+- [ ] Key is written to `<target>\state\api_key` (ACL inherited; `chmod` is skipped on Windows).
+- [ ] `dotnet wcm.dll doctor --target <dir>` shows `平台 … Windows` and `启动器 … run.cmd` in green.
+- [ ] If the target already exists with read-only files, setup clears attributes before deleting.
+- [ ] AI path: `dotnet wcm.dll setup --target <dir> --yes --no-run --api-key-file <file>` completes and prints `[setup] ok=1`.
+
+> The Windows **package** must be built on Windows (or at least built from the same commit) and labelled `winx64`; do not use the macOS package on Windows.
 
 ## Troubleshooting
 

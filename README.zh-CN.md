@@ -1,19 +1,21 @@
-# Agent Runtime / WhiteBox · 1.0.0-beta.1
+# Agent Runtime / WhiteBox · 1.0.1
 
-> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.0.0-beta.1.zh-CN.md](RELEASE-1.0.0-beta.1.zh-CN.md)
+> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.0.1.zh-CN.md](RELEASE-1.0.1.zh-CN.md)
 
 **一个把「透明、节省、可审计」做成可比对读数、并且是单会话的 Agent 运行时。**
 
 本文是当前实现的全面设计与交付报告，不是相对上一版的增量说明：它描述系统**今天是什么**、保证了什么，
 以及每一条保证**怎么被量出来**。
 
-## 部署（1.0.0-beta.1 新增）
+## 部署（1.0.1 新增）
 
-从 Release 下载 **deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz**，然后：
+从 Release 下载 **deploy-manager-1.0.1-<platform>.tar.gz**，然后：
+
+两个包：**macos-arm64** 与 **winx64** —— 按系统选用。
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
-cd deploy-manager-1.0.0-beta.1
+tar -xzf deploy-manager-1.0.1-<platform>.tar.gz
+cd deploy-manager-1.0.1-<platform>
 dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 ./run.sh                  # Windows 用 run.cmd
 ```
@@ -184,7 +186,7 @@ L1 法则  →  L2 问题形状  →  L3 处理单元  →  L4 逐字证据
 
 - 决策库把**取向**（L1）一路编码到**逐字先例**（L4）。需要人决策时默认**停下来问**：给一到三个选项、
   各自后果，并给一条**引用其所依据 L1** 的建议。
-- 连续工作由**显式停点**界定：主人给了停点，就用决策库把中间判断全部做掉、恰好在那个位置停；
+- 连续工作由**显式停点**界定：用户给了停点，就用决策库把中间判断全部做掉、恰好在那个位置停；
   没给停点，先问停点。
 - 这就是为什么「自主」不等于「不负责」：每一个自动判断都指得回一条库里的条目。
 

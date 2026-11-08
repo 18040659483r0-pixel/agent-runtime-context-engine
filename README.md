@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.0.0-beta.1
+# Agent Runtime / WhiteBox · 1.0.1
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.0.0-beta.1.md](RELEASE-1.0.0-beta.1.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.0.1.md](RELEASE-1.0.1.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,13 +8,15 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (new in 1.0.0-beta.1)
+## Deployment (new in 1.0.1)
 
-Download **deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz** from the release, then:
+Download **deploy-manager-1.0.1-<platform>.tar.gz** from the release, then:
+
+Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
-cd deploy-manager-1.0.0-beta.1
+tar -xzf deploy-manager-1.0.1-<platform>.tar.gz
+cd deploy-manager-1.0.1-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
