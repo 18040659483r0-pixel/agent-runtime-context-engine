@@ -2,6 +2,8 @@
 
 > English: [RELEASE-1.0.1.md](RELEASE-1.0.1.md) · 日本語: [RELEASE-1.0.1.ja.md](RELEASE-1.0.1.ja.md)
 
+> ⬇️ **下载安装包**：下载列表在 **英文发布页底部** 的 **Assets**，不在本页 → [前往 Downloads / v1.0.1](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/tag/v1.0.1)
+
 **第二个 1.x beta。这次带上 Windows 包。**
 
 两个部署包，各自带部署管理器：
@@ -87,6 +89,8 @@ dotnet wcm.dll setup
 [中文](README.zh-CN.md) · [English](README.md) · [日本語](README.ja.md)
 
 ## 资产（下载）
+
+> 若上面的发布页打不开，可直接点以下链接：
 
 - [macOS arm64: `deploy-manager-1.0.1-macos-arm64.tar.gz`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz)
 - [macOS arm64 checksum: `deploy-manager-1.0.1-macos-arm64.tar.gz.sha256`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz.sha256)
