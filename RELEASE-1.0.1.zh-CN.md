@@ -85,3 +85,10 @@ dotnet wcm.dll setup
 ## 论文
 
 [中文](README.zh-CN.md) · [English](README.md) · [日本語](README.ja.md)
+
+## 资产（下载）
+
+- [macOS arm64: `deploy-manager-1.0.1-macos-arm64.tar.gz`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz)
+- [macOS arm64 checksum: `deploy-manager-1.0.1-macos-arm64.tar.gz.sha256`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz.sha256)
+- [Windows x64: `deploy-manager-1.0.1-winx64.tar.gz`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz)
+- [Windows x64 checksum: `deploy-manager-1.0.1-winx64.tar.gz.sha256`](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz.sha256)
