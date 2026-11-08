@@ -128,3 +128,12 @@ dotnet app/tui/AgentRuntime.Tui2.dll --selftest   # TUI 逻辑自检
 ## 卸载
 
 删掉安装目录即可。除 `state/` 里的密钥文件外，不会在目录外写任何东西。
+
+
+## 下载
+
+- **源码**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
+- **全部发布**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
+- **macOS arm64**：[deploy-manager-1.0.1-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.0.1-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz)
+- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz.sha256)

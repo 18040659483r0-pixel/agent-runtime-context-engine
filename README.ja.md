@@ -255,3 +255,12 @@ dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --kn-check 
 
 私有作業領域・内部の落とし穴コーパス・学習データは公開スライスに含まれません。
 コード：MIT（`LICENSE`）。コーパス：`kernel/benchmark/AgentRuntime.Benchmark/corpus/NOTICE.md`。
+
+
+## 9. ソースとダウンロード
+
+- **ソース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
+- **すべてのリリース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
+- **macOS arm64**：[deploy-manager-1.0.1-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.0.1-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz)
+- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz.sha256)

@@ -282,3 +282,12 @@ byte-for-byte check of the derived layer. Same input, same reading.
 
 Private workspace, the internal pitfall corpus and training data are not part of the public slice.
 Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/corpus/NOTICE.md`.
+
+
+## 9. Source and downloads
+
+- **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
+- **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
+- **macOS arm64**: [deploy-manager-1.0.1-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.0.1-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.0.1-winx64.tar.gz.sha256)
