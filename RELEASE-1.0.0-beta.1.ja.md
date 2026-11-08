@@ -7,12 +7,12 @@
 
 ## ダウンロードと実行
 
-1. **`deploy-manager-1.0.0-beta.1.tar.gz`** をダウンロード（下記 Assets）。
-2. 検証：`shasum -a 256 -c deploy-manager-1.0.0-beta.1.tar.gz.sha256`
+1. **`deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz`** をダウンロード（下記 Assets）。
+2. 検証：`shasum -a 256 -c deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256`
 3. 展開してウィザードを実行：
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup
 ./run.sh            # Windows: run.cmd
@@ -65,15 +65,15 @@ dotnet wcm.dll setup
 
 ## 既知の制限
 
-- パッケージの検証は **macOS (arm64)**。.NET 10 アセンブリ自体はクロスプラットフォームですが、**Windows のウィザードは 001 側の実機確認がまだ**です。
+- **プラットフォーム: macOS (arm64) のみ。** 本リリースに **Windows パッケージはありません**。移植の複製・検証後に別途提供します。
 - フレームワーク依存：**.NET 10 のインストールが必要**。
 - `wcm rule-check` は Windows 側の `deploy-template.json` の差分をまだ報告します（修正は Windows 側で対応中）。
 - 知識シード 5 件は意図的に最小です。L3/L2/L1 は最初の実収尾後に現れます。
 
 ## Assets
 
-- `deploy-manager-1.0.0-beta.1.tar.gz` — 自己完結のデプロイマネージャパッケージ（ランタイム + 凍結コーパス + ワークスペース種 + ドキュメント）
-- `deploy-manager-1.0.0-beta.1.tar.gz.sha256` — チェックサム
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz` — 自己完結のデプロイマネージャパッケージ（ランタイム + 凍結コーパス + ワークスペース種 + ドキュメント）
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256` — チェックサム
 
 ## 論文
 

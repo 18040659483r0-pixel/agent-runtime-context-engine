@@ -9,14 +9,15 @@ Five minutes from download to a running WhiteBox. This is a deployment manual, n
 | Item | Notes |
 |---|---|
 | **.NET 10** | `dotnet --version` must be `10.x`. Download: https://dotnet.microsoft.com/download/dotnet/10.0 |
-| macOS / Windows / Linux | The package is framework-dependent; the same files run on any OS with .NET 10 |
+| **Platform** | **This package: macOS (arm64).** Windows is **not included** in this release (it ships after the Windows port is verified). |
+| macOS / Windows / Linux | .NET 10 assemblies are OS-independent, but only the macOS build is provided here |
 | A provider key | Default: **DeepSeek official** (`https://api.deepseek.com`, model `deepseek-v4-flash`) |
 | Network | Only for the model calls; setup itself is offline |
 
 ## 1. Extract
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 ```
 

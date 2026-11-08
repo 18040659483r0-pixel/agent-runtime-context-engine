@@ -7,12 +7,12 @@
 
 ## 下载与运行
 
-1. 下载 **`deploy-manager-1.0.0-beta.1.tar.gz`**（见下方 Assets）。
-2. 校验：`shasum -a 256 -c deploy-manager-1.0.0-beta.1.tar.gz.sha256`
+1. 下载 **`deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz`**（见下方 Assets）。
+2. 校验：`shasum -a 256 -c deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256`
 3. 解压并跑向导：
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup
 ./run.sh            # Windows: run.cmd
@@ -65,15 +65,15 @@ dotnet wcm.dll setup
 
 ## 已知限制
 
-- 发布包在 **macOS (arm64)** 上验证；.NET 10 程序集本身跨平台，但 **Windows 向导仍需 001 真机过一遍**才算完全支持。
+- **平台：仅 macOS (arm64)。** 本版**不提供 Windows 包**；Windows 端复刻并验证后单独提供。
 - 包是框架依赖的：需要安装 **.NET 10**。
 - `wcm rule-check` 目前仍报 Windows 侧规则文件（`deploy-template.json`）漂移，修复在 Windows 侧排队。
 - 5 条知识种子是有意最小化的：L3/L2/L1 会在第一次真实收尾之后出现。
 
 ## Assets
 
-- `deploy-manager-1.0.0-beta.1.tar.gz` —— 自包含部署管理器包（运行时 + 冻结语料 + 工作区种子 + 文档）
-- `deploy-manager-1.0.0-beta.1.tar.gz.sha256` —— 校验和
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz` —— 自包含部署管理器包（运行时 + 冻结语料 + 工作区种子 + 文档）
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256` —— 校验和
 
 ## 论文
 

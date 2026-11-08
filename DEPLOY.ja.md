@@ -9,14 +9,15 @@
 | 項目 | 説明 |
 |---|---|
 | **.NET 10** | `dotnet --version` が `10.x`。入手: https://dotnet.microsoft.com/download/dotnet/10.0 |
-| macOS / Windows / Linux | パッケージはフレームワーク依存。.NET 10 があれば同じファイルで動きます |
+| **プラットフォーム** | **本パッケージ: macOS (arm64)。** 本リリースに **Windows は含まれません**（移植検証後に別途提供）。 |
+| macOS / Windows / Linux | .NET 10 アセンブリ自体はクロスプラットフォームですが、今回は macOS ビルドのみ |
 | provider キー | 既定は **DeepSeek 公式**（`https://api.deepseek.com`、モデル `deepseek-v4-flash`） |
 | ネットワーク | モデル呼び出しのみ。setup 自体はオフライン |
 
 ## 1. 展開
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 ```
 

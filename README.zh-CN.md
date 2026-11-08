@@ -9,10 +9,10 @@
 
 ## 部署（1.0.0-beta.1 新增）
 
-从 Release 下载 **deploy-manager-1.0.0-beta.1.tar.gz**，然后：
+从 Release 下载 **deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz**，然后：
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 ./run.sh                  # Windows 用 run.cmd

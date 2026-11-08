@@ -9,10 +9,10 @@
 
 ## デプロイ（1.0.0-beta.1 の新機能）
 
-Release から **deploy-manager-1.0.0-beta.1.tar.gz** を取得し、次を実行します。
+Release から **deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz** を取得し、次を実行します。
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル -> キー
 ./run.sh                  # Windows は run.cmd

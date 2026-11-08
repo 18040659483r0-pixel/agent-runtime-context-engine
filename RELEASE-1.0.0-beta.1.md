@@ -7,12 +7,12 @@ This release is about one thing: **you can download a package, answer four quest
 
 ## Download & run
 
-1. Download **`deploy-manager-1.0.0-beta.1.tar.gz`** (see assets below).
-2. Verify: `shasum -a 256 -c deploy-manager-1.0.0-beta.1.tar.gz.sha256`
+1. Download **`deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz`** (see assets below).
+2. Verify: `shasum -a 256 -c deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256`
 3. Extract and run the wizard:
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup
 ./run.sh            # Windows: run.cmd
@@ -65,15 +65,15 @@ Full guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](D
 
 ## Known limitations
 
-- The package is validated on **macOS (arm64)**; .NET 10 assemblies are OS-independent, but the **Windows wizard path still needs a real-machine pass** before we call it fully supported.
+- **Platform: macOS (arm64) only.** No Windows package is provided in this release; the Windows port is being replicated and will get its own asset after verification.
 - The package is framework-dependent: **.NET 10 must be installed**.
 - `wcm rule-check` currently reports a drift on the Windows-side rule file (`deploy-template.json`); the fix is queued on the Windows side.
 - The 5-node knowledge seed is intentionally minimal: L3/L2/L1 appear after the first real closeout.
 
 ## Assets
 
-- `deploy-manager-1.0.0-beta.1.tar.gz` — self-contained deployment manager package (runtime + frozen corpus + workspace seed + docs)
-- `deploy-manager-1.0.0-beta.1.tar.gz.sha256` — checksum
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz` — self-contained deployment manager package (runtime + frozen corpus + workspace seed + docs)
+- `deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz.sha256` — checksum
 
 ## Papers
 

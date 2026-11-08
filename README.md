@@ -10,10 +10,10 @@ measured.
 
 ## Deployment (new in 1.0.0-beta.1)
 
-Download **deploy-manager-1.0.0-beta.1.tar.gz** from the release, then:
+Download **deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz** from the release, then:
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows

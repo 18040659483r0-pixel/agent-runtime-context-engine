@@ -9,14 +9,15 @@
 | 项 | 说明 |
 |---|---|
 | **.NET 10** | `dotnet --version` 应为 `10.x`；下载：https://dotnet.microsoft.com/download/dotnet/10.0 |
-| macOS / Windows / Linux | 包是框架依赖的；同一份文件在任意装了 .NET 10 的系统上都能跑 |
+| **平台** | **本包：macOS（arm64）。** 本版**不含 Windows**（Windows 移植验证后单独提供）。 |
+| macOS / Windows / Linux | .NET 10 程序集本身跨平台，但本次只提供 macOS 构建 |
 | provider 密钥 | 默认 **DeepSeek 官方**（`https://api.deepseek.com`，模型 `deepseek-v4-flash`） |
 | 网络 | 只有调模型时需要；setup 本身离线 |
 
 ## 1. 解压
 
 ```bash
-tar -xzf deploy-manager-1.0.0-beta.1.tar.gz
+tar -xzf deploy-manager-1.0.0-beta.1-macos-arm64.tar.gz
 cd deploy-manager-1.0.0-beta.1
 ```
 
