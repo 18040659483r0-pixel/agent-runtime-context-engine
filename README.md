@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.1.0
+# Agent Runtime / WhiteBox · 1.1.1
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.0.md](RELEASE-1.1.0.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.1.md](RELEASE-1.1.1.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,15 +8,15 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (current: 1.1.0)
+## Deployment (current: 1.1.1)
 
-Download **deploy-manager-1.1.0-<platform>.tar.gz** from the release, then:
+Download **deploy-manager-1.1.1-<platform>.tar.gz** from the release, then:
 
 Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 ```bash
-tar -xzf deploy-manager-1.1.0-<platform>.tar.gz
-cd deploy-manager-1.1.0-<platform>
+tar -xzf deploy-manager-1.1.1-<platform>.tar.gz
+cd deploy-manager-1.1.1-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
@@ -288,6 +288,6 @@ Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/
 
 - **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**: [deploy-manager-1.1.0-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.0-macos-arm64.tar.gz)
-- **Windows x64**: [deploy-manager-1.1.0-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.0-winx64.tar.gz)
-- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.0-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.0-winx64.tar.gz.sha256)
+- **macOS arm64**: [deploy-manager-1.1.1-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.1-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.1.1-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.1-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.1-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.1-winx64.tar.gz.sha256)
