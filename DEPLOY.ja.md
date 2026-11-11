@@ -1,6 +1,8 @@
-# DEPLOY — WhiteBox 1.1.3（日本語）
+# DEPLOY — WhiteBox 1.1.4（日本語）
 
 > 🌐 [English](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · **日本語**
+
+> **⚠️ v1.1.3 beta 以降から更新する場合：** 語料（`whitebox/workspace`）を残すには、新バージョンを **`--update`** で入れてください（上書きインストールしない）。`--force` はインストール先を消去します（本版は先にタイムスタンプ付き zip へ自動バックアップし、失敗時は消去を拒否。それでも自分でもバックアップを）。
 
 ダウンロードから起動まで 5 分。これはデプロイ手順書であり、アーキテクチャ論文ではありません。
 
@@ -17,8 +19,8 @@
 ## 1. 展開
 
 ```bash
-tar -xzf deploy-manager-1.1.3-<platform>.tar.gz   # macos-arm64 / winx64
-cd deploy-manager-1.1.3-<your-platform>   # 解凍後のディレクトリ
+tar -xzf deploy-manager-1.1.4-<platform>.tar.gz   # macos-arm64 / winx64
+cd deploy-manager-1.1.4-<your-platform>   # 解凍後のディレクトリ
 ```
 
 Windows は任意の解凍ツールで展開し、`cmd` / PowerShell で以下を実行（`/` は `\` に）。
@@ -134,6 +136,6 @@ dotnet app/tui/AgentRuntime.Tui2.dll --selftest   # TUI ロジック自己テス
 
 - **ソース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **すべてのリリース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.3-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.3/deploy-manager-1.1.3-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.3-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.3/deploy-manager-1.1.3-winx64.tar.gz)
-- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.3/deploy-manager-1.1.3-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.3/deploy-manager-1.1.3-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.1.4-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.4/deploy-manager-1.1.4-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.1.4-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.4/deploy-manager-1.1.4-winx64.tar.gz)
+- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.4/deploy-manager-1.1.4-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.4/deploy-manager-1.1.4-winx64.tar.gz.sha256)
