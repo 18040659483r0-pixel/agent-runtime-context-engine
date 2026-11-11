@@ -19,8 +19,8 @@
 
 | Asset | Platform | SHA-256 |
 |---|---|---|
-| `deploy-manager-1.1.5-macos-arm64.tar.gz` | macOS arm64 | `79ec199cfd9573bef89a62fd5d29c863e6ac9751f8dcd00c6ebde32bad887be2` |
-| `deploy-manager-1.1.5-winx64.tar.gz` | Windows x64 | `b91f63794c01f70a04aaac5c75d6bf1fc5363d2f7352bc0f18a91ba8527ad20f` |
+| `deploy-manager-1.1.5-macos-arm64.tar.gz` | macOS arm64 | `35477e5c3be292718e4a49623e48a8586edf1a403c8136d5142ed231ffcd98e2` |
+| `deploy-manager-1.1.5-winx64.tar.gz` | Windows x64 | `455d419030e217df2a93a18a1094328966631d2f14eb583006a798739d88a727` |
 
 Both are framework-dependent: **.NET 10** is required.
 
@@ -54,7 +54,9 @@ Old ledgers without the new fields still load (missing = 0). The panel shows eng
 
 If the **same tool + same arguments** returns the **same result three times in a row**, the runtime emits a `tool-repeat-guard` hint: stop repeating, change strategy. It only fires when the result is identical; changing arguments or result resets the counter. This prevents a model from looping on the same build/read/command.
 
-### 3) Protocol v111: one build, one acceptance
+### 3) Protocol v112: one build, one acceptance
+
+Clause 19 now matches clauses 7 and 9: closeout / reset / start run on a human request **or** when the runtime prints the ≥80% closeout-window line — the old wording banned the self-run outright and contradicted clause 9.
 
 Clause 23 now says: a small edit ⇒ rebuild once and re-run only the affected step; acceptance runs **once at the end**; a failed closeout step is fixed and re-run alone — never re-check the whole pipeline. Protocol is 26 lines / 24,768 chars / 6,192 tokens (budget ≤ 6,200).
 
