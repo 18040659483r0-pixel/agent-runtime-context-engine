@@ -1,4 +1,4 @@
-# DEPLOY — WhiteBox 1.1.5（中文）
+# DEPLOY — WhiteBox 1.1.6（中文）
 
 > 🌐 [English](DEPLOY.md) · **中文** · [日本語](DEPLOY.ja.md)
 
@@ -19,8 +19,8 @@
 ## 1. 解压
 
 ```bash
-tar -xzf deploy-manager-1.1.5-<平台>.tar.gz   # macos-arm64 / winx64
-cd deploy-manager-1.1.5-<your-platform>   # 解压后的目录
+tar -xzf deploy-manager-1.1.6-<平台>.tar.gz   # macos-arm64 / winx64
+cd deploy-manager-1.1.6-<your-platform>   # 解压后的目录
 ```
 
 Windows 用任意解压工具，然后在 `cmd` / PowerShell 里执行后面的命令（`/` 换成 `\`）。
@@ -136,6 +136,6 @@ dotnet app/tui/AgentRuntime.Tui2.dll --selftest   # TUI 逻辑自检
 
 - **源码**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **全部发布**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.5-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.5/deploy-manager-1.1.5-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.5-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.5/deploy-manager-1.1.5-winx64.tar.gz)
-- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.5/deploy-manager-1.1.5-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.5/deploy-manager-1.1.5-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.1.6-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.6/deploy-manager-1.1.6-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.1.6-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.6/deploy-manager-1.1.6-winx64.tar.gz)
+- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.6/deploy-manager-1.1.6-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.6/deploy-manager-1.1.6-winx64.tar.gz.sha256)
