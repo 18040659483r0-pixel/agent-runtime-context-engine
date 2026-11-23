@@ -1,114 +1,123 @@
-# frozen-build —— 确定性语料迁移器
+# frozen-build — the deterministic corpus migrator
 
-把 **openclaw 工作区**里「有价值的内容」按 AgentRuntime 的 **区 / 层 / 域** 格式，
-汇成**冻结语料**（产物默认 `../../frozen-private/`；私有：**SVN 内网入库，GitHub 绝不发布**）。
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-## 一句话
+Turns the valuable parts of the **openclaw workspace** into a **frozen corpus** in the AgentRuntime’s
+**zone / layer / domain** format (output defaults to `../../frozen-private/`; private: **committed to the internal SVN,
+never published to GitHub**).
+
+## One-liner
 
 ```bash
 cd projects/AgentRuntime
-CLI=src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll   # 先跑：dotnet build -c Release
+CLI=src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll   # build first: dotnet build -c Release
 
-dotnet $CLI --frozen-corpus whitebox/workspace --frozen-tier A                                 # 生成 A 档
-dotnet $CLI --frozen-corpus whitebox/workspace --frozen-out frozen-private-b --frozen-tier B  # 生成 B 档（A + 项目文档索引）
-dotnet $CLI --frozen-corpus-check whitebox/workspace                                          # 幂等校验（CI 用）
-dotnet $CLI --bump all                                                                        # 声明一次 bump：版本 +1 + 刷新源锚 + 重写产物
-dotnet $CLI --frozen-spec                                                                     # 打印段清单（唯一声明处）
+dotnet $CLI --frozen-corpus whitebox/workspace --frozen-tier A                                 # tier A
+dotnet $CLI --frozen-corpus whitebox/workspace --frozen-out frozen-private-b --frozen-tier B  # tier B (A + project index)
+dotnet $CLI --frozen-corpus-check whitebox/workspace                                          # idempotency check (CI)
+dotnet $CLI --bump all                                                                        # declare a bump: version +1 + refresh source anchor + rewrite
+dotnet $CLI --frozen-spec                                                                     # print the section list (single declaration)
 ```
 
-## 五条铁则（与 METHODOLOGY §十·7~10 一致）
+## Five iron rules (aligned with METHODOLOGY §10.7–10)
 
-1. **唯一声明处**：段清单 = `src/AgentRuntime.Cli/FrozenCorpusCli.cs` 的 `Spec`（`--frozen-spec` 可打印），别处不得再定义结构。
-2. **逐字节确定**：LF、无 BOM、无时间戳、索引按 id（NFC）排序 —— 重跑必得同一份字节。
-3. **正文与账本分离**：版本头 `<!-- frozen: version=N -->` 与 `_manifest.json` 只服务账本，**不进 prompt**；指纹按**去掉版本头**的正文算。
-4. **版本闸门有两道**：① 产物 ≠ 重算 ⇒ 报「源改了但没重跑」；② **源锚** —— `versions.json` 的 `source_sha256` 钉着「**上次 bump 时的正文 sha**」，源内容一变就必须 `--bump`（**重跑产物不会让它变绿** —— 只靠①时，重跑就把闸门骗绿了）。⇒ **改内容 = 改版本号**，唯一动作就是 `--bump <key>|all`（同一动作里刷新锚 + 重写产物；源未变时拒绝空 bump）。
-5. **L3 只留索引**：技能 / 踩坑集 / 交接 / 项目文档 / 工具 的**正文不进冻结区**，只留索引；正文将来按需**逐条**进 Append Stream（依赖 V3）。
+1. **Single declaration**: the section list is `Spec` in `src/AgentRuntime.Cli/FrozenCorpusCli.cs`
+   (printable via `--frozen-spec`); nowhere else may define the structure.
+2. **Byte determinism**: LF, no BOM, no timestamps, indices sorted by id (NFC) — a rerun must produce the same bytes.
+3. **Body and ledger separate**: the version header `<!-- frozen: version=N -->` and `_manifest.json` serve the ledger
+   only and **never enter the prompt**; fingerprints are computed on the body **without** the header.
+4. **Two version gates**: ① artifact ≠ recomputation ⇒ “source changed but was not rebuilt”; ② **source anchor** —
+   `versions.json`’s `source_sha256` pins the body sha at the last bump, so any content change requires `--bump`
+   (**a rebuild alone will not turn it green**). ⇒ **changing content = changing the version**; the only action is
+   `--bump <key>|all` (refresh anchor + rewrite artifacts; an empty bump is refused).
+5. **L3 keeps only indices**: skill / pitfall / handoff / project-doc / tool bodies stay out of the frozen zone; only
+   indices remain, and bodies enter the Append Stream **one at a time** later (needs V3).
 
-## 档位
+## Tiers
 
-| 档 | 内容 | 用途 |
+| Tier | Content | Use |
 |---|---|---|
-| **A** | 铁则 + 方法论 + 索引 + 记忆索引 | 日常 |
-| **B** | A **加**「项目文档索引」段 | 需要项目全景时 |
+| **A** | rules + methodology + index + memory index | daily |
+| **B** | A **plus** a “project-doc index” section | when you need the project panorama |
 
-> A → B 是**尾部之外**的增段（B 的项目索引落在 knowledge 区末尾），**不是纯追加**，切换有缓存代价；两档各自是一套完整前缀。
+> A → B adds a section **beyond the tail** (B’s project index lands at the end of the knowledge zone) — **not pure
+> append**; switching costs cache. Each tier is a complete prefix on its own.
 
-## 第二区域（Region 2）：他端记忆**不进**冻结区
+## Region 2: the other side’s memory never enters the frozen zone
 
-- 冻结区（Region 1 = `rules` / `knowledge` / `memory-index`）**只装本端内容**。他端个人记忆（如 `workspace/agents/001/`）**不进 SPEC、不进冻结区**。
-- 需要时作 **第二区域（Region 2）**：只留**索引**，正文按需**逐条 `--append`** 进流（Append Stream，V3）——与 Region 1 **物理分离**
-  ⇒ 他端改动**不动本端前缀字节**，**不需 bump 冻结区版本、不需重跑本工具**。
-- 入口：`workspace/agents/001/MEMORY-INDEX.md`（指向 `agents/001/MEMORY.md` 的节级指针）。
+- Region 1 (`rules` / `knowledge` / `memory-index`) holds **this side only**. Another side’s personal memory
+  (e.g. `workspace/agents/001/`) is **not in SPEC and not in the frozen zone**.
+- When needed it becomes **Region 2**: index only, bodies **appended one at a time** into the stream (Append Stream, V3),
+  physically separate from Region 1 ⇒ the other side’s edits **do not touch this side’s prefix bytes**, require **no
+  bump** and **no rerun** of this tool.
+- Entry: `workspace/agents/001/MEMORY-INDEX.md` (section pointers into `agents/001/MEMORY.md`).
 
-## 产物（派生，禁手改）+ 入库口径
+## Artifacts (derived, never hand-edit) and ingestion
 
-`frozen-private/`（A 档）、`frozen-private-b/`（B 档）——**由本工具生成，禁止手改**；
-改内容请改**源**（openclaw 工作区）→ 改 `versions.json` → 重跑。
+`frozen-private/` (A), `frozen-private-b/` (B) — **generated by this tool, hand-editing forbidden**; change the
+**source** (openclaw workspace) → change `versions.json` → rerun.
 
-| 去向 | 口径 |
+| Destination | Rule |
 |---|---|
-| **SVN（内网 / 家庭局域网）** | ✅ **入库**（主人 2026-09-14 定：内网服务器，无外泄风险） |
-| **GitHub 发布物** | ❌ **绝对不允许**（含人名 / 本机路径 / 商业信息） |
+| **SVN (intranet / home LAN)** | ✅ **committed** (owner 2026-09-14: internal server, no leak risk) |
+| **GitHub release** | ❌ **absolutely not** (contains names / host paths / business info) |
 
-发布前**必须**先跑发布扫描（硬红线：私有语料目录 / 本机路径 / 内网地址 / 凭据 / 网盘）：
+Before publishing, **always** run the publish scan (hard red lines: private corpus dirs / host paths / intranet
+addresses / credentials / cloud drives):
 
 ```bash
 cd projects/AgentRuntime
-wb-cli scan <待发布暂存目录>     # exit 0 = 可发布；1 = 禁止发布
+wb-cli scan <staging-dir>     # exit 0 = publishable; 1 = forbidden
 ```
 
-## 改源的标准动作（顺序别反）
+## Standard sequence when the source changes (order matters)
 
 ```bash
 CLI=src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll
-# 1) 先校验：源改了但没重跑 → 必须报错
+# 1) check first: source changed but not rebuilt → must fail
 dotnet $CLI --frozen-corpus-check whitebox/workspace
-# 2) 若报错 → 在 versions.json 里 bump 对应的 version_key
+# 2) if it fails → bump the version_key in versions.json
 dotnet $CLI --bump knowledge.global
-# 3) 再重跑
+# 3) rebuild
 dotnet $CLI --frozen-corpus whitebox/workspace --frozen-tier A
 dotnet $CLI --frozen-corpus whitebox/workspace --frozen-out frozen-private-b --frozen-tier B
-# 4) 再校验一次，必须通过
+# 4) check again — must pass
 dotnet $CLI --frozen-corpus-check whitebox/workspace
 dotnet $CLI --frozen-corpus-check whitebox/workspace --frozen-out frozen-private-b --frozen-tier B
 ```
 
-⚠️ **别先重跑再校验**：重跑会覆盖 `_manifest.json`，把「源变未 bump 版本」的告警抹掉（实测踩过）。
-⚠️ 源可能被**自动化**改动（如自动化巡检回写），所以 `--check` 要当成入场仪式，不是一次性验收。
+⚠️ **Never rebuild before checking**: a rebuild overwrites `_manifest.json` and erases the “source changed without a
+bump” warning (we hit this).
+⚠️ The source may be changed by **automation**, so treat `--check` as an entrance ritual, not a one-off acceptance.
 
-## 为什么要迁移器（而不是手工拼）
+## Why a migrator instead of hand-assembly
 
-- 手工拼的语料**每次都不一样** → 全局指纹变 → 前缀缓存整体失效（实测代价：命中 0、成本 4.6×）。
-- 源天然会变（方法论精简、MEMORY 索引化、INDEX 集成）→ 只有「确定性重跑 + 版本闸门」能在变更时**说清变了哪几段**。
+- Hand-built corpora **differ every time** → the global fingerprint changes → the whole prefix cache dies (measured:
+  0% hit, 4.6× the cost).
+- Sources naturally change (methodology slimming, memory indexing, index integration) → only “deterministic rerun +
+  version gates” can say **which sections changed**.
 
-## 一键拉起（终端里跑）
+## One-shot launch
 
 ```bash
 cd projects/AgentRuntime
 
-# A 档（日常）
-wb-cli run --config src/AgentRuntime.Cli/config.private.xml --verbose "你好"
+# tier A (daily)
+wb-cli run --config src/AgentRuntime.Cli/config.private.xml --verbose "hello"
 
-# B 档（含项目文档索引）
-wb-cli run --config src/AgentRuntime.Cli/config.private-b.xml --verbose "你好"
+# tier B (with the project-doc index)
+wb-cli run --config src/AgentRuntime.Cli/config.private-b.xml --verbose "hello"
 ```
 
-实测（2026-09-14，A 档 / 真实端点）：第 1 次 `prompt 24,569 · cached 0`（冷启动自检）；
-第 2 次 `cached 24,320 = 64×380（98.99%）· uncached 248`；Runtime 开销 1.1 / 1.3 ms。
+Measured (2026-09-14, tier A / real endpoint): turn 1 `prompt 24,569 · cached 0` (cold-start self-check);
+turn 2 `cached 24,320 = 64×380 (98.99%) · uncached 248`; Runtime overhead 1.1 / 1.3 ms.
 
-> 两个配置只差 `frozen.root` 一行；都只含路径，**不含任何密钥**。
+> The two configs differ by one line (`frozen.root`); both contain paths only and **no keys**.
 
-## ⚠️ 分档的两条纪律（2026-09-16 实测）
+## ⚠️ Two tier disciplines (measured 2026-09-16)
 
-1. **`--out` 一律显式写全**：`--tier B` **不会**自动改输出目录（默认值是 A 档目录）
-   ⇒ 不加 `--out` 会把 **A 档产物覆盖成 B 档内容**（症状：`--check --tier A` 报「产物与重算不一致 + 内容已变但版本未 bump」）。
-   ```bash
-   CLI=src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll
-   dotnet $CLI --frozen-corpus whitebox/workspace --frozen-tier A                                 # A → frozen-private
-   dotnet $CLI --frozen-corpus whitebox/workspace --frozen-out frozen-private-b --frozen-tier B  # B → frozen-private-b
-   dotnet $CLI --frozen-corpus-check whitebox/workspace
-   dotnet $CLI --frozen-corpus-check whitebox/workspace --frozen-out frozen-private-b --frozen-tier B
-   ```
-2. **源变了先 `--check`（应报错）→ 改 `versions.json` 里**真的变了的那一段**（先重算再改）→ 重建两档 → 再 `--check`（应绿）**。
-   本次实例：写坑集（`PITFALLS.md` 是语料源之一）⇒ `knowledge.global` 16 → **17** ⇒ 重建后 A `85a9f89315610b99…` / B `c728b7b2c61459eb…`（均 exit 0）。
-   坑集详见 `docs/PITFALLS.md` **#55**。
+1. **Always pass `--out` explicitly**: `--tier B` does **not** change the output directory (the default is tier A’s)
+   ⇒ without `--out` you **overwrite tier A with tier B content** (symptom: `--check --tier A` reports “artifact ≠
+   recomputation + content changed without a version bump”).
+2. **On a source change: `--check` (must fail) → bump only the section that really changed (recompute first) →
+   rebuild both tiers → `--check` (must be green)**.

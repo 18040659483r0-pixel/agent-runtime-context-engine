@@ -1,47 +1,51 @@
-# 部署测试套件（deploy-testsuite）
+# Deployment test suite (deploy-testsuite)
 
-**测什么**：按 `deploy` 的正式流程，在**沙盒**里装一次，用**官方 DeepSeek** 真机跑一轮，再验证取数去重、初始库还原、整目录搬移。
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-**语料**：部署版（`dist/alpha-0.1` 的 `templates/workspace` + `frozen`）。
-**二进制**：当前源码最新（`--refresh` 先 `dotnet publish` 到包的 `app/`，默认开启）。
+**What it tests**: installs once through the real `deploy` flow inside a **sandbox**, runs one real turn against the
+**official DeepSeek** endpoint, then verifies fetch de-duplication, restoring the initial library, and moving the whole
+directory.
 
-## 跑法
+**Corpus**: the deployment edition (`dist/alpha-0.1`’s `templates/workspace` + `frozen`).
+**Binaries**: latest source (`--refresh` runs `dotnet publish` into the package’s `app/`; on by default).
+
+## How to run
 
 ```bash
-# 只打印计划
+# plan only
 dotnet run --project tools/deploy-testsuite
 
-# 真跑（会调官方 DS，费用很小：D5 只问一次「读一条 L1」）
+# real run (calls official DS; very cheap — D5 asks one question)
 dotnet run --project tools/deploy-testsuite -- --run
 
-# 选项
-#   --package <dir>   部署包根（默认 dist/alpha-0.1）
-#   --proj <dir>      源码仓根（默认自动找 AgentRuntime.slnx）
-#   --out <dir>       证据目录（默认 .stage1/deploy-tests/<时间戳>）
-#   --no-refresh      不 publish，直接用包里现有二进制
-#   --keep            保留沙盒副本（默认删 pkg/moved，保留 report 与 target）
+# options
+#   --package <dir>   package root (default dist/alpha-0.1)
+#   --proj <dir>      source repo root (auto-detected via AgentRuntime.slnx)
+#   --out <dir>       evidence directory (default .stage1/deploy-tests/<timestamp>)
+#   --no-refresh      do not publish; use the binaries already in the package
+#   --keep            keep the sandbox copy (default: remove pkg/moved, keep report + target)
 ```
 
-## 判据（D1~D8）
+## Criteria (D1–D8)
 
-| # | 场景 | 硬判据 |
+| # | Scenario | Hard criterion |
 |---|---|---|
-| D1 | 包完整性 | 13 件必需文件齐全（二进制 / 模板 / 配置 / 部署器 / 冻结 / 知识） |
-| D2 | init 沙盒 | `deploy init` rc=0，目标出现 `config.xml` + 自包含 `app/` |
-| D3 | provider = 官方 DS | `BaseUrl=https://api.deepseek.com` · `Model=deepseek-v4-flash` · key 只走 env/文件 |
-| D4 | doctor + check | 两条都 rc=0；知识树 20 节点、冻结语料版本 82/2/33 |
-| D5 | 真机 TUI | 用官方 DS 读 `knowledge.md` 第一条 `<!--kn: L1-`，输出含 id 与 `[DONE]`；**rc=0 · 拒绝 0** |
-| D6 | 取数去重 | 首次 `Kind=Knowledge`；第二次只出 `kn-ref`（`Kind=Hint`） |
-| D7 | reset | 污染知识文件后 `reset --all` ⇒ sha 与初始一致；`check` 仍绿 |
-| D8 | 整目录搬移 | 把 target 整棵复制到别处，`doctor` + `check` 仍全绿（无绝对路径依赖） |
+| D1 | package completeness | 13 required files present (binaries / templates / config / deployer / frozen / knowledge) |
+| D2 | init sandbox | `deploy init` rc=0; target gains `config.xml` + a self-contained `app/` |
+| D3 | provider = official DS | `BaseUrl=https://api.deepseek.com` · `Model=deepseek-v4-flash` · key only via env/file |
+| D4 | doctor + check | both rc=0; knowledge tree 20 nodes, frozen corpus versions 82/2/33 |
+| D5 | real-machine TUI | read the first `<!--kn: L1-` entry of `knowledge.md`; output contains the id and `[DONE]`; **rc=0 · 0 refusals** |
+| D6 | fetch de-duplication | first fetch `Kind=Knowledge`; second returns only `kn-ref` (`Kind=Hint`) |
+| D7 | reset | after polluting a knowledge file, `reset --all` restores the initial sha; `check` stays green |
+| D8 | whole-directory move | copy the whole target elsewhere; `doctor` + `check` stay green (no absolute-path dependency) |
 
-## 边界
+## Boundaries
 
-- D5 是**唯一花钱**的一段（一次真模型调用）；其余全是离线命令。
-- 密钥不落入任何测试产物：只验证 `ApiKeyEnv` / `ApiKeyFile` 两个字段。
-- 判决即 `report.xml` 的 `ok="1"`；任何红都退出码 1，不静默。
+- D5 is the **only** paid segment (one real model call); everything else is offline commands.
+- Keys never appear in any artifact: only `ApiKeyEnv` / `ApiKeyFile` are validated.
+- The verdict is `ok="1"` in `report.xml`; any red exits 1, never silently.
 
-## 已知限制
+## Known limits
 
-- 需要 .NET 10 与可用 DeepSeek key（`~/.agentruntime/api_key` 或 `AGENTRUNTIME_API_KEY`）。
-- D8 只证明**同一台机器上搬目录**；跨机器还须目标机装 .NET 10（`deploy doctor` 会报）。
+- Requires .NET 10 and a working DeepSeek key (`~/.agentruntime/api_key` or `AGENTRUNTIME_API_KEY`).
+- D8 proves **moving a directory on the same machine**; another machine also needs .NET 10 (`deploy doctor` reports it).

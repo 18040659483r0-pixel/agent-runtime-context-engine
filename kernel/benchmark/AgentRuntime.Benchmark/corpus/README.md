@@ -1,30 +1,34 @@
-# corpus/ —— 可公开的实测语料（真实资料的去隐私切片）
+# corpus/ — the publishable measurement corpus (de-identified slices of real material)
 
-> **这是什么**：benchmark 用的**真实语料**切片，按「铁则 → 知识 → 记忆」堆叠，约 **10k token** 档。
-> 内容来自真实工程资料（非合成），但已**去隐私**，因此**可以随仓库公开** —— 他人无需私有素材即可复现同一档位。
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-| 文件 | 来源（真实资料） | 字符数 | 说明 |
+> **What this is**: real-corpus slices used by the benchmark, stacked as **rules → knowledge → memory**, about a
+> **10k-token** tier. The content comes from real engineering material (not synthetic) but is **de-identified**, so it
+> **ships with the repo** — anyone can reproduce the same tier without private assets.
+
+| File | Source (real material) | Chars | Layer |
 |---|---|---|---|
-| `rules.md` | 工作区铁则与流程 | 4330 | 铁则层 |
-| `knowledge.md` | 抽象方法论 | 8607 | 知识层 |
-| `memory.md` | 记忆索引（时间线） | 5053 | 记忆层 |
-| **合计** | — | **17990** | ≈ **9569 token**（实测 ~1.88 字符/token） |
+| `rules.md` | workspace rules and process | 4,330 | rules |
+| `knowledge.md` | abstract methodology | 8,607 | knowledge |
+| `memory.md` | memory index (timeline) | 5,053 | memory |
+| **Total** | — | **17,990** | ≈ **9,569 tokens** (~1.88 chars/token measured) |
 
-## 去隐私规则（生成时强制）
+## De-identification rules (enforced at generation)
 
-1. **只做部分注入**：按字符预算切片，不整份搬运；
-2. 人名 / 本机路径 / 内网地址 / 账号 / 口令 / 令牌 / 电话 / 网盘码 / 金额 → **占位符**；
-3. 构建后**自检必须 0 命中**，否则拒绝产出。
+1. **Partial injection only**: slice by character budget, never copy a whole document.
+2. Names / host paths / intranet addresses / accounts / passwords / tokens / phone numbers / cloud-drive codes /
+   amounts → **placeholders**.
+3. After the build, a **self-check must report 0 hits**, otherwise the output is refused.
 
-## 复现
+## Reproduce
 
 ```bash
-# 重建（从本机真实资料；产出即本目录）
+# rebuild (from real local material; output is this directory)
 dotnet run --project benchmark/AgentRuntime.Benchmark -- public-corpus
 
-# 只自检现有产物（不重建）
+# self-check existing artifacts only (no rebuild)
 dotnet run --project benchmark/AgentRuntime.Benchmark -- public-corpus --check
 ```
 
-改档位规模 → 编辑 `benchmark/AgentRuntime.Benchmark/PublicCorpusCli.cs` 的 `Sources`（源 → 预算）与
-`benchmark.config.xml` 的 `corpus.tiers`，二者保持一致。
+To change the tier size, edit `Sources` (source → budget) in
+`benchmark/AgentRuntime.Benchmark/PublicCorpusCli.cs` and `corpus.tiers` in `benchmark.config.xml`; keep them in sync.

@@ -1,6 +1,6 @@
 # Agent Runtime
 
-> English | [中文](README.zh-CN.md)
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
 > **Version 0.1.0 (kernel freeze, 2026-09-14)** — freeze criteria, frozen items and measured evidence: `docs/FREEZE-0.1.0.md`.
 > Change log: `CHANGELOG.md`

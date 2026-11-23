@@ -1,30 +1,32 @@
-# 测试套件索引（WB 本地版）
+# Test-suite index (local edition)
 
-> **四个套件同构**：每个 = `SCENARIOS.md`（场景 + 判据）+ `RUNS.md`（实跑记录）。
-> 判据一律**可复算**（命令 / rc / 报告行 / 计数），不靠"看着挺好"。
-> 整理日期：2026-10-16（主人令「干脆整理好」）。
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-| # | 套件 | 版本 | 位置 | 状态 | 测什么 |
+> **Four suites, one shape**: each = `SCENARIOS.md` (scenarios + criteria) + `RUNS.md` (actual runs).
+> Every criterion is **recomputable** (command / rc / report line / count), never “looks fine”.
+> Organised 2026-10-16.
+
+| # | Suite | Version | Location | Status | What it measures |
 |---|---|---|---|---|---|
-| **S1** | **master 能效测试套件** | v1 | `tools/master-testsuite/` | **在用** | master 一轮值不值这个钱：轮数 / token / 返工 / 空转 |
-| **S2** | **master 收尾测试套件** | **v1**（2026-10-16 立） | `tools/closeout-testsuite/` ← 本目录 | **在用** | **收尾流程**能不能走完、会卡在哪、扩展到什么程度不破坏稳定 |
-| **S3** | master-worker 工具派发测试套件 | v1 | `tools/worker-mode-acceptance/` | ⏸ **暂停**（暂时单 master） | master→worker 派发链（派发物 / 契约 / 回执 / 结算） |
-| **S4** | **I 系列 · 网络工具性能测试套件** | **v1**（2026-10-18 立） | `tools/network-testsuite/` | **在用** | 5 个网络工具的功能 / 负例 / **真实 token + 墙钟** |
+| **S1** | master cost/efficiency suite | v1 | `tools/master-testsuite/` | **in use** | whether one master turn is worth the money: turns / tokens / rework / idle |
+| **S2** | master closeout suite | **v1** (2026-10-16) | `tools/closeout-testsuite/` ← this directory | **in use** | whether closeout completes, where it stalls, how far it scales without breaking stability |
+| **S3** | master-worker dispatch suite | v1 | `tools/worker-mode-acceptance/` | ⏸ **paused** (single master) | the dispatch chain (payload / contract / receipt / settlement) |
+| **S4** | I-series network-tool performance | **v1** (2026-10-18) | `tools/network-testsuite/` | **in use** | five network tools: function / negative cases / **real tokens + wall clock** |
 
-**为什么留着 S3**：它测的"派发链"与 S1/S2 不重叠，将来若再开 worker 直接复用；现在`worker 记忆`已退出收尾、
-派发链停用，所以**只归档、不跑**。
+**Why keep S3**: it covers the dispatch chain (no overlap with S1/S2) and will be reused if workers return; worker
+memory has left closeout and the chain is disabled, so it is **archived, not run**.
 
-## 怎么跑
+## How to run
 
-| 套件 | 跑法 | 耗时档 |
+| Suite | How | Duration |
 |---|---|---|
-| S1 | 见 `tools/master-testsuite/SCENARIOS.md`（人工/模型驱动，按场景逐条） | 分钟~十几分钟 |
-| S2 | ① 机械档：`tools/closeout-testsuite/SCENARIOS.md` §A（全在命令行，秒级）<br>② 真机档：§B（tmux 拉起 TUI → `/start` → 命令做收尾） | 机械秒级 / 真机 5~15 分钟 |
-| S3 | ⏸ 暂停 | — |
-| S4 | `dotnet run --project tools/network-testsuite`（8 条，官方 DS 真机） | 约 1 分钟（8 条合计 ~50~60 s） |
+| S1 | see `tools/master-testsuite/SCENARIOS.md` (human/model driven, scenario by scenario) | minutes to ~15 min |
+| S2 | ① mechanical: `SCENARIOS.md` §A (all command-line, seconds)<br>② real: §B (tmux TUI → `/start` → run closeout) | seconds / 5–15 min |
+| S3 | ⏸ paused | — |
+| S4 | `dotnet run --project tools/network-testsuite` (8 cases, official DS) | ~1 min total |
 
-## 版本约定（四个套件共用）
+## Version rules (shared)
 
-- **v1 起**：每次**改动场景或判据** ⇒ 升版本，并在该套件 `RUNS.md` 记一条「v升到几、为什么」。
-- **实跑记录只追加**（不删旧记录）—— 一轮一个表格块，带日期、版本、读数、发现。
-- 判据分**硬**（红/绿）与**软**（只记录、不判死）：软读数用来**看趋势**，不是通过条件。
+- From **v1**: any change to scenarios or criteria ⇒ bump the version and record “v → x, why” in that suite’s `RUNS.md`.
+- **Run records are append-only** — one table block per run with date, version, readings, findings.
+- Criteria are **hard** (red/green) or **soft** (recorded, not a pass condition) — soft readings show trends.

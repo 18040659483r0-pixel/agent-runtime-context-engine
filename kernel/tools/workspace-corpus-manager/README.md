@@ -1,63 +1,66 @@
-# Workspace 语料管理器（Wcm · Mac / POSIX 版）
+# Workspace corpus manager (Wcm · macOS / POSIX)
 
-与 `[001]` 的 Windows 版 **同接口、同规则文件**（`deploy-template.json` 逐字一致，`rule-check` 可机器比对）。
-把「生成部署版语料 / 备份当前语料 / 还原语料」做成可复用命令，随时一键产出干净统一的 WB workspace。
+> English | [中文](README.zh-CN.md) | [日本語](README.ja.md)
 
-## 三个能力
+Same interface and the **same rules file** as the Windows edition (`deploy-template.json` is byte-identical;
+`rule-check` compares them mechanically). Turns “generate deployment corpus / back up the current corpus / restore the
+corpus” into reusable commands, so a clean, uniform WB workspace is one command away.
 
-| 命令 | 作用 |
+## Three capabilities
+
+| Command | What it does |
 |---|---|
-| `wcm new --target <ws> [--template <dir>] [--reset]` | **生成部署版语料**：拷 `deployment-template/` 的引导语料（AGENTS/BULLETIN/GLOSSARY/USER/ONBOARDING）并建 `knowledge/docs/memory/handoff` 结构目录；`--reset` 先清空目标 |
-| `wcm backup --workspace <ws> --backup <dir>` | **备份当前语料**到单个文件夹；自动排除 `state/` `.svn/` `bin/` `obj/` `.git/`、`.tui2.lock`、`deepseek apikey.txt` |
-| `wcm restore --from <dir> --to <ws>` | **还原语料**（合并，不删目标已有文件） |
+| `wcm new --target <ws> [--template <dir>] [--reset]` | **generate the deployment corpus**: copy the onboarding corpus from `deployment-template/` (AGENTS / BULLETIN / GLOSSARY / USER / ONBOARDING) and create `knowledge / docs / memory / handoff`; `--reset` clears the target first |
+| `wcm backup --workspace <ws> --backup <dir>` | **back up the current corpus** into one folder; excludes `state/` `.svn/` `bin/` `obj/` `.git/`, `.tui2.lock`, `deepseek apikey.txt` |
+| `wcm restore --from <dir> --to <ws>` | **restore** (merge; never deletes files already in the target) |
 
-另有两个自检命令：
+Two self-check commands:
 
-- `wcm selftest` —— 沙盒跑「生成 → 模拟积累 → 备份 → 破坏 → 还原 → 重置」，逐条 PASS/FAIL；
-- `wcm rule-check [--windows <json>]` —— 与 Windows 版 `deploy-template.json` 逐字比对（规则不许分叉）。
+- `wcm selftest` — runs generate → simulate accumulation → backup → damage → restore → reset in a sandbox, PASS/FAIL per step;
+- `wcm rule-check [--windows <json>]` — byte-compares with the Windows `deploy-template.json` (rules must not fork).
 
-## 用法
+## Usage
 
 ```bash
 cd whitebox/tools/workspace-corpus-manager
 dotnet build -c Release
 
-# 1) 生成一个干净的部署版 workspace（新用户首访）
+# 1) a clean deployment workspace (first visit of a new user)
 dotnet bin/Release/net10.0/wcm.dll new --target /tmp/ws-new --reset
 
-# 2) 备份当前 WB 语料
+# 2) back up the current WB corpus
 dotnet bin/Release/net10.0/wcm.dll backup \
   --workspace ../../whitebox/workspace --backup ~/Backups/wb-corpus-2026-10-31
 
-# 3) 还原
+# 3) restore
 dotnet bin/Release/net10.0/wcm.dll restore --from ~/Backups/wb-corpus-2026-10-31 --to /tmp/ws-restored
 
-# 4) 自检 / 规则对齐
+# 4) self-test / rule alignment
 dotnet bin/Release/net10.0/wcm.dll selftest
 dotnet bin/Release/net10.0/wcm.dll rule-check
 ```
 
-## 与 Windows 版的差异（只差在实现手段）
+## Differences from the Windows edition (implementation only)
 
-| 项 | Windows | Mac |
+| Item | Windows | macOS |
 |---|---|---|
-| 复制 | `robocopy /E /XD /XF` | `Directory.EnumerateFileSystemEntries` + `File.Copy`（同一份排除清单） |
-| 重置 | `Remove-Item -Recurse` | `Directory.Delete(recursive)`（**拒绝** `/`、家目录） |
-| 规则 | `deploy-template.json` | 同名同内容（`rule-check` 比对） |
+| Copy | `robocopy /E /XD /XF` | `Directory.EnumerateFileSystemEntries` + `File.Copy` (same exclusion list) |
+| Reset | `Remove-Item -Recurse` | `Directory.Delete(recursive)` (**refuses** `/` and the home directory) |
+| Rules | `deploy-template.json` | same name and content (`rule-check` compares) |
 
-## 实测
+## Measured
 
 ```
 wcm selftest  →  15/15 PASS
-wcm rule-check →  规则一致：deploy-template.json
+wcm rule-check →  rules identical: deploy-template.json
 ```
 
-## 结构
+## Layout
 
 ```
 workspace-corpus-manager/
-  Program.cs / Wcm.csproj      # 工具本体（net10.0 控制台，命令：new/backup/restore/selftest/rule-check）
-  deploy-template.json         # 与 Windows 版逐字一致
-  deployment-template/         # 部署版语料（5 份引导语料）
-  test-sandbox/                # selftest 临时目录（跑完自删）
+  Program.cs / Wcm.csproj      # the tool (net10.0 console; commands: new/backup/restore/selftest/rule-check)
+  deploy-template.json         # byte-identical to the Windows edition
+  deployment-template/         # deployment corpus (5 onboarding files)
+  test-sandbox/                # selftest scratch directory (removed afterwards)
 ```

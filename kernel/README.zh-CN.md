@@ -1,6 +1,6 @@
 # Agent Runtime
 
-> [English](README.md) | 中文
+> [English](README.md) | 中文 | [日本語](README.ja.md)
 
 > **版本 0.1.0（内核封版，2026-09-14）** —— 封版判据、冻结项与实测证据见 `docs/FREEZE-0.1.0.md`。
 > 变更记录：`CHANGELOG.md`
