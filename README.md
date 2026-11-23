@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.1.7
+# Agent Runtime / WhiteBox · 1.1.8
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.7.md](RELEASE-1.1.7.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.8.md](RELEASE-1.1.8.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,17 +8,17 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (current: 1.1.7)
+## Deployment (current: 1.1.8)
 
-Download **deploy-manager-1.1.7-<platform>.tar.gz** from the release, then:
+Download **deploy-manager-1.1.8-<platform>.tar.gz** from the release, then:
 
 Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 > **Upgrading from 1.1.3 beta?** Use `dotnet wcm.dll setup --target <dir> --update --yes` to keep `whitebox/workspace`; do not overwrite-install.
 
 ```bash
-tar -xzf deploy-manager-1.1.7-<platform>.tar.gz
-cd deploy-manager-1.1.7-<platform>
+tar -xzf deploy-manager-1.1.8-<platform>.tar.gz
+cd deploy-manager-1.1.8-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
@@ -28,12 +28,11 @@ Guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY
 
 ---
 
-## New in 1.1.7 (beta)
+## New in 1.1.8 (beta)
 
-- **Smoother thinking animation** — 10 → 30 fps (the render gate now includes the animation phase; measured 25 distinct frames/second).
-- **Protocol v120** — plain language is an *explanation mode*, never a flattening of the answer; a new clause makes the agent **sort each instruction** into a user decision vs a single-project design; closeout reads **only the workspace aggregates**.
-- **Always the latest build** — `whitebox` resolves to the newest repo build (with a fallback), `setup` no longer rewrites your global command, and `--where` shows exactly what will run.
-- **Hardened judging layer** — filesystem targets are normalised at entry and both `/` and `\` are recognised, so a protected path can no longer slip through as a mere prompt.
+- **True color by default** — accent gold is `#F6C453` and paths `#F0C987` on macOS, Windows Terminal and Windows; `--color-depth 256|16` still downgrades.
+- **Numbers are not paths** — `8/12`, `1/2` and friends stay plain; real paths still highlight.
+- **Honest install check** — `wcm setup` no longer reports failure when the global `whitebox` command is intentionally left unregistered.
 
 ## Abstract
 
@@ -297,6 +296,6 @@ Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/
 
 - **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**: [deploy-manager-1.1.7-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz)
-- **Windows x64**: [deploy-manager-1.1.7-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz)
-- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz.sha256)
+- **macOS arm64**: [deploy-manager-1.1.8-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.1.8-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz.sha256)
