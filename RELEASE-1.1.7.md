@@ -1,6 +1,6 @@
 # Agent Runtime / WhiteBox · **1.1.7**
 
-> 中文: [RELEASE-1.1.7.zh-CN.md](RELEASE-1.1.7.zh-CN.md)
+> 中文: [RELEASE-1.1.7.zh-CN.md](RELEASE-1.1.7.zh-CN.md) · 日本語: [RELEASE-1.1.7.ja.md](RELEASE-1.1.7.ja.md)
 
 > ⬇️ **Source & downloads**: use the release page — source archives and installers are listed under **Assets** at the bottom.
 
@@ -72,7 +72,7 @@
 
 ## Verification
 
-- Unit tests: **1404 / 1404**
+- Unit tests (macOS): **1405 / 1405**
 - Protocol gates: **14 / 14** (budget **27 lines / 28,068 chars / 7,017 tokens**, cap 7,200)
 - `--protocol-show`: **v120**
 - `--next-id decision`: **D-0057**

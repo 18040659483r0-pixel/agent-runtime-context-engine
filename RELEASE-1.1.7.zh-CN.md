@@ -1,6 +1,6 @@
 # Agent Runtime / WhiteBox · **1.1.7**
 
-> English: [RELEASE-1.1.7.md](RELEASE-1.1.7.md)
+> English: [RELEASE-1.1.7.md](RELEASE-1.1.7.md) · 日本語: [RELEASE-1.1.7.ja.md](RELEASE-1.1.7.ja.md)
 
 > ⬇️ **源码与下载**：见发布页 **Assets**（源码包与安装包都在页面底部）。
 
@@ -63,7 +63,7 @@
 
 ## 验证
 
-- 单测：**1404 / 1404**
+- 单测（macOS）：**1405 / 1405**
 - 协议闸门：**14 / 14**（预算 **27 行 / 28,068 字符 / 7,017 token**，上限 7,200）
 - `--protocol-show`：**v120**
 - `--next-id decision`：**D-0057**
