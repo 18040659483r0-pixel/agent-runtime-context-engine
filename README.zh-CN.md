@@ -1,23 +1,23 @@
-# Agent Runtime / WhiteBox · 1.1.7
+# Agent Runtime / WhiteBox · 1.1.8
 
-> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.1.7.zh-CN.md](RELEASE-1.1.7.zh-CN.md)
+> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.1.8.zh-CN.md](RELEASE-1.1.8.zh-CN.md)
 
 **一个把「透明、节省、可审计」做成可比对读数、并且是单会话的 Agent 运行时。**
 
 本文是当前实现的全面设计与交付报告，不是相对上一版的增量说明：它描述系统**今天是什么**、保证了什么，
 以及每一条保证**怎么被量出来**。
 
-## 部署（当前 1.1.7）
+## 部署（当前 1.1.8）
 
-从 Release 下载 **deploy-manager-1.1.7-<platform>.tar.gz**，然后：
+从 Release 下载 **deploy-manager-1.1.8-<platform>.tar.gz**，然后：
 
 两个包：**macos-arm64** 与 **winx64** —— 按系统选用。
 
 > **从 1.1.3 beta 升级？** 用 `dotnet wcm.dll setup --target <目录> --update --yes` 才能保留 `whitebox/workspace`；不要覆盖安装。
 
 ```bash
-tar -xzf deploy-manager-1.1.7-<platform>.tar.gz
-cd deploy-manager-1.1.7-<platform>
+tar -xzf deploy-manager-1.1.8-<platform>.tar.gz
+cd deploy-manager-1.1.8-<platform>
 dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 ./run.sh                  # Windows 用 run.cmd
 ```
@@ -27,12 +27,11 @@ dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 
 ---
 
-## 1.1.7 新增（beta）
+## 1.1.8 新增（beta）
 
-- **思考动画更顺** —— 10 → 30 fps（渲染门现在包含动画相位；实测每秒 25 个不同帧）。
-- **协议 v120** —— 白话是**解释方式**，绝不把回答压平；新增条款要求把每条指示**先分类**成「用户决策」还是「单项目设计」；收尾**只读工作区汇总**。
-- **每次都是最新构建** —— `whitebox` 解析到仓库最新构建（有回退），`setup` 不再改写你的全局命令，`--where` 直接告诉你会跑哪一个。
-- **判定层加固** —— 文件系统目标在入口归一，`/` 与 `\` 两种分隔符都识别，受保护路径不再只靠一次询问就放过去。
+- **默认真彩** —— macOS / Windows Terminal / Windows 下强调金为 `#F6C453`、路径 `#F0C987`；`--color-depth 256|16` 仍可降级。
+- **数字不再当路径** —— `8/12`、`1/2` 保持原样；真实路径照旧高亮。
+- **安装自检不虚报** —— 默认不注册全局 `whitebox` 命令时，`wcm setup` 不再报失败。
 
 ## 摘要
 
@@ -265,6 +264,6 @@ dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --kn-check 
 
 - **源码**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **全部发布**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.7-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.7-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz)
-- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.1.8-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.1.8-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz)
+- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz.sha256)
