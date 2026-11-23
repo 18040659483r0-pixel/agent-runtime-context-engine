@@ -11,8 +11,8 @@
 
 | 资产 | 平台 | SHA-256 |
 |---|---|---|
-| `deploy-manager-1.1.8-macos-arm64.tar.gz` | macOS arm64 | `c96e177c30dd1d2220a049e2592c043f520d04437f23f5d3c26c6b417e973b45` |
-| `deploy-manager-1.1.8-winx64.tar.gz` | Windows x64 | `8d2a51841c817ec2e9b924ca00fbf6952805eee2f3b37e305e91f7dad69180f3` |
+| `deploy-manager-1.1.8-macos-arm64.tar.gz` | macOS arm64 | `d582e0a63faf32d8947b6eb93a5865a1f3d35ffc6ab3eea363708878cabe8338` |
+| `deploy-manager-1.1.8-winx64.tar.gz` | Windows x64 | `97144276c86360f3e7918d65b5c291e40b8525430cc206a510d7683211205fe9` |
 
 > **⚠️ 从旧 beta 升级？**
 > 要保留语料 / 记忆（`whitebox/workspace`），请用 **`--update`** 安装：
