@@ -1,23 +1,23 @@
-# Agent Runtime / WhiteBox · 1.1.6
+# Agent Runtime / WhiteBox · 1.1.7
 
-> English: [README.md](README.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · リリースノート: [RELEASE-1.1.6.ja.md](RELEASE-1.1.6.ja.md)
+> English: [README.md](README.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · リリースノート: [RELEASE-1.1.7.ja.md](RELEASE-1.1.7.ja.md)
 
 **「透明・経済的・監査可能」を測定可能な数値として成立させた、単一セッションのエージェントランタイム。**
 
 本書は現行実装の**包括的な設計・納品レポート**です。前版との差分ではありません。
 システムが**今日なにであるか**、なにを保証するか、そして各保証が**どう測られるか**を記述します。
 
-## デプロイ（現行 1.1.6）
+## デプロイ（現行 1.1.7）
 
-Release から **deploy-manager-1.1.6-<platform>.tar.gz** を取得し、次を実行します。
+Release から **deploy-manager-1.1.7-<platform>.tar.gz** を取得し、次を実行します。
 
 2 パッケージ: **macos-arm64** と **winx64** —— OS に合う方を選んでください。
 
 > **1.1.3 beta から更新する場合：** `dotnet wcm.dll setup --target <dir> --update --yes` で `whitebox/workspace` を保持できます。上書きインストールしないでください。
 
 ```bash
-tar -xzf deploy-manager-1.1.6-<platform>.tar.gz
-cd deploy-manager-1.1.6-<platform>
+tar -xzf deploy-manager-1.1.7-<platform>.tar.gz
+cd deploy-manager-1.1.7-<platform>
 dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル -> キー
 ./run.sh                  # Windows は run.cmd
 ```
@@ -26,6 +26,13 @@ dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル ->
 手順書: [DEPLOY.ja.md](DEPLOY.ja.md) · [English](DEPLOY.md) · [中文](DEPLOY.zh-CN.md)
 
 ---
+
+## 1.1.7 の新機能（beta）
+
+- **思考アニメーションが滑らかに** —— 10 → 30 fps（レンダーゲートにアニメーション位相を追加。実測 1 秒 25 フレーム）。
+- **プロトコル v120** —— 平易な言葉は説明のモードであり、回答を平板化しません。新しい条項は、各指示をユーザー決定と単一プロジェクトの設計に分類することを求めます。クローズはワークスペースの集計だけを読みます。
+- **常に最新ビルド** —— `whitebox` はリポジトリの最新ビルドを解決（フォールバックあり）。`setup` はグローバルコマンドを書き換えません。`--where` で実行内容を確認できます。
+- **判定層の強化** —— ファイルシステムのターゲットを入口で正規化し、`/` と `\\` の両方を認識。保護パスが確認だけで通過することはなくなりました。
 
 ## 要旨
 
@@ -38,7 +45,7 @@ dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル ->
 知識と意思決定は**同型の四層ツリー**で、本文は id で取得し、同一セッション内では一度しか組み立てません。
 すべての行為は**タグ付きイベント**、すべての判断は**反例を持つゲート**、すべての収尾は**再計算可能なレシート**です。
 
-参考ワークロードでの実測：プロトコル領域 **25 行 / 5,234 token**、知識ツリー **10 / 25 / 46 / 445** ノード、
+参考ワークロードでの実測：プロトコル領域 **25 行 / 7,017 token**、知識ツリー **10 / 25 / 46 / 445** ノード、
 意思決定ツリー **4 / 8 / 12 / 16**、内部テスト **1349 / 1349**、実長セッションのプレフィックスキャッシュ命中
 **99.1 %**、423 ターンの台帳圧縮 **45,888 → 16,599 文字（−64 %）**、収尾 **約 35 秒 / 5 ラウンド**。
 
@@ -53,7 +60,7 @@ dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル ->
 |---|---|---|
 | **単一セッション** | 1 プロセスが 1 ストリームを所有。`/reset` が終了の唯一の手段。`start` が前回の末態から次を開く | `--stream` は常に 1 ファイル。再開・再生は**位置**の意味論で、マージではない |
 | **透明** | 追記専用イベント。`Tag` が同一性。プロンプトは計算されたオブジェクト | 12 モジュール、モジュール別の寄与バイトが画面に出る（`(Cached) / (Active) / (Runtime)`） |
-| **経済的** | 常駐は L1 のみ。L2–L4 は id 取得。1 ターン 1 回組み立て。安定プレフィックスは書き換えない | キャッシュ命中 **99.1 %**（296,225 / 293,632）、プロトコル **5,234 token**（予算 5,600） |
+| **経済的** | 常駐は L1 のみ。L2–L4 は id 取得。1 ターン 1 回組み立て。安定プレフィックスは書き換えない | キャッシュ命中 **99.1 %**（296,225 / 293,632）、プロトコル **7,017 token**（予算 7,200） |
 | **監査可能** | タグ・台帳・反例付きゲート・収尾レシート・意思決定レポート | **18** の block/report 検査、**242** 件の落とし穴配置宣言、レシート指紋は再計算可能 |
 
 以下はすべて、この表の背後にある仕組みです。
@@ -92,7 +99,7 @@ WhiteBox はこの四つに、規律ではなく仕組みで答えます。
 
 | 領域 | 内容 | 寿命 |
 |---|---|---|
-| **R1-P** | プロトコル領域（v102）— カーネル定数・rank 0 | 版イベントまで安定 |
+| **R1-P** | プロトコル領域（v120）— カーネル定数・rank 0 | 版イベントまで安定 |
 | **R1** | ルール · 知識 L1 · 意思決定 L1 · メモリ索引 | 安定プレフィックス（変更時のみ再派生） |
 | **R2** | 追記専用のセッションイベントストリーム | 追記のみ、書き換えなし |
 | **R3** | フォーカス — いま何のタスクか | ターン単位 |
@@ -130,7 +137,7 @@ L1 法則 → L2 問いの形 → L3 処理単位 → L4 逐語証拠
 
 | モジュール | 役割 | 目安バイト |
 |---|---|---|
-| protocol | カーネル契約（R1-P） | 約 20.9 k 文字 |
+| protocol | カーネル契約（R1-P） | 約 28.1 k 文字 |
 | rules | 工学ルール | 約 31 k 文字 |
 | knowledge | L1 法則 | 約 5.6 k 文字 |
 | decision | L1 取向 | 約 1.5 k 文字 |
@@ -212,7 +219,7 @@ L1 法則 → L2 問いの形 → L3 処理単位 → L4 逐語証拠
 
 | 指標 | 値 |
 |---|---|
-| プロトコル領域 | v102 · 25 行 · 20,933 文字 · **5,234 token**（予算 5,600） |
+| プロトコル領域 | v120 · 25 行 · 28,068 文字 · **7,017 token**（予算 7,200） |
 | 知識ツリー | **10 / 25 / 46 / 445** ノード · 516 辺 · 連鎖ゲート緑 |
 | 意思決定ツリー | **4 / 8 / 12 / 16** · 16/16 収束 · 孤立 0 |
 | テスト（内部ビルド） | **1349 / 1349** |
@@ -263,6 +270,6 @@ dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --kn-check 
 
 - **ソース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **すべてのリリース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.6-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.6-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz)
-- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.1.7-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.1.7-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz)
+- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz.sha256)

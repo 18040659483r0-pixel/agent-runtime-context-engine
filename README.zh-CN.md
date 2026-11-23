@@ -1,23 +1,23 @@
-# Agent Runtime / WhiteBox · 1.1.6
+# Agent Runtime / WhiteBox · 1.1.7
 
-> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.1.6.zh-CN.md](RELEASE-1.1.6.zh-CN.md)
+> English: [README.md](README.md) · 日本語: [README.ja.md](README.ja.md) · 发布说明: [RELEASE-1.1.7.zh-CN.md](RELEASE-1.1.7.zh-CN.md)
 
 **一个把「透明、节省、可审计」做成可比对读数、并且是单会话的 Agent 运行时。**
 
 本文是当前实现的全面设计与交付报告，不是相对上一版的增量说明：它描述系统**今天是什么**、保证了什么，
 以及每一条保证**怎么被量出来**。
 
-## 部署（当前 1.1.6）
+## 部署（当前 1.1.7）
 
-从 Release 下载 **deploy-manager-1.1.6-<platform>.tar.gz**，然后：
+从 Release 下载 **deploy-manager-1.1.7-<platform>.tar.gz**，然后：
 
 两个包：**macos-arm64** 与 **winx64** —— 按系统选用。
 
 > **从 1.1.3 beta 升级？** 用 `dotnet wcm.dll setup --target <目录> --update --yes` 才能保留 `whitebox/workspace`；不要覆盖安装。
 
 ```bash
-tar -xzf deploy-manager-1.1.6-<platform>.tar.gz
-cd deploy-manager-1.1.6-<platform>
+tar -xzf deploy-manager-1.1.7-<platform>.tar.gz
+cd deploy-manager-1.1.7-<platform>
 dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 ./run.sh                  # Windows 用 run.cmd
 ```
@@ -26,6 +26,13 @@ dotnet wcm.dll setup      # 目录 -> provider -> 思考档 -> 密钥
 完整说明：[DEPLOY.zh-CN.md](DEPLOY.zh-CN.md) · [English](DEPLOY.md) · [日本語](DEPLOY.ja.md)
 
 ---
+
+## 1.1.7 新增（beta）
+
+- **思考动画更顺** —— 10 → 30 fps（渲染门现在包含动画相位；实测每秒 25 个不同帧）。
+- **协议 v120** —— 白话是**解释方式**，绝不把回答压平；新增条款要求把每条指示**先分类**成「用户决策」还是「单项目设计」；收尾**只读工作区汇总**。
+- **每次都是最新构建** —— `whitebox` 解析到仓库最新构建（有回退），`setup` 不再改写你的全局命令，`--where` 直接告诉你会跑哪一个。
+- **判定层加固** —— 文件系统目标在入口归一，`/` 与 `\` 两种分隔符都识别，受保护路径不再只靠一次询问就放过去。
 
 ## 摘要
 
@@ -37,7 +44,7 @@ WhiteBox 把这三件当作一等工程对象。
 知识与决策是**两棵同构的四层树**，正文按 id 取用，一个会话内同一正文最多拼一次。
 每个动作都是**带标签的事件**；每个判断都是**带负例的闸门**；每次收尾都写一份**可复算的回执**。
 
-参考负载上的交付读数：协议区 **25 行 / 5,234 token**；知识树 **10 / 25 / 46 / 445** 节点；决策树
+参考负载上的交付读数：协议区 **25 行 / 7,017 token**；知识树 **10 / 25 / 46 / 445** 节点；决策树
 **4 / 8 / 12 / 16**；内部全量测试 **1349 / 1349**；真实长会话的前缀缓存命中 **99.1 %**；423 轮任务台账
 压缩 **45,888 → 16,599 字符（−64 %）**；收尾 **≈35 秒 / 5 轮**。
 
@@ -51,7 +58,7 @@ WhiteBox 把这三件当作一等工程对象。
 |---|---|---|
 | **单 session** | 一个进程只拥有一条流；`/reset` 是结束它的唯一方式；`start` 从上一份末态开下一条 | `--stream` 只指向一个文件；续接与回放是**位置**语义，从不是合并 |
 | **透明** | 只追加的事件；`Tag` 即身份；prompt 是算出来的对象，不是模板 | 12 个模块，逐模块字节贡献在台面上可见（`(Cached) / (Active) / (Runtime)`） |
-| **节省** | 常驻只有 L1；L2–L4 按 id 取；一轮只组装一次；稳定前缀永不重写 | 前缀缓存 **99.1 %**（296,225 / 293,632）；协议 **5,234 token**（预算 5,600） |
+| **节省** | 常驻只有 L1；L2–L4 按 id 取；一轮只组装一次；稳定前缀永不重写 | 前缀缓存 **99.1 %**（296,225 / 293,632）；协议 **7,017 token**（预算 7,200） |
 | **可审计** | 标签、账本、带负例的闸门、收尾回执、决策报告 | **18** 项 block/report 检查；**242** 条坑集落点声明；回执指纹可重算 |
 
 下面全是这张表背后的机制。
@@ -90,7 +97,7 @@ prompt 是一摞有名字的区域，每个区域有自己的字节预算与生�
 
 | 区 | 内容 | 生命周期 |
 |---|---|---|
-| **R1-P** | 协议区（v102）—— 内核常量，rank 0 | 稳定，直到声明版本事件 |
+| **R1-P** | 协议区（v120）—— 内核常量，rank 0 | 稳定，直到声明版本事件 |
 | **R1** | 规则 · 知识 L1 · 决策 L1 · 记忆索引 | 稳定前缀，只在变更时重新派生 |
 | **R2** | 只追加的会话事件流（发生过什么的账） | 只增长，从不重写 |
 | **R3** | 焦点 —— 当前任务此刻的着重点 | 逐轮 |
@@ -128,7 +135,7 @@ L1 法则  →  L2 问题形状  →  L3 处理单元  →  L4 逐字证据
 
 | 模块 | 职责 | 典型字节 |
 |---|---|---|
-| protocol | 内核契约（R1-P） | ~20.9 k 字符 |
+| protocol | 内核契约（R1-P） | ~28.1 k 字符 |
 | rules | 工程铁则 | ~31 k 字符 |
 | knowledge | L1 法则 | ~5.6 k 字符 |
 | decision | L1 取向 | ~1.5 k 字符 |
@@ -207,7 +214,7 @@ L1 法则  →  L2 问题形状  →  L3 处理单元  →  L4 逐字证据
 
 | 指标 | 值 |
 |---|---|
-| 协议区 | v102 · 25 行 · 20,933 字符 · **5,234 token**（预算 5,600） |
+| 协议区 | v120 · 25 行 · 28,068 字符 · **7,017 token**（预算 7,200） |
 | 知识树 | **10 / 25 / 46 / 445** 节点 · 516 条边 · 链闸门绿 |
 | 决策树 | **4 / 8 / 12 / 16** · 16/16 已收敛 · 0 孤儿 |
 | 测试（内部构建） | **1349 / 1349** |
@@ -258,6 +265,6 @@ dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --kn-check 
 
 - **源码**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **全部发布**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.6-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.6-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz)
-- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.1.7-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.1.7-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz)
+- **校验和**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz.sha256)

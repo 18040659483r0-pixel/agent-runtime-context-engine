@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.1.6
+# Agent Runtime / WhiteBox · 1.1.7
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.6.md](RELEASE-1.1.6.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.7.md](RELEASE-1.1.7.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,17 +8,17 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (current: 1.1.6)
+## Deployment (current: 1.1.7)
 
-Download **deploy-manager-1.1.6-<platform>.tar.gz** from the release, then:
+Download **deploy-manager-1.1.7-<platform>.tar.gz** from the release, then:
 
 Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 > **Upgrading from 1.1.3 beta?** Use `dotnet wcm.dll setup --target <dir> --update --yes` to keep `whitebox/workspace`; do not overwrite-install.
 
 ```bash
-tar -xzf deploy-manager-1.1.6-<platform>.tar.gz
-cd deploy-manager-1.1.6-<platform>
+tar -xzf deploy-manager-1.1.7-<platform>.tar.gz
+cd deploy-manager-1.1.7-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
@@ -27,6 +27,13 @@ Defaults: DeepSeek official `deepseek-v4-flash`, reasoning **low**. No config ed
 Guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY.ja.md)
 
 ---
+
+## New in 1.1.7 (beta)
+
+- **Smoother thinking animation** — 10 → 30 fps (the render gate now includes the animation phase; measured 25 distinct frames/second).
+- **Protocol v120** — plain language is an *explanation mode*, never a flattening of the answer; a new clause makes the agent **sort each instruction** into a user decision vs a single-project design; closeout reads **only the workspace aggregates**.
+- **Always the latest build** — `whitebox` resolves to the newest repo build (with a fallback), `setup` no longer rewrites your global command, and `--where` shows exactly what will run.
+- **Hardened judging layer** — filesystem targets are normalised at entry and both `/` and `\` are recognised, so a protected path can no longer slip through as a mere prompt.
 
 ## Abstract
 
@@ -41,7 +48,7 @@ are **two isomorphic four-layer trees** whose bodies are fetched by id and, with
 once. Every action is a **tagged event**; every judgement is a **gate** with a negative example; every closeout
 writes a **receipt** that can be recomputed.
 
-The delivered result on the reference workload: protocol zone **25 lines / 5,234 tokens**; knowledge tree
+The delivered result on the reference workload: protocol zone **25 lines / 7,017 tokens**; knowledge tree
 **10 / 25 / 46 / 445** nodes; decision tree **4 / 8 / 12 / 16**; **1349 / 1349** internal tests green;
 **99.1 %** prefix-cache hit over a real long session; a 423-turn task ledger compressed **45,888 → 16,599
 characters (−64 %)**; closeout down to **≈35 s / 5 rounds**.
@@ -57,7 +64,7 @@ possible.* This release closes that sentence.
 |---|---|---|
 | **Single session** | One process owns one stream; `/reset` is the only way to end it; `start` opens the next one from the previous end state | `--stream` points at exactly one file; resume/replay is positional, never a merge |
 | **Transparent** | Append-only events; `Tag` is identity; the prompt is a computed object, not a template | 12 modules, per-module byte contributions visible in the console (`(Cached) / (Active) / (Runtime)`) |
-| **Economical** | Resident = L1 only; L2–L4 fetched by id; one assembly per turn; stable prefix never rewritten | prefix cache **99.1 %** (296,225 prompt / 293,632 cached); protocol **5,234 tokens** of a 5,600 budget |
+| **Economical** | Resident = L1 only; L2–L4 fetched by id; one assembly per turn; stable prefix never rewritten | prefix cache **99.1 %** (296,225 prompt / 293,632 cached); protocol **7,017 tokens** of a 7,200 budget |
 | **Auditable** | Tags, ledgers, gates with negative examples, closeout receipts, decision reports | **18** block/report checks; **242** declared pitfall placements; receipt fingerprint recomputable |
 
 Everything below is the mechanism behind that table.
@@ -100,7 +107,7 @@ The prompt is a stack of named regions, each with its own byte budget and lifeti
 
 | Zone | Contents | Lifetime |
 |---|---|---|
-| **R1-P** | Protocol zone (v102) — kernel constant, rank 0 | byte-stable until a declared version event |
+| **R1-P** | Protocol zone (v120) — kernel constant, rank 0 | byte-stable until a declared version event |
 | **R1** | Rules · knowledge L1 · decision L1 · memory index | stable prefix, re-derived on change only |
 | **R2** | Append-only session event stream (the ledger of what happened) | grows by appending, never rewritten |
 | **R3** | Focus — what this task is about right now | per turn |
@@ -140,7 +147,7 @@ Current reference corpus: knowledge **10 / 25 / 46 / 445** nodes (516 edges); de
 
 | Module | Role | Typical bytes |
 |---|---|---|
-| protocol | kernel contract (R1-P) | ~20.9 k chars |
+| protocol | kernel contract (R1-P) | ~28.1 k chars |
 | rules | engineering rules | ~31 k chars |
 | knowledge | L1 laws | ~5.6 k chars |
 | decision | L1 orientations | ~1.5 k chars |
@@ -233,7 +240,7 @@ All readings below were produced inside the published slice, in a fresh director
 
 | Metric | Value |
 |---|---|
-| Protocol zone | v102 · 25 lines · 20,933 chars · **5,234 tokens** (budget 5,600) |
+| Protocol zone | v120 · 25 lines · 28,068 chars · **7,017 tokens** (budget 7,200) |
 | Knowledge tree | **10 / 25 / 46 / 445** nodes · 516 edges · chain gate green |
 | Decision tree | **4 / 8 / 12 / 16** · 16/16 converged · 0 orphans |
 | Tests (internal build) | **1349 / 1349** |
@@ -290,6 +297,6 @@ Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/
 
 - **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**: [deploy-manager-1.1.6-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz)
-- **Windows x64**: [deploy-manager-1.1.6-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz)
-- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.0.1/deploy-manager-1.1.6-winx64.tar.gz.sha256)
+- **macOS arm64**: [deploy-manager-1.1.7-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.1.7-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.7/deploy-manager-1.1.7-winx64.tar.gz.sha256)
