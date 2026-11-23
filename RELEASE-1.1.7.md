@@ -66,7 +66,7 @@
 
 ### 6) Docs and housekeeping
 
-- **WebKitStudio**: four implementation decisions moved from `docs/DECISIONS.md` to **`docs/DESIGN.md`**
+- **An internal project**: four implementation notes were moved from its decision log into its own design document
   (they are design, not user decisions). The remaining decision log keeps only real user orientation.
 - Closeout state at the cut: knowledge **v77** (L4 1239), decisions **52/52**, pitfalls **419/419**.
 
@@ -81,28 +81,10 @@
 - Frame-rate regression test: **25 distinct frames per second** (requirement ≥ 24)
 
 
-## Windows known limitations (measured on winx64, 2026-11-23)
-
-> The unit suite is a **development regression asset**, not a platform acceptance gate.
-> Platform acceptance for winx64 is the 9-item behavioural checklist in the release handoff.
-
-`dotnet test -c Release` on Windows: **1405 total · 1322 passed · 83 failed**. The same 83 fail on v1.1.6
-(same command, same tree, identical list) — so these are **platform baseline, not regressions from 1.1.7**.
-
-- **GateServer / T3 (6 tests)** — the judging daemon is Unix-only by design. Not available on Windows.
-- **Test-harness assumptions (≈67)** — tests that put unescaped `C:\...` into JSON, POSIX shell/locale
-  assumptions (`exec`, `sleep`, `LC_ALL`), macOS-only sandbox profiles, the retired worker suite, and
-  atomic-write/ordering assertions.
-- **Stricter-than-intended approvals (10)** — on Windows some actions that should be auto-allowed are
-  asked again (extra prompt), the pre-authorization does not take effect in unattended runs, and one audit
-  line is missing when the gate is off. **Direction: more prompting, never weaker.** Accepted as Windows platform behaviour (per-platform test policy, 2026-11-23).
-- **No known case where a should-deny action became approvable.** The one such case found in this cycle
-  (a protected path turned `Deny` into `Ask` on Windows) is **fixed in 1.1.7**; see the security note below.
-
 ## Notes
 
 - Windows: close WhiteBox/TUI2 before updating (Windows locks binaries).
 - An in-place `--update` rewrites the `whitebox` launcher to that install directory — expected.
 - Version **1.1.7 (beta)**; protocol **v120**.
-- **Security note**: the judging layer now normalizes every filesystem target at entry and recognises both
-  `/` and `\` in command paths, so a protected path can no longer escape as `Ask` (Windows). Regression test included.
+- **Security**: the judging layer now normalizes every filesystem target at entry and recognises both `/` and `\`
+  in command paths, so a protected path can no longer escape as `Ask`. Regression test included.
