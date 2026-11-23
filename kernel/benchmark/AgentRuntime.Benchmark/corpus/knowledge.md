@@ -39,7 +39,7 @@
 - 需求三件套：**要什么 / 为什么 / 验收标准**（验收标准必须可测量、可截图证明）。
 - 技术选型默认值：Windows 桌面 = **C#/.NET + WPF**；服务端 = **Razor Pages + SQLite**；跨平台壳 = **SwiftUI/WPF + WebView2**（skill `webview-app`）；工具类 = C# 类库 + xunit。
 
-**经验索引**：FileBatchTool 立项 `analysis/文件批量处理工具.md`；授权基础设施 `handoff/04-授权系统设计.md`。
+**经验索引**：项目E 立项 `analysis/文件批量处理工具.md`；授权基础设施 `handoff/04-授权系统设计.md`。
 
 ---
 
@@ -57,7 +57,7 @@
 - 版本号/序列号算法：校验位权重必须与模数互质；测试垃圾码须含禁用字符。
 - 架构取舍给结论+理由（用户是架构师，别写论文）。
 
-**经验索引**：DiskSpaceSaver `docs/PITFALLS.md` #5/#6；发码 `skills/license-delivery`。
+**经验索引**：项目B `docs/PITFALLS.md` #5/#6；发码 `skills/license-delivery`。
 
 ---
 
@@ -82,8 +82,8 @@
 
 | 平台 | 技能 | 踩坑集 |
 |---|---|---|
-| C#/WPF | `skills/csharp-wpf-development` | `handoff/07-踩坑集归类-WinWPF`、`DiskSpaceSaver/docs/PITFALLS.md` |
-| macOS SwiftUI/自动化 | `skills/webview-app`、`skills/icon-forge` | `SequenceRunner/mac/PITFALLS.md` |
+| C#/WPF | `skills/csharp-wpf-development` | `handoff/07-踩坑集归类-WinWPF`、`项目B/docs/PITFALLS.md` |
+| macOS SwiftUI/自动化 | `skills/webview-app`、`skills/icon-forge` | `项目K/mac/PITFALLS.md` |
 | PowerShell 5.1 | `skills/powershell-51-scripting` | `handoff/02`、`handoff/07` |
 | SVN | `skills/svn-workflow` | `handoff/03` |
 | 文件编辑安全 | `skills/agent-file-editing` | r122 血泪 |
@@ -155,7 +155,7 @@ UIA 确认现状(读窗口/控件/像素，绝不先猜代码) → 分析实现�
 
 - **SVN 工作流**（skill `svn-workflow`）：命令带证书参数；**commit 后必须 `svn update` 核对版本号**；新增文件务必入库；中文路径用 ASCII 名入库；同一时间只在一台机器改同一文件。
 - **公告板 `BULLETIN.md`**：`svn update` 后的**首要检查区**（按条目/索引扫，不全量加载）；命中自己的条目 → 提示用户确认 → 执行 → 标 ✅。
-- **NodeMesh 指令协议**：见 `handoff/13-NodeMesh协作协议-从AGENTS下沉-2026-09-14.md`；铁则——**测试指令必须由其它端发出，严禁自测**；busy 时入等待队列。
+- **项目D 指令协议**：见 `handoff/13-项目D协作协议-从AGENTS下沉-2026-09-14.md`；铁则——**测试指令必须由其它端发出，严禁自测**；busy 时入等待队列。
 - **Skill 同步**：skill 全端一套，新增/修改 → push SVN + 公告板 `📢 [Skill]`。
 - **知识分层**：memory（原始素材）→ handoff（交接素材）→ skill（操作说明书）→ **METHODOLOGY（L1/L2 顶层常驻）**；**L3 细节 → 项目 PITFALLS（素材层，不装载）**。
 
@@ -166,21 +166,21 @@ UIA 确认现状(读窗口/控件/像素，绝不先猜代码) → 分析实现�
 | 要做的事 | 主技能 | 踩坑/设计文档 |
 |---|---|---|
 | 不确定看哪个 skill/坑 → 先路由 | task-router | `INDEX.md` |
-| Windows 桌面工具(C#/WPF) | `csharp-wpf-development` | `handoff/07`、DiskSpaceSaver PITFALLS |
-| 有界面程序 DEBUG | `windows-uia-automation` | `NodeMesh/deploy/15` |
-| macOS 套壳 App/自动化 | `webview-app`、`icon-forge` | `SequenceRunner/mac/PITFALLS.md` |
+| Windows 桌面工具(C#/WPF) | `csharp-wpf-development` | `handoff/07`、项目B PITFALLS |
+| 有界面程序 DEBUG | `windows-uia-automation` | `项目D/deploy/15` |
+| macOS 套壳 App/自动化 | `webview-app`、`icon-forge` | `项目K/mac/PITFALLS.md` |
 | 授权/发码/激活 | `license-delivery` + `license-keygen` | `handoff/04` |
 | 淘宝上架/素材/文案 | `taobao-listing-assets` | `taobao-listing-assets/` |
-| 图标制作 | `icon-forge` | `projects/IconForge/README.md` |
+| 图标制作 | `icon-forge` | `projects/项目F/README.md` |
 | PowerShell 5.1 脚本 | `powershell-51-scripting` | `handoff/02` |
 | SVN 三端协作 | `svn-workflow` | `handoff/03` |
-| 文件编辑安全 | `agent-file-editing` | DiskSpaceSaver PITFALLS #16 |
+| 文件编辑安全 | `agent-file-editing` | 项目B PITFALLS #16 |
 | 图片上传压缩 | `image-compress` | MEMORY 铁则#1 |
 | Windows 部署交付 | `windows-deployment` | Sales deliverables |
-| 语音录音转写存档 | `voice-archive` | `projects/voice-assistant/` |
+| 语音录音转写存档 | `voice-archive` | `projects/项目L/` |
 | 修 bug 出双轨包 | `dual-track-release` | AGENTS 铁则 5 |
 | 架构论文立证 | `architecture-paper-publishing` | AGENTS/论文仓库 |
-| 跨端消息/指令协作 | NodeMesh（项目） | `handoff/13` |
+| 跨端消息/指令协作 | 项目D（项目） | `handoff/13` |
 | **项目级方法论（L3）** | — | **`INDEX.md` §四** |
 
 ---

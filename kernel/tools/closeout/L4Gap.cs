@@ -253,7 +253,7 @@ internal static class L4Gap
 
     // ================================================================ 内部
 
-    /// <summary>列表式坑集：`## 分类` 下的 `1. **标题**`（PhotoSelect / DiskSpaceSaver 的写法）。</summary>
+    /// <summary>列表式坑集：`## 分类` 下的 `1. **标题**`（项目C / 项目B 的写法）。</summary>
     private const string PitfallListPattern = @"^\s*(\d+)\.\s+\*\*(?<title>.+?)\*\*";
 
     private static List<Item> Items(Source source)
@@ -384,7 +384,7 @@ internal static class L4Gap
     /// <summary>
     /// 生成 L4 节点 id（**规范形**）。
     /// <para>2026-10-29 坑 #372 同族：旧版直接用文件名当短名、用条目号当 seq，
-    /// 产生了 <c>L4-pit-digitalabacus-15</c> 这类不合规 id，而解析器会**静默跳过**整条节点
+    /// 产生了 <c>L4-pit-项目A-15</c> 这类不合规 id，而解析器会**静默跳过**整条节点
     /// （444 个 L4 只载入 428 个，看着像 next 列表丢末项）。这里显式规范化 + 写入前自检。</para>
     /// </summary>
     private static string L4IdOf(Source source, Item item)

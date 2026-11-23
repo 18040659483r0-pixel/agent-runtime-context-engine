@@ -136,7 +136,7 @@ wb-cli run --config src/AgentRuntime.Cli/config.private.xml --stream ~/.agentrun
 
 ```
 AgentRuntime/
-├── AgentRuntime.slnx              # 解决方案（.slnx，与 NodeMesh 一致）
+├── AgentRuntime.slnx              # 解决方案（.slnx，与 项目D 一致）
 ├── (启动器已并入 tools/wb-cli)                         # 启动器：wb-cli run "你好"
 ├── src/
 │   ├── AgentRuntime.Models/       # 纯数据：ChatRequest/ChatResponse/Message/TokenUsage

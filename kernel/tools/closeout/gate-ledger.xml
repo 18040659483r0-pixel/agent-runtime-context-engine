@@ -1655,7 +1655,7 @@
       <Id>369</Id>
       <Kind>human</Kind>
       <Pointer>docs/PITFALLS.md::## 369.</Pointer>
-      <Why>macOS 上改 HOME 不构成隔离，演练在真账上跑完。隔离只认程序自己的路径环境变量（本项目 DIGITALABACUS_DB），并在写前证明打开的不是生产库。</Why>
+      <Why>macOS 上改 HOME 不构成隔离，演练在真账上跑完。隔离只认程序自己的路径环境变量（本项目 项目A_DB），并在写前证明打开的不是生产库。</Why>
       <GatePlanned i:nil="true" />
     </Decl>
     <Decl>
