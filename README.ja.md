@@ -1,23 +1,23 @@
-# Agent Runtime / WhiteBox · 1.1.9
+# Agent Runtime / WhiteBox · 1.2.0
 
-> English: [README.md](README.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · リリースノート: [RELEASE-1.1.9.ja.md](RELEASE-1.1.9.ja.md)
+> English: [README.md](README.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · リリースノート: [RELEASE-1.2.0.ja.md](RELEASE-1.2.0.ja.md)
 
 **「透明・経済的・監査可能」を測定可能な数値として成立させた、単一セッションのエージェントランタイム。**
 
 本書は現行実装の**包括的な設計・納品レポート**です。前版との差分ではありません。
 システムが**今日なにであるか**、なにを保証するか、そして各保証が**どう測られるか**を記述します。
 
-## デプロイ（現行 1.1.9）
+## デプロイ（現行 1.2.0）
 
-Release から **deploy-manager-1.1.9-<platform>.tar.gz** を取得し、次を実行します。
+Release から **deploy-manager-1.2.0-<platform>.tar.gz** を取得し、次を実行します。
 
 2 パッケージ: **macos-arm64** と **winx64** —— OS に合う方を選んでください。
 
 > **1.1.3 beta から更新する場合：** `dotnet wcm.dll setup --target <dir> --update --yes` で `whitebox/workspace` を保持できます。上書きインストールしないでください。
 
 ```bash
-tar -xzf deploy-manager-1.1.9-<platform>.tar.gz
-cd deploy-manager-1.1.9-<platform>
+tar -xzf deploy-manager-1.2.0-<platform>.tar.gz
+cd deploy-manager-1.2.0-<platform>
 dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル -> キー
 ./run.sh                  # Windows は run.cmd
 ```
@@ -27,10 +27,10 @@ dotnet wcm.dll setup      # ディレクトリ -> provider -> 推論レベル ->
 
 ---
 
-## 1.1.9 の新機能（beta）
+## 1.2.0 の新機能（beta）
 
-- **ツール呼び出しが無言で消えない** —— フェンス / 引用 / インデント内の `[TOOL]` は明示的に拒否。本物は実行。
-- **プロトコル v121** —— ヘッダは行頭に単独。`<` / `&` を含む値では行形式が再び合法。
+- **すべての回答が意思決定レポートで締めくくられる** —— 聞いた「原料」は一行の結果に書き換えられず、そのまま読めます。
+- **ステータスバーは折り返し**（狭い端末でも切れない）。Windows のウィンドウドラッグで固まらない。
 
 ## 要旨
 
@@ -268,6 +268,6 @@ dotnet src/AgentRuntime.Cli/bin/Release/net10.0/AgentRuntime.Cli.dll --kn-check 
 
 - **ソース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **すべてのリリース**：[https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**：[deploy-manager-1.1.9-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz)
-- **Windows x64**：[deploy-manager-1.1.9-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz)
-- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz.sha256)
+- **macOS arm64**：[deploy-manager-1.2.0-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-macos-arm64.tar.gz)
+- **Windows x64**：[deploy-manager-1.2.0-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-winx64.tar.gz)
+- **チェックサム**：[macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-winx64.tar.gz.sha256)
