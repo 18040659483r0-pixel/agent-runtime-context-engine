@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.1.8
+# Agent Runtime / WhiteBox · 1.1.9
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.8.md](RELEASE-1.1.8.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.9.md](RELEASE-1.1.9.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,17 +8,17 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (current: 1.1.8)
+## Deployment (current: 1.1.9)
 
-Download **deploy-manager-1.1.8-<platform>.tar.gz** from the release, then:
+Download **deploy-manager-1.1.9-<platform>.tar.gz** from the release, then:
 
 Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 > **Upgrading from 1.1.3 beta?** Use `dotnet wcm.dll setup --target <dir> --update --yes` to keep `whitebox/workspace`; do not overwrite-install.
 
 ```bash
-tar -xzf deploy-manager-1.1.8-<platform>.tar.gz
-cd deploy-manager-1.1.8-<platform>
+tar -xzf deploy-manager-1.1.9-<platform>.tar.gz
+cd deploy-manager-1.1.9-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
@@ -28,11 +28,10 @@ Guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY
 
 ---
 
-## New in 1.1.8 (beta)
+## New in 1.1.9 (beta)
 
-- **True color by default** — accent gold is `#F6C453` and paths `#F0C987` on macOS, Windows Terminal and Windows; `--color-depth 256|16` still downgrades.
-- **Numbers are not paths** — `8/12`, `1/2` and friends stay plain; real paths still highlight.
-- **Honest install check** — `wcm setup` no longer reports failure when the global `whitebox` command is intentionally left unregistered.
+- **No silent tool loss** — a `[TOOL]` block inside a code fence, a quote or an indent is now rejected loudly instead of vanishing; real blocks still run.
+- **Protocol v121** — the block header must start its own line at top level; the zero-escape line form is legal again when a value contains `<` or `&`.
 
 ## Abstract
 
@@ -296,6 +295,6 @@ Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/
 
 - **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**: [deploy-manager-1.1.8-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz)
-- **Windows x64**: [deploy-manager-1.1.8-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz)
-- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.8/deploy-manager-1.1.8-winx64.tar.gz.sha256)
+- **macOS arm64**: [deploy-manager-1.1.9-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.1.9-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz.sha256)
