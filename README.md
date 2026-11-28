@@ -1,6 +1,6 @@
-# Agent Runtime / WhiteBox · 1.1.9
+# Agent Runtime / WhiteBox · 1.2.0
 
-> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.1.9.md](RELEASE-1.1.9.md)
+> 日本語: [README.ja.md](README.ja.md) · 中文: [README.zh-CN.md](README.zh-CN.md) · Release notes: [RELEASE-1.2.0.md](RELEASE-1.2.0.md)
 
 **A single-session agent runtime that is transparent, economical and auditable — and can prove it.**
 
@@ -8,17 +8,17 @@ This is the comprehensive design and delivery report for the current implementat
 an earlier version: it describes what the system *is* today, what it guarantees, and how every guarantee is
 measured.
 
-## Deployment (current: 1.1.9)
+## Deployment (current: 1.2.0)
 
-Download **deploy-manager-1.1.9-<platform>.tar.gz** from the release, then:
+Download **deploy-manager-1.2.0-<platform>.tar.gz** from the release, then:
 
 Two packages: **macos-arm64** and **winx64** — pick the one matching your OS.
 
 > **Upgrading from 1.1.3 beta?** Use `dotnet wcm.dll setup --target <dir> --update --yes` to keep `whitebox/workspace`; do not overwrite-install.
 
 ```bash
-tar -xzf deploy-manager-1.1.9-<platform>.tar.gz
-cd deploy-manager-1.1.9-<platform>
+tar -xzf deploy-manager-1.2.0-<platform>.tar.gz
+cd deploy-manager-1.2.0-<platform>
 dotnet wcm.dll setup      # dir -> provider -> reasoning -> key
 ./run.sh                  # run.cmd on Windows
 ```
@@ -28,10 +28,10 @@ Guide: [DEPLOY.md](DEPLOY.md) · [中文](DEPLOY.zh-CN.md) · [日本語](DEPLOY
 
 ---
 
-## New in 1.1.9 (beta)
+## New in 1.2.0 (beta)
 
-- **No silent tool loss** — a `[TOOL]` block inside a code fence, a quote or an indent is now rejected loudly instead of vanishing; real blocks still run.
-- **Protocol v121** — the block header must start its own line at top level; the zero-escape line form is legal again when a value contains `<` or `&`.
+- **Every answer ends with a decision report** — the material you asked about stays readable instead of being rewritten into a one-line result.
+- **Status bar wraps** on narrow terminals; Windows no longer freezes while you drag the window.
 
 ## Abstract
 
@@ -295,6 +295,6 @@ Code: MIT (see `LICENSE`). Corpus: see `kernel/benchmark/AgentRuntime.Benchmark/
 
 - **Source**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine](https://github.com/18040659483r0-pixel/agent-runtime-context-engine)
 - **All releases**: [https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases)
-- **macOS arm64**: [deploy-manager-1.1.9-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz)
-- **Windows x64**: [deploy-manager-1.1.9-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz)
-- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.1.9/deploy-manager-1.1.9-winx64.tar.gz.sha256)
+- **macOS arm64**: [deploy-manager-1.2.0-macos-arm64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-macos-arm64.tar.gz)
+- **Windows x64**: [deploy-manager-1.2.0-winx64.tar.gz](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-winx64.tar.gz)
+- **Checksums**: [macOS](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-macos-arm64.tar.gz.sha256) · [Windows](https://github.com/18040659483r0-pixel/agent-runtime-context-engine/releases/download/v1.2.0/deploy-manager-1.2.0-winx64.tar.gz.sha256)
